@@ -1,0 +1,47 @@
+{
+  "actions" : {
+    "startnew" : {"groups":["pub"],"validate":["slot_id"]},
+    "startnewFast" : {"groups":["pub"],"validate":["slot_id"]},
+    "insert"   : {"validate":["slot_id"]},
+    "topics"   : {},
+    "update"   : {"validate":["weight_id"]},
+    "edit"     : {"validate":["weight_id"]},
+    "delete"   : {"validate":["weight_id"]}
+  },
+  "fks" : {
+    "pub" : ["slot_id", "slot_md5"]
+  },
+
+  "insert_pars":[            "slot_id","item_id","weight","created"],
+  "update_pars":["weight_id","slot_id","item_id","weight"],
+  "edit_pars"  :["weight_id","slot_id","item_id","weight","created"],
+
+  "current_table"  :"pub_weight",
+  "current_key"    :"weight_id",
+  "current_id_auto":"weight_id",
+
+  "current_tables":[
+    {"name":"pub_weight", "alias":"w"},
+    {"name":"adv_item", "alias":"i", "type":"INNER", "using":"item_id"},
+    {"name":"adv_campaign", "alias":"c", "type":"INNER", "using":"campaign_id"}
+  ],
+
+  "topics_hash":{
+    "w.weight_id":"weight_id",
+    "w.item_id":"item_id",
+    "w.weight":"weight",
+    "w.slot_id":"slot_id",
+    "i.size_id":"size_id",
+    "CASE i.cost_type WHEN 'CPD' THEN 4 WHEN 'CPA' THEN 3 WHEN 'CPC' THEN 2 ELSE 1 END": "cost_type",
+    "i.cost":"price",
+    "UNIX_TIMESTAMP(i.endx)":"endx",
+    "i.qa_mime+0":"mime8",
+    "c.campaign_id":"campaign_id",
+    "c.qa_campaign":"qa_campaign",
+    "c.cpm_fc":"cpm_fc",
+    "c.cpm_length":"cpm_length",
+    "c.cpm_throttle":"cpm_throttle",
+    "c.cpc_fc":"cpc_fc",
+    "c.cpc_length":"cpc_length"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "actions": {
+	  "topics": {"groups":["pub","adv"],"validate":["entitytype_id"]},
+	  "update": {"groups":["pub","adv"],"validate":["entitytype_id","channel_order"]}
+  }
+}

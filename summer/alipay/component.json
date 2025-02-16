@@ -1,0 +1,22 @@
+{
+  "actions" : {
+    "startnew": {"groups":["adv"],"options":["no_db", "no_method"]},
+      "insert": {"groups":["adv"],"validate":["sender_name","sender_id"]},
+      "topics": {"groups":["adv"]},
+        "edit": {"groups":["adv"],"validate":["alipay_id"]},
+      "update": {"groups":["adv"],"validate":["alipay_id"]},
+     "delete" : {"groups":["adv"]}
+  },
+  "fks" : {
+    "adv" : ["adv_id", "", "alipay_id", "alipay_md5"]
+  },
+
+  "insert_pars":[            "adv_id","sender_name","sender_id","created","status","ip"],
+  "update_pars":["alipay_id","adv_id","sender_name","sender_id",          "status","ip"],
+  "topics_pars":["alipay_id","adv_id","sender_name","sender_id","created","status","ip"],
+    "edit_pars":["alipay_id","adv_id","sender_name","sender_id","created","status","ip"],
+
+  "current_table":"pay_alipay",
+  "current_key":"alipay_id",
+  "current_id_auto":"alipay_id"
+}

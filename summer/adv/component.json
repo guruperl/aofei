@@ -1,0 +1,57 @@
+{
+  "actions" : {
+    "startnew" : {"groups":["web"], "options":["no_db", "no_method"]},
+    "insert"   : {"groups":["web"], "validate":["lastname", "email", "passwd"]},
+    "activate" : {"groups":["web"], "validate":["adv_id", "email", "stamp"]},
+    "startretrieve":{"groups":["web"], "options":["no_db", "no_method"]},
+    "retrieve" : {"groups":["web"], "validate":["email"]},
+    "startreset":{"groups":["web"], "validate":["adv_id", "email", "stamp"], "options":["no_db", "no_method"]},
+    "resetpass": {"groups":["web"], "validate":["adv_id", "email", "stamp"]},
+
+    "dashboard": {"groups":["adv"], "validate":["adv_id"]},
+    "edit" :     {"groups":["adv"], "validate":["adv_id"]},
+    "balance" :  {"groups":["adv"], "validate":["adv_id"]},
+    "update"  :  {"groups":["adv"], "validate":["adv_id"]},
+    "topics"  :  {"groups":["agent"]},
+    "startpass": {"groups":["adv"], "options":["no_db", "no_method"]},
+    "updatepass":{"groups":["adv"], "validate":["adv_id", "passwd"]}
+  },
+  "fks":{
+    "agent" : ["", "", "adv_id", "adv_md5"]
+  },
+
+  "nextpages": {
+    "dashboard" : [
+      {"model":"ledger", "action":"topicsAdvTopItems"},
+      {"model":"ledger", "action":"topicsAdvTopSlots"}
+    ]
+  },
+
+  "insert_pars" : ["adv_id","email","passwd","address_id","firstname","lastname","address_id","created","active","access_order"],
+  "update_pars" : ["adv_id","address_id","firstname","lastname","address_id","active","access_order"],
+  "topics_pars" : ["adv_id","address_id","firstname","lastname","balance","address_id","created","active","access_order"],
+  "edit_pars"   : ["adv_id","address_id","firstname","lastname","balance","address_id","created","active","access_order"],
+
+  "current_table" : "adv",
+  "current_key" : "adv_id",
+  "key_in" : {"adv_campaign":"adv_id"},
+
+  "current_tables" : [
+    {"name":"adv", "alias":"p"},
+    {"name":"add_address", "alias":"a", "type":"LEFT", "using":"address_id"}
+  ],
+  "topics_hash" : {
+    "p.adv_id":"adv_id",
+    "p.email":"email",
+    "p.firstname":"firstname",
+    "p.lastname":"lastname",
+    "p.balance":"balance",
+    "p.timezone_id":"timezone_id",
+    "p.address_id":"address_id",
+    "p.active":"active",
+    "a.created":"created",
+    "a.phone":"phone",
+    "a.contact":"contact",
+    "a.company":"company"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "actions" : {
+    "startnew" :    {"groups":["web"], "options":["no_db", "no_method"]},
+    "insert" :      {"groups":["web"], "validate":["email","passwd","lastname"], "hide_json":["stamp","md5"]},
+    "activate" :    {"groups":["web"], "validate":["pub_id","email","stamp"]},
+    "startretrieve":{"groups":["web"], "options":["no_db", "no_method"] },
+    "retrieve" :    {"groups":["web"], "validate":["email"]},
+    "startreset":   {"groups":["web"], "validate":["pub_id","email","stamp"], "options":["no_db", "no_method"]},
+    "resetpass" :   {"groups":["web"], "validate":["pub_id","email","stamp"]},
+
+    "dashboard" :   {"groups":["pub"], "validate":["pub_id"]},
+    "edit" :        {"groups":["pub"], "validate":["pub_id"]},
+    "editpass":     {"groups":["pub"], "options":["no_db","no_method"]},
+    "update" :      {"groups":["pub"], "validate":["pub_id"]},
+    "updatepass" :  {"groups":["pub"], "validate":["pub_id","passwd"]},
+    "delete" :      {"validate": ["pub_id"]},
+    "topics" :      {}
+  },
+
+  "nextpages": {
+    "dashboard" : [
+      {"model":"ledger", "action":"topicsPubTopSlots"},
+      {"model":"ledger", "action":"topicsPubTopCampaigns"}
+    ],
+    "startnew" : [
+      {"model":"address", "action":"states"}
+    ],
+    "edit":[
+      {"model":"address", "action":"states"}
+    ]
+  },
+
+  "insert_pars" : ["passwd","pub_id","email","firstname","lastname","address_id","active","created","access_order"],
+  "update_pars" : [         "pub_id","email","firstname","lastname","address_id","active",          "access_order"],
+  "topics_pars" : [         "pub_id","email","firstname","lastname","address_id","active","created","access_order"],
+  "edit_pars" :   [         "pub_id","email","firstname","lastname","address_id","active","created","access_order"],
+
+  "current_table" : "pub",
+  "current_key"   : "pub_id",
+  "key_in"        : {"pub_site":"pub_id"},
+
+  "current_tables" : [
+    {"name":"pub", "alias":"p"},
+    {"name":"add_address", "alias":"a", "type":"LEFT", "using":"address_id"}
+  ],
+  "topics_hash" : {
+    "p.pub_id":"pub_id",
+    "p.email":"email",
+    "p.firstname":"firstname",
+    "p.lastname":"lastname",
+    "p.timezone_id":"timezone_id",
+    "p.address_id":"address_id",
+    "p.active":"active",
+    "a.created":"created",
+    "a.phone":"phone",
+    "a.contact":"contact",
+    "a.company":"company"
+  } 
+}

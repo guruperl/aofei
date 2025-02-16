@@ -1,0 +1,1490 @@
+{
+  "NZL": {
+    "2degrees": "NZL_2degrees",
+    "Vodafone": "NZL_Vodafone",
+    "Telstra": "NZL_Telstra",
+    "Two Degrees Mobile Ltd": "NZL_Two Degrees Mobile Ltd",
+    "Walker Wireless Ltd.": "NZL_Walker Wireless Ltd.",
+    "NZ Telecom CDMA": "NZL_NZ Telecom CDMA",
+    "Telecom Mobile Ltd": "NZL_Telecom Mobile Ltd"
+  },
+  "FJI": {
+    "DigiCell": "FJI_DigiCell",
+    "Vodafone": "FJI_Vodafone"
+  },
+  "PNG": {
+    "Digicel": "PNG_Digicel",
+    "GreenCom PNG Ltd": "PNG_GreenCom PNG Ltd",
+    "Pacific Mobile": "PNG_Pacific Mobile"
+  },
+  "STP": {
+    "CSTmovel": "STP_CSTmovel"
+  },
+  "MHL": {},
+  "WLF": {},
+  "CUB": {
+    "C-COM": "CUB_C-COM"
+  },
+  "SDN": {
+    "Canar Telecom": "SDN_Canar Telecom",
+    "Vivacell": "SDN_Vivacell",
+    "Sudani One": "SDN_Sudani One",
+    "MTN": "SDN_MTN",
+    "ZAIN/Mobitel": "SDN_ZAIN/Mobitel"
+  },
+  "GMB": {
+    "Comium": "GMB_Comium",
+    "Africel": "GMB_Africel",
+    "Gamcel": "GMB_Gamcel",
+    "Q-Cell": "GMB_Q-Cell"
+  },
+  "MYS": {
+    "Art900": "MYS_Art900",
+    "Baraka Telecom Sdn Bhd": "MYS_Baraka Telecom Sdn Bhd",
+    "CelCom": "MYS_CelCom",
+    "Samata Communications Sdn Bhd": "MYS_Samata Communications Sdn Bhd",
+    "Maxis": "MYS_Maxis",
+    "Talk Focus Sdn Bhd": "MYS_Talk Focus Sdn Bhd",
+    "YES": "MYS_YES",
+    "Packet One Networks (Malaysia) Sdn Bhd": "MYS_Packet One Networks (Malaysia) Sdn Bhd",
+    "U Mobile": "MYS_U Mobile",
+    "MTX Utara": "MYS_MTX Utara",
+    "Digi Telecommunications": "MYS_Digi Telecommunications",
+    "Electcoms Wireless Sdn Bhd": "MYS_Electcoms Wireless Sdn Bhd"
+  },
+  "TWN": {
+    "Chunghwa Telecom LDM": "TWN_Chunghwa Telecom LDM",
+    "Far EasTone": "TWN_Far EasTone",
+    "TransAsia": "TWN_TransAsia",
+    "Asia Pacific Telecom Co. Ltd (APT)": "TWN_Asia Pacific Telecom Co. Ltd (APT)",
+    "Mobitai": "TWN_Mobitai",
+    "Taiwan Cellular": "TWN_Taiwan Cellular",
+    "Tatung InfoComm": "TWN_Tatung InfoComm",
+    "Global Mobile Corp.": "TWN_Global Mobile Corp.",
+    "International Telecom Co. Ltd (FITEL)": "TWN_International Telecom Co. Ltd (FITEL)",
+    "KG Telecom": "TWN_KG Telecom",
+    "VMAX Telecom Co. Ltd": "TWN_VMAX Telecom Co. Ltd",
+    "Ambit Microsystems": "TWN_Ambit Microsystems",
+    "T Star": "TWN_T Star"
+  },
+  "POL": {
+    "Mobyland": "POL_Mobyland",
+    "Orange/IDEA/Centertel": "POL_Orange/IDEA/Centertel",
+    "Polkomtel/Plus": "POL_Polkomtel/Plus",
+    "PKP Polskie Linie Kolejowe S.A.": "POL_PKP Polskie Linie Kolejowe S.A.",
+    "Tele2": "POL_Tele2",
+    "AMD Telecom.": "POL_AMD Telecom.",
+    "CallFreedom Sp. z o.o.": "POL_CallFreedom Sp. z o.o.",
+    "Cyfrowy POLSAT S.A.": "POL_Cyfrowy POLSAT S.A.",
+    "Lycamobile": "POL_Lycamobile",
+    "Mundio Mobile Sp. z o.o.": "POL_Mundio Mobile Sp. z o.o.",
+    "NORDISK Polska": "POL_NORDISK Polska",
+    "Play/P4": "POL_Play/P4",
+    "T-Mobile/ERA": "POL_T-Mobile/ERA",
+    "Aero2 SP.": "POL_Aero2 SP.",
+    "Sferia": "POL_Sferia",
+    "e-Telko": "POL_e-Telko"
+  },
+  "OMN": {
+    "Oman Mobile/GTO": "OMN_Oman Mobile/GTO",
+    "Nawras": "OMN_Nawras"
+  },
+  "SUR": {
+    "Telecommunicatiebedrijf Suriname (TELESUR)": "SUR_Telecommunicatiebedrijf Suriname (TELESUR)",
+    "Telesur": "SUR_Telesur",
+    "Digicel": "SUR_Digicel",
+    "UNIQA": "SUR_UNIQA"
+  },
+  "ARE": {
+    "DU": "ARE_DU",
+    "Etisalat": "ARE_Etisalat"
+  },
+  "KEN": {
+    "Safaricom Ltd.": "KEN_Safaricom Ltd.",
+    "Orange": "KEN_Orange",
+    "Econet Wireless": "KEN_Econet Wireless",
+    "Zain/Celtel Ltd.": "KEN_Zain/Celtel Ltd."
+  },
+  "ARG": {
+    "Claro/ CTI/AMX": "ARG_Claro/ CTI/AMX",
+    "Telecom Personal S.A.": "ARG_Telecom Personal S.A.",
+    "Compania De Radiocomunicaciones Moviles SA": "ARG_Compania De Radiocomunicaciones Moviles SA",
+    "Nextel": "ARG_Nextel",
+    "Movistar/Telefonica": "ARG_Movistar/Telefonica"
+  },
+  "GNB": {
+    "SpaceTel": "GNB_SpaceTel",
+    "Orange": "GNB_Orange",
+    "GuineTel": "GNB_GuineTel"
+  },
+  "ARM": {
+    "Karabakh Telecom": "ARM_Karabakh Telecom",
+    "Vivacell": "ARM_Vivacell",
+    "ArmenTel/Beeline": "ARM_ArmenTel/Beeline",
+    "Orange": "ARM_Orange"
+  },
+  "UZB": {
+    "Bee Line/Unitel": "UZB_Bee Line/Unitel",
+    "Uzmacom": "UZB_Uzmacom",
+    "MTS/Uzdunrobita": "UZB_MTS/Uzdunrobita",
+    "Buztel": "UZB_Buztel",
+    "Ucell/Coscom": "UZB_Ucell/Coscom"
+  },
+  "BTN": {
+    "B-Mobile": "BTN_B-Mobile",
+    "TashiCell": "BTN_TashiCell",
+    "Bhutan Telecom Ltd (BTL)": "BTN_Bhutan Telecom Ltd (BTL)"
+  },
+  "SEN": {
+    "Expresso/Sudatel": "SEN_Expresso/Sudatel",
+    "Orange/Sonatel": "SEN_Orange/Sonatel",
+    "Sentel GSM": "SEN_Sentel GSM"
+  },
+  "TGO": {
+    "Togo Telecom/TogoCELL": "TGO_Togo Telecom/TogoCELL",
+    "Telecel/MOOV": "TGO_Telecel/MOOV"
+  },
+  "IRL": {
+    "Liffey Telecom": "IRL_Liffey Telecom",
+    "Meteor Mobile Ltd.": "IRL_Meteor Mobile Ltd.",
+    "O2/Digifone": "IRL_O2/Digifone",
+    "Vodafone Eircell": "IRL_Vodafone Eircell",
+    "Access Telecom Ltd.": "IRL_Access Telecom Ltd.",
+    "Lycamobile": "IRL_Lycamobile",
+    "eircom Ltd": "IRL_eircom Ltd",
+    "H3G": "IRL_H3G",
+    "Clever Communications Ltd": "IRL_Clever Communications Ltd"
+  },
+  "IRN": {
+    "Mobile Telecommunications Company of Esfahan JV-PJS (MTCE)": "IRN_Mobile Telecommunications Company of Esfahan JV-PJS (MTCE)",
+    "Taliya": "IRN_Taliya",
+    "TCI / MCI": "IRN_TCI / MCI",
+    "TKC/KFZO": "IRN_TKC/KFZO",
+    "MTN/IranCell": "IRN_MTN/IranCell",
+    "MTCE": "IRN_MTCE"
+  },
+  "QAT": {
+    "Vodafone": "QAT_Vodafone",
+    "Qtel": "QAT_Qtel"
+  },
+  "BDI": {
+    "HiTs Telecom": "BDI_HiTs Telecom",
+    "Smart Mobile / LACELL": "BDI_Smart Mobile / LACELL",
+    "Africel / Safaris": "BDI_Africel / Safaris",
+    "Onatel / Telecel": "BDI_Onatel / Telecel",
+    "U-COM": "BDI_U-COM",
+    "Spacetel / Econet": "BDI_Spacetel / Econet"
+  },
+  "NLD": {
+    "Elephant Talk Communications Premium Rate Services Netherlands BV": "NLD_Elephant Talk Communications Premium Rate Services Netherlands BV",
+    "Tele2": "NLD_Tele2",
+    "UPC Nederland BV": "NLD_UPC Nederland BV",
+    "Voiceworks Mobile BV": "NLD_Voiceworks Mobile BV",
+    "6GMOBILE BV": "NLD_6GMOBILE BV",
+    "KPN/Telfort": "NLD_KPN/Telfort",
+    "T-Mobile B.V.": "NLD_T-Mobile B.V.",
+    "Ziggo BV": "NLD_Ziggo BV",
+    "Vodafone Libertel": "NLD_Vodafone Libertel",
+    "KPN Telecom B.V.": "NLD_KPN Telecom B.V.",
+    "NS Railinfrabeheer B.V.": "NLD_NS Railinfrabeheer B.V.",
+    "Lycamobile Ltd": "NLD_Lycamobile Ltd",
+    "Mundio/Vectone Mobile": "NLD_Mundio/Vectone Mobile",
+    "Private Mobility Nederland BV": "NLD_Private Mobility Nederland BV",
+    "Intercity Mobile Communications BV": "NLD_Intercity Mobile Communications BV",
+    "Unify Mobile": "NLD_Unify Mobile",
+    "Aspider Solutions": "NLD_Aspider Solutions",
+    "Lancelot BV": "NLD_Lancelot BV",
+    "Orange/T-mobile": "NLD_Orange/T-mobile",
+    "Teleena Holding BV": "NLD_Teleena Holding BV"
+  },
+  "SVK": {
+    "T-Mobile": "SVK_T-Mobile",
+    "O2": "SVK_O2",
+    "Zeleznice Slovenskej republiky (ZSR)": "SVK_Zeleznice Slovenskej republiky (ZSR)",
+    "Orange": "SVK_Orange"
+  },
+  "IRQ": {
+    "Korek": "IRQ_Korek",
+    "Itisaluna and Kalemat": "IRQ_Itisaluna and Kalemat",
+    "ZAIN": "IRQ_ZAIN",
+    "Asia Cell": "IRQ_Asia Cell",
+    "Orascom Telecom": "IRQ_Orascom Telecom",
+    "Mobitel (Iraq-Kurdistan) and Moutiny": "IRQ_Mobitel (Iraq-Kurdistan) and Moutiny",
+    "Sanatel": "IRQ_Sanatel"
+  },
+  "SVN": {
+    "Mobitel": "SVN_Mobitel",
+    "SI.Mobil": "SVN_SI.Mobil",
+    "Slovenske zeleznice d.o.o.": "SVN_Slovenske zeleznice d.o.o.",
+    "T-2 d.o.o.": "SVN_T-2 d.o.o.",
+    "TusMobil/VEGA": "SVN_TusMobil/VEGA"
+  },
+  "GNQ": {
+    "HiTs-GE": "GNQ_HiTs-GE",
+    "ORANGE/GETESA": "GNQ_ORANGE/GETESA"
+  },
+  "THA": {
+    "AIS/Advanced Info Service": "THA_AIS/Advanced Info Service",
+    "Advanced Wireless Networks/AWN": "THA_Advanced Wireless Networks/AWN",
+    "Hutch/CAT CDMA": "THA_Hutch/CAT CDMA",
+    "Digital Phone Co.": "THA_Digital Phone Co.",
+    "ACT Mobile": "THA_ACT Mobile",
+    "Total Access (DTAC)": "THA_Total Access (DTAC)",
+    "ACeS Thailand - ACeS Regional Services Co Ltd": "THA_ACeS Thailand - ACeS Regional Services Co Ltd",
+    "True Move/Orange": "THA_True Move/Orange"
+  },
+  "ASM": {},
+  "SWE": {
+    "Fogg Mobile AB": "SWE_Fogg Mobile AB",
+    "H3G Access AB": "SWE_H3G Access AB",
+    "Mercury International Carrier Services": "SWE_Mercury International Carrier Services",
+    "Lindholmen Science Park AB": "SWE_Lindholmen Science Park AB",
+    "Wireless Maingate AB": "SWE_Wireless Maingate AB",
+    "Wireless Maingate Nordic AB": "SWE_Wireless Maingate Nordic AB",
+    "Beepsend": "SWE_Beepsend",
+    "Gotalandsnatet AB": "SWE_Gotalandsnatet AB",
+    "Eu Tel AB": "SWE_Eu Tel AB",
+    "Generic Mobile Systems Sweden AB": "SWE_Generic Mobile Systems Sweden AB",
+    "Orange": "SWE_Orange",
+    "ID Mobile": "SWE_ID Mobile",
+    "Telenor (Vodafone)": "SWE_Telenor (Vodafone)",
+    "CoolTEL Aps": "SWE_CoolTEL Aps",
+    "TDC Sverige AB": "SWE_TDC Sverige AB",
+    "Svenska UMTS-N": "SWE_Svenska UMTS-N",
+    "Spring Mobil AB": "SWE_Spring Mobil AB",
+    "Infobip Ltd.": "SWE_Infobip Ltd.",
+    "Lycamobile Ltd": "SWE_Lycamobile Ltd",
+    "Ventelo Sverige AB": "SWE_Ventelo Sverige AB",
+    "Tele2 Sverige AB": "SWE_Tele2 Sverige AB",
+    "Telia Mobile": "SWE_Telia Mobile",
+    "Digitel Mobile Srl": "SWE_Digitel Mobile Srl",
+    "42 Telecom AB": "SWE_42 Telecom AB"
+  },
+  "ISL": {
+    "Landssiminn": "ISL_Landssiminn",
+    "Vodafone/Tal hf": "ISL_Vodafone/Tal hf",
+    "Amitelo": "ISL_Amitelo",
+    "IceCell": "ISL_IceCell",
+    "NOVA": "ISL_NOVA",
+    "VIKING/IMC": "ISL_VIKING/IMC"
+  },
+  "MKD": {
+    "VIP Mobile": "MKD_VIP Mobile",
+    "MTS/Cosmofone": "MKD_MTS/Cosmofone",
+    "T-Mobile/Mobimak": "MKD_T-Mobile/Mobimak"
+  },
+  "BEL": {
+    "Telenet BidCo NV": "BEL_Telenet BidCo NV",
+    "Base/KPN": "BEL_Base/KPN",
+    "Belgacom/Proximus": "BEL_Belgacom/Proximus",
+    "Mobistar/Orange": "BEL_Mobistar/Orange",
+    "SNCT/NMBS": "BEL_SNCT/NMBS"
+  },
+  "LIE": {
+    "Mobilkom AG": "LIE_Mobilkom AG",
+    "First Mobile AG": "LIE_First Mobile AG",
+    "Alpmobile/Tele2": "LIE_Alpmobile/Tele2",
+    "Swisscom FL AG": "LIE_Swisscom FL AG",
+    "Orange": "LIE_Orange",
+    "CUBIC (Liechtenstein": "LIE_CUBIC (Liechtenstein"
+  },
+  "ISR": {
+    "Golan Telekom": "ISR_Golan Telekom",
+    "Cellcom ltd.": "ISR_Cellcom ltd.",
+    "Orange/Partner Co. Ltd.": "ISR_Orange/Partner Co. Ltd.",
+    "Rami Levy Hashikma Marketing Communications Ltd": "ISR_Rami Levy Hashikma Marketing Communications Ltd",
+    "Alon Cellular Ltd": "ISR_Alon Cellular Ltd",
+    "Home Cellular Ltd": "ISR_Home Cellular Ltd",
+    "Hot Mobile/Mirs": "ISR_Hot Mobile/Mirs",
+    "Pelephone": "ISR_Pelephone"
+  },
+  "KWT": {
+    "Zain": "KWT_Zain",
+    "Viva": "KWT_Viva",
+    "Wantaniya": "KWT_Wantaniya"
+  },
+  "BEN": {
+    "GloMobile": "BEN_GloMobile",
+    "Etisalat/MOOV": "BEN_Etisalat/MOOV",
+    "MTN/Spacetel": "BEN_MTN/Spacetel",
+    "Bell Benin/BBCOM": "BEN_Bell Benin/BBCOM",
+    "Libercom": "BEN_Libercom"
+  },
+  "DZA": {
+    "Orascom / DJEZZY": "DZA_Orascom / DJEZZY",
+    "Oreedo/Wataniya / Nedjma": "DZA_Oreedo/Wataniya / Nedjma",
+    "Mobilis": "DZA_Mobilis"
+  },
+  "RUS": {
+    "Megafon": "RUS_Megafon",
+    "Vainakh Telecom": "RUS_Vainakh Telecom",
+    "Volna mobile": "RUS_Volna mobile",
+    "Tambov GSM": "RUS_Tambov GSM",
+    "TTK": "RUS_TTK",
+    "Mobicom - Novosibirsk": "RUS_Mobicom - Novosibirsk",
+    "MTS": "RUS_MTS",
+    "LLC Ekaterinburg-2000": "RUS_LLC Ekaterinburg-2000",
+    "UralTel": "RUS_UralTel",
+    "Baykal Westcom": "RUS_Baykal Westcom",
+    "OJSC Altaysvyaz": "RUS_OJSC Altaysvyaz",
+    "Votek Mobile": "RUS_Votek Mobile",
+    "Sevmobile": "RUS_Sevmobile",
+    "ZAO SMARTS": "RUS_ZAO SMARTS",
+    "Win Mobile": "RUS_Win Mobile",
+    "Yenisey Telecom": "RUS_Yenisey Telecom",
+    "Tele2/ECC/Volgogr.": "RUS_Tele2/ECC/Volgogr.",
+    "Krymtelekom": "RUS_Krymtelekom",
+    "Telecom XXL": "RUS_Telecom XXL",
+    "Sonic Duo": "RUS_Sonic Duo",
+    "Sibchallenge": "RUS_Sibchallenge",
+    "Skylink": "RUS_Skylink",
+    "NCC": "RUS_NCC",
+    "StavTelesot": "RUS_StavTelesot",
+    "Osnova Telecom": "RUS_Osnova Telecom",
+    "Bee Line GSM": "RUS_Bee Line GSM",
+    "Kuban GSM": "RUS_Kuban GSM",
+    "Orensot": "RUS_Orensot",
+    "Printelefone": "RUS_Printelefone",
+    "Vainah Telecom": "RUS_Vainah Telecom",
+    "NTC": "RUS_NTC",
+    "DTC/Don Telecom": "RUS_DTC/Don Telecom"
+  },
+  "BES": {},
+  "ATG": {
+    "APUA PCS": "ATG_APUA PCS",
+    "Cing. Wirel./DigiCel": "ATG_Cing. Wirel./DigiCel",
+    "C & W": "ATG_C & W"
+  },
+  "ITA": {
+    "WIND (Blu) -": "ITA_WIND (Blu) -",
+    "Vodafone": "ITA_Vodafone",
+    "BT Italia SpA": "ITA_BT Italia SpA",
+    "Elsacom": "ITA_Elsacom",
+    "Hi3G": "ITA_Hi3G",
+    "Lycamobile Srl": "ITA_Lycamobile Srl",
+    "RFI Rete Ferroviaria Italiana SpA": "ITA_RFI Rete Ferroviaria Italiana SpA",
+    "TIM": "ITA_TIM",
+    "IPSE 2000": "ITA_IPSE 2000",
+    "Noverca Italia Srl": "ITA_Noverca Italia Srl",
+    "Telecom Italia Mobile SpA": "ITA_Telecom Italia Mobile SpA"
+  },
+  "SWZ": {
+    "SwaziTelecom": "SWZ_SwaziTelecom",
+    "Swazi MTN": "SWZ_Swazi MTN"
+  },
+  "TZA": {
+    "Smile Communications Tanzania Ltd": "TZA_Smile Communications Tanzania Ltd",
+    "ZAIN/Celtel": "TZA_ZAIN/Celtel",
+    "Dovetel (T) Ltd": "TZA_Dovetel (T) Ltd",
+    "TIGO/MIC": "TZA_TIGO/MIC",
+    "Zantel/Zanzibar Telecom": "TZA_Zantel/Zanzibar Telecom",
+    "Tri Telecomm. Ltd.": "TZA_Tri Telecomm. Ltd.",
+    "ExcellentCom (T) Ltd": "TZA_ExcellentCom (T) Ltd",
+    "Vodacom Ltd": "TZA_Vodacom Ltd",
+    "Tanzania Telecommunications Company Ltd (TTCL)": "TZA_Tanzania Telecommunications Company Ltd (TTCL)",
+    "Benson Informatics Ltd": "TZA_Benson Informatics Ltd"
+  },
+  "PAK": {
+    "Mobilink": "PAK_Mobilink",
+    "Telenor": "PAK_Telenor",
+    "ZONG/CMPak": "PAK_ZONG/CMPak",
+    "UFONE/PAKTel": "PAK_UFONE/PAKTel",
+    "Instaphone": "PAK_Instaphone",
+    "Warid Telecom": "PAK_Warid Telecom"
+  },
+  "PAN": {
+    "Movistar": "PAN_Movistar",
+    "Digicel": "PAN_Digicel",
+    "Cable & Wireless S.A.": "PAN_Cable & Wireless S.A.",
+    "Claro": "PAN_Claro"
+  },
+  "BFA": {
+    "AirTel/ZAIN/CelTel": "BFA_AirTel/ZAIN/CelTel",
+    "TeleCel": "BFA_TeleCel",
+    "TeleMob-OnaTel": "BFA_TeleMob-OnaTel"
+  },
+  "UKR": {
+    "Astelit/LIFE": "UKR_Astelit/LIFE",
+    "Beeline": "UKR_Beeline",
+    "KyivStar": "UKR_KyivStar",
+    "TriMob LLC": "UKR_TriMob LLC",
+    "UMC/MTS": "UKR_UMC/MTS",
+    "Golden Telecom": "UKR_Golden Telecom",
+    "Telesystems Of Ukraine CJSC (TSU)": "UKR_Telesystems Of Ukraine CJSC (TSU)",
+    "Intertelecom Ltd (IT)": "UKR_Intertelecom Ltd (IT)"
+  },
+  "SGP": {
+    "Starhub": "SGP_Starhub",
+    "MobileOne Ltd": "SGP_MobileOne Ltd",
+    "GRID Communications Pte Ltd": "SGP_GRID Communications Pte Ltd",
+    "Singtel": "SGP_Singtel"
+  },
+  "KGZ": {
+    "AkTel LLC": "KGZ_AkTel LLC",
+    "Beeline/Bitel": "KGZ_Beeline/Bitel",
+    "MEGACOM": "KGZ_MEGACOM",
+    "O!/NUR Telecom": "KGZ_O!/NUR Telecom"
+  },
+  "CHE": {
+    "Swisscom": "CHE_Swisscom",
+    "Comfone AG": "CHE_Comfone AG",
+    "TDC Sunrise": "CHE_TDC Sunrise",
+    "Mundio Mobile AG": "CHE_Mundio Mobile AG",
+    "upc cablecom GmbH": "CHE_upc cablecom GmbH",
+    "Orange": "CHE_Orange",
+    "BebbiCell AG": "CHE_BebbiCell AG",
+    "Lycamobile AG": "CHE_Lycamobile AG"
+  },
+  "DJI": {
+    "Djibouti Telecom SA (Evatis)": "DJI_Djibouti Telecom SA (Evatis)"
+  },
+  "CHL": {
+    "Entel Telefonia Mov": "CHL_Entel Telefonia Mov",
+    "Blue Two Chile SA": "CHL_Blue Two Chile SA",
+    "TESAM SA": "CHL_TESAM SA",
+    "VTR Banda Ancha SA": "CHL_VTR Banda Ancha SA",
+    "TELEFONICA": "CHL_TELEFONICA",
+    "Celupago SA": "CHL_Celupago SA",
+    "Entel PCS": "CHL_Entel PCS",
+    "Cibeles Telecom SA": "CHL_Cibeles Telecom SA",
+    "Tribe Mobile SPA": "CHL_Tribe Mobile SPA",
+    "Claro": "CHL_Claro",
+    "Netline Telefonica Movil Ltda": "CHL_Netline Telefonica Movil Ltda",
+    "Telestar Movil SA": "CHL_Telestar Movil SA",
+    "Nextel SA": "CHL_Nextel SA"
+  },
+  "CHN": {
+    "China Mobile GSM": "CHN_China Mobile GSM",
+    "China Telecom": "CHN_China Telecom",
+    "China Space Mobile Satellite Telecommunications Co. Ltd (China Spacecom)": "CHN_China Space Mobile Satellite Telecommunications Co. Ltd (China Spacecom)",
+    "China Unicom": "CHN_China Unicom"
+  },
+  "PRK": {},
+  "MLI": {
+    "Malitel": "MLI_Malitel",
+    "Orange/IKATEL": "MLI_Orange/IKATEL"
+  },
+  "HRV": {
+    "T-Mobile/Cronet": "HRV_T-Mobile/Cronet",
+    "Tele2": "HRV_Tele2",
+    "VIPnet d.o.o.": "HRV_VIPnet d.o.o."
+  },
+  "BWA": {
+    "beMOBILE": "BWA_beMOBILE",
+    "Orange": "BWA_Orange",
+    "Mascom Wireless (Pty) Ltd.": "BWA_Mascom Wireless (Pty) Ltd."
+  },
+  "KHM": {
+    "Mobitel/Cam GSM": "KHM_Mobitel/Cam GSM",
+    "Metfone": "KHM_Metfone",
+    "QB/Cambodia Adv. Comms.": "KHM_QB/Cambodia Adv. Comms.",
+    "Cambodia Advance Communications Co. Ltd (CADCOMMS)": "KHM_Cambodia Advance Communications Co. Ltd (CADCOMMS)",
+    "Smart Mobile": "KHM_Smart Mobile",
+    "Hello/Malaysia Telcom": "KHM_Hello/Malaysia Telcom",
+    "MFone/Camshin": "KHM_MFone/Camshin",
+    "Sotelco Ltd (Beeline Cambodia)": "KHM_Sotelco Ltd (Beeline Cambodia)"
+  },
+  "IDN": {
+    "PT Sampoerna Telekomunikasi Indonesia (STI)": "IDN_PT Sampoerna Telekomunikasi Indonesia (STI)",
+    "Indosat/Satelindo/M3": "IDN_Indosat/Satelindo/M3",
+    "Esia": "IDN_Esia",
+    "Axis/Natrindo": "IDN_Axis/Natrindo",
+    "BOLT! Super 4G": "IDN_BOLT! Super 4G",
+    "PT Pasifik Satelit Nusantara (PSN)": "IDN_PT Pasifik Satelit Nusantara (PSN)",
+    "PT Smartfren Telecom Tbk": "IDN_PT Smartfren Telecom Tbk",
+    "H3G CP": "IDN_H3G CP",
+    "PT. Excelcom": "IDN_PT. Excelcom",
+    "Telkomsel": "IDN_Telkomsel"
+  },
+  "PRT": {
+    "Vodafone": "PRT_Vodafone",
+    "TMN": "PRT_TMN",
+    "Optimus": "PRT_Optimus",
+    "CTT - Correios de Portugal SA": "PRT_CTT - Correios de Portugal SA"
+  },
+  "MLT": {
+    "Vodafone": "MLT_Vodafone",
+    "Melita": "MLT_Melita",
+    "GO/Mobisle": "MLT_GO/Mobisle"
+  },
+  "TJK": {},
+  "VNM": {
+    "Beeline": "VNM_Beeline",
+    "VietnaMobile": "VNM_VietnaMobile",
+    "Mobifone": "VNM_Mobifone",
+    "Viettel Mobile": "VNM_Viettel Mobile",
+    "S-Fone/Telecom": "VNM_S-Fone/Telecom",
+    "Vinaphone": "VNM_Vinaphone"
+  },
+  "PRY": {
+    "Claro/Hutchison": "PRY_Claro/Hutchison",
+    "Tigo/Telecel": "PRY_Tigo/Telecel",
+    "TIM/Nucleo/Personal": "PRY_TIM/Nucleo/Personal",
+    "Compa": "PRY_Compa",
+    "Hola/VOX": "PRY_Hola/VOX"
+  },
+  "SHN": {},
+  "CYP": {
+    "MTN/Areeba": "CYP_MTN/Areeba",
+    "Vodafone/CyTa": "CYP_Vodafone/CyTa",
+    "PrimeTel PLC": "CYP_PrimeTel PLC"
+  },
+  "SYC": {
+    "Smartcom": "SYC_Smartcom",
+    "C&W": "SYC_C&W",
+    "Airtel": "SYC_Airtel"
+  },
+  "RWA": {
+    "MTN/Rwandacell": "RWA_MTN/Rwandacell",
+    "TIGO": "RWA_TIGO",
+    "Airtel Rwanda Ltd": "RWA_Airtel Rwanda Ltd"
+  },
+  "BGD": {
+    "Airtel/Warid": "BGD_Airtel/Warid",
+    "GrameenPhone": "BGD_GrameenPhone",
+    "Citycell": "BGD_Citycell",
+    "Robi/Aktel": "BGD_Robi/Aktel",
+    "TeleTalk": "BGD_TeleTalk",
+    "Orascom": "BGD_Orascom"
+  },
+  "AUS": {
+    "Dialogue Communications Pty Ltd": "AUS_Dialogue Communications Pty Ltd",
+    "Telstra Corp. Ltd.": "AUS_Telstra Corp. Ltd.",
+    "Victorian Rail Track Corp. (VicTrack)": "AUS_Victorian Rail Track Corp. (VicTrack)",
+    "Airnet Commercial Australia Ltd..": "AUS_Airnet Commercial Australia Ltd..",
+    "Department of Defense": "AUS_Department of Defense",
+    "Localstar Holding Pty. Ltd": "AUS_Localstar Holding Pty. Ltd",
+    "Lycamobile Pty Ltd": "AUS_Lycamobile Pty Ltd",
+    "Singtel Optus": "AUS_Singtel Optus",
+    "Vodafone": "AUS_Vodafone",
+    "AAPT Ltd.": "AUS_AAPT Ltd.",
+    "Railcorp/Vodafone": "AUS_Railcorp/Vodafone",
+    "The Ozitel Network Pty.": "AUS_The Ozitel Network Pty.",
+    "H3G Ltd.": "AUS_H3G Ltd.",
+    "Advanced Comm Tech Pty.": "AUS_Advanced Comm Tech Pty."
+  },
+  "AUT": {
+    "Fix Line": "AUT_Fix Line",
+    "T-Mobile/Telering": "AUT_T-Mobile/Telering",
+    "A1 MobilKom": "AUT_A1 MobilKom",
+    "Telefonica": "AUT_Telefonica",
+    "Orange/One Connect": "AUT_Orange/One Connect",
+    "H3G": "AUT_H3G"
+  },
+  "LKA": {
+    "Etisalat/Tigo": "LKA_Etisalat/Tigo",
+    "Mobitel Ltd.": "LKA_Mobitel Ltd.",
+    "Bharti Airtel": "LKA_Bharti Airtel",
+    "MTN/Dialog": "LKA_MTN/Dialog",
+    "H3G Hutchison": "LKA_H3G Hutchison"
+  },
+  "GAB": {
+    "ZAIN/Celtel Gabon S.A.": "GAB_ZAIN/Celtel Gabon S.A.",
+    "Libertis S.A.": "GAB_Libertis S.A.",
+    "Azur/Usan S.A.": "GAB_Azur/Usan S.A.",
+    "MOOV/Telecel": "GAB_MOOV/Telecel"
+  },
+  "ZWE": {
+    "Net One": "ZWE_Net One",
+    "Telecel": "ZWE_Telecel",
+    "Econet": "ZWE_Econet"
+  },
+  "BGR": {
+    "BTC Mobile EOOD (vivatel)": "BGR_BTC Mobile EOOD (vivatel)",
+    "MobilTel AD": "BGR_MobilTel AD",
+    "Cosmo Mobile EAD/Globul": "BGR_Cosmo Mobile EAD/Globul"
+  },
+  "SYR": {
+    "MTN/Spacetel": "SYR_MTN/Spacetel",
+    "Syriatel Holdings": "SYR_Syriatel Holdings"
+  },
+  "CZE": {
+    "Vodafone": "CZE_Vodafone",
+    "O2": "CZE_O2",
+    "Travel Telekommunikation s.r.o.": "CZE_Travel Telekommunikation s.r.o.",
+    "Compatel s.r.o.": "CZE_Compatel s.r.o.",
+    "Ufone": "CZE_Ufone",
+    "T-Mobile / RadioMobil": "CZE_T-Mobile / RadioMobil"
+  },
+  "NOR": {
+    "Telenor": "NOR_Telenor",
+    "Ventelo AS": "NOR_Ventelo AS",
+    "Lycamobile Ltd": "NOR_Lycamobile Ltd",
+    "TDC Mobil A/S": "NOR_TDC Mobil A/S",
+    "Tele2": "NOR_Tele2",
+    "Network Norway AS": "NOR_Network Norway AS",
+    "ICE Nordisk Mobiltelefon AS": "NOR_ICE Nordisk Mobiltelefon AS",
+    "Netcom": "NOR_Netcom",
+    "Com4 AS": "NOR_Com4 AS",
+    "Jernbaneverket (GSM-R)": "NOR_Jernbaneverket (GSM-R)",
+    "Teletopia": "NOR_Teletopia"
+  },
+  "CIV": {
+    "Comstar": "CIV_Comstar",
+    "Warid": "CIV_Warid",
+    "Comium": "CIV_Comium",
+    "OriCell": "CIV_OriCell",
+    "MTN": "CIV_MTN",
+    "Atlantik Tel./Moov": "CIV_Atlantik Tel./Moov",
+    "Aircomm SA": "CIV_Aircomm SA",
+    "Orange": "CIV_Orange"
+  },
+  "MMR": {
+    "Myanmar Post & Teleco.": "MMR_Myanmar Post & Teleco."
+  },
+  "TKL": {},
+  "KIR": {
+    "Kiribati Frigate": "KIR_Kiribati Frigate"
+  },
+  "TKM": {
+    "Barash Communication": "TKM_Barash Communication",
+    "TM-Cell": "TKM_TM-Cell"
+  },
+  "GRD": {
+    "Digicel": "GRD_Digicel",
+    "Cable & Wireless": "GRD_Cable & Wireless"
+  },
+  "GRC": {
+    "OTE Hellenic Telecommunications Organization SA": "GRC_OTE Hellenic Telecommunications Organization SA",
+    "Vodafone": "GRC_Vodafone",
+    "AMD Telecom SA": "GRC_AMD Telecom SA",
+    "Cosmote": "GRC_Cosmote",
+    "Organismos Sidirodromon Ellados (OSE)": "GRC_Organismos Sidirodromon Ellados (OSE)",
+    "Tim/Wind": "GRC_Tim/Wind"
+  },
+  "HTI": {
+    "Digicel": "HTI_Digicel",
+    "Comcel": "HTI_Comcel",
+    "National Telecom SA (NatCom)": "HTI_National Telecom SA (NatCom)"
+  },
+  "YEM": {
+    "MTN/Spacetel": "YEM_MTN/Spacetel",
+    "Sabaphone": "YEM_Sabaphone",
+    "Yemen Mob. CDMA": "YEM_Yemen Mob. CDMA",
+    "HITS/Y Unitel": "YEM_HITS/Y Unitel"
+  },
+  "GRL": {
+    "Tele Greenland": "GRL_Tele Greenland"
+  },
+  "AFG": {
+    "Areeba": "AFG_Areeba",
+    "Roshan": "AFG_Roshan",
+    "Etisalat": "AFG_Etisalat",
+    "Afghan Wireless/AWCC": "AFG_Afghan Wireless/AWCC",
+    "Afghan Telecom Corp. (AT)": "AFG_Afghan Telecom Corp. (AT)"
+  },
+  "MNE": {
+    "Promonte GSM": "MNE_Promonte GSM",
+    "Mtel": "MNE_Mtel",
+    "Monet/T-mobile": "MNE_Monet/T-mobile"
+  },
+  "MNG": {
+    "Unitel": "MNG_Unitel",
+    "Mobicom": "MNG_Mobicom",
+    "G-Mobile Corporation Ltd": "MNG_G-Mobile Corporation Ltd",
+    "Skytel Co. Ltd": "MNG_Skytel Co. Ltd"
+  },
+  "NPL": {
+    "Ncell": "NPL_Ncell",
+    "Smart Cell": "NPL_Smart Cell",
+    "NT Mobile / Namaste": "NPL_NT Mobile / Namaste"
+  },
+  "BHS": {
+    "Bahamas Telco. Comp.": "BHS_Bahamas Telco. Comp.",
+    "Smart Communications": "BHS_Smart Communications"
+  },
+  "BHR": {
+    "VIVA": "BHR_VIVA",
+    "Batelco": "BHR_Batelco",
+    "MTC Vodafone": "BHR_MTC Vodafone"
+  },
+  "MNP": {},
+  "GBR": {
+    "Mapesbury C. Ltd": "GBR_Mapesbury C. Ltd",
+    "BT Group": "GBR_BT Group",
+    "Airtel/Vodafone": "GBR_Airtel/Vodafone",
+    "FlexTel": "GBR_FlexTel",
+    "Jersey Telecom": "GBR_Jersey Telecom",
+    "Hutchinson 3G": "GBR_Hutchinson 3G",
+    "Everyth. Ev.wh./Orange": "GBR_Everyth. Ev.wh./Orange",
+    "Tismi": "GBR_Tismi",
+    "Inquam Telecom Ltd": "GBR_Inquam Telecom Ltd",
+    "Vectofone Mobile Wifi": "GBR_Vectofone Mobile Wifi",
+    "OnePhone": "GBR_OnePhone",
+    "JSC Ingenicum": "GBR_JSC Ingenicum",
+    "Routotelecom": "GBR_Routotelecom",
+    "Truphone": "GBR_Truphone",
+    "Marthon Telecom": "GBR_Marthon Telecom",
+    "Wave Telecom Ltd": "GBR_Wave Telecom Ltd",
+    "Stour Marine": "GBR_Stour Marine",
+    "HaySystems": "GBR_HaySystems",
+    "O2 Ltd.": "GBR_O2 Ltd.",
+    "Everyth. Ev.wh.": "GBR_Everyth. Ev.wh.",
+    "Lycamobile": "GBR_Lycamobile",
+    "PMN/Teleware": "GBR_PMN/Teleware",
+    "Cable and Wireless": "GBR_Cable and Wireless",
+    "Manx Telecom": "GBR_Manx Telecom",
+    "Vodafone": "GBR_Vodafone",
+    "Cable and Wireless Isle of Man": "GBR_Cable and Wireless Isle of Man",
+    "Synectiv Ltd.": "GBR_Synectiv Ltd.",
+    "Railtrack Plc": "GBR_Railtrack Plc",
+    "Everyth. Ev.wh./T-Mobile": "GBR_Everyth. Ev.wh./T-Mobile",
+    "Cloud9/wire9 Tel.": "GBR_Cloud9/wire9 Tel.",
+    "Opal Telecom": "GBR_Opal Telecom",
+    "Guernsey Telecoms": "GBR_Guernsey Telecoms"
+  },
+  "SJM": {},
+  "DMA": {
+    "Cingular Wireless/Digicel": "DMA_Cingular Wireless/Digicel",
+    "Wireless Ventures (Dominica) Ltd (Digicel Dominica)": "DMA_Wireless Ventures (Dominica) Ltd (Digicel Dominica)",
+    "C & W": "DMA_C & W"
+  },
+  "TLS": {},
+  "BIH": {
+    "Eronet Mobile": "BIH_Eronet Mobile",
+    "M-Tel": "BIH_M-Tel",
+    "BH Mobile": "BIH_BH Mobile"
+  },
+  "HUN": {
+    "Vodafone": "HUN_Vodafone",
+    "Pannon/Telenor": "HUN_Pannon/Telenor",
+    "T-mobile/Magyar": "HUN_T-mobile/Magyar",
+    "UPC Magyarorszag Kft.": "HUN_UPC Magyarorszag Kft."
+  },
+  "AGO": {
+    "Unitel": "AGO_Unitel",
+    "MoviCel": "AGO_MoviCel"
+  },
+  "WSM": {
+    "Telecom Samoa Cellular Ltd.": "WSM_Telecom Samoa Cellular Ltd.",
+    "Samoatel Mobile": "WSM_Samoatel Mobile"
+  },
+  "FRA": {
+    "Lycamobile SARL": "FRA_Lycamobile SARL",
+    "Lliad/FREE Mobile": "FRA_Lliad/FREE Mobile",
+    "NRJ": "FRA_NRJ",
+    "Bouygues Telecom": "FRA_Bouygues Telecom",
+    "Association Plate-forme Telecom": "FRA_Association Plate-forme Telecom",
+    "Tel/Tel": "FRA_Tel/Tel",
+    "MobiquiThings": "FRA_MobiquiThings",
+    "Orange": "FRA_Orange",
+    "Omer/Virgin Mobile": "FRA_Omer/Virgin Mobile",
+    "GlobalStar": "FRA_GlobalStar",
+    "SISTEER": "FRA_SISTEER",
+    "S.F.R.": "FRA_S.F.R.",
+    "AFONE SA": "FRA_AFONE SA",
+    "Mundio Mobile (France) Ltd": "FRA_Mundio Mobile (France) Ltd",
+    "Transatel SA": "FRA_Transatel SA",
+    "Astrium": "FRA_Astrium"
+  },
+  "MOZ": {
+    "Vodacom Sarl": "MOZ_Vodacom Sarl",
+    "Movitel": "MOZ_Movitel",
+    "mCel": "MOZ_mCel"
+  },
+  "NAM": {
+    "Leo / Orascom": "NAM_Leo / Orascom",
+    "MTC": "NAM_MTC",
+    "Switch/Nam. Telec.": "NAM_Switch/Nam. Telec."
+  },
+  "PER": {
+    "Movistar": "PER_Movistar",
+    "GlobalStar": "PER_GlobalStar",
+    "Nextel": "PER_Nextel",
+    "Claro /Amer.Mov./TIM": "PER_Claro /Amer.Mov./TIM"
+  },
+  "DNK": {
+    "CoolTEL ApS": "DNK_CoolTEL ApS",
+    "TDC Denmark": "DNK_TDC Denmark",
+    "Lycamobile Ltd": "DNK_Lycamobile Ltd",
+    "Banedanmark": "DNK_Banedanmark",
+    "Hi3G": "DNK_Hi3G",
+    "Mach Connectivity ApS": "DNK_Mach Connectivity ApS",
+    "NextGen Mobile Ltd (CardBoardFish)": "DNK_NextGen Mobile Ltd (CardBoardFish)",
+    "Telenor/Sonofon": "DNK_Telenor/Sonofon",
+    "Telia": "DNK_Telia",
+    "ApS KBUS": "DNK_ApS KBUS"
+  },
+  "GTM": {
+    "TIGO/COMCEL": "GTM_TIGO/COMCEL",
+    "SERCOM": "GTM_SERCOM",
+    "Telefonica": "GTM_Telefonica"
+  },
+  "SLB": {
+    "bemobile": "SLB_bemobile",
+    "BREEZE": "SLB_BREEZE"
+  },
+  "SLE": {
+    "Mobitel": "SLE_Mobitel",
+    "Comium": "SLE_Comium",
+    "Africel": "SLE_Africel",
+    "Tigo/Millicom": "SLE_Tigo/Millicom",
+    "Zain/Celtel": "SLE_Zain/Celtel"
+  },
+  "NRU": {},
+  "SLV": {
+    "Digicel": "SLV_Digicel",
+    "Telemovil": "SLV_Telemovil",
+    "INTELFON SA de CV": "SLV_INTELFON SA de CV",
+    "Telefonica": "SLV_Telefonica",
+    "CLARO/CTE": "SLV_CLARO/CTE"
+  },
+  "FSM": {
+    "FSM Telecom": "FSM_FSM Telecom"
+  },
+  "DOM": {
+    "Claro": "DOM_Claro",
+    "TRIcom": "DOM_TRIcom",
+    "Orange": "DOM_Orange",
+    "Trilogy Dominicana S. A.": "DOM_Trilogy Dominicana S. A."
+  },
+  "CMR": {
+    "MTN": "CMR_MTN",
+    "Orange": "CMR_Orange"
+  },
+  "GUY": {
+    "DigiCel": "GUY_DigiCel",
+    "Cellink Plus": "GUY_Cellink Plus"
+  },
+  "AZE": {
+    "Caspian American Telecommunications LLC (CATEL)": "AZE_Caspian American Telecommunications LLC (CATEL)",
+    "J.V. Bakcell GSM 2000": "AZE_J.V. Bakcell GSM 2000",
+    "Azerfon.": "AZE_Azerfon.",
+    "Azercell Telekom B.M.": "AZE_Azercell Telekom B.M."
+  },
+  "GEO": {
+    "MobiTel/Beeline": "GEO_MobiTel/Beeline",
+    "Geocell Ltd.": "GEO_Geocell Ltd.",
+    "Iberiatel Ltd.": "GEO_Iberiatel Ltd.",
+    "A-Mobile": "GEO_A-Mobile",
+    "Aquafon": "GEO_Aquafon",
+    "Magti GSM Ltd.": "GEO_Magti GSM Ltd.",
+    "Silknet": "GEO_Silknet"
+  },
+  "TON": {
+    "Shoreline Communication": "TON_Shoreline Communication",
+    "Tonga Communications": "TON_Tonga Communications"
+  },
+  "NCL": {},
+  "SMR": {
+    "Prima Telecom": "SMR_Prima Telecom"
+  },
+  "ERI": {
+    "EriTel": "ERI_EriTel"
+  },
+  "KNA": {
+    "UTS Cariglobe": "KNA_UTS Cariglobe",
+    "Digicel": "KNA_Digicel",
+    "Cable & Wireless": "KNA_Cable & Wireless"
+  },
+  "MAR": {
+    "IAM/Itissallat": "MAR_IAM/Itissallat",
+    "Medi Telecom": "MAR_Medi Telecom",
+    "INWI/WANA": "MAR_INWI/WANA"
+  },
+  "VCT": {
+    "Digicel": "VCT_Digicel",
+    "Cingular": "VCT_Cingular",
+    "C & W": "VCT_C & W"
+  },
+  "BLR": {
+    "BelCel JV": "BLR_BelCel JV",
+    "BeST": "BLR_BeST",
+    "MTS": "BLR_MTS",
+    "Mobile Digital Communications": "BLR_Mobile Digital Communications"
+  },
+  "MRT": {
+    "Chinguitel SA": "MRT_Chinguitel SA",
+    "Mauritel": "MRT_Mauritel",
+    "Mattel": "MRT_Mattel"
+  },
+  "BLZ": {
+    "DigiCell": "BLZ_DigiCell",
+    "International Telco (INTELCO)": "BLZ_International Telco (INTELCO)"
+  },
+  "PHL": {
+    "RED Mobile/Cure": "PHL_RED Mobile/Cure",
+    "Fix Line": "PHL_Fix Line",
+    "Next Mobile": "PHL_Next Mobile",
+    "SUN/Digitel": "PHL_SUN/Digitel",
+    "Smart": "PHL_Smart",
+    "Globe Telecom": "PHL_Globe Telecom"
+  },
+  "COD": {
+    "Yozma Timeturns sprl (YTT)": "COD_Yozma Timeturns sprl (YTT)",
+    "Vodacom": "COD_Vodacom",
+    "Orange RDC sarl": "COD_Orange RDC sarl",
+    "ZAIN CelTel": "COD_ZAIN CelTel",
+    "SuperCell": "COD_SuperCell",
+    "TIGO/Oasis": "COD_TIGO/Oasis"
+  },
+  "COG": {
+    "Warid": "COG_Warid",
+    "MTN/Libertis": "COG_MTN/Libertis",
+    "Airtel Congo SA": "COG_Airtel Congo SA",
+    "Zain/Celtel": "COG_Zain/Celtel"
+  },
+  "PYF": {
+    "Tikiphone": "PYF_Tikiphone",
+    "Pacific Mobile Telecom (PMT)": "PYF_Pacific Mobile Telecom (PMT)"
+  },
+  "URY": {
+    "Claro/AM Wireless": "URY_Claro/AM Wireless",
+    "MOVISTAR": "URY_MOVISTAR",
+    "Ancel/Antel": "URY_Ancel/Antel"
+  },
+  "COM": {
+    "HURI - SNPT": "COM_HURI - SNPT"
+  },
+  "COL": {
+    "Movistar": "COL_Movistar",
+    "Virgin Mobile Colombia SAS": "COL_Virgin Mobile Colombia SAS",
+    "Avantel SAS": "COL_Avantel SAS",
+    "TIGO/Colombia Movil": "COL_TIGO/Colombia Movil",
+    "Edatel S.A.": "COL_Edatel S.A.",
+    "UNE EPM Telecomunicaciones SA ESP": "COL_UNE EPM Telecomunicaciones SA ESP",
+    "Comcel S.A. Occel S.A./Celcaribe": "COL_Comcel S.A. Occel S.A./Celcaribe"
+  },
+  "USA": {
+    "Cellcom": "USA_Cellcom",
+    "Viaero": "USA_Viaero",
+    "Elkhart TelCo. / Epic Touch Co.": "USA_Elkhart TelCo. / Epic Touch Co.",
+    "Matanuska Tel. Assn. Inc.": "USA_Matanuska Tel. Assn. Inc.",
+    "Choice Phone LLC": "USA_Choice Phone LLC",
+    "PCS ONE": "USA_PCS ONE",
+    "Kaplan Telephone Company Inc.": "USA_Kaplan Telephone Company Inc.",
+    "E.N.M.R. Telephone Coop.": "USA_E.N.M.R. Telephone Coop.",
+    "Unknown": "USA_Unknown",
+    "Airpeak": "USA_Airpeak",
+    "East Kentucky Network LLC": "USA_East Kentucky Network LLC",
+    "Southern Communications Services Inc.": "USA_Southern Communications Services Inc.",
+    "TNS": "USA_TNS",
+    "Allied Wireless Communications Corporation": "USA_Allied Wireless Communications Corporation",
+    "Verizon Wireless": "USA_Verizon Wireless",
+    "Cable & Communications Corp.": "USA_Cable & Communications Corp.",
+    "Cambridge Telephone Company Inc.": "USA_Cambridge Telephone Company Inc.",
+    "Panhandle Telephone Cooperative Inc.": "USA_Panhandle Telephone Cooperative Inc.",
+    "Northeast Colorado Cellular Inc.": "USA_Northeast Colorado Cellular Inc.",
+    "Sprint Spectrum": "USA_Sprint Spectrum",
+    "Carolina West Wireless": "USA_Carolina West Wireless",
+    "Northeast Wireless Networks LLC": "USA_Northeast Wireless Networks LLC",
+    "Iowa RSA No. 2 Limited Partnership": "USA_Iowa RSA No. 2 Limited Partnership",
+    "Bluegrass Wireless LLC": "USA_Bluegrass Wireless LLC",
+    "ETEX Wireless": "USA_ETEX Wireless",
+    "Telemetrix Inc.": "USA_Telemetrix Inc.",
+    "Wisconsin RSA #7 Limited Partnership": "USA_Wisconsin RSA #7 Limited Partnership",
+    "U.S. Cellular": "USA_U.S. Cellular",
+    "Triton PCS": "USA_Triton PCS",
+    "Custer Telephone Cooperative Inc.": "USA_Custer Telephone Cooperative Inc.",
+    "Pine Belt Cellular, Inc.": "USA_Pine Belt Cellular, Inc.",
+    "Dobson Cellular Systems": "USA_Dobson Cellular Systems",
+    "Message Express Co. / Airlink PCS": "USA_Message Express Co. / Airlink PCS",
+    "Big Sky Mobile": "USA_Big Sky Mobile",
+    "TMP Corporation": "USA_TMP Corporation",
+    "New-Cell Inc.": "USA_New-Cell Inc.",
+    "Texas RSA 15B2 Limited Partnership": "USA_Texas RSA 15B2 Limited Partnership",
+    "Lamar County Cellular": "USA_Lamar County Cellular",
+    "T-Mobile": "USA_T-Mobile",
+    "miSpot": "USA_miSpot",
+    "Northstar": "USA_Northstar",
+    "Public Service Cellular Inc.": "USA_Public Service Cellular Inc.",
+    "Cellular Network Partnership LLC": "USA_Cellular Network Partnership LLC",
+    "Choice Wireless": "USA_Choice Wireless",
+    "United States Cellular Corp.": "USA_United States Cellular Corp.",
+    "Caprock Cellular Ltd.": "USA_Caprock Cellular Ltd.",
+    "Virgin Mobile": "USA_Virgin Mobile",
+    "Iowa Wireless Services LLC": "USA_Iowa Wireless Services LLC",
+    "Arctic Slope Telephone Association Cooperative Inc.": "USA_Arctic Slope Telephone Association Cooperative Inc.",
+    "ProxTel": "USA_ProxTel",
+    "Northwest Missouri Cellular Limited Partnership": "USA_Northwest Missouri Cellular Limited Partnership",
+    "Aeris Comm. Inc.": "USA_Aeris Comm. Inc.",
+    "North Dakota Network Company": "USA_North Dakota Network Company",
+    "Great Plains Communications,Inc.": "USA_Great Plains Communications,Inc.",
+    "USA 3650 AT&T": "USA_USA 3650 AT&T",
+    "West Virginia Wireless": "USA_West Virginia Wireless",
+    "North Carolina RSA 3 Cellular Tel. Co.": "USA_North Carolina RSA 3 Cellular Tel. Co.",
+    "Plateau Telecommunications Inc.": "USA_Plateau Telecommunications Inc.",
+    "Jasper": "USA_Jasper",
+    "AT&T Wireless Inc.": "USA_AT&T Wireless Inc.",
+    "Sagebrush Cellular Inc.": "USA_Sagebrush Cellular Inc.",
+    "MTA": "USA_MTA",
+    "Fisher Wireless Services Inc.": "USA_Fisher Wireless Services Inc.",
+    "Union Telephone Co.": "USA_Union Telephone Co.",
+    "Minnesota South. Wirel. Co. / Hickory": "USA_Minnesota South. Wirel. Co. / Hickory",
+    "Edge Wireless LLC": "USA_Edge Wireless LLC",
+    "Yorkville Telephone Cooperative": "USA_Yorkville Telephone Cooperative",
+    "Cross Wireless Telephone Co.": "USA_Cross Wireless Telephone Co.",
+    "Missouri RSA No 5 Partnership": "USA_Missouri RSA No 5 Partnership",
+    "Viva": "USA_Viva",
+    "Nexus Communications Inc.": "USA_Nexus Communications Inc.",
+    "U.S.Cellular": "USA_U.S.Cellular",
+    "Get Mobile Inc.": "USA_Get Mobile Inc.",
+    "Michigan Wireless LLC": "USA_Michigan Wireless LLC",
+    "Shentel": "USA_Shentel",
+    "Testing": "USA_Testing",
+    "Cincinnati Bell Wireless LLC": "USA_Cincinnati Bell Wireless LLC",
+    "Farmers": "USA_Farmers",
+    "Westlink Communications, LLC": "USA_Westlink Communications, LLC",
+    "Leap Wireless International Inc.": "USA_Leap Wireless International Inc.",
+    "DTC Wireless": "USA_DTC Wireless",
+    "Santel Communications Cooperative,Inc.": "USA_Santel Communications Cooperative,Inc.",
+    "Illinois Valley Cellular RSA 2 Partnership": "USA_Illinois Valley Cellular RSA 2 Partnership",
+    "Consolidated Telcom": "USA_Consolidated Telcom",
+    "MTPCS LLC": "USA_MTPCS LLC",
+    "Cingular Wireless": "USA_Cingular Wireless",
+    "SLO Cellular Inc / Cellular One of San Luis": "USA_SLO Cellular Inc / Cellular One of San Luis",
+    "Coleman County Telco /Trans TX": "USA_Coleman County Telco /Trans TX",
+    "Poka Lambro Telco Ltd.": "USA_Poka Lambro Telco Ltd.",
+    "SIMMETRY": "USA_SIMMETRY",
+    "Uintah Basin Electronics Telecommunications Inc.": "USA_Uintah Basin Electronics Telecommunications Inc.",
+    "Keystone Wireless LLC": "USA_Keystone Wireless LLC",
+    "VeriSign": "USA_VeriSign",
+    "California RSA No. 3 Limited Partnership": "USA_California RSA No. 3 Limited Partnership",
+    "United Wireless Communications Inc.": "USA_United Wireless Communications Inc.",
+    "Phoenix": "USA_Phoenix",
+    "Airtel Wireless LLC": "USA_Airtel Wireless LLC",
+    "Cross Valliant Cellular Partnership": "USA_Cross Valliant Cellular Partnership",
+    "NEP Cellcorp Inc.": "USA_NEP Cellcorp Inc.",
+    "South Georgia Regional Information Technology Authority": "USA_South Georgia Regional Information Technology Authority",
+    "IT&E Wireless": "USA_IT&E Wireless",
+    "Southern LINC": "USA_Southern LINC",
+    "GCI": "USA_GCI",
+    "GCI Communication Corp.": "USA_GCI Communication Corp.",
+    "telna Mobile": "USA_telna Mobile",
+    "RSA 1 Limited Partnership": "USA_RSA 1 Limited Partnership",
+    "Alltel": "USA_Alltel",
+    "Sonus Networks": "USA_Sonus Networks",
+    "Smith Bagley Inc.": "USA_Smith Bagley Inc.",
+    "Thumb Cellular Limited Partnership": "USA_Thumb Cellular Limited Partnership",
+    "PetroCom": "USA_PetroCom",
+    "Verizon": "USA_Verizon"
+  },
+  "ESP": {
+    "Movistar": "ESP_Movistar",
+    "R Cable y Telecomunicaciones Galicia SA": "ESP_R Cable y Telecomunicaciones Galicia SA",
+    "Yoigo": "ESP_Yoigo",
+    "Euskaltel SA": "ESP_Euskaltel SA",
+    "Movistar2": "ESP_Movistar2",
+    "Vodafone Enabler Espana SL": "ESP_Vodafone Enabler Espana SL",
+    "Cableuropa SAU (ONO)": "ESP_Cableuropa SAU (ONO)",
+    "Orange": "ESP_Orange",
+    "Lleida": "ESP_Lleida",
+    "Vodafone": "ESP_Vodafone",
+    "Jazz Telecom SAU": "ESP_Jazz Telecom SAU",
+    "BT Espana Compania de Servicios Globales de Telecomunicaciones SAU": "ESP_BT Espana Compania de Servicios Globales de Telecomunicaciones SAU",
+    "Simyo/KPN": "ESP_Simyo/KPN",
+    "Lycamobile SL": "ESP_Lycamobile SL",
+    "Orange2": "ESP_Orange2",
+    "Telecable de Asturias SA": "ESP_Telecable de Asturias SA",
+    "fonYou Wireless SL": "ESP_fonYou Wireless SL",
+    "Truphone": "ESP_Truphone"
+  },
+  "EST": {
+    "Tele2 Eesti AS": "EST_Tele2 Eesti AS",
+    "Radiolinja Eesti": "EST_Radiolinja Eesti",
+    "Top Connect OU": "EST_Top Connect OU",
+    "EMT GSM": "EST_EMT GSM"
+  },
+  "BMU": {
+    "M3 Wireless Ltd": "BMU_M3 Wireless Ltd",
+    "CellOne Ltd": "BMU_CellOne Ltd",
+    "Bermuda Digital Communications Ltd (BDC)": "BMU_Bermuda Digital Communications Ltd (BDC)",
+    "DigiCel / Cingular": "BMU_DigiCel / Cingular",
+    "Telecommunications (Bermuda & West Indies) Ltd (Digicel Bermuda)": "BMU_Telecommunications (Bermuda & West Indies) Ltd (Digicel Bermuda)"
+  },
+  "ZMB": {
+    "MTN/Telecel": "ZMB_MTN/Telecel",
+    "Airtel/Zain/Celtel": "ZMB_Airtel/Zain/Celtel",
+    "Cell Z/MTS": "ZMB_Cell Z/MTS"
+  },
+  "KOR": {
+    "SK Telecom Co. Ltd": "KOR_SK Telecom Co. Ltd",
+    "KT Freetel Co. Ltd.": "KOR_KT Freetel Co. Ltd.",
+    "LG Telecom": "KOR_LG Telecom",
+    "SK Telecom": "KOR_SK Telecom"
+  },
+  "SOM": {
+    "Telesom": "SOM_Telesom",
+    "Golis": "SOM_Golis",
+    "Telcom Mobile Somalia": "SOM_Telcom Mobile Somalia",
+    "Somafone": "SOM_Somafone",
+    "HorTel": "SOM_HorTel",
+    "Nationlink": "SOM_Nationlink"
+  },
+  "VUT": {
+    "DigiCel": "VUT_DigiCel",
+    "SMILE": "VUT_SMILE"
+  },
+  "ECU": {
+    "MOVISTAR/OteCel": "ECU_MOVISTAR/OteCel",
+    "Alegro/Telcsa": "ECU_Alegro/Telcsa",
+    "Porta/Conecel": "ECU_Porta/Conecel"
+  },
+  "ALB": {
+    "Vodafone": "ALB_Vodafone",
+    "AMC Mobil": "ALB_AMC Mobil",
+    "PLUS Communication Sh.a": "ALB_PLUS Communication Sh.a",
+    "Eagle Mobile": "ALB_Eagle Mobile"
+  },
+  "ETH": {
+    "ETH/MTN": "ETH_ETH/MTN"
+  },
+  "NER": {
+    "Etisalat/TeleCel": "NER_Etisalat/TeleCel",
+    "Zain/CelTel": "NER_Zain/CelTel",
+    "Orange/Sahelc.": "NER_Orange/Sahelc."
+  },
+  "LAO": {
+    "ETL Mobile": "LAO_ETL Mobile",
+    "Tigo/Millicom": "LAO_Tigo/Millicom",
+    "UNITEL/LAT": "LAO_UNITEL/LAT",
+    "Lao Tel": "LAO_Lao Tel"
+  },
+  "VEN": {
+    "Movilnet C.A.": "VEN_Movilnet C.A.",
+    "DigiTel C.A.": "VEN_DigiTel C.A.",
+    "Movistar/TelCel": "VEN_Movistar/TelCel"
+  },
+  "GHA": {
+    "GloMobile": "GHA_GloMobile",
+    "Vodafone": "GHA_Vodafone",
+    "ZAIN": "GHA_ZAIN",
+    "MTN": "GHA_MTN",
+    "Expresso Ghana Ltd": "GHA_Expresso Ghana Ltd",
+    "Milicom/Tigo": "GHA_Milicom/Tigo"
+  },
+  "CPV": {
+    "CV Movel": "CPV_CV Movel",
+    "T+ Telecom": "CPV_T+ Telecom"
+  },
+  "MDA": {
+    "Eventis Mobile": "MDA_Eventis Mobile",
+    "IDC/Unite": "MDA_IDC/Unite",
+    "Moldcell": "MDA_Moldcell",
+    "Orange/Voxtel": "MDA_Orange/Voxtel"
+  },
+  "SPM": {
+    "Ameris": "SPM_Ameris"
+  },
+  "LBN": {
+    "FTML Cellis": "LBN_FTML Cellis",
+    "Cellis": "LBN_Cellis",
+    "MIC2/LibanCell": "LBN_MIC2/LibanCell",
+    "MIC1 (Alfa)": "LBN_MIC1 (Alfa)"
+  },
+  "LBR": {
+    "Celcom": "LBR_Celcom",
+    "LibTelco": "LBR_LibTelco",
+    "Libercell": "LBR_Libercell",
+    "Lonestar": "LBR_Lonestar",
+    "Comium BVI": "LBR_Comium BVI"
+  },
+  "MDV": {
+    "Wataniya/WMOBILE": "MDV_Wataniya/WMOBILE",
+    "Dhiraagu/C&W": "MDV_Dhiraagu/C&W"
+  },
+  "BOL": {
+    "TELECEL BOLIVIA": "BOL_TELECEL BOLIVIA",
+    "Entel Pcs": "BOL_Entel Pcs",
+    "Nuevatel": "BOL_Nuevatel"
+  },
+  "LBY": {
+    "Libyana": "LBY_Libyana",
+    "Hatef": "LBY_Hatef",
+    "Al-Madar": "LBY_Al-Madar"
+  },
+  "HKG": {
+    "China Motion": "HKG_China Motion",
+    "Vodafone/SmarTone": "HKG_Vodafone/SmarTone",
+    "China Unicom Ltd": "HKG_China Unicom Ltd",
+    "Citic Telecom Ltd.": "HKG_Citic Telecom Ltd.",
+    "CSL/New World PCS Ltd.": "HKG_CSL/New World PCS Ltd.",
+    "shared by private TETRA systems": "HKG_shared by private TETRA systems",
+    "China Mobile/Peoples": "HKG_China Mobile/Peoples",
+    "H3G/Hutchinson": "HKG_H3G/Hutchinson",
+    "Trident Telecom Ventures Ltd.": "HKG_Trident Telecom Ventures Ltd.",
+    "China-HongKong Telecom Ltd (CHKTL)": "HKG_China-HongKong Telecom Ltd (CHKTL)",
+    "CSL Ltd.": "HKG_CSL Ltd.",
+    "HKT/PCCW": "HKG_HKT/PCCW"
+  },
+  "CAF": {
+    "Orange/Celca": "CAF_Orange/Celca",
+    "Telecel Centraf.": "CAF_Telecel Centraf.",
+    "Nationlink": "CAF_Nationlink",
+    "Centrafr. Telecom+": "CAF_Centrafr. Telecom+"
+  },
+  "LSO": {
+    "Econet/Ezi-cel": "LSO_Econet/Ezi-cel",
+    "Vodacom Lesotho": "LSO_Vodacom Lesotho"
+  },
+  "NGA": {
+    "Starcomms": "NGA_Starcomms",
+    "Airtel/ZAIN/Econet": "NGA_Airtel/ZAIN/Econet",
+    "MTN": "NGA_MTN",
+    "Visafone": "NGA_Visafone",
+    "ETISALAT": "NGA_ETISALAT",
+    "M-Tel/Nigeria Telecom. Ltd.": "NGA_M-Tel/Nigeria Telecom. Ltd.",
+    "Glo Mobile": "NGA_Glo Mobile"
+  },
+  "MUS": {
+    "Emtel Ltd": "MUS_Emtel Ltd",
+    "Mahanagar Telephone": "MUS_Mahanagar Telephone",
+    "Orange/Cellplus": "MUS_Orange/Cellplus"
+  },
+  "LCA": {
+    "Cable & Wireless": "LCA_Cable & Wireless",
+    "Cingular Wireless": "LCA_Cingular Wireless",
+    "Digicel (St Lucia) Limited": "LCA_Digicel (St Lucia) Limited"
+  },
+  "JOR": {
+    "Xpress": "JOR_Xpress",
+    "Orange/Petra": "JOR_Orange/Petra",
+    "Umniah Mobile Co.": "JOR_Umniah Mobile Co.",
+    "ZAIN /J.M.T.S": "JOR_ZAIN /J.M.T.S"
+  },
+  "GIN": {
+    "Orange/Spacetel": "GIN_Orange/Spacetel",
+    "Celcom": "GIN_Celcom",
+    "Areeba - MTN": "GIN_Areeba - MTN",
+    "Intercel": "GIN_Intercel",
+    "SotelGui": "GIN_SotelGui"
+  },
+  "CAN": {
+    "BC Tel Mobility": "CAN_BC Tel Mobility",
+    "WIND": "CAN_WIND",
+    "Sask Tel Mobility": "CAN_Sask Tel Mobility",
+    "Bell Aliant": "CAN_Bell Aliant",
+    "Clearnet": "CAN_Clearnet",
+    "mobilicity": "CAN_mobilicity",
+    "MTS Mobility": "CAN_MTS Mobility",
+    "MT&T Mobility": "CAN_MT&T Mobility",
+    "NB Tel Mobility": "CAN_NB Tel Mobility",
+    "Quebectel Mobility": "CAN_Quebectel Mobility",
+    "CityWest Mobility": "CAN_CityWest Mobility",
+    "Rogers AT&T Wireless": "CAN_Rogers AT&T Wireless",
+    "DMTS Mobility": "CAN_DMTS Mobility",
+    "Tbay Mobility": "CAN_Tbay Mobility",
+    "Videotron": "CAN_Videotron",
+    "Telus Mobility": "CAN_Telus Mobility",
+    "Bell Mobility": "CAN_Bell Mobility",
+    "Latitude Wireless": "CAN_Latitude Wireless",
+    "FIDO (Rogers AT&T/ Microcell)": "CAN_FIDO (Rogers AT&T/ Microcell)",
+    "Globalstar Canada": "CAN_Globalstar Canada",
+    "New Tel Mobility": "CAN_New Tel Mobility",
+    "Public Mobile": "CAN_Public Mobile"
+  },
+  "TCD": {
+    "Salam/Sotel": "TCD_Salam/Sotel",
+    "Tigo/Milicom/Tchad Mobile": "TCD_Tigo/Milicom/Tchad Mobile",
+    "Zain/Airtel/Celtel": "TCD_Zain/Airtel/Celtel",
+    "Tchad Mobile": "TCD_Tchad Mobile"
+  },
+  "AND": {
+    "Mobiland": "AND_Mobiland"
+  },
+  "ROU": {
+    "Vodafone": "ROU_Vodafone",
+    "Enigma Systems": "ROU_Enigma Systems",
+    "Cosmote": "ROU_Cosmote",
+    "Orange": "ROU_Orange",
+    "RCS&RDS Digi Mobile": "ROU_RCS&RDS Digi Mobile",
+    "Romtelecom SA": "ROU_Romtelecom SA",
+    "Telemobil/Zapp": "ROU_Telemobil/Zapp"
+  },
+  "CRI": {
+    "Movistar": "CRI_Movistar",
+    "Claro": "CRI_Claro",
+    "ICE": "CRI_ICE",
+    "Virtualis": "CRI_Virtualis"
+  },
+  "IND": {
+    "TATA DOCOMO": "IND_TATA DOCOMO",
+    "Reliance": "IND_Reliance",
+    "Uninor": "IND_Uninor",
+    "Bharti Airtel Limited (Delhi)": "IND_Bharti Airtel Limited (Delhi)",
+    "Dishnet Wireless": "IND_Dishnet Wireless",
+    "S Tel": "IND_S Tel",
+    "Videocon Datacom": "IND_Videocon Datacom",
+    "Jio": "IND_Jio",
+    "Fascel Limited": "IND_Fascel Limited",
+    "Vodafone IN": "IND_Vodafone IN",
+    "AIRCEL": "IND_AIRCEL",
+    "DOLPHIN": "IND_DOLPHIN",
+    "IDEA": "IND_IDEA",
+    "AirTel": "IND_AirTel",
+    "CellOne": "IND_CellOne",
+    "Etisalat DB(cheers)": "IND_Etisalat DB(cheers)",
+    "Loop Mobile": "IND_Loop Mobile"
+  },
+  "MEX": {
+    "NEXTEL": "MEX_NEXTEL",
+    "IUSACell/UneFon": "MEX_IUSACell/UneFon",
+    "Axtel": "MEX_Axtel",
+    "Movistar/Pegaso": "MEX_Movistar/Pegaso",
+    "TelCel/America Movil": "MEX_TelCel/America Movil",
+    "Operadora Unefon SA de CV": "MEX_Operadora Unefon SA de CV",
+    "SAI PCS": "MEX_SAI PCS"
+  },
+  "SRB": {
+    "VIP Mobile": "SRB_VIP Mobile",
+    "MTS/Telekom Srbija": "SRB_MTS/Telekom Srbija",
+    "Telenor/Mobtel": "SRB_Telenor/Mobtel"
+  },
+  "KAZ": {
+    "K-Cell": "KAZ_K-Cell",
+    "NEO/MTS": "KAZ_NEO/MTS",
+    "Dalacom/Altel": "KAZ_Dalacom/Altel",
+    "Beeline/KaR-Tel LLP": "KAZ_Beeline/KaR-Tel LLP"
+  },
+  "SAU": {
+    "STC/Al Jawal": "SAU_STC/Al Jawal",
+    "Zain": "SAU_Zain",
+    "Etihad/Etisalat/Mobily": "SAU_Etihad/Etisalat/Mobily"
+  },
+  "JPN": {
+    "eMobile": "JPN_eMobile",
+    "NTT Docomo": "JPN_NTT Docomo",
+    "Okinawa Cellular Telephone": "JPN_Okinawa Cellular Telephone",
+    "SoftBank Mobile Corp": "JPN_SoftBank Mobile Corp",
+    "KDDI Corporation": "JPN_KDDI Corporation"
+  },
+  "LTU": {
+    "Tele2": "LTU_Tele2",
+    "Bite": "LTU_Bite",
+    "Omnitel": "LTU_Omnitel"
+  },
+  "TTO": {
+    "Bmobile/TSTT": "TTO_Bmobile/TSTT",
+    "Digicel": "TTO_Digicel",
+    "LaqTel Ltd.": "TTO_LaqTel Ltd."
+  },
+  "MWI": {
+    "Zain/Celtel ltd.": "MWI_Zain/Celtel ltd.",
+    "TNM/Telekom Network Ltd.": "MWI_TNM/Telekom Network Ltd."
+  },
+  "SSD": {
+    "MTN South Sudan (South Sudan": "SSD_MTN South Sudan (South Sudan",
+    "Network of The World Ltd (NOW) (South Sudan": "SSD_Network of The World Ltd (NOW) (South Sudan",
+    "Zain South Sudan (South Sudan": "SSD_Zain South Sudan (South Sudan",
+    "Gemtel Ltd (South Sudan": "SSD_Gemtel Ltd (South Sudan"
+  },
+  "NIC": {
+    "Movistar": "NIC_Movistar",
+    "Claro": "NIC_Claro",
+    "Empresa Nicaraguense de Telecomunicaciones SA (ENITEL)": "NIC_Empresa Nicaraguense de Telecomunicaciones SA (ENITEL)"
+  },
+  "FIN": {
+    "DNA/Finnet": "FIN_DNA/Finnet",
+    "Elisa/Saunalahti": "FIN_Elisa/Saunalahti",
+    "Mundio Mobile (Finland) Ltd": "FIN_Mundio Mobile (Finland) Ltd",
+    "Compatel Ltd": "FIN_Compatel Ltd",
+    "Nokia Oyj": "FIN_Nokia Oyj",
+    "TeliaSonera": "FIN_TeliaSonera",
+    "Alands": "FIN_Alands",
+    "ID-Mobile": "FIN_ID-Mobile",
+    "TDC Oy Finland": "FIN_TDC Oy Finland"
+  },
+  "TUN": {
+    "Tunisie Telecom": "TUN_Tunisie Telecom",
+    "Orascom Telecom": "TUN_Orascom Telecom",
+    "Orange": "TUN_Orange"
+  },
+  "LUX": {
+    "P+T LUXGSM": "LUX_P+T LUXGSM",
+    "Millicom Tango GSM": "LUX_Millicom Tango GSM",
+    "VOXmobile S.A.": "LUX_VOXmobile S.A."
+  },
+  "UGA": {
+    "Uganda Telecom Ltd.": "UGA_Uganda Telecom Ltd.",
+    "Airtel/Warid": "UGA_Airtel/Warid",
+    "Celtel": "UGA_Celtel",
+    "K2 Telecom Ltd": "UGA_K2 Telecom Ltd",
+    "Smile Communications Uganda Ltd": "UGA_Smile Communications Uganda Ltd",
+    "MTN Ltd.": "UGA_MTN Ltd.",
+    "Orange": "UGA_Orange",
+    "Suretelecom Uganda Ltd": "UGA_Suretelecom Uganda Ltd",
+    "i-Tel Ltd": "UGA_i-Tel Ltd"
+  },
+  "TUR": {
+    "AVEA/Aria": "TUR_AVEA/Aria",
+    "Vodafone-Telsim": "TUR_Vodafone-Telsim",
+    "Turkcell": "TUR_Turkcell"
+  },
+  "BRA": {
+    "Brazil Telcom": "BRA_Brazil Telcom",
+    "Amazonia Celular S/A": "BRA_Amazonia Celular S/A",
+    "CTBC Celular SA (CTBC)": "BRA_CTBC Celular SA (CTBC)",
+    "Oi (TNL PCS / Oi)": "BRA_Oi (TNL PCS / Oi)",
+    "Unicel do Brasil Telecomunicacoes Ltda": "BRA_Unicel do Brasil Telecomunicacoes Ltda",
+    "CTBC/Triangulo": "BRA_CTBC/Triangulo",
+    "TIM": "BRA_TIM",
+    "Sercontel Cel": "BRA_Sercontel Cel",
+    "Claro/Albra/America Movil": "BRA_Claro/Albra/America Movil",
+    "Nextel (Telet)": "BRA_Nextel (Telet)",
+    "Vivo S.A./Telemig": "BRA_Vivo S.A./Telemig"
+  },
+  "BRB": {
+    "Digicel": "BRB_Digicel",
+    "Sunbeach": "BRB_Sunbeach",
+    "Cingular Wireless": "BRB_Cingular Wireless",
+    "C & W BET Ltd.": "BRB_C & W BET Ltd."
+  },
+  "TUV": {},
+  "DEU": {
+    "Group 3G UMTS": "DEU_Group 3G UMTS",
+    "O2": "DEU_O2",
+    "Vodafone D2": "DEU_Vodafone D2",
+    "Debitel,Talkline": "DEU_Debitel,Talkline",
+    "Lycamobile": "DEU_Lycamobile",
+    "E-Plus": "DEU_E-Plus",
+    "Mobilcom": "DEU_Mobilcom",
+    "Telekom/T-mobile": "DEU_Telekom/T-mobile",
+    "Telogic/ViStream": "DEU_Telogic/ViStream"
+  },
+  "LVA": {
+    "TRIATEL/Telekom Baltija": "LVA_TRIATEL/Telekom Baltija",
+    "Bite Latvija": "LVA_Bite Latvija",
+    "Latvian Mobile Phone": "LVA_Latvian Mobile Phone",
+    "SIA Master Telecom": "LVA_SIA Master Telecom",
+    "Tele2": "LVA_Tele2",
+    "SIA Rigatta": "LVA_SIA Rigatta",
+    "SIA IZZI": "LVA_SIA IZZI",
+    "SIA Camel Mobile": "LVA_SIA Camel Mobile"
+  },
+  "EGY": {
+    "EMS - Mobinil": "EGY_EMS - Mobinil",
+    "Vodafone/Misrfone": "EGY_Vodafone/Misrfone",
+    "EgyNet": "EGY_EgyNet",
+    "TE DATA": "EGY_TE DATA",
+    "Nile Online": "EGY_Nile Online",
+    "ETISALAT": "EGY_ETISALAT",
+    "City Stars": "EGY_City Stars",
+    "Orange": "EGY_Orange",
+    "Link": "EGY_Link"
+  },
+  "JAM": {
+    "Cable & Wireless": "JAM_Cable & Wireless",
+    "DIGICEL/Mossel": "JAM_DIGICEL/Mossel"
+  },
+  "VIR": {},
+  "ZAF": {
+    "Sentech": "ZAF_Sentech",
+    "Wireless Business Solutions (Pty) Ltd": "ZAF_Wireless Business Solutions (Pty) Ltd",
+    "Cell C": "ZAF_Cell C",
+    "MTN": "ZAF_MTN",
+    "8.ta": "ZAF_8.ta",
+    "Vodacom": "ZAF_Vodacom",
+    "Cape Town Metropolitan": "ZAF_Cape Town Metropolitan"
+  },
+  "BRN": {
+    "Datastream (DTSCom)": "BRN_Datastream (DTSCom)",
+    "Telekom Brunei Bhd (TelBru)": "BRN_Telekom Brunei Bhd (TelBru)",
+    "b-mobile": "BRN_b-mobile"
+  },
+  "HND": {
+    "Digicel": "HND_Digicel",
+    "HonduTel": "HND_HonduTel",
+    "SERCOM/CLARO": "HND_SERCOM/CLARO",
+    "Telefonica/CELTEL": "HND_Telefonica/CELTEL"
+  }
+}

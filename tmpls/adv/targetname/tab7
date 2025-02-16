@@ -1,0 +1,90 @@
+<h2>Zone Type</h2>
+<form name=timetype class=timetype method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='14'>[% IF timetype %]
+<input type=hidden name=targetnameid value='[% timetype.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=TIMETYPES %]
+<input type=radio name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input id=timetypesubmit type=button value="Update">
+<input type="text" id="timetype" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+
+<h2>Date</h2>
+<form name=fullday method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='15'>[% IF fullday %]
+<input type=hidden name=targetnameid value='[% fullday.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<input type=textbox size=10 id="date1" /> 
+<input type=textbox size=10 id="date2" /> 
+<input id=datesubmit type=button value="Update">
+<input type="text" id="fullday" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<h2>Time</h2>
+<form name=fullhour method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='16'>[% IF fullhour %]
+<input type=hidden name=targetnameid value='[% fullhour.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<input type=textbox size=5 id="time1" />
+<input type=textbox size=5 id="time2" />
+<input id=timesubmit type=button value="Update">
+<input type="text" id="fullhour" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<h2>Weekly Day</h2>
+<form class=wkday name=wkday method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='17'>[% IF wkday %]
+<input type=hidden name=targetnameid value='[% wkday.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=WKDAYS %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input id=wkdaysubmit type=button value="Update">
+<input type="text" id="wkday" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<h2>Weekly Time</h2>
+<form name=wkhour method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='18'>[% IF wkhour %]
+<input type=hidden name=targetnameid value='[% wkhour.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<input type=textbox size=5 id="wktime1" />
+<input type=textbox size=5 id="wktime2" />
+<input id=wktimesubmit type=button value="Update">
+<input type="text" id="wkhour" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>

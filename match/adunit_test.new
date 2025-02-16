@@ -1,0 +1,56 @@
+package match
+
+import (
+	"testing"
+)
+
+var ADs string = `{
+"site": "AAAACAH774AAA",
+"platform": "browser",
+"adUnits" : [{
+        "code": "pz-image-1234",
+        "slot": "AAAACAAUAMAAA",
+            "banner": {
+                "size": [ 300, 250 ]
+            }
+    },{
+        "code": "pz-video-5678",
+        "slot": "AAAACAH677776",
+            "video": {
+                "context": "instream",
+                "playerSize": [640, 480]
+			}
+    },{
+        "code": "pz-html-9012",
+        "slot": "CUBQAAH774AAA",
+            "native": {
+                "image": [150, 50],
+                "title": true,
+                "sponsoredBy": true,
+                "body": true,
+                "icon": [50, 50]
+            }
+    }]
+}`
+
+func TestAdUnit(t *testing.T) {
+	incoming, err := UnpackAdUnit([]byte(ADs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if incoming.Site != "AAAACAH774AAA" || incoming.Platform != "browser" {
+		t.Errorf("%v", incoming)
+	}
+	for _, item := range incoming.AdUnits {
+			t.Errorf("%v", item.RPub)
+		if item.Banner != nil {
+			t.Errorf("%v", item.Banner)
+		}
+		if item.Video != nil {
+			t.Errorf("%v", item.Video)
+		}
+		if item.Native != nil {
+			t.Errorf("%v", item.Native)
+		}
+	}
+}

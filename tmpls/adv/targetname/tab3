@@ -1,0 +1,145 @@
+
+<h2>OS Targeting</h2>
+<form name=os method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='6'>[% IF os %]
+<input type=hidden name=targetnameid value='[% os.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<select id='osselect' name=valueid multiple">
+[% FOREACH item IN OSES %]<option [% IFED('selected', item.osid, os, 3) %] value="[% item.osid %]">[% item.name %]</option>
+[% END %]</select>
+<p><p>
+<input type=button id=ossubmit value="Update">
+<input type="text" id="os" style="border:0; color:#f6931f; font-weight:bold;" />
+<ul id="osselect_selectedItems">
+</ul>
+</form>
+
+<p> &nbsp; </p>
+
+<h2>Browser Targeting</h2>
+<form name=browser method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='4'>[% IF browser %]
+<input type=hidden name=targetnameid value='[% browser.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<select id='browserselect' name=valueid multiple">
+[% FOREACH item IN BROWSERS %]<option [% IFED('selected', item.browserid, browser, 3) %] value="[% item.browserid %]">[% item.name %]</option>
+[% END %]</select>
+<p><p>
+<input type=button id=browsersubmit value="Update">
+<input type="text" id="browser" style="border:0; color:#f6931f; font-weight:bold;" />
+<ul id="browserselect_selectedItems">
+</ul>
+</form>
+
+<p> &nbsp; </p>
+
+<h2>Language Targeting</h2>
+<form name=blanguage method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='5'>[% IF blanguage %]
+<input type=hidden name=targetnameid value='[% blanguage.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<select id='blanguageselect' name=valueid multiple">
+[% FOREACH item IN LANGUAGES %]<option [% IFED('selected', item.languageid, blanguage, 3) %] value="[% item.languageid %]">[% item.name %]</option>
+[% END %]</select>
+<p><p>
+<input type=button id=blanguagesubmit value="Update">
+<input type="text" id="blanguage" style="border:0; color:#f6931f; font-weight:bold;" />
+<ul id="blanguageselect_selectedItems">
+</ul>
+</form>
+
+<p> &nbsp; </p>
+
+<h2>Bandwidth Targeting</h2>
+<form name=bandwidth method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='2'>[% IF bandwidth %]
+<input type=hidden name=targetnameid value='[% bandwidth.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<select id='bandwidthselect' name=valueid multiple">
+[% FOREACH item IN BANDWIDTHS %]<option [% IFED('selected', item.bandwidthid, bandwidth, 3) %] value="[% item.bandwidthid %]">[% item.name %]</option>
+[% END %]</select>
+<p><p>
+<input type=button id=bandwidthsubmit value="Update">
+<input type="text" id="bandwidth" style="border:0; color:#f6931f; font-weight:bold;" />
+<ul id="bandwidthselect_selectedItems">
+</ul>
+</form>
+
+<p> &nbsp; </p>
+
+<h2>Organization Targeting</h2>
+<form name=company method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='3'>[% IF company %]
+<input type=hidden name=targetnameid value='[% company.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<table id=companytable>
+<tr><th>Domain</th><th><img src="/uilib/comImg/delete.gif" id="companydelete"><th></tr>
+[% FOREACH item IN company %]<tr>
+<td>[% item.6 %]</td>
+<td><input type=radio name=companyvalueid value="[% item.3 %]" /></td>
+</tr>[% END %]
+</table>
+<input type=text name=name size=15 />
+<input type=button id=companysubmit value="Add">
+</form>
+
+<p> &nbsp; </p>
+
+<h2>ISP Targeting</h2>
+<form name=isp method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='1'>[% IF isp %]
+<input type=hidden name=targetnameid value='[% isp.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<table id=isptable>
+<tr><th>ISP Name</th><th><img src="/uilib/comImg/delete.gif" id="ispdelete"><th></tr>
+[% FOREACH item IN isp %]<tr>
+<td>[% item.6 %]</td>
+<td><input type=radio name=ispvalueid value="[% item.3 %]" /></td>
+</tr>[% END %]
+</table>
+<input type=text name=name size=15 />
+<input type=button id=ispsubmit value="Add">
+</form>
+

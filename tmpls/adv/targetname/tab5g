@@ -1,0 +1,190 @@
+
+<h2>性别</h2>
+<form name=gender class=gender method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='21'>[% IF gender %]
+<input type=hidden name=targetnameid value='[% gender.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=GENDERS %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=gendersubmit value="更新">
+<input type="text" id="gender" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<br />
+<h2>年龄段</h2>
+<form name=age method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='22'>[% IF age %]
+<input type=hidden name=targetnameid value='[% age.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<input type=hidden name=valueid value=''>
+	<input type="text" id="age" style="border:0; color:#f6931f; font-weight:bold;" />
+    <div id="ageslider" style="width:50%"></div>
+<input type=button id=agesubmit value="更新">
+</form>
+
+<br />
+<h2>婚姻状况</h2>
+<form name=marriage class=marriage method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='23'>[% IF marriage %]
+<input type=hidden name=targetnameid value='[% marriage.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=MARRIAGES %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=marriagesubmit value="更新">
+<input type="text" id="marriage" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<br />
+<h2>是否有孩子</h2>
+<form name=children class=children method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='24'>[% IF children %]
+<input type=hidden name=targetnameid value='[% children.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=CHILDREN %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=childrensubmit value="更新">
+<input type="text" id="children" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<br />
+<h2>家庭人数</h2>
+<form name=hsize method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='25'>[% IF hsize %]
+<input type=hidden name=targetnameid value='[% hsize.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<input type=hidden name=valueid value=''>
+    <input type="text" id="hsize" style="border:0; color:#f6931f; font-weight:bold;" />
+    <div id="hsizeslider" style="width:50%"></div>
+<input type=button id=hsizesubmit value="更新">
+</form>
+
+<br />
+<h2>收入</h2>
+<form name=income method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='26'>[% IF income %]
+<input type=hidden name=targetnameid value='[% income.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<input type=hidden name=valueid value=''>
+    <input type="text" id="income" style="border:0; color:#f6931f; font-weight:bold;" />
+    <div id="incomeslider" style="width:50%"></div>
+<input type=button id=incomesubmit value="更新">
+</form>
+
+<br />
+<h2>民族</h2>
+<form name=ethnicity class=ethnicity method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='27'>[% IF ethnicity %]
+<input type=hidden name=targetnameid value='[% ethnicity.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=ETHNICITIES %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=ethnicitysubmit value="更新">
+<input type="text" id="ethnicity" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<br />
+<h2>教育程度</h2>
+<form name=education class=education method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='28'>[% IF education %]
+<input type=hidden name=targetnameid value='[% education.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=EDUCATIONS %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=educationsubmit value="更新">
+<input type="text" id="education" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+
+<br />
+<h2>宗教信仰</h2>
+<form name=religion class=religion method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='29'>[% IF religion %]
+<input type=hidden name=targetnameid value='[% religion.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=RELIGIONS %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=religionsubmit value="更新">
+<input type="text" id="religion" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+ 
+<br />
+<h2>职业</h2>
+<form name=occupation class=occupation method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='30'>[% IF occupation %]
+<input type=hidden name=targetnameid value='[% occupation.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% FOREACH E=OCCUPATIONS %]
+<input type=checkbox name=valueid value=[% E.0 %] />[% E.1 %][% END %]
+<input type=button id=occupationsubmit value="更新">
+<input type="text" id="occupation" style="border:0; color:#f6931f; font-weight:bold;" />
+</form>
+

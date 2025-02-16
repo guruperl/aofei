@@ -1,0 +1,58 @@
+{
+  "actions":{ 
+    "startnew": {"groups":["adv"] },
+    "dashboard":{"groups":["adv"]},
+    "topics":   {"groups":["agent","adv"]},
+    "insert":   {"groups":["adv"], "validate":["campaign_name"]},
+    "edit"  :   {"groups":["adv"], "validate":["campaign_id"]},
+    "update":   {"groups":["adv"], "validate":["campaign_id"]},
+    "authen":   {"groups":["agent"], "validate":["campaign_id"]},
+    "delete":   {"groups":["adv"]}
+  },
+  "fks":{
+    "adv"   : ["adv_id", "",   "campaign_id", "campaign_md5"],
+    "agent" : ["adv_id", "adv_md5", "campaign_id", "campaign_md5"]
+  },
+
+  "nextpages" : {
+    "startnew" : [
+      {"model":"channel", "action":"topics", "manual":{"level":0}}
+    ],
+    "edit" : [
+      {"model":"balance", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"table":"adv_campaign","idname":"campaign_id"}},
+      {"model":"chac", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"entitytype_id":41}}
+    ]
+  },
+
+  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active","created","total_balance_id","daily_balance_id"],
+  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active"],
+  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active","created","total_balance_id","daily_balance_id"],
+  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active","created","total_balance_id","daily_balance_id"],
+
+  "current_table" : "adv_campaign",
+  "current_key" :  "campaign_id",
+  "current_id_auto" : "campaign_id",
+
+  "key_in" : {"adv_item":"campaign_id"},
+
+  "current_tables" : [
+    {"name":"adv_campaign", "alias":"c"},
+    {"name":"adv", "alias":"a", "type":"INNER", "using":"adv_id"},
+    {"name":"add_address", "alias":"d", "type":"INNER", "using":"address_id"},
+    {"name":"adv_balance", "alias":"b", "type":"LEFT", "on":"c.total_balance_id=b.balance_id"}
+  ],
+  "topics_hash" : {
+    "c.adv_id":"adv_id",
+    "c.campaign_id":"campaign_id",
+    "c.campaign_name":"campaign_name",
+    "c.total_balance_id":"total_balance_id",
+    "c.daily_balance_id":"daily_balance_id",
+    "c.active":"active",
+    "DATE_FORMAT(c.created, '%Y-%m-%d')":"created",
+    "d.company":"company",
+    "b.limit_spend":"limit_spend",
+    "b.limit_imp":"limit_imp",
+    "b.limit_cli":"limit_cli"
+  }
+
+}

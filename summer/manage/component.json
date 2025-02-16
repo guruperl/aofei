@@ -1,0 +1,5 @@
+{
+  "actions" : {
+    "login_as" : {"groups":["web"], "options":["no_method"]}
+  }
+}

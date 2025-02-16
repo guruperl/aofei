@@ -1,0 +1,24 @@
+
+<h2>文本内容匹配</h2>
+<form name=context method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='20'>[% IF context %]
+<input type=hidden name=targetnameid value='[% context.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+<table id=contexttable>
+<tr><th>关键词</th><th><img src="/uilib/comImg/delete.gif" id="contextdelete"><th></tr>
+[% FOREACH item IN context %]<tr>
+<td>[% item.6 %]</td>
+<td><input type=radio name=contextvalueid value="[% item.3 %]" /></td>
+</tr>[% END %]
+</table>
+<input type=text name=name size=15 />
+<input type=button id=contextsubmit value="添加">
+</form>
+

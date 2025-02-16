@@ -1,0 +1,19 @@
+{
+  "actions" : {
+  "startnew" : {"groups":["adv"], "options":["no_db","no_method"]},
+    "insert" : {"groups":["adv"], "validate":["entitytype_id"]},
+      "edit" : {"groups":["adv"], "validate":["balance_id","entitytype_id"]},
+    "update" : {"groups":["adv"], "validate":["balance_id","entitytype_id"]},
+    "delete" : {"groups":["adv"], "validate":["balance_id","entitytype_id"]},
+    "topics" : {"groups":["adv"], "validate":["entitytype_id"]}
+  },
+
+  "insert_pars"    : ["limit_spend","limit_imp","limit_cli","created"],
+  "update_pars"    : ["limit_spend","limit_imp","limit_cli","balance_id"],
+    "edit_pars"    : ["limit_spend","limit_imp","limit_cli","current_spend","current_imp","current_cli","created","balance_id"],
+  "topics_pars"    : ["limit_spend","limit_imp","limit_cli","current_spend","current_imp","current_cli","created","balance_id"],
+
+  "current_table"  : "adv_balance",
+  "current_key"    : "balance_id",
+  "current_id_auto": "balance_id"
+}

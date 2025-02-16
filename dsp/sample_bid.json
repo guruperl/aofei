@@ -1,0 +1,216 @@
+{
+    "id": "a4fbe69285880f67f3f33c2465bfb8ab",
+    "imp": [
+        {
+            "id": "5c6e168cd0494bf8b71d7d92030bda18",
+            "native": {
+                "request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":64,\"hmin\":64}}]}}",
+                "ver": "1.1"
+            },
+            "tagid": "1004202",
+            "bidfloor": 0.01,
+            "bidfloorcur": "USD",
+            "secure": 0,
+            "ext": {
+                "adCounts": 10
+            }
+        }
+    ],
+    "app": {
+        "id": "1004078",
+        "bundle": "com.example.publisher"
+    },
+    "device": {
+        "ua": "Mozilla/5.0 (Linux; Android 13; RMX3511 Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0.6778.260 Mobile Safari/537.36",
+        "geo": {
+            "country": "RUS"
+        },
+        "lmt": 0,
+        "ip": "178.214.246.172",
+        "devicetype": 1,
+        "make": "OPPO",
+        "model": "rmx3511",
+        "os": "Android",
+        "osv": "13",
+        "connectiontype": 2,
+        "ifa": "8e9e9c7e-fb9f-46ae-bd9b-d29fe784bebf"
+    },
+    "user": {
+        "id": "",
+        "gender": "O"
+    },
+    "test": 0,
+    "at": 1,
+    "tmax": 700,
+    "allimps": 0,
+    "cur": [
+        "USD"
+    ],
+    "ext": {
+        "request_domain": "exchange.example.test",
+        "x-openrtb-version": "2.5"
+    }
+}
+
+
+### **顶层字段**
+
+- **`id`**:  
+  广告请求的唯一标识符，用于区分不同的竞价请求。  
+  示例：`"a4fbe69285880f67f3f33c2465bfb8ab"`
+
+- **`imp`**:  
+  描述广告展示的数组，每个数组项代表一个广告位（impression）。详见下文。
+
+- **`app`**:  
+  应用相关信息，用于说明广告展示是在移动应用内。
+
+- **`device`**:  
+  设备信息，包括设备类型、操作系统、IP 地址等。
+
+- **`user`**:  
+  用户信息（如性别、ID）。某些字段可能为空，取决于隐私设置。
+
+- **`test`**:  
+  测试标识符，`0` 表示正式竞价请求，`1` 表示测试请求。  
+  示例：`"test": 0`
+
+- **`at`**:  
+  竞价模式，`1` 表示一阶竞价（first-price auction），`2` 表示二阶竞价（second-price auction）。  
+  示例：`"at": 1`
+
+- **`tmax`**:  
+  响应的最大延迟时间（以毫秒为单位）。  
+  示例：`"tmax": 700`
+
+- **`allimps`**:  
+  是否对所有广告位都要返回竞价，`0` 表示仅针对符合条件的广告位返回。  
+  示例：`"allimps": 0`
+
+- **`cur`**:  
+  支持的货币列表，通常以 ISO 4217 标准定义（如 `USD`）。  
+  示例：`"cur": ["USD"]`
+
+- **`ext`**:  
+  扩展字段，包含额外的元信息。  
+  - `request_domain`: 广告请求的来源域名。  
+    示例：`"exchange.example.test"`  
+  - `x-openrtb-version`: OpenRTB 协议的版本号。  
+    示例：`"2.5"`
+
+---
+
+### **`imp` 对象**
+
+`imp` 是一个数组，每个数组项描述一个广告位。
+
+- **`id`**:  
+  广告位的唯一标识符。  
+  示例：`"5c6e168cd0494bf8b71d7d92030bda18"`
+
+- **`native`**:  
+  原生广告的规格和格式，包含以下字段：  
+  - `request`: 原生广告的详细描述（JSON 格式字符串）。  
+    示例：`"request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":64,\"hmin\":64}}]}}"`  
+  - `ver`: 原生广告的版本号。  
+    示例：`"1.1"`
+
+- **`tagid`**:  
+  广告位的标识符，由发布方定义，用于标识特定广告位。  
+  示例：`"1004202"`
+
+- **`bidfloor`**:  
+  最低竞价（CPM），单位为货币单位。  
+  示例：`"bidfloor": 0.01`
+
+- **`bidfloorcur`**:  
+  最低竞价的货币单位。  
+  示例：`"bidfloorcur": "USD"`
+
+- **`secure`**:  
+  是否要求 HTTPS，`1` 表示需要，`0` 表示不需要。  
+  示例：`"secure": 0`
+
+- **`ext`**:  
+  扩展字段，包含额外信息。  
+  - `adCounts`: 广告计数。  
+    示例：`"adCounts": 10`
+
+---
+
+### **`app` 对象**
+
+描述广告展示的应用信息。
+
+- **`id`**:  
+  应用的唯一标识符，由广告平台定义。  
+  示例：`"1004078"`
+
+- **`bundle`**:  
+  应用的包名（如 Android 应用的包名）。  
+  示例：`"com.example.publisher"`
+
+---
+
+### **`device` 对象**
+
+描述设备相关信息。
+
+- **`ua`**:  
+  用户代理字符串，表示设备的浏览器或 WebView 信息。  
+  示例：`"Mozilla/5.0 (Linux; Android 13; RMX3511 Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0.6778.260 Mobile Safari/537.36"`
+
+- **`geo`**:  
+  地理位置信息（如果可用）。  
+  - `country`: 国家代码（ISO 3166-1 alpha-3）。  
+    示例：`"RUS"`
+
+- **`lmt`**:  
+  限制广告追踪，`1` 表示启用，`0` 表示未启用。  
+  示例：`"lmt": 0`
+
+- **`ip`**:  
+  用户的 IP 地址。  
+  示例：`"178.214.246.172"`
+
+- **`devicetype`**:  
+  设备类型，以下是常见值：  
+  - `1`: 手机  
+  - `2`: 平板  
+  - `3`: 电视  
+  示例：`"devicetype": 1`
+
+- **`make` 和 `model`**:  
+  设备品牌和型号。  
+  示例：`"make": "OPPO", "model": "rmx3511"`
+
+- **`os` 和 `osv`**:  
+  操作系统及版本号。  
+  示例：`"os": "Android", "osv": "13"`
+
+- **`connectiontype`**:  
+  网络连接类型，以下是常见值：  
+  - `1`: Wi-Fi  
+  - `2`: 移动网络  
+  示例：`"connectiontype": 2`
+
+- **`ifa`**:  
+  广告标识符（如 Android 的 GAID 或 iOS 的 IDFA）。  
+  示例：`"ifa": "8e9e9c7e-fb9f-46ae-bd9b-d29fe784bebf"`
+
+---
+
+### **`user` 对象**
+
+描述用户相关信息。
+
+- **`id`**:  
+  用户的唯一标识符，可能为空。  
+  示例：`""`
+
+- **`gender`**:  
+  用户性别：  
+  - `M`: 男  
+  - `F`: 女  
+  - `O`: 其他或未声明  
+  示例：`"gender": "O"`

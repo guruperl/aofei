@@ -1,0 +1,70 @@
+package main
+
+import (
+	"fmt"
+	"encoding/json"
+)
+
+type SyncRecord struct {
+    Location_id string
+    Location_name string
+    Style string
+    Cpm_start_price float32
+    Block_vocation []string
+    Allow_file []string
+    Screen string
+    Review_pic string
+}
+
+type SyncMsg struct {
+	Total int
+	Count int
+	Records []SyncRecord
+}
+
+type Sync struct {
+    Ret_code int
+	Error_code int
+	Ret_msg *SyncMsg
+}
+
+func main() {
+	str := `{
+	"ret_code":0,
+	"ret_msg":{
+		"total" :2,
+		"count" :2,
+		"records" : [
+{
+"location_id": "Astro_F_Rectangle",
+"location_name": "星座频道-内容页-矩形大图",
+"style": "300*250",
+"cpm_start_price": 20,
+"block_vocation": [],
+"allow_file": ["jpg","gif","swf","png"],
+"screen": "Y",
+"review_pic": "http://info.qq.com/op/location_pics/Astro_2nd_Width1_small.jpg"
+},
+{
+"location_id": "LV_1001_LDVi_LD",
+"location_name": "腾讯视频-常规-点播-前贴片",
+"style": "400*300",
+"cpm_start_price": 15,
+"block_vocation": ["010","020"],
+"allow_file": ["flv"],
+"enable": "N",
+"screen": "Y",
+"review_pic": "http://info.qq.com/op/location_pics/Astro_2nd_Width1_small.jpg"
+}
+		]
+	}
+}`
+	parsed := new(Sync)
+	err := json.Unmarshal([]byte(str), parsed)
+	if err != nil { panic(err) }
+
+	msg := parsed.Ret_msg
+	items := msg.Records
+	fmt.Printf("%T\n", items[0])
+	fmt.Printf("%v\n", items[0])
+}

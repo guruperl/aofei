@@ -1,0 +1,23 @@
+{
+  "actions": {
+	    "editPub": {"groups":["pub"],"validate":["pub_id"]},
+      "topicsAdv24Hours" : {"groups":["adv"],"validate":["adv_id"]},
+      "topicsAdvTopItems": {"groups":["adv"],"validate":["adv_id"]},
+      "topicsAdvTopSlots": {"groups":["adv"],"validate":["adv_id"]},
+      "topicsPub24Hours" : {"groups":["pub"],"validate":["pub_id"]},
+      "topicsPubTopSlots": {"groups":["pub"],"validate":["pub_id"]},
+      "topicsPubTopCampaigns": {"groups":["pub"],"validate":["pub_id"]},
+	    "editAdv": {"groups":["adv"],"validate":["adv_id"]}
+  },
+
+  "nextpages" : {
+    "topicsPub24Hours" : [
+      {"model":"ledger", "action":"topicsPubTopSlots"},
+      {"model":"ledger", "action":"topicsPubTopCampaigns"}
+    ],
+    "topicsAdv24Hours" : [
+      {"model":"ledger", "action":"topicsAdvTopItems"},
+      {"model":"ledger", "action":"topicsAdvTopSlots"}
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "actions": {
+		"edit": {"groups":["adv"],"validate":["adv_id"]},
+    "startnew": {"groups":["adv"],"options":["no_db", "no_method"]},
+      "insert": {"groups":["adv"],"validate":["adv_id"]},
+      "topics": {"groups":["adv"]},
+        "edit": {"groups":["adv"],"validate":["payment_id"]},
+      "update": {"validate":["payment_id"]},
+     "delete" : {}
+
+  },
+
+  "fks" : {
+    "adv" : ["adv_id", "", "payment_id", "payment_md5"]
+  },
+
+  "insert_pars":[             "paytype_id","adv_id","amount",         "ip","created"],
+  "update_pars":["payment_id","paytype_id","adv_id","amount","status"               ],
+  "topics_pars":["payment_id", "status", "adv_id", "entitytype_id", "entity_id", "amount", "ip", "created", "paytype_value", "sender_name", "sender_id", "transaction_id"],
+    "edit_pars":["payment_id", "status", "adv_id", "entitytype_id", "entity_id", "amount", "ip", "created", "paytype_value", "sender_name", "sender_id", "transaction_id"],
+
+  "current_table":"pay_payment",
+  "current_key":"payment_id",
+  "current_id_auto":"payment_id"
+}

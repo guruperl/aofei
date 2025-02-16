@@ -1,0 +1,30 @@
+
+[% FOREACH item IN Goto_Attrname_Model_topics %]
+<script type=text/javascript>
+$(document).ready(function() {
+	$("#custom[% item.attrnameid %]submit").click(function(){select_set("custom[% item.attrnameid %]")});
+});
+</script>
+
+<form name=custom[% item.attrnameid %] method=post action=targetname>
+<input type=hidden name=action value='myinsert'>
+<input type=hidden name=attrnameid value='[% item.attrnameid %]'>[% IF ${item.attrname} %]
+<input type=hidden name=targetnameid value='[% ${item.attrname}.0.1 %]'>[% END %]
+<input type=hidden name=entitytype value='[% entitytype %]'>
+<input type=hidden name=itemid value='[% itemid %]'>
+<input type=hidden name=itemmd5 value='[% itemmd5 %]'>
+<input type=hidden name=itemname value='[% itemname %]'>
+<input type=hidden name=campaignid value='[% campaignid %]'>
+<input type=hidden name=campaignmd5 value='[% campaignmd5 %]'>
+<input type=hidden name=campaignname value='[% campaignname %]'>
+[% item.attrname %]
+<select id=custom[% item.attrnameid %]select name=valueid size=5 multiple>[% FOREACH V IN item.Goto_Attrvalue_Model_topics %]
+<option [% IFED('selected', V.attrvalueid, ${item.attrname}, 3) %] value=[% V.attrvalueid %]>[% V.value %]</option>[% END %]
+<input type=button id=custom[% item.attrnameid %]submit value="Update">
+<input type="text" id="custom[% item.attrnameid %]" style="border:0; color:#f6931f; font-weight:bold;" />
+<ul id="custom[% item.attrnameid %]select_selectedItems">
+</ul>
+</form>
+
+[% END %]
+

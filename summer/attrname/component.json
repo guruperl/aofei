@@ -1,0 +1,15 @@
+{
+  "actions" : {
+    "topics":{"groups":["adv"]},
+    "insert":{"groups":["adv"], "validate":["attrname"]},
+    "delete":{"groups":["adv"]}
+  },
+
+  "insert_pars":["attrname_id","adv_id","attrname"],
+  "update_pars":["attrname_id","adv_id","attrname"],
+  "topics_pars":["attrname_id","adv_id","attrname"],
+  "edit_pars"  :["attrname_id","adv_id","attrname"],
+  "current_table":"adv_attrname",
+  "current_key":"attrname_id",
+  "current_id_auto":"attrname_id"
+}

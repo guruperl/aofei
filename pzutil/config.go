@@ -1,0 +1,99 @@
+package pzutil
+
+import (
+	"encoding/json"
+	"os"
+)
+
+type Red struct {
+	Network string
+	Addr    string
+	Size    int
+}
+
+type Config struct {
+	DocumentRoot string
+	Handle       map[string]string
+	ServerURL    string
+	Logfile      string
+	Port         int
+	HhLock       string
+	Ips          string
+	Redis        *Red
+	NatsURL      string
+	ConnectArray []string
+
+	SITE     string
+	SLOT     string
+	ITEM     string
+	WEIGHT   string
+	AUDIENCE string
+
+	Ucookie       string
+	UcookieMaxAge int
+	Icookie       string
+	IcookieMaxAge int
+	Ccookie       string
+	CcookieMaxAge int
+
+	Sizes map[uint32]Size
+}
+
+func NewConfig(filename string) *Config {
+	parsed := new(Config)
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(content, parsed)
+	if err != nil {
+		panic(err)
+	}
+
+	if parsed.Port == 0 {
+		parsed.Port = 80
+	}
+	if parsed.HhLock == "" {
+		parsed.HhLock = "/var/tmp/hh.lock"
+	}
+	if parsed.NatsURL == "" {
+		parsed.NatsURL = "nats://localhost:4222"
+	}
+	if parsed.SITE == "" {
+		parsed.SITE = "SITE"
+	}
+	if parsed.SLOT == "" {
+		parsed.SLOT = "SLOT"
+	}
+	if parsed.ITEM == "" {
+		parsed.SLOT = "ITEM"
+	}
+	if parsed.AUDIENCE == "" {
+		parsed.AUDIENCE = "AUDIENCE"
+	}
+
+	if parsed.Ucookie == "" {
+		parsed.Ucookie = "uid"
+	}
+	if parsed.UcookieMaxAge == 0 {
+		parsed.UcookieMaxAge = 15553000
+	}
+	if parsed.Icookie == "" {
+		parsed.Icookie = "i"
+	}
+	if parsed.IcookieMaxAge == 0 {
+		parsed.IcookieMaxAge = 3888000
+	}
+	if parsed.Ccookie == "" {
+		parsed.Ccookie = "c"
+	}
+	if parsed.CcookieMaxAge == 0 {
+		parsed.CcookieMaxAge = 3888000
+	}
+
+	if parsed.Handle == nil {
+		parsed.Handle = map[string]string{"ssp": "/ssp"}
+	}
+
+	return parsed
+}

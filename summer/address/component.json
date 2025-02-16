@@ -1,0 +1,23 @@
+{
+  "Actions" : {
+	"Topics" : {"groups":["web","pub","adv"]},
+	"Insert" : {},
+	"Delete" : {"groups":["pub","adv"], "validate":["address_id"]},
+	"Update" : {"groups":["pub","adv"], "validate":["address_id"]},
+	"Edit"   : {"groups":["pub","adv"], "validate":["address_id"]}
+  },
+  "Fks" : {
+	"pub" : ["address_id", "address_md5"],
+	"adv" : ["address_id", "address_md5"],
+	"agency" : ["address_id", "address_md5"]
+  },
+
+  "Topics_pars":["company","street","city","state_id","zip","country_id","contact","contact_email","phone","fax","url","ip","created"],
+	"Edit_pars":["company","street","city","state_id","zip","country_id","contact","contact_email","phone","fax","url","ip","created"],
+  "Update_pars":["company","street","city","state_id","zip","country_id","contact","contact_email","phone","fax","url"],
+  "Insert_pars":["company","street","city","state_id","zip","country_id","contact","contact_email","phone","fax","url","ip","created"],
+
+  "Current_key":"address_id",
+  "Current_id_auto":"address_id",
+  "Current_table":"add_address"
+}

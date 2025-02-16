@@ -1,0 +1,66 @@
+package match
+
+import (
+	"encoding/json"
+	"pzutil"
+)
+
+type BannerType struct {
+	Size []uint16		`json:"size"`
+}
+
+type VideoType struct {
+	Context string		`json:"context"`
+	PlayerSize []uint16	`json:"playerSize"`
+}
+
+type NativeType struct {
+	Image   []uint16	`json:"image,omitempty"`
+	Icon    []uint16	`json:"icon,omitempty"`
+	Title   bool		`json:"title,omitempty"`
+	SponsoredBy bool	`json:"sponsoredBy,omitempty"`
+	Body    bool		`json:"body,omitempty"`
+}
+
+type AdUnit struct {
+	RPub
+	Slot	string		`json:"slot"`
+	Code	string		`json:"code"`
+	Banner	*BannerType	`json:"banner,omitempty"`
+	Video	*VideoType	`json:"video,omitempty"`
+	Native	*NativeType	`json:"native,omitempty"`
+}
+
+type Incoming struct {
+	Site		string		`json:"site"`
+	Platform	string		`json:"platform"`
+	AdUnits		[]*AdUnit	`json:"adUnits"`
+}
+
+func (self *AdUnit)GetSizeId() uint32 {
+    sizes := []uint16{0,0}
+    if self.Banner!=nil {
+        sizes = self.Banner.Size
+    } else if self.Native!=nil {
+        sizes = self.Native.Image
+    } else if self.Video!=nil {
+        sizes = self.Video.PlayerSize
+    }
+    return pzutil.GetSizeId(sizes[0], sizes[1])
+}
+
+func UnpackAdUnit(data []byte) (*Incoming, error) {
+	incoming := &Incoming{}
+    err := json.Unmarshal(data, incoming)
+	if err != nil { return nil, err }
+
+	pub_id, site_id, err := pzutil.UnpackTwo(incoming.Site)
+	if err != nil { return nil, err }
+
+    for _, adunit := range incoming.AdUnits {
+		slot_id, size_id, err := pzutil.UnpackTwo(adunit.Slot)
+		if err != nil { return nil, err }
+		adunit.RPub = RPub{pub_id, site_id, slot_id, size_id}
+	}
+	return incoming, nil
+}

@@ -1,0 +1,19 @@
+{
+  "actions" : {
+    "startnew":{"options":["no_db", "no_method"]},
+    "topics"  :{"groups":["web"]},
+    "insert"  :{"validate":["channel_id","channel_name","level"]},
+    "edit"    :{"validate":["channel_id"]},
+    "update"  :{"validate":["channel_id"]},
+    "delete"  :{"validate":["channel_id"]}
+  },
+
+  "current_table":"def_channel",
+
+  "insert_pars":["channel_id","channel_name","level","parent","full_name"],
+  "update_pars":["channel_id","channel_name","level","parent","full_name"],
+  "topics_pars":["channel_id","channel_name","level","parent","full_name"],
+    "edit_pars":["channel_id","channel_name","level","parent","full_name"],
+
+  "current_key":"channel_id"
+}
