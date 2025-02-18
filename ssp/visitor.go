@@ -6,8 +6,8 @@ import (
 	"encoding/gob"
 	"time"
 
-	"github.com/genelet/winter/ipsearch"
 	"github.com/genelet/winter/match"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/uadevice"
 )
 
@@ -74,7 +74,10 @@ func RetrieveVisitor(ucookie string, ips *ipsearch.IPSearch, ua *uadevice.PzUa, 
 	} else {
 		visitor, err = UnpackVisitor(ucookie)
 		if err != nil { // corrupted cookie, reset
-			geo = ips.CreatePzGeo(ipstr)
+			geo, err = ips.CreatePzGeo(ipstr)
+			if err != nil {
+				return nil, false, false, err
+			}
 			visitor = NewVisitor(current, ip32, ua, geo)
 			needCookie = true
 			isNew = true
@@ -82,7 +85,10 @@ func RetrieveVisitor(ucookie string, ips *ipsearch.IPSearch, ua *uadevice.PzUa, 
 			if ip32 == visitor.lastIP {
 				//geo = visitor.PzGeo
 			} else {
-				geo = ips.CreatePzGeo(ipstr)
+				geo, err = ips.CreatePzGeo(ipstr)
+				if err != nil {
+					return nil, false, false, err
+				}
 				visitor.lastIP = ip32
 				visitor.PzGeo = geo
 				needCookie = true

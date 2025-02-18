@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/genelet/winter/ipsearch"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/ssp"
 	_ "github.com/go-sql-driver/mysql"

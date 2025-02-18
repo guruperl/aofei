@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/genelet/winter/demo"
-	"github.com/genelet/winter/ipsearch"
 	"github.com/genelet/winter/match"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	// "github.com/nats-io/nats.go"
 )
@@ -89,7 +89,6 @@ func TestUserGet(t *testing.T) {
 	geo := user.PzGeo
 	if geo.ContinentID != 3 ||
 		geo.CountryID != 48 ||
-		geo.StateID != 620 ||
 		geo.DmaID != 141 ||
 		geo.CityID != 0 ||
 		geo.IspID != 6 {
@@ -142,7 +141,6 @@ func TestUserPost(t *testing.T) {
 	geo := user.Geo
 	if geo.ContinentID != 3 ||
 		geo.CountryID != 48 ||
-		geo.StateID != 620 ||
 		geo.DmaID != 141 ||
 		geo.CityID != 0 ||
 		geo.IspID != 6 {

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/genelet/winter/ipsearch"
 	"github.com/genelet/winter/match"
+	"github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mediocregopher/radix.v2/pool"
@@ -23,7 +23,7 @@ import (
 func getSample(t *testing.T) *Controller {
 	c := pzutil.NewConfig("../conf/gotest.conf")
 
-	ips, err := ipsearch.LoadIPData(c.Ips)
+	ips, err := maxmind.LoadIPData(c.Ips)
 	if err != nil {
 		t.Fatalf("error opening Ip file: %v", err)
 	}

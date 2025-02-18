@@ -10,7 +10,7 @@ import (
 
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dmp"
-	"github.com/genelet/winter/ipsearch"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/uadevice"
 )

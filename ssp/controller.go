@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/genelet/winter/demo"
-	"github.com/genelet/winter/ipsearch"
 	"github.com/genelet/winter/match"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	"github.com/golang/glog"
 	"github.com/mediocregopher/radix.v2/pool"

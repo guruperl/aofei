@@ -42,21 +42,22 @@ func GetPzUa(raw string) *PzUa {
 	return &PzUa{b, bv, o, ov, p, d}
 }
 
-/*
-	func CreateTwoUa(raw string) *PzUa {
-		if raw=="" { return nil }
-		ua := uasurfer.Parse(raw)
-
-		b  := uint32(ua.Browser.Name)
-		bv := uint32(ua.Browser.Version.Major)
-		o  := uint32(ua.OS.Name)
-		ov := uint32(ua.OS.Version.Major)
-		p  := uint32(ua.OS.Platform)
-		d  := uint32(ua.DeviceType)
-
-		return &PzUa{b, bv, o, ov, p, d}
+func CreateTwoUa(raw string) *PzUa {
+	if raw == "" {
+		return nil
 	}
-*/
+	ua := uasurfer.Parse(raw)
+
+	b := uint32(ua.Browser.Name)
+	bv := uint32(ua.Browser.Version.Major)
+	o := uint32(ua.OS.Name)
+	ov := uint32(ua.OS.Version.Major)
+	p := uint32(ua.OS.Platform)
+	d := uint32(ua.DeviceType)
+
+	return &PzUa{b, bv, o, ov, p, d}
+}
+
 func (self *PzUa) Pack() uint32 {
 	if self.Browser >= 64 {
 		self.Browser = 0

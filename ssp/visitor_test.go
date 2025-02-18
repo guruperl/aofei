@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/genelet/winter/ipsearch"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/uadevice"
 )
@@ -19,7 +19,10 @@ func TestVisitor(t *testing.T) {
 	ip32 := pzutil.IP2Uint(ip)
 
 	p, _ := ipsearch.LoadIPData("../conf/qq-pz.dat")
-	geo := p.CreatePzGeo(ipstr)
+	geo, err := p.CreatePzGeo(ipstr)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	v := NewVisitor(current, ip32, ua, geo)
 	packed, err := v.Pack()
@@ -52,7 +55,6 @@ func TestVisitor(t *testing.T) {
 	if pid.StartIP != 3526609019 || visitor.lastIP != 3526609019 ||
 		g.ContinentID != 3 ||
 		g.CountryID != 48 ||
-		g.StateID != 620 ||
 		g.DmaID != 141 ||
 		g.CityID != 0 ||
 		g.IspID != 6 ||

@@ -1,7 +1,7 @@
 package dsp
 
 import (
-	"github.com/genelet/winter/ipsearch"
+	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/uadevice"
 
 	openrtb2 "github.com/prebid/openrtb/v20/openrtb2"
@@ -28,9 +28,9 @@ func convertGeoIPUA(bidRequest *openrtb2.BidRequest) (uint32, *uadevice.PzUa, *i
 
 	if bidRequest.User != nil {
 		if bidRequest.User.Geo != nil {
-			geo = ipsearch.NewPzGeo(bidRequest.User.Geo.Lat, bidRequest.User.Geo.Lon)
+			geo, err = convertGeo(bidRequest.User.Geo)
 		}
 	}
 
-	return ip32, ua, geo, nil
+	return ip32, ua, geo, err
 }

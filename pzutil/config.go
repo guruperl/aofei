@@ -8,6 +8,8 @@ import (
 type Red struct {
 	Network string
 	Addr    string
+	User    string
+	Pass    string
 	Size    int
 }
 

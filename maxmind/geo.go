@@ -36,3 +36,15 @@ type PzGeo struct {
 	Zip       string
 	Isp       string
 }
+
+func (self *PzGeo) SetType(atype adcom1.LocationType) {
+	self.aType = atype
+}
+
+func (self *PzGeo) SetAccuracy(aAccuracy int64) {
+	self.aAccuracy = aAccuracy
+}
+
+func (self *PzGeo) SetLastFix(aLastFix int64) {
+	self.aLastFix = aLastFix
+}
