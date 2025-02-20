@@ -2,6 +2,7 @@ package dmp
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/mediocregopher/radix/v4"
@@ -10,6 +11,7 @@ import (
 func TestRedis(t *testing.T) {
 	cfg := radix.PoolConfig{
 		Dialer: radix.Dialer{
+			AuthUser: "redis_user",
 			AuthPass: "zH8zkBqBcw",
 		},
 	}
@@ -31,6 +33,8 @@ func TestRedis(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Errorf("%v", dmp)
-	t.Errorf("%v", dmp0)
+	if fmt.Sprintf("%v", dmp) != fmt.Sprintf("%v", dmp0) {
+		t.Errorf("%v", dmp)
+		t.Errorf("%v", dmp0)
+	}
 }

@@ -3,17 +3,19 @@ Chapter 1: Start NATS Server Automatically
 1.1 Install the server
 go get github.com/nats-io/gnatsd
 
-1.2 Create the service file in /etc/systemd/system/gnatsd.service
+1.2 Create the service file in /etc/systemd/system/nats-server.service
 >>>>>>>>>>>
 [Unit]
-Description=gnatsd service
+Description=nats-server service
+After=network-online.target
+Before=aofei.service
 
 [Service]
 Type=simple
-ExecStart=/srv/aofei/golang/bin/gnatsd
+ExecStart=/home/winter/go/bin/nats-server
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target aofei.service
 <<<<<<<<<<<
 
 Start it: sudo systemctl start gnatsd
@@ -21,15 +23,15 @@ Get it to run at boot: sudo systemctl enable gnatsd
 stop it: sudo systemctl stop gnatsd
 disable it: sudo systemctl disable gnatsd
 
-1.3 Create the httpd file in /etc/systemd/system/web.service
+1.3 Create the httpd file in /etc/systemd/system/aofei.service
 >>>>>>>>>>>
 [Unit]
-Description=Ad Server HTTPd service
+Description=Aofei DSP service
 
 [Service]
 Type=simple
-Environment=SUMMER=/srv/aofei/winter/conf/summer.json PZADX=/srv/aofei/winter/conf/pzadx.conf
-ExecStart=/srv/aofei/winter/src/v01/unify -log_dir=/srv/aofei/winter/logs
+Environment=SUMMER=/home/winter/aofei/conf/summer.json PZADX=/home/winter/aofei/conf/aofei.json
+ExecStart=/home/winter/aofei/cmd/unify/unify -log_dir=/home/winter/logs
 
 [Install]
 WantedBy=multi-user.target
@@ -52,7 +54,7 @@ to have it run at reboot.
 
 Chapter 3: Configuration
 
-3.1) pzutil/config is conf/gotest.conf, product e.g. pzadx.conf
+3.1) pzutil/config is conf/gotest.conf, product e.g. aofei.json
 3.2) genet/config is conf/gotest.json, product e.g. summer.json
 
 
