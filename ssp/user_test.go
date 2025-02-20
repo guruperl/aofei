@@ -51,7 +51,10 @@ var ADs string = `{
 }`
 
 func TestUserGet(t *testing.T) {
-	c := pzutil.NewConfig("../conf/pzadx.conf")
+	c, err := pzutil.NewConfig("../conf/pzadx.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ips, _ := ipsearch.LoadIPData("../conf/qq-pz.dat")
 	uastr := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36"
 	current := time.Now()
@@ -108,7 +111,10 @@ func TestUserGet(t *testing.T) {
 }
 
 func TestUserPost(t *testing.T) {
-	c := pzutil.NewConfig("../conf/pzadx.conf")
+	c, err := pzutil.NewConfig("../conf/pzadx.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ips, _ := ipsearch.LoadIPData("../conf/qq-pz.dat")
 	uastr := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36"
 	current := time.Now()

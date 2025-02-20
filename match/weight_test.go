@@ -42,7 +42,10 @@ func TestWeight(t *testing.T) {
 		t.Errorf("%v", newSlot1)
 	}
 
-	c := pzutil.NewConfig("../conf/gotest.conf")
+	c, err := pzutil.NewConfig("../conf/gotest.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
 	if err != nil {
 		t.Fatal(err)

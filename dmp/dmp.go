@@ -61,7 +61,7 @@ func pushSingle(bs *[]uint8, name string, value uint32) {
 }
 
 func pushSlice(bs *[]uint8, name string, values []uint32) {
-	if values != nil && len(values) > 0 {
+	if len(values) > 0 {
 		for _, value := range values {
 			pushSingle(bs, name, value)
 		}
@@ -303,43 +303,43 @@ func (self *Dmp) Pack() ([]byte, error) {
 		others += (1 << item)
 	}
 
-	health_learn := uint32(0)
+	healthLearn := uint32(0)
 	for _, item := range self.Healths {
-		health_learn += (1 << item)
+		healthLearn += (1 << item)
 	}
 	for _, item := range self.Learns {
-		health_learn += (1 << (16 + item))
+		healthLearn += (1 << (16 + item))
 	}
-	travel_social := uint32(0)
+	travelSocial := uint32(0)
 	for _, item := range self.Travels {
-		travel_social += (1 << item)
+		travelSocial += (1 << item)
 	}
 	for _, item := range self.Socials {
-		travel_social += (1 << (16 + item))
+		travelSocial += (1 << (16 + item))
 	}
-	car_food := uint32(0)
+	carFood := uint32(0)
 	for _, item := range self.Cars {
-		car_food += (1 << item)
+		carFood += (1 << item)
 	}
 	for _, item := range self.Foods {
-		car_food += (1 << (16 + item))
+		carFood += (1 << (16 + item))
 	}
-	photo_work := uint32(0)
+	photoWork := uint32(0)
 	for _, item := range self.Photos {
-		photo_work += (1 << item)
+		photoWork += (1 << item)
 	}
 	for _, item := range self.Works {
-		photo_work += (1 << (16 + item))
+		photoWork += (1 << (16 + item))
 	}
-	book_report := uint32(0)
+	bookReport := uint32(0)
 	for _, item := range self.Books {
-		book_report += (1 << item)
+		bookReport += (1 << item)
 	}
 	for _, item := range self.Reports {
-		book_report += (1 << (16 + item))
+		bookReport += (1 << (16 + item))
 	}
 
-	data := []uint32{d1, d2, d3, games, shops, finances, grocerys, medias, health_learn, travel_social, car_food, photo_work, book_report, others}
+	data := []uint32{d1, d2, d3, games, shops, finances, grocerys, medias, healthLearn, travelSocial, carFood, photoWork, bookReport, others}
 
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, data)

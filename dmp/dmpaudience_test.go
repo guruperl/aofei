@@ -52,8 +52,8 @@ func TestAudience(t *testing.T) {
 	}
 
 	ARGS := url.Values{}
-	campaign_id := uint32(25)
-	ARGS.Set("campaign_id", strconv.FormatUint(uint64(campaign_id), 10))
+	campaignID := uint32(25)
+	ARGS.Set("campaign_id", strconv.FormatUint(uint64(campaignID), 10))
 	aud.ToArgs(ARGS)
 	if ARGS.Get("Sex") != "1" || ARGS.Get("Bplace") != "9" ||
 		ARGS.Get("Brand") != "11" || ARGS.Get("Hold") != "1" ||

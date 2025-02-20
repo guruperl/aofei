@@ -214,7 +214,7 @@ func basicItem(basics []match.Weight) (int, *match.Weight) {
 }
 
 func (self *User) MatchItem(demo *demo.Demo, dmmp *dmp.Dmp, audiences []*match.Audience, weights []match.Weight, basics []match.Weight) (int, *match.Weight) {
-	if audiences == nil || len(audiences) < 1 {
+	if len(audiences) < 1 {
 		return basicItem(basics)
 	}
 	probs := make([]float32, 0)

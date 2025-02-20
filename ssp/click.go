@@ -1,6 +1,7 @@
 package ssp
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 
@@ -9,8 +10,8 @@ import (
 	// "github.com/golang/glog"
 )
 
-func (self *Controller) setCcookie(w http.ResponseWriter, user *User, campaignid, itemid uint32) {
-	if item, err := self.RedisGetItem(user, itemid); err == nil {
+func (self *Controller) setCcookie(ctx context.Context, w http.ResponseWriter, user *User, campaignid, itemid uint32) {
+	if item, err := self.RedisGetItem(ctx, itemid); err == nil {
 		if item.ClickTotal > 0 {
 			if user.CCaps == nil {
 				user.CCaps = make(map[uint32]match.Fcap)
@@ -23,7 +24,7 @@ func (self *Controller) setCcookie(w http.ResponseWriter, user *User, campaignid
 	}
 }
 
-func (self *Controller) serveClick(w http.ResponseWriter, status pzutil.Status, user *User, adImp *match.AdImp, clk *match.Clk) {
+func (self *Controller) serveClick(ctx context.Context, w http.ResponseWriter, status pzutil.Status, user *User, adImp *match.AdImp, clk *match.Clk) {
 	c := self.C
 	header := w.Header()
 
@@ -49,7 +50,7 @@ func (self *Controller) serveClick(w http.ResponseWriter, status pzutil.Status, 
 
 	switch status.Source {
 	case pzutil.BROWSER, pzutil.MOBILE, pzutil.SDK:
-		self.setCcookie(w, user, clk.RAdv.CampaignID, clk.RAdv.ItemID)
+		self.setCcookie(ctx, w, user, clk.RAdv.CampaignID, clk.RAdv.ItemID)
 	default:
 	}
 

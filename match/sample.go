@@ -19,8 +19,3 @@ func GetWeightSamples() []Weight {
 			CapThrottle: uint16(30), ClickNumber: uint8(3), ClickPeriod: uint16(50), Weight: float32(0.88)},
 	}
 }
-
-func getItemSample() *Item {
-	creatives := []*Creative{{1, 0.9, "js1"}, {2, 0.1, "js1"}}
-	return &Item{ItemID: 222, AdvID: 333, SizeID: 444, Creatives: creatives}
-}

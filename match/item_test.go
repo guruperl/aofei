@@ -8,6 +8,11 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+func getItemSample() *Item {
+	creatives := []*Creative{{1, 0.9, "js1"}, {2, 0.1, "js1"}}
+	return &Item{ItemID: 222, AdvID: 333, SizeID: 444, Creatives: creatives}
+}
+
 func TestItem(t *testing.T) {
 	item := getItemSample()
 	n1 := 0
@@ -38,7 +43,10 @@ func TestItem(t *testing.T) {
 		t.Errorf("%v", c1)
 	}
 
-	c := pzutil.NewConfig("../conf/gotest.conf")
+	c, err := pzutil.NewConfig("../conf/gotest.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
 	if err != nil {
 		t.Fatal(err)

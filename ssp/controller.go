@@ -1,6 +1,7 @@
 package ssp
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -14,16 +15,56 @@ import (
 	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 	"github.com/golang/glog"
-	"github.com/mediocregopher/radix.v2/pool"
+	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
 
 type Controller struct {
 	C     *pzutil.Config
 	Ips   *ipsearch.IPSearch
-	Redis *pool.Pool
-	Db    *sql.DB
+	Redis radix.Client
+	DB    *sql.DB
 	Nc    *nats.Conn
+}
+
+func NewController(ctx context.Context, c *pzutil.Config) (*Controller, error) {
+	nc, err := nats.Connect(c.NatsURL)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
+	if err != nil {
+		return nil, err
+	}
+
+	ips, err := ipsearch.LoadIPData(c.Ips)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := radix.PoolConfig{
+		Dialer: radix.Dialer{
+			AuthPass: c.Redis.Pass,
+		},
+	}
+	if c.Redis.Size != 0 {
+		cfg.Size = c.Redis.Size
+	}
+	redis, err := cfg.New(ctx, c.Redis.User, c.Redis.Addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Controller{C: c, Ips: ips, Redis: redis, DB: db, Nc: nc}, nil
+}
+
+func GetNewController(fn string) (*Controller, error) {
+	c, err := pzutil.NewConfig(fn)
+	if err == nil {
+		return NewController(context.Background(), c)
+	}
+	return nil, err
 }
 
 func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +88,8 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not supported", http.StatusMethodNotAllowed)
 		return
 	}
+
+	ctx := context.Background()
 
 	c := self.C
 	glog.Info("1: collect request info")
@@ -86,7 +129,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch status.Request {
 	case pzutil.CLIC:
 		glog.Infof("3: serve click %#v %#v", status, clk)
-		self.serveClick(w, status, user, adImps[0], clk)
+		self.serveClick(ctx, w, status, user, adImps[0], clk)
 		return
 	case pzutil.UnknownRequest:
 		path := r.URL.Path
@@ -102,7 +145,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	glog.Info("4: check dmp/site")
-	dmmp, site, err := self.RedisGetPublisher(adImps[0].SiteID, string(user.Pid.PackBytes()))
+	dmmp, site, err := self.RedisGetPublisher(ctx, adImps[0].SiteID, string(user.Pid.PackBytes()))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -115,7 +158,11 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	glog.Info("6: get redis slots")
 	nImps := len(adImps)
-	slots, err := self.RedisGetSlots(adImps)
+	var slotIDs []uint32
+	for _, imp := range adImps {
+		slotIDs = append(slotIDs, imp.SlotID)
+	}
+	slots, err := self.RedisGetSlots(ctx, slotIDs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -124,8 +171,8 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var m1, m2, n1, n2, n int
 
 	ok := make([]bool, nImps)
-	sav_weights := make([][]match.Weight, nImps)
-	sav_basics := make([][]match.Weight, nImps)
+	savWeights := make([][]match.Weight, nImps)
+	savBasics := make([][]match.Weight, nImps)
 	camps := make(map[uint32]bool)
 	glog.Info("7: get each slot")
 	for i, slot := range slots {
@@ -139,44 +186,44 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		ok[i] = true
-		n1, n2, sav_weights[i], sav_basics[i] = user.FilterCappedWeights(after)
+		n1, n2, savWeights[i], savBasics[i] = user.FilterCappedWeights(after)
 		m1 += n1
 		m2 += n2
-		for _, weight := range sav_weights[i] {
+		for _, weight := range savWeights[i] {
 			camps[weight.CampaignID] = true
 		}
 	}
 	glog.Info("8: get audiences")
-	ref, err := self.getReference(camps)
+	ref, err := self.getReference(ctx, camps)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	sav_final := make([]*match.Weight, nImps)
-	ref_items := make(map[uint32]bool)
+	savFinal := make([]*match.Weight, nImps)
+	refItems := make(map[uint32]bool)
 	glog.Info("9: get each item")
 	for i := 0; i < nImps; i++ {
 		if !ok[i] {
 			continue
 		}
-		n, sav_final[i] = user.MatchItemRef(dmo, dmmp, ref, sav_weights[i], sav_basics[i], ref_items)
+		n, savFinal[i] = user.MatchItemRef(dmo, dmmp, ref, savWeights[i], savBasics[i], refItems)
 		if n > 0 {
 			m1 += n // n=1, get normal item
 			//} else if n == 0 { // normal item which isnt capped
 			//} else if n == -1 { // get baseline item
-		} else if n == -2 { // even baseline item not found
+		} else if n == -2 { // even baseline item not foundid string,
 			ok[i] = false
 			continue
 		}
-		ref_items[sav_final[i].ItemID] = true
+		refItems[savFinal[i].ItemID] = true
 	}
 	glog.Info("10: get details of selecte items")
 	ids := make([]uint32, 0)
-	for id := range ref_items {
+	for id := range refItems {
 		ids = append(ids, id)
 	}
-	items, err := self.RedisGetItems(user, ids)
+	items, err := self.RedisGetItems(ctx, ids)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -190,7 +237,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if ok[i] {
 			item := items[i]
 			creative := item.SelectCreative()
-			htmls[i], wins[i] = self.getHtml(id, item, sav_final[i], creative, adImps[i])
+			htmls[i], wins[i] = self.getHTML(id, item, savFinal[i], creative, adImps[i])
 		} else {
 			status.IsPSA = true
 			htmls[i], wins[i] = self.getPSA(adImps[i])
@@ -225,13 +272,13 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (self *Controller) getReference(camps map[uint32]bool) (map[uint32]*match.Audience, error) {
+func (self *Controller) getReference(ctx context.Context, camps map[uint32]bool) (map[uint32]*match.Audience, error) {
 	ids := make([]uint32, 0)
 	for id := range camps {
 		ids = append(ids, id)
 	}
 
-	audiences, err := self.RedisGetAudiences(ids)
+	audiences, err := self.RedisGetAudiences(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -243,12 +290,12 @@ func (self *Controller) getReference(camps map[uint32]bool) (map[uint32]*match.A
 	return ref, nil
 }
 
-func sizeString(size_id uint32) string {
-	w, h := pzutil.GetSizes(size_id)
+func sizeString(sizeID uint32) string {
+	w, h := pzutil.GetSizes(sizeID)
 	return `width='` + strconv.Itoa(int(w)) + `' height='` + strconv.Itoa(int(h)) + `'`
 }
 
-func (self *Controller) getHtml(id string, item *match.Item, weight *match.Weight, creative *match.Creative, adImp *match.AdImp) (string, match.Win) {
+func (self *Controller) getHTML(id string, item *match.Item, weight *match.Weight, creative *match.Creative, adImp *match.AdImp) (string, match.Win) {
 	c := self.C
 	radv := match.GetRAdv(item, weight, creative)
 	rpub := adImp.RPub
@@ -279,8 +326,8 @@ func (self *Controller) getHtml(id string, item *match.Item, weight *match.Weigh
 
 func (self *Controller) getPSA(adImp *match.AdImp) (string, match.Win) {
 	c := self.C
-	size_id := adImp.GetSizeID()
-	psa := (c.Sizes)[size_id]
+	sizeID := adImp.GetSizeID()
+	psa := (c.Sizes)[sizeID]
 
 	win := match.Win{
 		SlotID: adImp.SlotID,
@@ -298,5 +345,5 @@ func (self *Controller) getPSA(adImp *match.AdImp) (string, match.Win) {
 	}
 
 	pp, _ := adImp.RPub.Pack()
-	return `<a href='` + c.ServerURL + c.Handle["click"] + "/" + pp + "." + url.PathEscape(url.QueryEscape(psa.Click)) + `'><img src='` + psa.Display + `' ` + sizeString(size_id) + `></a>`, win
+	return `<a href='` + c.ServerURL + c.Handle["click"] + "/" + pp + "." + url.PathEscape(url.QueryEscape(psa.Click)) + `'><img src='` + psa.Display + `' ` + sizeString(sizeID) + `></a>`, win
 }

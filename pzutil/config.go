@@ -21,7 +21,7 @@ type Config struct {
 	Port         int
 	HhLock       string
 	Ips          string
-	Redis        *Red
+	Redis        Red
 	NatsURL      string
 	ConnectArray []string
 
@@ -41,15 +41,19 @@ type Config struct {
 	Sizes map[uint32]Size
 }
 
-func NewConfig(filename string) *Config {
+func NewConfig(filename string) (*Config, error) {
 	parsed := new(Config)
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = json.Unmarshal(content, parsed)
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+
+	if parsed.Redis.Network == "" {
+		parsed.Redis.Network = "tcp"
 	}
 
 	if parsed.Port == 0 {
@@ -97,5 +101,5 @@ func NewConfig(filename string) *Config {
 		parsed.Handle = map[string]string{"ssp": "/ssp"}
 	}
 
-	return parsed
+	return parsed, nil
 }

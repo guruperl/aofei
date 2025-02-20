@@ -170,7 +170,7 @@ func DmpAudienceFromArgs(ARGS url.Values) *DmpAudience {
 
 	g := func(_ url.Values, name string, which *[]uint32) {
 		values := ARGS[name]
-		if values != nil && len(values) > 0 {
+		if len(values) > 0 {
 			for _, value := range values {
 				v, err := strconv.ParseUint(value, 10, 32)
 				if err == nil && v > 0 {
@@ -228,7 +228,7 @@ func (self *DmpAudience) ToArgs(ARGS url.Values) {
 	}
 
 	g := func(args url.Values, name string, values []uint32) {
-		if values != nil && len(values) > 0 {
+		if len(values) > 0 {
 			for _, value := range values {
 				args.Add(name, strconv.FormatUint(uint64(value), 10))
 			}
@@ -272,86 +272,86 @@ func (self *DmpAudience) ToArgs(ARGS url.Values) {
 
 }
 
-func (aud *DmpAudience) DBFillDmpAudience(attrname string, value_id uint32) {
+func (self *DmpAudience) DBFillDmpAudience(attrname string, valueID uint32) {
 	switch attrname {
 	case "Sex":
-		aud.Sex = value_id
+		self.Sex = valueID
 	case "Vip":
-		aud.Vip = value_id
+		self.Vip = valueID
 	case "Gps":
-		aud.Gps = value_id
+		self.Gps = valueID
 	case "Browser":
-		aud.Browser = value_id
+		self.Browser = valueID
 	case "Byear":
-		aud.Byears = append(aud.Byears, value_id)
+		self.Byears = append(self.Byears, valueID)
 	case "Bmonth":
-		aud.Bmonths = append(aud.Bmonths, value_id)
+		self.Bmonths = append(self.Bmonths, valueID)
 	case "Bplace":
-		aud.Bplaces = append(aud.Bplaces, value_id)
+		self.Bplaces = append(self.Bplaces, valueID)
 	case "Living":
-		aud.Livings = append(aud.Livings, value_id)
+		self.Livings = append(self.Livings, valueID)
 	case "Zodiac":
-		aud.Zodiacs = append(aud.Zodiacs, value_id)
+		self.Zodiacs = append(self.Zodiacs, valueID)
 	case "Horoscope":
-		aud.Horoscopes = append(aud.Horoscopes, value_id)
+		self.Horoscopes = append(self.Horoscopes, valueID)
 	case "Brand":
-		aud.Brands = append(aud.Brands, value_id)
+		self.Brands = append(self.Brands, valueID)
 	case "Screen":
-		aud.Screens = append(aud.Screens, value_id)
+		self.Screens = append(self.Screens, valueID)
 	case "Time":
-		aud.Times = append(aud.Times, value_id)
+		self.Times = append(self.Times, valueID)
 	case "Price":
-		aud.Prices = append(aud.Prices, value_id)
+		self.Prices = append(self.Prices, valueID)
 	case "Plan":
-		aud.Plans = append(aud.Plans, value_id)
+		self.Plans = append(self.Plans, valueID)
 	case "Group":
-		aud.Groups = append(aud.Groups, value_id)
+		self.Groups = append(self.Groups, valueID)
 	case "Hold":
-		aud.Holds = append(aud.Holds, value_id)
+		self.Holds = append(self.Holds, valueID)
 	case "Game":
-		aud.Games = append(aud.Games, value_id)
+		self.Games = append(self.Games, valueID)
 	case "Shop":
-		aud.Shops = append(aud.Shops, value_id)
+		self.Shops = append(self.Shops, valueID)
 	case "Finance":
-		aud.Finances = append(aud.Finances, value_id)
+		self.Finances = append(self.Finances, valueID)
 	case "Grocery":
-		aud.Grocerys = append(aud.Grocerys, value_id)
+		self.Grocerys = append(self.Grocerys, valueID)
 	case "Media":
-		aud.Medias = append(aud.Medias, value_id)
+		self.Medias = append(self.Medias, valueID)
 	case "Health":
-		aud.Healths = append(aud.Healths, value_id)
+		self.Healths = append(self.Healths, valueID)
 	case "Learn":
-		aud.Learns = append(aud.Learns, value_id)
+		self.Learns = append(self.Learns, valueID)
 	case "Travel":
-		aud.Travels = append(aud.Travels, value_id)
+		self.Travels = append(self.Travels, valueID)
 	case "Social":
-		aud.Socials = append(aud.Socials, value_id)
+		self.Socials = append(self.Socials, valueID)
 	case "Car":
-		aud.Cars = append(aud.Cars, value_id)
+		self.Cars = append(self.Cars, valueID)
 	case "Food":
-		aud.Foods = append(aud.Foods, value_id)
+		self.Foods = append(self.Foods, valueID)
 	case "Photo":
-		aud.Photos = append(aud.Photos, value_id)
+		self.Photos = append(self.Photos, valueID)
 	case "Work":
-		aud.Works = append(aud.Works, value_id)
+		self.Works = append(self.Works, valueID)
 	case "Book":
-		aud.Books = append(aud.Books, value_id)
+		self.Books = append(self.Books, valueID)
 	case "Report":
-		aud.Reports = append(aud.Reports, value_id)
+		self.Reports = append(self.Reports, valueID)
 	case "Other":
-		aud.Others = append(aud.Others, value_id)
+		self.Others = append(self.Others, valueID)
 
 	default:
 	}
 }
 
-func (aud *DmpAudience) DbLineDmpAudience(attrname string, value_ids string) {
-	if value_ids == "" {
+func (self *DmpAudience) DBLineDmpAudience(attrname string, valueIDs string) {
+	if valueIDs == "" {
 		return
 	}
-	for _, id := range strings.Split(value_ids, ",") {
-		if value_id, err := strconv.ParseUint(id, 10, 32); err == nil {
-			aud.DBFillDmpAudience(attrname, uint32(value_id))
+	for _, id := range strings.Split(valueIDs, ",") {
+		if valueID, err := strconv.ParseUint(id, 10, 32); err == nil {
+			self.DBFillDmpAudience(attrname, uint32(valueID))
 		}
 	}
 }

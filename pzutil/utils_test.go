@@ -78,6 +78,9 @@ func TestUtils(t *testing.T) {
 	}
 	hnew := new(Hello)
 	err = UnpackObject(bs, hnew)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if hnew.A != a || hnew.B[0] != b[0] {
 		t.Errorf("%v", hnew)
 	}

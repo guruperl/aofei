@@ -206,7 +206,10 @@ func TestAudience(t *testing.T) {
 		t.Errorf("%v\n%v", ARGS, aud0)
 	}
 
-	c := pzutil.NewConfig("../conf/pzadx.conf")
+	c, err := pzutil.NewConfig("../conf/pzadx.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
 	if err != nil {
 		t.Fatal(err)

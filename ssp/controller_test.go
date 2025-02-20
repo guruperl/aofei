@@ -1,7 +1,6 @@
 package ssp
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -12,42 +11,15 @@ import (
 	"time"
 
 	"github.com/genelet/winter/match"
-	"github.com/genelet/winter/maxmind"
-	"github.com/genelet/winter/pzutil"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/mediocregopher/radix.v2/pool"
-	"github.com/nats-io/nats.go"
 	"golang.org/x/net/publicsuffix"
 )
 
-func getSample(t *testing.T) *Controller {
-	c := pzutil.NewConfig("../conf/gotest.conf")
-
-	ips, err := maxmind.LoadIPData(c.Ips)
-	if err != nil {
-		t.Fatalf("error opening Ip file: %v", err)
-	}
-
-	nc, err := nats.Connect(c.NatsURL)
-	if err != nil {
-		t.Fatalf("error nats: %v", err)
-	}
-
-	p, err := pool.New(c.Redis.Network, c.Redis.Addr, c.Redis.Size)
-	if err != nil {
-		t.Fatalf("error opening Redis pool: %v", err)
-	}
-
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
-	if err != nil {
-		t.Fatalf("error opening Mysql handler: %v", err)
-	}
-
-	return &Controller{C: c, Ips: ips, Redis: p, Db: db, Nc: nc}
-}
-
 func TestStatus(t *testing.T) {
-	handler := getSample(t)
+	handler, err := GetNewController("../conf/gotest.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	hash := map[string]int{
 		"/../":           http.StatusBadRequest,
@@ -74,7 +46,10 @@ func TestStatus(t *testing.T) {
 }
 
 func TestURLWrong(t *testing.T) {
-	handler := getSample(t)
+	handler, err := GetNewController("../conf/gotest.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	hash := map[string]string{
 		"/pz/3.html": "illegal base64 data at input byte 0",
 		"/pz/c.d":    "illegal base64 data at input byte 0",
@@ -139,7 +114,10 @@ func getPostRequest(in string, u *url.URL, json string, jar *cookiejar.Jar) *htt
 */
 
 func TestController(t *testing.T) {
-	control := getSample(t)
+	control, err := GetNewController("../conf/gotest.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	current := time.Now()
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})

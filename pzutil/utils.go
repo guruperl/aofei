@@ -71,10 +71,10 @@ func IndexUint32(vs []uint32, t uint32) int {
 }
 
 func GrepAndN(vs []uint32, items []uint32) bool {
-	if vs == nil || len(vs) < 1 {
+	if len(vs) < 1 {
 		return true
 	}
-	if items == nil || len(items) < 1 {
+	if len(items) < 1 {
 		return false
 	}
 	for _, t := range items {
@@ -87,10 +87,10 @@ func GrepAndN(vs []uint32, items []uint32) bool {
 
 // GrepOrN returns true if any in items matchs any in vs
 func GrepOrN(vs []uint32, items []uint32) bool {
-	if vs == nil || len(vs) < 1 {
+	if len(vs) < 1 {
 		return true
 	}
-	if items == nil || len(items) < 1 {
+	if len(items) < 1 {
 		return false
 	}
 	for _, t := range items {
@@ -102,7 +102,7 @@ func GrepOrN(vs []uint32, items []uint32) bool {
 }
 
 func GrepUint32(vs []uint32, t uint32) bool {
-	if vs == nil || len(vs) < 1 {
+	if len(vs) < 1 {
 		return true
 	}
 	return IndexUint32(vs, t) >= 0

@@ -41,7 +41,7 @@ func (self *Site) DomainMatch(u *url.URL) bool {
 		}
 	}
 
-	if self.Referers == nil || len(self.Referers) < 1 {
+	if len(self.Referers) < 1 {
 		return false
 	}
 
