@@ -30,7 +30,7 @@ Description=Aofei DSP service
 
 [Service]
 Type=simple
-Environment=SUMMER=/home/winter/aofei/conf/summer.json PZADX=/home/winter/aofei/conf/aofei.json
+Environment=SUMMER=/home/winter/aofei/conf/summer.json AOFEI=/home/winter/aofei/conf/aofei.json 
 ExecStart=/home/winter/aofei/cmd/unify/unify -log_dir=/home/winter/logs
 
 [Install]

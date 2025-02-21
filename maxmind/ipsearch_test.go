@@ -27,7 +27,10 @@ func TestIpsearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pzgeo.Continent != `亚洲` || pzgeo.Metro != `武汉` || pzgeo.Isp != `联通` {
-		t.Errorf("%v", pzgeo)
+	if pzgeo.Continent != `NA` || pzgeo.Country != `加拿大` || pzgeo.State != `ON` || pzgeo.City != `列治文山` {
+		t.Errorf("%v", pzgeo.Continent)
+		t.Errorf("%v", pzgeo.Country)
+		t.Errorf("%v", pzgeo.State)
+		t.Errorf("%v", pzgeo.City)
 	}
 }

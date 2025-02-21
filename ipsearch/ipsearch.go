@@ -1,16 +1,12 @@
-// Package ipsearch provides functionality to search IP addresses and retrieve geographical information.
 package ipsearch
 
 import (
 	"bytes"
 	"database/sql"
 	"encoding/binary"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/prebid/openrtb/v20/adcom1"
 )
 
 type IPSearch struct {
@@ -40,7 +36,7 @@ func LoadIPData(fn string) (*IPSearch, error) {
 	for k := uint32(0); k < count; k++ {
 		i := k * 9
 		prefix := uint32(indexBuffer[i] & 0xFF)
-		prefixMap[prefix] = getPrefixIndex(indexBuffer, i)
+		prefixMap[prefix] = GetPrefixIndex(indexBuffer, i)
 
 	}
 	return &IPSearch{data, prefixMap, firstOffset, preStart, preEnd, count}, nil
@@ -52,7 +48,7 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 		return nil, err
 	}
 	if g == nil || g.LocalString == nil {
-		return nil, fmt.Errorf("ip location not found")
+		return new(PzGeo), nil
 	}
 	loc := string(g.LocalString)
 	arr := strings.SplitN(loc, "|", 7)
@@ -60,66 +56,55 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 		return &PzGeo{g.Geo, "", "", "", "", "", "", loc}, nil
 	}
 
-	return &PzGeo{
-		Geo:       g.Geo,
-		Continent: arr[0],
-		Country:   arr[1],
-		State:     arr[2],
-		Metro:     arr[3],
-		City:      arr[4],
-		Zip:       arr[5],
-		Isp:       arr[6],
-	}, nil
+	return &PzGeo{g.Geo, arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6]}, nil
 }
 
 func (self *IPSearch) getIPIndex(ip string) (*ipIndex, error) {
 	data := self.data
-	leftoffset, localoffset, locallength, err := self.getLocation(ip)
+	leftOffset, localOffset, localLength, err := self.getLocation(ip)
 	if err != nil {
 		return nil, err
 	}
-	if leftoffset == 0 {
-		return nil, fmt.Errorf("ip location not found")
+	if leftOffset == 0 {
+		return nil, nil
 	}
 
 	geo := new(Geo)
-	buf := bytes.NewReader(data[localoffset : localoffset+33])
-	if err = binary.Read(buf, binary.LittleEndian, geo); err != nil {
+	buf := bytes.NewReader(data[localOffset : localOffset+33])
+	err = binary.Read(buf, binary.LittleEndian, geo)
+	if err != nil {
 		return nil, err
 	}
 
 	return &ipIndex{
-		StartIP:     bytesToLong(data[leftoffset], data[1+leftoffset], data[2+leftoffset], data[3+leftoffset]),
-		EndIP:       bytesToLong(data[4+leftoffset], data[5+leftoffset], data[6+leftoffset], data[7+leftoffset]),
-		LocalOffset: localoffset,
-		LocalLength: locallength,
-		Geo:         *geo,
-		LocalString: data[localoffset+33 : localoffset+locallength],
-	}, nil
+		bytesToLong(data[leftOffset], data[1+leftOffset], data[2+leftOffset], data[3+leftOffset]),
+		bytesToLong(data[4+leftOffset], data[5+leftOffset], data[6+leftOffset], data[7+leftOffset]),
+		localOffset,
+		localLength,
+		*geo,
+		data[localOffset+33 : localOffset+localLength]}, nil
 }
 
-/*
-	func (self *IPSearch) Get(ip string) (string, error) {
-		leftoffset, localoffset, locallength, err := self.getLocation(ip)
-		if err != nil {
-			return "", err
-		}
-		if leftoffset == 0 {
-			return "", fmt.Errorf("ip location not found")
-		}
-		return string(self.data[localoffset+33 : localoffset+locallength]), nil
-	}
-*/
-
-func (self *IPSearch) GetSimple(ip string) (string, error) {
-	leftoffset, localoffset, locallength, err := self.getLocation(ip)
+func (self *IPSearch) Get(ip string) (string, error) {
+	leftOffset, localOffset, localLength, err := self.getLocation(ip)
 	if err != nil {
 		return "", err
 	}
-	if leftoffset == 0 {
-		return "", fmt.Errorf("ip location not found")
+	if leftOffset == 0 {
+		return "", nil
 	}
-	return string(self.data[localoffset : localoffset+locallength]), nil
+	return string(self.data[localOffset+33 : localOffset+localLength]), nil
+}
+
+func (self *IPSearch) GetSimple(ip string) (string, error) {
+	leftOffset, localOffset, localLength, err := self.getLocation(ip)
+	if err != nil {
+		return "", err
+	}
+	if leftOffset == 0 {
+		return "", nil
+	}
+	return string(self.data[localOffset : localOffset+localLength]), nil
 }
 
 func (self *IPSearch) getLocation(ip string) (uint32, uint32, uint32, error) {
@@ -141,19 +126,19 @@ func (self *IPSearch) getLocation(ip string) (uint32, uint32, uint32, error) {
 		low = self.prefixMap[prefix].StartIndex
 		high = self.prefixMap[prefix].EndIndex
 	} else {
-		return 0, 0, 0, fmt.Errorf("prefix not found")
+		return 0, 0, 0, nil
 	}
 
 	left := self.binarySearch(low, high, intIP)
 	if left == 0 {
-		return 0, 0, 0, fmt.Errorf("binary search failed")
+		return 0, 0, 0, nil
 	}
 
-	leftoffset := self.firstStartIPOffset + left*12
-	localoffset := bytesToLong3(self.data[8+leftoffset], self.data[9+leftoffset], self.data[10+leftoffset])
-	locallength := uint32(self.data[11+leftoffset])
+	leftOffset := self.firstStartIPOffset + left*12
+	localOffset := bytesToLong3(self.data[8+leftOffset], self.data[9+leftOffset], self.data[10+leftOffset])
+	localLength := uint32(self.data[11+leftOffset])
 
-	return leftoffset, localoffset, locallength, nil
+	return leftOffset, localOffset, localLength, nil
 }
 
 // 二分逼近算法
@@ -192,8 +177,8 @@ func (self *IPSearch) binarySearch(l uint32, h uint32, ip uint32) uint32 {
 // 索引区第left个索引
 // 返回结束ip的数值
 func (self *IPSearch) getStartEndIP(left uint32) (uint32, uint32) {
-	leftoffset := self.firstStartIPOffset + left*12
-	return bytesToLong(self.data[0+leftoffset], self.data[1+leftoffset], self.data[2+leftoffset], self.data[3+leftoffset]), bytesToLong(self.data[4+leftoffset], self.data[5+leftoffset], self.data[6+leftoffset], self.data[7+leftoffset])
+	leftOffset := self.firstStartIPOffset + left*12
+	return bytesToLong(self.data[0+leftOffset], self.data[1+leftOffset], self.data[2+leftOffset], self.data[3+leftOffset]), bytesToLong(self.data[4+leftOffset], self.data[5+leftOffset], self.data[6+leftOffset], self.data[7+leftOffset])
 }
 
 func DatabaseToDat(db *sql.DB, outfile string) error {
@@ -216,12 +201,12 @@ func DatabaseToDat(db *sql.DB, outfile string) error {
 	for rows.Next() {
 		var ipStart, ipEnd string
 		geo := make([]byte, 0)
-		var ipStartnum, ipEndnum uint32
+		var ipStartNum, ipEndNum uint32
 		var continentID uint8
 		var countryID, stateID, dmaID, ispID uint16
 		var cityID uint32
 		var zip, latitude, longitude string
-		if err := rows.Scan(&ipStart, &ipEnd, &ipStartnum, &ipEndnum, &geo, &continentID, &countryID, &stateID, &dmaID, &cityID, &ispID, &zip, &latitude, &longitude); err != nil {
+		if err := rows.Scan(&ipStart, &ipEnd, &ipStartNum, &ipEndNum, &geo, &continentID, &countryID, &stateID, &dmaID, &cityID, &ispID, &zip, &latitude, &longitude); err != nil {
 			return err
 		}
 
@@ -251,28 +236,12 @@ func DatabaseToDat(db *sql.DB, outfile string) error {
 			lon64 = 0.0
 		}
 
-		ids := Geo{
-			ContinentID: continentID,
-			CountryID:   countryID,
-			StateID:     stateID,
-			DmaID:       dmaID,
-			CityID:      cityID,
-			IspID:       ispID,
-			ZipID:       uint32(zip32),
-			Location: Location{
-				Lat:       lat64,
-				Lon:       lon64,
-				Type:      adcom1.LocationIP,
-				Accuracy:  0,
-				LastFix:   0,
-				IPService: adcom1.LocationServiceMaxMind,
-			},
-		}
+		ids := Geo{continentID, countryID, stateID, dmaID, cityID, ispID, uint32(zip32), lat64, lon64}
 		length += 33 // 1+2+2+2+4+2
 		if length >= 255 {
 			panic(err)
 		}
-		ind = append(ind, &ipIndex{ipStartnum, ipEndnum, uint32(total), uint32(length), ids, clean})
+		ind = append(ind, &ipIndex{ipStartNum, ipEndNum, uint32(total), uint32(length), ids, clean})
 
 		ips := strings.Split(ipStart, ".")
 		x, _ := strconv.ParseUint(ips[0], 10, 32)

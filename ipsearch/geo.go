@@ -1,45 +1,43 @@
+// Package ipsearch provides functionality for IP address geolocation search.
 package ipsearch
 
-import "github.com/prebid/openrtb/v20/adcom1"
-
-type Location struct {
-	Lat       float64
-	Lon       float64
-	Type      adcom1.LocationType
-	Accuracy  int64
-	LastFix   int64
-	IPService adcom1.IPLocationService
-}
-
-// Geo 33 bytes
-// 1+2+2+2+4+2+4+8+8 = 33
+// Geo represents geographical information associated with an IP address.
+// The structure includes various IDs for continent, country, state, DMA, city, ISP, and zip code,
+// as well as latitude and longitude coordinates.
 type Geo struct {
-	ContinentID uint8
-	CountryID   uint16
-	StateID     uint16
-	DmaID       uint16
-	CityID      uint32
-	IspID       uint16
-	ZipID       uint32
-	Location
+	ContinentID uint8   // ID of the continent
+	CountryID   uint16  // ID of the country
+	StateID     uint16  // ID of the state
+	DmaID       uint16  // ID of the DMA (Designated Market Area)
+	CityID      uint32  // ID of the city
+	IspID       uint16  // ID of the ISP (Internet Service Provider)
+	ZipID       uint32  // ID of the zip code
+	Lat         float64 // Latitude coordinate
+	Lon         float64 // Longitude coordinate
 }
 
+// ipIndex represents an index entry for an IP address range.
+// It includes the start and end IP addresses, local offset and length, geographical information,
+// and a local string in byte format.
 type ipIndex struct {
-	StartIP     uint32
-	EndIP       uint32
-	LocalOffset uint32
-	LocalLength uint32
-	Geo
-	LocalString []byte
+	StartIP     uint32 // Start IP address of the range
+	EndIP       uint32 // End IP address of the range
+	LocalOffset uint32 // Offset for local data
+	LocalLength uint32 // Length of local data
+	Geo                // Embedded geographical information
+	LocalString []byte // Local string in byte format
 }
 
+// PzGeo represents detailed geographical information associated with an IP address.
+// It includes the basic geographical IDs and coordinates from the Geo struct,
+// as well as additional descriptive fields for continent, country, state, metro, city, zip, and ISP.
 type PzGeo struct {
-	Geo
-	Continent string
-	Country   string
-	State     string
-	Metro     string
-	City      string
-	Zip       string
-	Isp       string
+	Geo              // Embedded geographical information
+	Continent string // Name of the continent
+	Country   string // Name of the country
+	State     string // Name of the state
+	Metro     string // Name of the metro area
+	City      string // Name of the city
+	Zip       string // Zip code
+	Isp       string // Name of the ISP (Internet Service Provider)
 }

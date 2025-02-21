@@ -9,7 +9,7 @@ import (
 
 /**
  * @author xiao.luo
- * @description This is the unit test for IPSearch
+ * @description This is the unit test for IpSearch
  */
 
 /*
@@ -25,7 +25,7 @@ func TestDatabase(t *testing.T) {
 */
 
 func TestIpsearch(t *testing.T) {
-	//p, err := LoadIPData("../conf/qqzeng-ip-utf8.dat");
+	//p, err := LoadIpData("../../conf/qqzeng-ip-utf8.dat");
 	p, err := LoadIPData("../conf/qq-pz.dat")
 	if err != nil {
 		t.Fatal(err)

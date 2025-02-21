@@ -36,6 +36,27 @@ func IPToLong(ip string) (uint32, error) {
 	return result, nil
 }
 
+func stateCodeToUint32(stateCode string) uint32 {
+	if stateCode == "" {
+		return 0
+	}
+	switch len(stateCode) {
+	case 3:
+		stateCode += " "
+	case 2:
+		stateCode += "  "
+	case 1:
+		stateCode += "   "
+	}
+	bs := []byte(stateCode)
+	return bytesToLong(bs[0], bs[1], bs[2], bs[3])
+}
+
+func getStateCode(ip uint32) string {
+	bs := get4(ip)
+	return strings.TrimSpace(string(bs[:]))
+}
+
 // 字节转整形
 // binary.LittleEndian.Uint32([]byte) => uint32
 func bytesToLong(a, b, c, d byte) uint32 {

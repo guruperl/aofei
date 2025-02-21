@@ -43,20 +43,19 @@ func NewController(ctx context.Context, c *pzutil.Config) (*Controller, error) {
 		return nil, err
 	}
 
+	red := c.Redis
 	cfg := radix.PoolConfig{
 		Dialer: radix.Dialer{
-			AuthPass: c.Redis.Pass,
+			AuthUser: red.User,
+			AuthPass: red.Pass,
 		},
 	}
-	if c.Redis.Size != 0 {
-		cfg.Size = c.Redis.Size
+	if red.Size != 0 {
+		cfg.Size = red.Size
 	}
-	redis, err := cfg.New(ctx, c.Redis.User, c.Redis.Addr)
-	if err != nil {
-		return nil, err
-	}
+	redis, err := cfg.New(ctx, red.Network, red.Addr)
 
-	return &Controller{C: c, Ips: ips, Redis: redis, DB: db, Nc: nc}, nil
+	return &Controller{C: c, Ips: ips, Redis: redis, DB: db, Nc: nc}, err
 }
 
 func GetNewController(fn string) (*Controller, error) {

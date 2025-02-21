@@ -70,7 +70,7 @@ func (self *GeoAudience) ToArgs(ARGS url.Values) {
 	g(ARGS, "isp", self.GeoIsps)
 }
 
-func (self *GeoAudience) DBFillGeoAudience(attrname string, valueID uint32) {
+func (self *GeoAudience) dbFillGeoAudience(attrname string, valueID uint32) {
 	switch attrname {
 	case "state":
 		self.GeoStates = append(self.GeoStates, valueID)
@@ -84,13 +84,13 @@ func (self *GeoAudience) DBFillGeoAudience(attrname string, valueID uint32) {
 	}
 }
 
-func (self *GeoAudience) DBLineGeoAudience(attrname string, valueids string) {
-	if valueids == "" {
+func (self *GeoAudience) DBLineGeoAudience(attrname string, ids string) {
+	if ids == "" {
 		return
 	}
-	for _, id := range strings.Split(valueids, ",") {
+	for _, id := range strings.Split(ids, ",") {
 		if valueID, err := strconv.ParseUint(id, 10, 32); err == nil {
-			self.DBFillGeoAudience(attrname, uint32(valueID))
+			self.dbFillGeoAudience(attrname, uint32(valueID))
 		}
 	}
 }

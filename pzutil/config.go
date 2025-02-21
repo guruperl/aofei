@@ -2,7 +2,9 @@ package pzutil
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 )
 
 type Red struct {
@@ -18,7 +20,7 @@ type Config struct {
 	Handle       map[string]string
 	ServerURL    string
 	Logfile      string
-	Port         int
+	ServerPort   string
 	HhLock       string
 	Ips          string
 	Redis        Red
@@ -52,12 +54,42 @@ func NewConfig(filename string) (*Config, error) {
 		return nil, err
 	}
 
+	if parsed.ConnectArray == nil {
+		if os.Getenv("DBUSER") != "" && os.Getenv("DBPASS") != "" && os.Getenv("DBNAME") != "" {
+			host := "localhost:3306"
+			if x := os.Getenv("DBHOST"); x != "" {
+				host = x
+				if !strings.Contains(host, ":") {
+					host += ":3306"
+				}
+			}
+			parsed.ConnectArray = []string{"mysql", os.Getenv("DBUSER") + ":" + os.Getenv("DBPASS") + "@tcp(" + host + ")/" + os.Getenv("DBNAME")}
+		} else {
+			return nil, fmt.Errorf("ConnectArray is not set")
+		}
+	}
+
 	if parsed.Redis.Network == "" {
 		parsed.Redis.Network = "tcp"
 	}
+	if parsed.Redis.User == "" && os.Getenv("REDISUSER") != "" {
+		parsed.Redis.User = os.Getenv("REDISUSER")
+	}
+	if parsed.Redis.Pass == "" && os.Getenv("REDISPASS") != "" {
+		parsed.Redis.Pass = os.Getenv("REDISPASS")
+	}
+	if parsed.Redis.Addr == "" && os.Getenv("REDISADDR") != "" {
+		parsed.Redis.Addr = os.Getenv("REDISADDR")
+	}
+	if parsed.Redis.Addr == "" {
+		parsed.Redis.Addr = "localhost"
+	}
+	if !strings.Contains(parsed.Redis.Addr, ":") {
+		parsed.Redis.Addr += ":6379"
+	}
 
-	if parsed.Port == 0 {
-		parsed.Port = 80
+	if parsed.ServerPort == "" {
+		parsed.ServerPort = "80"
 	}
 	if parsed.HhLock == "" {
 		parsed.HhLock = "/var/tmp/hh.lock"
