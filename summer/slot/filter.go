@@ -1,3 +1,4 @@
+// Description: Filter for slot.
 package slot
 
 import (
@@ -109,7 +110,11 @@ func (self *Filter) After(model *Model) error {
 			size_id := uint32(item["size_id"].(int64))
 			summer.SetWH(item)
 			item["slot_str"] = pzutil.PackTwo(slot_id, size_id)
-			item["code"], _ = match.RPub{uint32(pub_id), uint32(site_id), slot_id, size_id}.Pack1()
+			var err error
+			item["code"], err = match.RPub{PubID: uint32(pub_id), SiteID: uint32(site_id), SlotID: slot_id, SizeID: size_id}.Pack1()
+			if err != nil {
+				return err
+			}
 			item["mediaTypes"] = mime_format(item)
 			if created := item["created"]; created != nil {
 				c := created.(string)
@@ -157,10 +162,8 @@ func mime_format(item map[string]interface{}) string {
 
 	fl_mime := item["fl_mime"].(string)
 	switch fl_mime {
-	case "ImageMime":
-		hash["image"] = `{size:` + size_str + `}`
-	case "VideoMime", "AudioMime":
-		hash["video"] = `{playerSize:` + size_str + `}`
+	case "Iframe":
+		hash["iframe"] = `{wrong:` + size_str + `}`
 	default:
 		hash["native"] = `{image:` + size_str + `}`
 	}

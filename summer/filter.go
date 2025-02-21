@@ -28,12 +28,10 @@ var TABLES = map[string][]string{
 var LARGES = map[string][]map[string]interface{}{
 	"mime": {
 		{"which": "MimeUnknown", "label": "Unknown", "default": true},
-		{"which": "ImageMime", "label": "Image", "default": true},
-		{"which": "JsonMime", "label": "Json", "default": true},
+		{"which": "Iframe", "label": "Iframe", "default": true},
+		{"which": "XMTLText", "label": "Text", "default": true},
 		{"which": "JSMime", "label": "Javascript", "default": false},
-		{"which": "H5Mime", "label": "Html", "default": true},
-		{"which": "VideoMime", "label": "Video", "default": true},
-		{"which": "AudioMime", "label": "Audio", "default": false},
+		{"which": "XHTMLBanner", "label": "MobileHtml", "default": true},
 	},
 	"device": {
 		{"which": "DeviceUnknown", "label": "Unknown Device", "default": true},

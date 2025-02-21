@@ -73,7 +73,7 @@ func main() {
 		tname := "Type"+fmt.Sprintf("%02x",i)
 
 		_, ok := cats[i]
-		if ok {
+		if ok {Value
 			if arrs[2]=="0" { continue }
 		} else {
 			if i>81 {
@@ -82,7 +82,7 @@ func main() {
 				names = append(names, "\t"+HELPS[arrs[1]]+"\tuint32\t// "+arrs[0]+", "+arrs[1])
 			}
 			total = append(total, j)
-			j=0
+			j=0con
 			cats[i] = [][]string{
 {"package dmp\n", "type "+tname+" uint32", "const ("},
 {"var "+tname+"_name = map[uint32]string{"},

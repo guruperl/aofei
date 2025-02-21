@@ -80,7 +80,7 @@ func (self *Dmp) PackSimple() ([]byte, error) {
 	pushSingle(&bs, "Gps", self.Gps)
 
 	if self.Bplace != 0 {
-		item := Type06_hex2name[self.Bplace]
+		item := Type06Hex2name[self.Bplace]
 		i, err := strconv.ParseInt("0x"+item[0:2], 0, 32)
 		if err != nil {
 			return nil, err
@@ -92,7 +92,7 @@ func (self *Dmp) PackSimple() ([]byte, error) {
 		bs = append(bs, uint8(i), uint8(j))
 	}
 	if self.Living != 0 {
-		item := Type06_hex2name[self.Living]
+		item := Type06Hex2name[self.Living]
 		i, err := strconv.ParseInt("0x"+item[0:2], 0, 32)
 		if err != nil {
 			return nil, err
@@ -164,9 +164,9 @@ func UnpackDmpSimple(data []byte) (*Dmp, error) {
 		case pzutil.AttrValue["Browser"]:
 			dmp.Browser = j
 		case 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39:
-			dmp.Bplace = Type06_hex2value[fmt.Sprintf("%02x%02x", i, j)]
+			dmp.Bplace = Type06Hex2value[fmt.Sprintf("%02x%02x", i, j)]
 		case 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73:
-			dmp.Living = Type06_hex2value[fmt.Sprintf("%02x%02x", i-34, j)]
+			dmp.Living = Type06Hex2value[fmt.Sprintf("%02x%02x", i-34, j)]
 		case pzutil.AttrValue["Brand"]:
 			dmp.Brand = j
 		case pzutil.AttrValue["Screen"]:
@@ -512,74 +512,74 @@ func UnpackDmp(data []byte) (*Dmp, error) {
 
 func DmpNames() map[string]map[uint32]string {
 	return map[string]map[uint32]string{
-		"Sex":       Type01_name,
-		"Byear":     Type02_name,
-		"Bmonth":    Type03_name,
-		"Horoscope": Type04_name,
-		"Zodiac":    Type05_name,
-		"Bplace":    Type06_name,
-		"Living":    Type06_name,
-		"Brand":     Type4a_name,
-		"Screen":    Type4b_name,
-		"Time":      Type4c_name,
-		"Price":     Type4d_name,
-		"Plan":      Type4e_name,
-		"Group":     Type4f_name,
-		"Hold":      Type50_name,
-		"Vip":       Type51_name,
-		"Game":      Type52_name,
-		"Shop":      Type53_name,
-		"Health":    Type54_name,
-		"Learn":     Type55_name,
-		"Finance":   Type56_name,
-		"Travel":    Type57_name,
-		"Gps":       Type58_name,
-		"Car":       Type59_name,
-		"Food":      Type5a_name,
-		"Photo":     Type5b_name,
-		"Grocery":   Type5c_name,
-		"Works":     Type5d_name,
-		"Books":     Type5e_name,
-		"Reports":   Type5f_name,
-		"Social":    Type60_name,
-		"Media":     Type61_name,
-		"Browser":   Type62_name,
-		"Other":     Type63_name}
+		"Sex":       Type01Name,
+		"Byear":     Type02Name,
+		"Bmonth":    Type03Name,
+		"Horoscope": Type04Name,
+		"Zodiac":    Type05Name,
+		"Bplace":    Type06Name,
+		"Living":    Type06Name,
+		"Brand":     Type4aName,
+		"Screen":    Type4bName,
+		"Time":      Type4cName,
+		"Price":     Type4dName,
+		"Plan":      Type4eName,
+		"Group":     Type4fName,
+		"Hold":      Type50Name,
+		"Vip":       Type51Name,
+		"Game":      Type52Name,
+		"Shop":      Type53Name,
+		"Health":    Type54Name,
+		"Learn":     Type55Name,
+		"Finance":   Type56Name,
+		"Travel":    Type57Name,
+		"Gps":       Type58Name,
+		"Car":       Type59Name,
+		"Food":      Type5aName,
+		"Photo":     Type5bName,
+		"Grocery":   Type5cName,
+		"Works":     Type5dName,
+		"Books":     Type5eName,
+		"Reports":   Type5fName,
+		"Social":    Type60Name,
+		"Media":     Type61Name,
+		"Browser":   Type62Name,
+		"Other":     Type63Name}
 }
 
 func GetDmpParameters(other map[string]interface{}) {
-	other["Sex"] = Type01_name
-	other["Byear"] = Type02_name
-	other["Bmonth"] = Type03_name
-	other["Horoscope"] = Type04_name
-	other["Zodiac"] = Type05_name
-	other["Bplace"] = Type06_name
-	other["Living"] = Type06_name
+	other["Sex"] = Type01Name
+	other["Byear"] = Type02Name
+	other["Bmonth"] = Type03Name
+	other["Horoscope"] = Type04Name
+	other["Zodiac"] = Type05Name
+	other["Bplace"] = Type06Name
+	other["Living"] = Type06Name
 
-	other["Brand"] = Type4a_name
-	other["Screen"] = Type4b_name
-	other["Time"] = Type4c_name
-	other["Price"] = Type4d_name
-	other["Plan"] = Type4e_name
-	other["Group"] = Type4f_name
-	other["Hold"] = Type50_name
-	other["Vip"] = Type51_name
-	other["Game"] = Type52_name
-	other["Shop"] = Type53_name
-	other["Health"] = Type54_name
-	other["Learn"] = Type55_name
-	other["Finance"] = Type56_name
-	other["Travel"] = Type57_name
-	other["Gps"] = Type58_name
-	other["Car"] = Type59_name
-	other["Food"] = Type5a_name
-	other["Photo"] = Type5b_name
-	other["Grocery"] = Type5c_name
-	other["Works"] = Type5d_name
-	other["Books "] = Type5e_name
-	other["Reports"] = Type5f_name
-	other["Social"] = Type60_name
-	other["Media"] = Type61_name
-	other["Browser"] = Type62_name
-	other["Other"] = Type63_name
+	other["Brand"] = Type4aName
+	other["Screen"] = Type4bName
+	other["Time"] = Type4cName
+	other["Price"] = Type4dName
+	other["Plan"] = Type4eName
+	other["Group"] = Type4fName
+	other["Hold"] = Type50Name
+	other["Vip"] = Type51Name
+	other["Game"] = Type52Name
+	other["Shop"] = Type53Name
+	other["Health"] = Type54Name
+	other["Learn"] = Type55Name
+	other["Finance"] = Type56Name
+	other["Travel"] = Type57Name
+	other["Gps"] = Type58Name
+	other["Car"] = Type59Name
+	other["Food"] = Type5aName
+	other["Photo"] = Type5bName
+	other["Grocery"] = Type5cName
+	other["Works"] = Type5dName
+	other["Books "] = Type5eName
+	other["Reports"] = Type5fName
+	other["Social"] = Type60Name
+	other["Media"] = Type61Name
+	other["Browser"] = Type62Name
+	other["Other"] = Type63Name
 }
