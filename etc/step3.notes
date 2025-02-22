@@ -1,0 +1,6 @@
+grant all privileges on aofei.* to 'eightran_goto'@'%';
+grant super on *.* to 'eightran_goto'@'%';
+grant show_routine on *.* to 'eightran_goto'@'%';
+flush privileges;
+
+mysqldump --routines --no-tablespaces -ueightran_goto -p12pass34 -h vm0 aofei  > step4_init.sql
