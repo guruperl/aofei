@@ -78,8 +78,8 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.Redis.Pass == "" && os.Getenv("REDISPASS") != "" {
 		parsed.Redis.Pass = os.Getenv("REDISPASS")
 	}
-	if parsed.Redis.Addr == "" && os.Getenv("REDISADDR") != "" {
-		parsed.Redis.Addr = os.Getenv("REDISADDR")
+	if parsed.Redis.Addr == "" && os.Getenv("REDISHOST") != "" {
+		parsed.Redis.Addr = os.Getenv("REDISHOST")
 	}
 	if parsed.Redis.Addr == "" {
 		parsed.Redis.Addr = "localhost"

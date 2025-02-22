@@ -1,40 +1,45 @@
 package genelet
 
 import (
-	"text/template"
 	"net/url"
+	"os"
+	"text/template"
 )
 
-func (self *Config)Sendmail(lists []map[string]interface{}, ARGS url.Values, other map[string]interface{}) error {
+func (self *Config) Sendmail(lists []map[string]interface{}, ARGS url.Values, other map[string]interface{}) error {
 	for _, name := range []string{"_gmail", "_gapple", "_ggoogle", "_gsms"} {
 		glo := self.Blks[name]
 		loc := other[name]
-		if (glo == nil || loc == nil) {
+		if glo == nil || loc == nil {
 			continue
 		}
 		outmail := ""
 		envelope := loc.(map[string]interface{})
-		if (envelope["content"] != nil) {
+		if envelope["content"] != nil {
 			outmail = envelope["content"].(string)
-		} else if (envelope["file"] != nil) {
+		} else if envelope["file"] != nil {
 			var tmpl *Tmpl
-			if (envelope["extra"] == nil) {
+			if envelope["extra"] == nil {
 				tmpl = &Tmpl{lists, ARGS, other, nil, true}
 			} else {
 				tmpl = &Tmpl{lists, ARGS, other, envelope["extra"].(map[string]interface{}), true}
 			}
 			T0, err := template.ParseFiles(envelope["file"].(string))
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			if outmail, err = tmpl.Get_page(T0); err != nil {
 				return err
 			}
 		}
-		if outmail == "" { return Err(1061) }
+		if outmail == "" {
+			return Err(1061)
+		}
 
 		headers := make(map[string]string)
 		for key, val := range envelope {
 			if Grep([]string{"file", "content", "callback", "extra"}, key) {
-				continue;
+				continue
 			}
 			headers[key] = val.(string)
 		}
@@ -44,13 +49,26 @@ func (self *Config)Sendmail(lists []map[string]interface{}, ARGS url.Values, oth
 			smtp := new(Smtpssl)
 			for k, v := range glo {
 				switch k {
-				case "Username": smtp.Username = v
-				case "Password": smtp.Password = v
-				case "Address": smtp.Address = v
-				case "From": smtp.From = v
-				case "To": smtp.To = []string{v}
-				default: headers[k] = v
+				case "Username":
+					smtp.Username = v
+				case "Password":
+					smtp.Password = v
+				case "Address":
+					smtp.Address = v
+				case "From":
+					smtp.From = v
+				default:
+					headers[k] = v
 				}
+			}
+			if smtp.Username == "" {
+				smtp.Username = os.Getenv("SMTPUSER")
+			}
+			if smtp.Password == "" {
+				smtp.Password = os.Getenv("SMTPPASS")
+			}
+			if smtp.Address == "" {
+				smtp.Address = os.Getenv("SMTPHOST")
 			}
 			return smtp.Send(headers, outmail)
 		default:

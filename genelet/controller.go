@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -217,7 +216,7 @@ func check_form(r *http.Request, dir string) error {
 			return nil
 		}
 
-		data, err := ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		t := make(map[string]interface{})
 		if err == nil && data != nil {
 			err = json.Unmarshal(data, &t)
