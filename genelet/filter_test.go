@@ -8,8 +8,10 @@ import (
 )
 
 func TestFilter(t *testing.T) {
-	configure := NewConfig(filename)
-
+	configure, err := NewConfig(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
 	args := make(url.Values)
 	args.Set("aaa", "111")
 	args.Set("bbb", "222")

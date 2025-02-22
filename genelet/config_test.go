@@ -9,7 +9,10 @@ const (
 )
 
 func TestConfig(t *testing.T) {
-	c := NewConfig(filename)
+	c, err := NewConfig(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if c.DocumentRoot != "aa" {
 		t.Errorf("%s wanted", "aa")
 	}
@@ -39,13 +42,13 @@ func TestConfig(t *testing.T) {
 	if c.Go_uri_name != "go_uri" {
 		t.Errorf("%s wanted", "go_uri")
 	}
-	if c.Db[0] != "mysql" {
-		t.Errorf("%s wanted", c.Db[0])
+	if c.ConnectArray[0] != "mysql" {
+		t.Errorf("%s wanted", c.ConnectArray[0])
 	}
-	if c.Db[1] != "eightran:12pass34@tcp(vm0:3306)/gotest" {
-		t.Errorf("%s wanted", c.Db[1])
+	if c.ConnectArray[1] != "eightran:12pass34@tcp(vm0:3306)/gotest" {
+		t.Errorf("%s wanted", c.ConnectArray[1])
 	}
-	if c.Db[2] != "ccc" {
+	if c.ConnectArray[2] != "ccc" {
 		t.Errorf("%s wanted", "ccc")
 	}
 	/*

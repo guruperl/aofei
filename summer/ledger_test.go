@@ -27,8 +27,11 @@ func TestInitLedger(t *testing.T) {
 	//rand.Seed(time.Now().UTC().UnixNano())
 
 	config := "../conf/gotest.json"
-	c := genelet.NewConfig(config)
-	db, err := sql.Open(c.Db[0], c.Db[1])
+	c, err := genelet.NewConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
 	if err != nil {
 		panic(err)
 	}

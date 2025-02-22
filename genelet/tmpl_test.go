@@ -1,29 +1,32 @@
-package genelet;
+package genelet
 
 import (
+	"regexp"
 	"testing"
 	"text/template"
-	"regexp"
 )
 
 func TestTmpl(t *testing.T) {
-    configure := NewConfig(filename)
+	configure, err := NewConfig(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tmpl := new(Tmpl)
-    tmpl.Other = map[string]interface{}{"Errorstr":Err(1001).Error(), "Script":configure.Script, configure.Role_name:"m", configure.Go_uri_name:"aaa", "Login_name":"email", "Password_name":"passwd"}
+	tmpl.Other = map[string]interface{}{"Errorstr": Err(1001).Error(), "Script": configure.Script, configure.Role_name: "m", configure.Go_uri_name: "aaa", "Login_name": "email", "Password_name": "passwd"}
 	T0, err := template.ParseFiles("tmpl.html")
-	if (err != nil) {
+	if err != nil {
 		t.Errorf("%s error", err.Error())
 	}
-    str, err := tmpl.Get_page(T0)
-	if (err != nil) {
+	str, err := tmpl.Get_page(T0)
+	if err != nil {
 		t.Errorf("%s error", err.Error())
 	}
-    matched, err := regexp.MatchString("Google authorization required", str)
-    if !matched {
-        t.Errorf("%s wanted", str)
-    }
-    matched, err = regexp.MatchString("aaa.*bb.*email.*passwd", str)
-    if !matched {
-        t.Errorf("%s wanted", str)
-    }
+	matched, err := regexp.MatchString("Google authorization required", str)
+	if !matched {
+		t.Errorf("%s wanted", str)
+	}
+	matched, err = regexp.MatchString("aaa.*bb.*email.*passwd", str)
+	if !matched {
+		t.Errorf("%s wanted", str)
+	}
 }

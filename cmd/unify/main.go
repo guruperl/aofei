@@ -66,7 +66,10 @@ func main() {
 	http.Handle(pzutil.CLK, sc)
 	http.Handle(pzutil.WIN, sc)
 
-	gc := getGenelet(gConf)
+	gc, err := getGenelet(gConf)
+	if err != nil {
+		panic(err)
+	}
 	gc.Db = sc.DB
 	gc.Storage["Redis"] = sc.Redis
 	gc.Storage["Ssp"] = sc.C
@@ -79,15 +82,15 @@ func main() {
 	if gc.C.DocumentRoot == "" {
 		gc.C.DocumentRoot = sc.C.DocumentRoot
 	}
-	if gc.C.Db == nil {
-		gc.C.Db = sc.C.ConnectArray
+	if gc.C.ConnectArray == nil {
+		gc.C.ConnectArray = sc.C.ConnectArray
 	}
 	http.Handle("/", gc)
 
 	log.Fatal(http.ListenAndServe(":"+gc.C.ServerPort, nil))
 }
 
-func getGenelet(fn string) *genelet.Controller {
+func getGenelet(fn string) (*genelet.Controller, error) {
 	models := map[string]interface{}{
 		"agent": new(agent.Model), "manage": new(manage.Model), "payment": new(payment.Model), "alipay": new(alipay.Model), "wechat": new(wechat.Model), "cheque": new(cheque.Model), "cc": new(cc.Model), "ac": new(ac.Model), "address": new(address.Model), "adv": new(adv.Model), "attrname": new(attrname.Model), "campaign": new(campaign.Model), "chac": new(chac.Model), "channel": new(channel.Model), "balance": new(balance.Model), "ledger": new(ledger.Model), "creative": new(creative.Model), "item": new(item.Model), "pub": new(pub.Model), "site": new(site.Model), "slot": new(slot.Model), "targetname": new(targetname.Model), "weight": new(weight.Model),
 	}
@@ -100,7 +103,10 @@ func getGenelet(fn string) *genelet.Controller {
 		"agent": new(agent.Filter), "manage": new(manage.Filter), "payment": new(payment.Filter), "alipay": new(alipay.Filter), "wechat": new(wechat.Filter), "cheque": new(cheque.Filter), "cc": new(cc.Filter), "ac": new(ac.Filter), "address": new(address.Filter), "adv": new(adv.Filter), "attrname": new(attrname.Filter), "campaign": new(campaign.Filter), "chac": new(chac.Filter), "channel": new(channel.Filter), "balance": new(balance.Filter), "ledger": new(ledger.Filter), "creative": new(creative.Filter), "item": new(item.Filter), "pub": new(pub.Filter), "site": new(site.Filter), "slot": new(slot.Filter), "targetname": new(targetname.Filter), "weight": new(weight.Filter),
 	}
 
-	c := genelet.NewConfig(fn)
+	c, err := genelet.NewConfig(fn)
+	if err != nil {
+		return nil, err
+	}
 	for k := range models {
 		comp := genelet.NewComponent(c.ProjectRoot + "/summer/" + k + "/component.json")
 		genelet.Invoke0(models[k], "Initialize", comp)
@@ -108,7 +114,7 @@ func getGenelet(fn string) *genelet.Controller {
 		genelet.Invoke0(filters[k], "Initialize", comp)
 	}
 
-	return &genelet.Controller{C: c, Models: models, Filters: filters, Storage: storage}
+	return &genelet.Controller{C: c, Models: models, Filters: filters, Storage: storage}, nil
 }
 
 func getSsp(ctx context.Context, fn string) (*ssp.Controller, error) {

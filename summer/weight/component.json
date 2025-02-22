@@ -32,7 +32,7 @@
     "w.weight":"weight",
     "w.slot_id":"slot_id",
     "i.size_id":"size_id",
-    "CASE i.cost_type WHEN 'CPD' THEN 4 WHEN 'CPA' THEN 3 WHEN 'CPC' THEN 2 ELSE 1 END": "cost_type",
+    "CASE i.cost_type WHEN 'ROI' THEN 4 WHEN 'CPA' THEN 3 WHEN 'CPC' THEN 2 ELSE 1 END": "cost_type",
     "i.cost":"price",
     "UNIX_TIMESTAMP(i.endx)":"endx",
     "i.qa_mime+0":"mime8",

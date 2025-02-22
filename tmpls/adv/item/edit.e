@@ -48,7 +48,7 @@
 <option [% IF item.sizeid==18 %]selected[% END %] value=18>Half Page Ad 300x600</option>
 </select></td></tr>
 <tr><td>Cost Type:</td><td>
-<input [% IF item.costtype=='CPD' %]checked[% END %] type=radio name=costtype value=CPD><label>CPD</label>
+<input [% IF item.costtype=='ROI' %]checked[% END %] type=radio name=costtype value=ROI><label>ROI</label>
 <input [% IF item.costtype=='CPM' %]checked[% END %] type=radio name=costtype value=CPM><label>CPM</label>
 <input [% IF item.costtype=='CPC' %]checked[% END %] type=radio name=costtype value=CPC><label>CPC</label>
 <input [% IF item.costtype=='CPA' %]checked[% END %] type=radio name=costtype value=CPA><label>CPA</label>

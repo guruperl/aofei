@@ -9,10 +9,13 @@ import (
 )
 
 func TestModel(t *testing.T) {
-	c := genelet.NewConfig("../conf/gotest.json")
-	db, err := sql.Open(c.Db[0], c.Db[1])
+	c, err := genelet.NewConfig("../conf/gotest.json")
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
+	}
+	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	model := new(Model)

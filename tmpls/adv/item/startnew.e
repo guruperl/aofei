@@ -37,7 +37,7 @@ End:<input type=text name=endx size=16 /></td></tr>
 <option value=18>Half Page Ad 300x600</option>
 </select></td></tr>
 <tr><td>Cost Type:</td><td>
-<input type=radio name=costtype value=CPD><label>CPD</label>
+<input type=radio name=costtype value=ROI><label>ROI</label>
 <input type=radio name=costtype value=CPM><label>CPM</label>
 <input type=radio name=costtype value=CPC><label>CPC</label>
 <input type=radio name=costtype value=CPA><label>CPA</label>

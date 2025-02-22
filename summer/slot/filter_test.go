@@ -13,8 +13,12 @@ func TestFilter(t *testing.T) {
 	filter.Action = "insert"
 	filter.Component = "slot"
 
+	var err error
 	//filter.Base.C = genelet.NewConfig("../../../conf/config.json")
-	filter.Base.C = genelet.NewConfig("../../../conf/summer.json")
+	filter.Base.C, err = genelet.NewConfig("../../../conf/summer.json")
+	if err != nil {
+		t.Fatal(err)
+	}
 	fks := filter.Fks
 	actions := filter.Actions
 	if fks["pub"][0] != "site_id" {

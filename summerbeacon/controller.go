@@ -31,8 +31,11 @@ import (
 )
 
 func NewController(fn string) (*genelet.Controller, error) {
-	c := genelet.NewConfig(fn)
-	db, err := sql.Open(c.Db[0], c.Db[1])
+	c, err := genelet.NewConfig(fn)
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
 	if err != nil {
 		return nil, err
 	}

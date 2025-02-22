@@ -1,11 +1,12 @@
 // Package genelet is a genelet package for genelet framework.
-
 package genelet
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"regexp"
+	"strings"
 )
 
 type PatternCase int
@@ -88,25 +89,41 @@ type Config struct {
 	Go_probe_name   string
 	Go_err_name     string
 
-	Db       []string
-	Blks     map[string]map[string]string
-	Chartags map[string]Chartag
-	Roles    map[string]Role
-	Errors   map[string]string
-	Custom   map[string]string
-	Patterns []Pattern
+	ConnectArray []string
+	Blks         map[string]map[string]string
+	Chartags     map[string]Chartag
+	Roles        map[string]Role
+	Errors       map[string]string
+	Custom       map[string]string
+	Patterns     []Pattern
 }
 
-func NewConfig(filename string) *Config {
+func NewConfig(filename string) (*Config, error) {
 	parsed := new(Config)
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	err = json.Unmarshal(content, parsed)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+
+	if parsed.ConnectArray == nil {
+		if os.Getenv("DBUSER") != "" && os.Getenv("DBPASS") != "" && os.Getenv("DBNAME") != "" {
+			host := "localhost:3306"
+			if x := os.Getenv("DBHOST"); x != "" {
+				host = x
+				if !strings.Contains(host, ":") {
+					host += ":3306"
+				}
+			}
+			parsed.ConnectArray = []string{"mysql", os.Getenv("DBUSER") + ":" + os.Getenv("DBPASS") + "@tcp(" + host + ")/" + os.Getenv("DBNAME")}
+		} else {
+			return nil, fmt.Errorf("ConnectArray is not set")
+		}
+	}
+
 	if parsed.ServerURL == "" {
 		parsed.ServerURL = "http://localhost"
 	}
@@ -176,5 +193,5 @@ func NewConfig(filename string) *Config {
 	//pattern.Regs = regexp.MustCompile(pattern.Reg)
 	//}
 
-	return parsed
+	return parsed, nil
 }

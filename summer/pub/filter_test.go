@@ -17,7 +17,11 @@ func TestFilter(t *testing.T) {
 	filter.Action = "insert"
 	filter.Component = "address"
 
-	filter.Base.C = genelet.NewConfig("../../conf/config.json")
+	var err error
+	filter.Base.C, err = genelet.NewConfig("../../conf/config.json")
+	if err != nil {
+		t.Fatal(err)
+	}
 	jar := summer.GetJar()
 	filter.Base.R = summer.GetNewRequest("http://www.u2link.com", jar)
 	filter.Base.W = httptest.NewRecorder()

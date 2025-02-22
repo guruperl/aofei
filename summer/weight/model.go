@@ -318,11 +318,12 @@ func (self *Model) MakeViewsForSlotItem() error {
 	return nil
 }
 
+// SlotItemSelectString has
 // ca: campaign access_control is inherit or not inherit
 // sa: site     access_control is inherit or not inherit
 func SlotItemSelectString(ca, sa, tm, tc, future bool) string {
 	startx := ``
-	if future == false {
+	if !future {
 		startx = `AND (i.startx <= NOW() OR (i.startx IS NULL))`
 	}
 

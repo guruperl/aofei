@@ -30,7 +30,10 @@ func (self *TProcedure) Set_when() int {
 }
 
 func TestDbiProcedure(t *testing.T) {
-	configure := NewConfig(filename)
+	configure, err := NewConfig(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
 	db, err := sql.Open("mysql", "eightran:12pass34@tcp(vm0:3306)/gotest")
 	if err != nil {
 		t.Fatal(err)
