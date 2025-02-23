@@ -396,7 +396,6 @@ func (self *Model) Existing(table string, field string, val interface{}) error {
 }
 
 func (self *Model) Randomid(table string, field string, m ...interface{}) error {
-	ARGS := self.ARGS
 	var min, max, trials int
 	if m == nil {
 		min = 0
@@ -418,7 +417,8 @@ func (self *Model) Randomid(table string, field string, m ...interface{}) error 
 		if err != nil {
 			continue
 		}
-		ARGS.Set(field, strconv.Itoa(val))
+		glog.Infof("Setup field %s => %s: ", field, strconv.Itoa(val))
+		self.ARGS.Set(field, strconv.Itoa(val))
 		return nil
 	}
 

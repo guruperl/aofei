@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/genelet/winter/summer"
+	"github.com/golang/glog"
 )
 
 type Filter struct {
@@ -39,7 +40,11 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	who := self.Role_value
 
 	if action == "insert" {
-		return model.Randomid("adv_attrname", "attrname_id", 10000, 16777216, 10)
+		err := model.Randomid("adv_attrname", "attrname_id", 10000, 16777216, 10)
+		if err != nil {
+			return err
+		}
+		glog.Infof("whole args 11111111: %#v", ARGS)
 	} else if who == "adv" && action == "delete" {
 		extra.Set("adv_id", ARGS.Get("adv_id"))
 	}

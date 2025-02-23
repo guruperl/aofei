@@ -295,12 +295,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if acrh := r.Header.Get("Access-Control-Request-Headers"); acrh != "" {
 		w.Header().Set("Access-Control-Allow-Headers", acrh)
 	}
-	if r.Method == "OPTIONS" {
+	if r.Method == "OPTIONS" || r.Method == "HEAD" {
 		w.WriteHeader(200)
 		return
 	}
 
-	glog.Infof("(%d) start url: %s\n", os.Getpid(), r.URL.Path)
+	glog.Infof("(%d) start: %s => %s => %s\n", os.Getpid(), r.URL.Path, r.Method, r.Header.Get("X-Forwarded-For"))
 	if l_url <= length || r.URL.Path[:length+1] != c.Script+"/" {
 		self.static_page(w, r)
 		return
