@@ -36,7 +36,7 @@ func TestStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.RemoteAddr = "www.pzadx.com:443"
+		req.RemoteAddr = "www.w8m.com:443"
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != out {
@@ -59,7 +59,7 @@ func TestURLWrong(t *testing.T) {
 	for in, out := range hash {
 		req, err := http.NewRequest("GET", in, nil)
 		req.Header.Set("User-Agent", uastr)
-		req.RemoteAddr = "www.pzadx.com:80"
+		req.RemoteAddr = "www.w8m.com:80"
 		if err != nil {
 			t.Fatal(err)
 		}

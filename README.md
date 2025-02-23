@@ -78,7 +78,7 @@ go test summer
 go test summer/weight
 
 4.5) go to ssp, make sure using DBGetNWeights in redis.go and make sure size_id
-= "1", ..."10" are defined in pzadx.conf for PSA. Run the test:
+= "1", ..."10" are defined in aofei.json for PSA. Run the test:
 go test ssp
 This should work. In production, we may use DbGetNWhites
 

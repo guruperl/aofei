@@ -16,7 +16,7 @@
 
   "nextpages" : {
     "startnew" : [
-      {"model":"channel", "action":"topics", "manual":{"level":0}}
+      {"model":"channel", "action":"topics", "manual":{"level":1}}
     ],
     "edit" : [
       {"model":"balance", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"table":"adv_campaign","idname":"campaign_id"}},

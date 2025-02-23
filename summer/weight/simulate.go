@@ -15,7 +15,7 @@ func SimulateWeight(db *sql.DB, component string) error {
 
 	add := new(Model)
 	add.Initialize(genelet.NewComponent(component))
-	storage := map[string]interface{}{"address": add}
+	storage := map[string]interface{}{"weight": add}
 
 	args := make(url.Values)
 	other := make(map[string]interface{})
