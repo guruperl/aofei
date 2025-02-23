@@ -63,10 +63,11 @@ VALUES (?, ?, ?, ?, ?, ?)`, arr[0], arr[4], arr[5], arr[1], continentID, isEuro)
 		return err
 	}
 
+	// IN ('US','CN','DE','FR','GB','AU','CA','JP','RU','KR','IN','BR','IT','NL','ES')`)
 	_, err = db.ExecContext(ctx, `
 UPDATE def_country SET active='Yes' 
 WHERE country_code
-IN ('US','CN','DE','FR','GB','AU','CA','JP','RU','KR','IN','BR','IT','NL','ES')`)
+IN ('US')`)
 
 	return err
 }
@@ -125,7 +126,12 @@ VALUES (?,?,?,?)`, arr[0], countryID, state, stateName)
 		return err
 	}
 
-	return nil
+	_, err = db.ExecContext(ctx, `
+INSERT INTO def_shortstate (autoid, state_code, state_name, english_name)
+SELECT DISTINCT autoid, state_code, state_name, english_name
+FROM def_state s INNER JOIN def_country c USING (country_id)`)
+
+	return err
 }
 
 func doCity(ctx context.Context, db *sql.DB) error {
@@ -219,88 +225,3 @@ VALUES (?,?,?)`, arr[0], dma, desc)
 
 	return nil
 }
-
-/*
-func doGeoname(ctx context.Context, db *sql.DB) error {
-	dbi := &genelet.DBI{Db: db}
-	lists := make([]map[string]interface{}, 0)
-	err := dbi.Select_sql(&lists, `
-SELECT c.country_id, c.country_code, s.state_id, s.state_code, ci.city_id, ci.city_name
-FROM def_country cenum('Yes','No') DEFAULT 'No'
-LEFT JOIN def_state s USING (country_id)
-LEFT JOIN def_city ci USING (state_id)`)
-	if err != nil {
-		return err
-	}
-	hashCountry := make(map[string]interface{})
-	hashState := make(map[string]map[string]interface{})
-	hashCity := make(map[string]map[string]map[string]interface{})
-	for _, v := range lists {
-		country := v["country_code"].(string)
-		hashCountry[country] = v["country_id"]
-		state, ok := v["state_code"]
-		if !ok {
-			continue
-		}
-		if _, ok := hashState[country]; !ok {
-			hashState[country] = make(map[string]interface{})
-		}
-		hashState[country][state.(string)] = v["state_id"]
-		city, ok := v["city_name"]
-		if !ok {
-			continue
-		}
-		if _, ok := hashCity[country]; !ok {
-			hashCity[country] = make(map[string]map[string]interface{})
-		}
-		if _, ok := hashCity[country][state.(string)]; !ok {
-			hashCity[country][state.(string)] = make(map[string]interface{})
-		}
-		hashCity[country][state.(string)][city.(string)] = v["city_id"]
-	}
-
-	f, err := os.Open("GeoLite2-City-Locations-zh-CN.csv")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Scan() // skip first line
-	for scanner.Scan() {
-		line := scanner.Text()
-		arr := strings.Split(line, ",")
-		country := arr[4]
-		if _, ok := hashCountry[country]; !ok {
-			continue
-		}
-		state := arr[6]
-		if state == "" {
-			_, err := db.ExecContext(ctx, `
-INSERT INTO def_geoname (country_id, geoname_id)
-VALUES (?,?)`, hashCountry[country], arr[0])
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		city := arr[10]
-		if city == "" {
-			_, err := db.ExecContext(ctx, `
-INSERT INTO def_geoname (country_id, state_id, geoname_id)
-VALUES (?,?,?)`, hashCountry[country], hashState[country][state], arr[0])
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		_, err := db.ExecContext(ctx, `
-INSERT INTO def_geoname (country_id, state_id, city_id, geoname_id)
-VALUES (?,?,?,?)`, hashCountry[country], hashState[country][state], hashCity[country][state][city], arr[0])
-		if err != nil {
-			return err
-		}
-	}
-	return scanner.Err()
-}
-*/

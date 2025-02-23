@@ -1,3 +1,4 @@
+// Package targetname is for campaign targeting management
 package targetname
 
 import (
@@ -7,7 +8,6 @@ import (
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/summer"
 	"github.com/genelet/winter/uadevice"
-	// "database/sql"
 	// hitem "github.com/genelet/winter/holiday/target"
 )
 
@@ -95,10 +95,9 @@ func (self *Filter) After(model *Model) error {
 		if other["targetname_topicsStates"] != nil {
 			for _, item := range other["targetname_topicsStates"].([]map[string]interface{}) {
 				state_name := item["state_name"].(string)
-				state_id := uint32(item["state_id"].(int64))
-				states[state_id] = []interface{}{state_name, item["value_id"]}
+				shortstate_id := uint32(item["shortstate_id"].(int64))
+				states[shortstate_id] = []interface{}{state_name, item["value_id"], item["state_code"], item["country_name"]}
 				cities[state_name] = make(map[uint32][]interface{})
-				dmas[state_name] = make(map[uint32][]interface{})
 			}
 			other["state"] = states
 			delete(other, "targetname_topicsStates")
@@ -117,10 +116,13 @@ func (self *Filter) After(model *Model) error {
 
 		if other["targetname_topicsDmas"] != nil {
 			for _, item := range other["targetname_topicsDmas"].([]map[string]interface{}) {
-				state_name := item["state_name"].(string)
+				city_name := item["city_name"].(string)
+				if _, ok := dmas[city_name]; !ok {
+					dmas[city_name] = make(map[uint32][]interface{})
+				}
 				metro_code := item["metro_code"].(string)
 				dma_id := uint32(item["dma_id"].(int64))
-				dmas[state_name][dma_id] = []interface{}{metro_code, item["value_id"]}
+				dmas[city_name][dma_id] = []interface{}{metro_code, item["value_id"]}
 			}
 			other["dma"] = dmas
 			delete(other, "targetname_topicsDmas")

@@ -90,7 +90,7 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("serverUrl", self.C.ServerURL)
 		other["_gmail"] = map[string]interface{}{
 			"To":      email,
-			"Subject": "Welcome to PzAdx Publisher Service",
+			"Subject": "Welcome to Aofei Publisher Service",
 			"file":    self.C.Template + "/" + who + "/pub/insert.mail." + self.Chartag_value}
 	} else if who == "web" && action == "retrieve" && len(lists) > 0 {
 		item := lists[0]
@@ -101,7 +101,7 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("serverUrl", self.C.ServerURL)
 		other["_gmail"] = map[string]interface{}{
 			"To":      email,
-			"Subject": "Reset PzAdx Publisher Password",
+			"Subject": "Reset Aofei Publisher Password",
 			"file":    self.C.Template + "/" + who + "/pub/retrieve.mail." + self.Chartag_value}
 	}
 

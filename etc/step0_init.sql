@@ -162,7 +162,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_ac_insert` AFTER INSERT ON `ac` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_ac_insert` AFTER INSERT ON `ac` FOR EACH ROW BEGIN
 	INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
 	VALUES (NEW.entitytype_id, NEW.entity_id, "ac", NOW());
 END */;;
@@ -180,7 +180,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_ac_delete` AFTER DELETE ON `ac` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_ac_delete` AFTER DELETE ON `ac` FOR EACH ROW BEGIN
 	INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
 	VALUES (OLD.entitytype_id, OLD.entity_id, "ac_", NOW());
 END */;;
@@ -298,7 +298,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_adv` AFTER UPDATE ON `adv` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_adv` AFTER UPDATE ON `adv` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
       VALUES (4, NEW.adv_id, NEW.active, NOW());
@@ -404,7 +404,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_balance` AFTER UPDATE ON `adv_balance` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_balance` AFTER UPDATE ON `adv_balance` FOR EACH ROW BEGIN
   IF ((NEW.limit_spend <=> OLD.limit_spend) = 0) THEN
     INSERT INTO his_balance (balance_id, budget_old, budget_new, budget_add, created)
     VALUES (NEW.balance_id, OLD.limit_spend, NEW.limit_spend, NEW.limit_spend-OLD.limit_spend, NOW());
@@ -469,7 +469,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_campaign` AFTER UPDATE ON `adv_campaign` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_campaign` AFTER UPDATE ON `adv_campaign` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
       VALUES (41, NEW.campaign_id, NEW.active, NOW());
@@ -528,7 +528,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_creative_insert` AFTER INSERT ON `adv_creative` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_creative_insert` AFTER INSERT ON `adv_creative` FOR EACH ROW BEGIN
         INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
         VALUES (43, NEW.creative_id, "creative", NOW());
 END */;;
@@ -546,7 +546,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_creative` AFTER UPDATE ON `adv_creative` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_creative` AFTER UPDATE ON `adv_creative` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
       VALUES (43, NEW.creative_id, NEW.active, NOW());
@@ -570,7 +570,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_creative_delete` AFTER DELETE ON `adv_creative` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_creative_delete` AFTER DELETE ON `adv_creative` FOR EACH ROW BEGIN
         INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
         VALUES (43, OLD.creative_id, "creative_", NOW());
 END */;;
@@ -663,7 +663,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_item` AFTER UPDATE ON `adv_item` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_item` AFTER UPDATE ON `adv_item` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
       VALUES (42, NEW.item_id, NEW.active, NOW());
@@ -746,7 +746,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_targetname_insert` AFTER INSERT ON `adv_targetname` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_targetname_insert` AFTER INSERT ON `adv_targetname` FOR EACH ROW BEGIN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
     VALUES (41, NEW.campaign_id, "targetname", NOW());
 END */;;
@@ -852,7 +852,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_chac_insert` AFTER INSERT ON `ch_ac` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_chac_insert` AFTER INSERT ON `ch_ac` FOR EACH ROW BEGIN
 	INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
 	VALUES (NEW.entitytype_id, NEW.entity_id, "ch_ac", NOW());
 END */;;
@@ -870,7 +870,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_chac_delete` AFTER DELETE ON `ch_ac` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_chac_delete` AFTER DELETE ON `ch_ac` FOR EACH ROW BEGIN
 	INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
 	VALUES (OLD.entitytype_id, OLD.entity_id, "ch_ac_", NOW());
 END */;;
@@ -917,7 +917,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_belong_insert` AFTER INSERT ON `ch_belong` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_belong_insert` AFTER INSERT ON `ch_belong` FOR EACH ROW BEGIN
 	INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
 	VALUES (NEW.entitytype_id, NEW.entity_id, "ch_belong", NOW());
 END */;;
@@ -935,7 +935,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_belong_delete` AFTER DELETE ON `ch_belong` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_belong_delete` AFTER DELETE ON `ch_belong` FOR EACH ROW BEGIN
 	INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
 	VALUES (OLD.entitytype_id, OLD.entity_id, "ch_belong_", NOW());
 END */;;
@@ -1184,6 +1184,7 @@ DROP TABLE IF EXISTS `def_country`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `def_country` (
   `country_id` int unsigned NOT NULL,
+  `autoid` tinyint unsigned auto_increment not null,
   `continent_id` tinyint unsigned DEFAULT NULL,
   `country_code` char(2) NOT NULL,
   `country_name` varchar(255) Not NULL,
@@ -1195,6 +1196,7 @@ CREATE TABLE `def_country` (
   PRIMARY KEY (`country_id`),
   UNIQUE KEY `country_code` (`country_code`),
   KEY `continent_id` (`continent_id`),
+  index `autoid` (`aotuid`),
   CONSTRAINT `def_country_ibfk_1` FOREIGN KEY (`continent_id`) REFERENCES `def_continent` (`continent_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1363,6 +1365,25 @@ LOCK TABLES `def_state` WRITE;
 /*!40000 ALTER TABLE `def_state` DISABLE KEYS */;
 /*!40000 ALTER TABLE `def_state` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `def_shortstate`
+--
+
+DROP TABLE IF EXISTS `def_shortstate`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `def_shortstate` (
+  `shortstate_id` int unsigned auto_increment NOT NULL,
+  `autoid` tinyint unsigned NOT NULL,
+  `state_code` char(4) DEFAULT NULL,
+  `state_name` varchar(255) DEFAULT NULL,
+  `english_name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`shortstate_id`),
+  KEY `autoid` (`autoid`),
+  CONSTRAINT `def_shortstate_ibfk_1` FOREIGN KEY (`autoid`) REFERENCES `def_country` (`autoid`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `his_balance`
@@ -1684,7 +1705,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_payment` AFTER UPDATE ON `pay_payment` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_payment` AFTER UPDATE ON `pay_payment` FOR EACH ROW BEGIN
   DECLARE advID int unsigned;
   DECLARE advBalance float;
   IF (OLD.status="New" && NEW.status="Confirmed") THEN
@@ -1773,7 +1794,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_pub` AFTER UPDATE ON `pub` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_pub` AFTER UPDATE ON `pub` FOR EACH ROW BEGIN
 
   IF ((NEW.active = "No") && (OLD.active = "Yes")) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created) 
@@ -1885,7 +1906,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_site` AFTER UPDATE ON `pub_site` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_site` AFTER UPDATE ON `pub_site` FOR EACH ROW BEGIN
 
   IF ((NEW.active = "No") && (OLD.active = "Yes")) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created) 
@@ -1953,7 +1974,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`eightran_goto`@`localhost`*/ /*!50003 TRIGGER `trig_slot` AFTER UPDATE ON `pub_slot` FOR EACH ROW BEGIN
+/*!50003 CREATE TRIGGER `trig_slot` AFTER UPDATE ON `pub_slot` FOR EACH ROW BEGIN
 
 	IF ((NEW.active = "No") && (OLD.active = "Yes")) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created) 
@@ -2064,7 +2085,7 @@ SET character_set_client = @saved_cs_client;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`eightran_goto`@`localhost` PROCEDURE `proc_adv`(IN i_email VARCHAR(255), IN i_passwd VARCHAR(40), IN i_ip INT unsigned, OUT o_adv_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
+CREATE PROCEDURE `proc_adv`(IN i_email VARCHAR(255), IN i_passwd VARCHAR(40), IN i_ip INT unsigned, OUT o_adv_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
   DECLARE c1 INT;
   DECLARE c2 INT;
@@ -2105,7 +2126,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`eightran_goto`@`localhost` PROCEDURE `proc_adv_as`(IN i_email VARCHAR(255), IN i_ip INT unsigned, OUT o_adv_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
+CREATE PROCEDURE `proc_adv_as`(IN i_email VARCHAR(255), IN i_ip INT unsigned, OUT o_adv_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
     SELECT p.adv_id, p.email, p.timezone_id, a.company, a.contact
     INTO o_adv_id, o_email, o_timezone_id, o_company, o_contact
@@ -2128,7 +2149,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`eightran_goto`@`localhost` PROCEDURE `proc_pub`(IN i_email VARCHAR(255), IN i_passwd VARCHAR(40), IN i_ip INT unsigned, OUT o_pub_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
+CREATE PROCEDURE `proc_pub`(IN i_email VARCHAR(255), IN i_passwd VARCHAR(40), IN i_ip INT unsigned, OUT o_pub_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
   DECLARE c1 INT;
   DECLARE c2 INT;
@@ -2169,7 +2190,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-CREATE DEFINER=`eightran_goto`@`localhost` PROCEDURE `proc_pub_as`(IN i_email VARCHAR(255), IN i_ip INT unsigned, OUT o_pub_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
+CREATE PROCEDURE `proc_pub_as`(IN i_email VARCHAR(255), IN i_ip INT unsigned, OUT o_pub_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
     SELECT p.pub_id, p.email, p.timezone_id, a.company, a.contact
     INTO o_pub_id, o_email, o_timezone_id, o_company, o_contact
@@ -2195,7 +2216,6 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8mb3 */;
 /*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`eightran_goto`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `ViewGroupSlot` AS select any_value(`p`.`pub_id`) AS `pub_id`,any_value(`s`.`site_id`) AS `site_id`,`t`.`slot_id` AS `slot_id`,any_value(`a`.`adv_id`) AS `adv_id`,any_value(`c`.`campaign_id`) AS `campaign_id`,`i`.`item_id` AS `item_id`,any_value((`i`.`cost_type` + 0)) AS `cost_type`,any_value(`i`.`cost`) AS `cost`,any_value(`i`.`endx`) AS `endx` from (((((((((((`pub_slot` `t` join `pub_site` `s` on((`t`.`site_id` = `s`.`site_id`))) join `pub` `p` on((`s`.`pub_id` = `p`.`pub_id`))) join `adv_item` `i` on((`t`.`size_id` = `i`.`size_id`))) join `adv_campaign` `c` on((`i`.`campaign_id` = `c`.`campaign_id`))) join `adv` `a` on((`c`.`adv_id` = `a`.`adv_id`))) left join `ac` on(((`ac`.`entitytype_id` = 4) and (`ac`.`entity_id` = `a`.`adv_id`) and (((`ac`.`othertype_id` = 3) and (`ac`.`other_id` = `p`.`pub_id`)) or ((`ac`.`othertype_id` = 31) and (`ac`.`other_id` = `s`.`site_id`)))))) left join `ac` `bc` on(((`bc`.`entitytype_id` = 3) and (`bc`.`entity_id` = `p`.`pub_id`) and (((`bc`.`othertype_id` = 4) and (`bc`.`other_id` = `a`.`adv_id`)) or ((`bc`.`othertype_id` = 41) and (`bc`.`other_id` = `c`.`campaign_id`)))))) left join `ch_ac` `ha` on(((`ha`.`entitytype_id` = 41) and (`ha`.`entity_id` = `c`.`campaign_id`)))) left join `ch_belong` `hb` on(((`hb`.`entitytype_id` = 31) and (`hb`.`entity_id` = `s`.`site_id`) and (`hb`.`channel_id` = `ha`.`channel_id`)))) left join `ch_ac` `ca` on(((`ca`.`entitytype_id` = 31) and (`ca`.`entity_id` = `s`.`site_id`)))) left join `ch_belong` `cb` on(((`cb`.`entitytype_id` = 41) and (`cb`.`entity_id` = `c`.`campaign_id`) and (`ca`.`channel_id` = `cb`.`channel_id`)))) where ((`p`.`active` = 'Yes') and (`s`.`active` = 'Yes') and (`t`.`active` = 'Yes') and (`a`.`active` = 'Yes') and (`c`.`active` = 'Yes') and (`i`.`active` = 'Yes') and (find_in_set(`i`.`qa_mime`,`t`.`fl_mime`) > 0) and (find_in_set(`t`.`qa_language`,`i`.`fl_language`) > 0) and (find_in_set(`t`.`qa_device`,`i`.`fl_device`) > 0) and (find_in_set(`t`.`qa_position`,`i`.`fl_position`) > 0) and (find_in_set(`t`.`qa_content`,`i`.`fl_content`) > 0) and (find_in_set(`i`.`qa_creative`,`t`.`fl_creative`) > 0) and (((`c`.`qa_campaign` >> 0) & 7) >= ((`s`.`fl_campaign` >> 0) & 7)) and (((`c`.`qa_campaign` >> 3) & 7) >= ((`s`.`fl_campaign` >> 3) & 7)) and (((`c`.`qa_campaign` >> 6) & 7) >= ((`s`.`fl_campaign` >> 6) & 7)) and (((`c`.`qa_campaign` >> 9) & 7) >= ((`s`.`fl_campaign` >> 9) & 7)) and (((`c`.`qa_campaign` >> 12) & 7) >= ((`s`.`fl_campaign` >> 12) & 7)) and (((`c`.`qa_campaign` >> 15) & 7) >= ((`s`.`fl_campaign` >> 15) & 7)) and (((`c`.`fl_site` >> 0) & 3) <= ((`s`.`qa_site` >> 0) & 3)) and (((`c`.`fl_site` >> 2) & 3) <= ((`s`.`qa_site` >> 2) & 3)) and (((`c`.`fl_site` >> 4) & 3) <= ((`s`.`qa_site` >> 4) & 3)) and (((`c`.`fl_site` >> 6) & 3) <= ((`s`.`qa_site` >> 6) & 3)) and (((`c`.`fl_site` >> 8) & 3) <= ((`s`.`qa_site` >> 8) & 3)) and (((`c`.`fl_site` >> 10) & 3) <= ((`s`.`qa_site` >> 10) & 3)) and (((`c`.`fl_site` >> 12) & 3) <= ((`s`.`qa_site` >> 12) & 3)) and (((`c`.`fl_site` >> 14) & 3) <= ((`s`.`qa_site` >> 14) & 3)) and (((`c`.`fl_site` >> 16) & 3) <= ((`s`.`qa_site` >> 16) & 3)) and (((`c`.`fl_site` >> 18) & 3) <= ((`s`.`qa_site` >> 18) & 3)) and (((`c`.`fl_site` >> 20) & 3) <= ((`s`.`qa_site` >> 20) & 3)) and ((`i`.`endx` >= now()) or (`i`.`endx` is null)) and (((`a`.`access_order` = 'White') and (`ac`.`entity_id` is not null)) or ((`a`.`access_order` = 'Black') and (`ac`.`entity_id` is null))) and (((`c`.`channel_order` = 'Black') and ((`ha`.`entity_id` is null) or (`hb`.`entity_id` is null))) or ((`c`.`channel_order` = 'White') and (`ha`.`entity_id` is not null) and (`hb`.`entity_id` is not null))) and (((`s`.`channel_order` = 'Black') and ((`ca`.`entity_id` is null) or (`cb`.`entity_id` is null))) or ((`s`.`channel_order` = 'White') and (`ca`.`entity_id` is not null) and (`cb`.`entity_id` is not null))) and (((`p`.`access_order` = 'White') and (`bc`.`entity_id` is not null)) or ((`p`.`access_order` = 'Black') and (`bc`.`entity_id` is null)))) group by `t`.`slot_id`,`i`.`item_id` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2213,7 +2233,6 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8mb3 */;
 /*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`eightran_goto`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `ViewSlot` AS select `p`.`pub_id` AS `pub_id`,concat(`p`.`firstname`,' ',`p`.`lastname`) AS `pub_name`,`s`.`site_id` AS `site_id`,`s`.`site_name` AS `site_name`,`s`.`site_url` AS `site_url`,`t`.`slot_id` AS `slot_id`,`t`.`slot_name` AS `slot_name`,`i`.`item_id` AS `item_id`,`i`.`item_name` AS `item_name`,`i`.`cost_type` AS `cost_type`,`i`.`cost` AS `cost`,`i`.`startx` AS `startx`,`i`.`endx` AS `endx`,`c`.`campaign_id` AS `campaign_id`,`c`.`campaign_name` AS `campaign_name`,`a`.`adv_id` AS `adv_id`,concat(`a`.`firstname`,' ',`a`.`lastname`) AS `adv_name`,`bc`.`ac_id` AS `ac_id`,`bc`.`entitytype_id` AS `entitytype_id`,`bc`.`entity_id` AS `entity_id`,`bc`.`othertype_id` AS `othertype_id`,`bc`.`other_id` AS `other_id` from (((((((((((`pub_slot` `t` join `pub_site` `s` on((`t`.`site_id` = `s`.`site_id`))) join `pub` `p` on((`s`.`pub_id` = `p`.`pub_id`))) join `adv_item` `i` on((`t`.`size_id` = `i`.`size_id`))) join `adv_campaign` `c` on((`i`.`campaign_id` = `c`.`campaign_id`))) join `adv` `a` on((`c`.`adv_id` = `a`.`adv_id`))) left join `ac` on(((`ac`.`entitytype_id` = 4) and (`ac`.`entity_id` = `a`.`adv_id`) and (((`ac`.`othertype_id` = 3) and (`ac`.`other_id` = `p`.`pub_id`)) or ((`ac`.`othertype_id` = 31) and (`ac`.`other_id` = `s`.`site_id`)))))) left join `ac` `bc` on(((`bc`.`entitytype_id` = 3) and (`bc`.`entity_id` = `p`.`pub_id`) and (((`bc`.`othertype_id` = 4) and (`bc`.`other_id` = `a`.`adv_id`)) or ((`bc`.`othertype_id` = 41) and (`bc`.`other_id` = `c`.`campaign_id`)))))) left join `ch_ac` `ha` on(((`ha`.`entitytype_id` = 41) and (`ha`.`entity_id` = `c`.`campaign_id`)))) left join `ch_belong` `hb` on(((`hb`.`entitytype_id` = 31) and (`hb`.`entity_id` = `s`.`site_id`) and (`hb`.`channel_id` = `ha`.`channel_id`)))) left join `ch_ac` `ca` on(((`ca`.`entitytype_id` = 31) and (`ca`.`entity_id` = `s`.`site_id`)))) left join `ch_belong` `cb` on(((`cb`.`entitytype_id` = 41) and (`cb`.`entity_id` = `c`.`campaign_id`) and (`ca`.`channel_id` = `cb`.`channel_id`)))) where ((`p`.`active` = 'Yes') and (`s`.`active` = 'Yes') and (`t`.`active` = 'Yes') and (`a`.`active` = 'Yes') and (`c`.`active` = 'Yes') and (`i`.`active` = 'Yes') and (find_in_set(`i`.`qa_mime`,`t`.`fl_mime`) > 0) and (find_in_set(`t`.`qa_language`,`i`.`fl_language`) > 0) and (find_in_set(`t`.`qa_device`,`i`.`fl_device`) > 0) and (find_in_set(`t`.`qa_position`,`i`.`fl_position`) > 0) and (find_in_set(`t`.`qa_content`,`i`.`fl_content`) > 0) and (find_in_set(`i`.`qa_creative`,`t`.`fl_creative`) > 0) and (((`c`.`qa_campaign` >> 0) & 7) >= ((`s`.`fl_campaign` >> 0) & 7)) and (((`c`.`qa_campaign` >> 3) & 7) >= ((`s`.`fl_campaign` >> 3) & 7)) and (((`c`.`qa_campaign` >> 6) & 7) >= ((`s`.`fl_campaign` >> 6) & 7)) and (((`c`.`qa_campaign` >> 9) & 7) >= ((`s`.`fl_campaign` >> 9) & 7)) and (((`c`.`qa_campaign` >> 12) & 7) >= ((`s`.`fl_campaign` >> 12) & 7)) and (((`c`.`qa_campaign` >> 15) & 7) >= ((`s`.`fl_campaign` >> 15) & 7)) and (((`c`.`fl_site` >> 0) & 3) <= ((`s`.`qa_site` >> 0) & 3)) and (((`c`.`fl_site` >> 2) & 3) <= ((`s`.`qa_site` >> 2) & 3)) and (((`c`.`fl_site` >> 4) & 3) <= ((`s`.`qa_site` >> 4) & 3)) and (((`c`.`fl_site` >> 6) & 3) <= ((`s`.`qa_site` >> 6) & 3)) and (((`c`.`fl_site` >> 8) & 3) <= ((`s`.`qa_site` >> 8) & 3)) and (((`c`.`fl_site` >> 10) & 3) <= ((`s`.`qa_site` >> 10) & 3)) and (((`c`.`fl_site` >> 12) & 3) <= ((`s`.`qa_site` >> 12) & 3)) and (((`c`.`fl_site` >> 14) & 3) <= ((`s`.`qa_site` >> 14) & 3)) and (((`c`.`fl_site` >> 16) & 3) <= ((`s`.`qa_site` >> 16) & 3)) and (((`c`.`fl_site` >> 18) & 3) <= ((`s`.`qa_site` >> 18) & 3)) and (((`c`.`fl_site` >> 20) & 3) <= ((`s`.`qa_site` >> 20) & 3)) and ((`i`.`endx` >= now()) or (`i`.`endx` is null)) and (((`a`.`access_order` = 'White') and (`ac`.`entity_id` is not null)) or ((`a`.`access_order` = 'Black') and (`ac`.`entity_id` is null))) and (((`c`.`channel_order` = 'Black') and ((`ha`.`entity_id` is null) or (`hb`.`entity_id` is null))) or ((`c`.`channel_order` = 'White') and (`ha`.`entity_id` is not null) and (`hb`.`entity_id` is not null))) and (((`s`.`channel_order` = 'Black') and ((`ca`.`entity_id` is null) or (`cb`.`entity_id` is null))) or ((`s`.`channel_order` = 'White') and (`ca`.`entity_id` is not null) and (`cb`.`entity_id` is not null))) and (((`p`.`access_order` = 'White') and (`bc`.`entity_id` is not null)) or ((`p`.`access_order` = 'Black') and (`bc`.`entity_id` is null)))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2231,7 +2250,6 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8mb3 */;
 /*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`eightran_goto`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `ViewSlotOpen` AS select `p`.`pub_id` AS `pub_id`,concat(`p`.`firstname`,' ',`p`.`lastname`) AS `pub_name`,`s`.`site_id` AS `site_id`,`s`.`site_name` AS `site_name`,`s`.`site_url` AS `site_url`,`t`.`slot_id` AS `slot_id`,`t`.`slot_name` AS `slot_name`,`i`.`item_id` AS `item_id`,`i`.`item_name` AS `item_name`,`i`.`cost_type` AS `cost_type`,`i`.`cost` AS `cost`,`i`.`startx` AS `startx`,`i`.`endx` AS `endx`,`c`.`campaign_id` AS `campaign_id`,`c`.`campaign_name` AS `campaign_name`,`a`.`adv_id` AS `adv_id`,concat(`a`.`firstname`,' ',`a`.`lastname`) AS `adv_name`,`bc`.`ac_id` AS `ac_id`,`bc`.`entitytype_id` AS `entitytype_id`,`bc`.`entity_id` AS `entity_id`,`bc`.`othertype_id` AS `othertype_id`,`bc`.`other_id` AS `other_id` from (((((((((((`pub_slot` `t` join `pub_site` `s` on((`t`.`site_id` = `s`.`site_id`))) join `pub` `p` on((`s`.`pub_id` = `p`.`pub_id`))) join `adv_item` `i` on((`t`.`size_id` = `i`.`size_id`))) join `adv_campaign` `c` on((`i`.`campaign_id` = `c`.`campaign_id`))) join `adv` `a` on((`c`.`adv_id` = `a`.`adv_id`))) left join `ac` on(((`ac`.`entitytype_id` = 4) and (`ac`.`entity_id` = `a`.`adv_id`) and (((`ac`.`othertype_id` = 3) and (`ac`.`other_id` = `p`.`pub_id`)) or ((`ac`.`othertype_id` = 31) and (`ac`.`other_id` = `s`.`site_id`)))))) left join `ac` `bc` on(((`bc`.`entitytype_id` = 3) and (`bc`.`entity_id` = `p`.`pub_id`) and (((`bc`.`othertype_id` = 4) and (`bc`.`other_id` = `a`.`adv_id`)) or ((`bc`.`othertype_id` = 41) and (`bc`.`other_id` = `c`.`campaign_id`)))))) left join `ch_ac` `ha` on(((`ha`.`entitytype_id` = 41) and (`ha`.`entity_id` = `c`.`campaign_id`)))) left join `ch_belong` `hb` on(((`hb`.`entitytype_id` = 31) and (`hb`.`entity_id` = `s`.`site_id`) and (`hb`.`channel_id` = `ha`.`channel_id`)))) left join `ch_ac` `ca` on(((`ca`.`entitytype_id` = 31) and (`ca`.`entity_id` = `s`.`site_id`)))) left join `ch_belong` `cb` on(((`cb`.`entitytype_id` = 41) and (`cb`.`entity_id` = `c`.`campaign_id`) and (`ca`.`channel_id` = `cb`.`channel_id`)))) where ((`p`.`active` = 'Yes') and (`s`.`active` = 'Yes') and (`t`.`active` = 'Yes') and (`a`.`active` = 'Yes') and (`c`.`active` = 'Yes') and (`i`.`active` = 'Yes') and (find_in_set(`i`.`qa_mime`,`t`.`fl_mime`) > 0) and (find_in_set(`t`.`qa_language`,`i`.`fl_language`) > 0) and (find_in_set(`t`.`qa_device`,`i`.`fl_device`) > 0) and (find_in_set(`t`.`qa_position`,`i`.`fl_position`) > 0) and (find_in_set(`t`.`qa_content`,`i`.`fl_content`) > 0) and (find_in_set(`i`.`qa_creative`,`t`.`fl_creative`) > 0) and (((`c`.`qa_campaign` >> 0) & 7) >= ((`s`.`fl_campaign` >> 0) & 7)) and (((`c`.`qa_campaign` >> 3) & 7) >= ((`s`.`fl_campaign` >> 3) & 7)) and (((`c`.`qa_campaign` >> 6) & 7) >= ((`s`.`fl_campaign` >> 6) & 7)) and (((`c`.`qa_campaign` >> 9) & 7) >= ((`s`.`fl_campaign` >> 9) & 7)) and (((`c`.`qa_campaign` >> 12) & 7) >= ((`s`.`fl_campaign` >> 12) & 7)) and (((`c`.`qa_campaign` >> 15) & 7) >= ((`s`.`fl_campaign` >> 15) & 7)) and (((`c`.`fl_site` >> 0) & 3) <= ((`s`.`qa_site` >> 0) & 3)) and (((`c`.`fl_site` >> 2) & 3) <= ((`s`.`qa_site` >> 2) & 3)) and (((`c`.`fl_site` >> 4) & 3) <= ((`s`.`qa_site` >> 4) & 3)) and (((`c`.`fl_site` >> 6) & 3) <= ((`s`.`qa_site` >> 6) & 3)) and (((`c`.`fl_site` >> 8) & 3) <= ((`s`.`qa_site` >> 8) & 3)) and (((`c`.`fl_site` >> 10) & 3) <= ((`s`.`qa_site` >> 10) & 3)) and (((`c`.`fl_site` >> 12) & 3) <= ((`s`.`qa_site` >> 12) & 3)) and (((`c`.`fl_site` >> 14) & 3) <= ((`s`.`qa_site` >> 14) & 3)) and (((`c`.`fl_site` >> 16) & 3) <= ((`s`.`qa_site` >> 16) & 3)) and (((`c`.`fl_site` >> 18) & 3) <= ((`s`.`qa_site` >> 18) & 3)) and (((`c`.`fl_site` >> 20) & 3) <= ((`s`.`qa_site` >> 20) & 3)) and ((`i`.`endx` >= now()) or (`i`.`endx` is null)) and (((`a`.`access_order` = 'White') and (`ac`.`entity_id` is not null)) or ((`a`.`access_order` = 'Black') and (`ac`.`entity_id` is null))) and (((`c`.`channel_order` = 'Black') and ((`ha`.`entity_id` is null) or (`hb`.`entity_id` is null))) or ((`c`.`channel_order` = 'White') and (`ha`.`entity_id` is not null) and (`hb`.`entity_id` is not null))) and (((`s`.`channel_order` = 'Black') and ((`ca`.`entity_id` is null) or (`cb`.`entity_id` is null))) or ((`s`.`channel_order` = 'White') and (`ca`.`entity_id` is not null) and (`cb`.`entity_id` is not null)))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2249,7 +2267,6 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8mb3 */;
 /*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`eightran_goto`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `ViewTaoSlot` AS select `t`.`slot_id` AS `slot_id`,`a`.`adv_id` AS `adv_id`,`c`.`campaign_id` AS `campaign_id`,`i`.`item_id` AS `item_id`,(`i`.`cost_type` + 0) AS `cost_type`,`i`.`cost` AS `price`,`i`.`endx` AS `endx`,`c`.`cpm_fc` AS `cpm_fc`,`c`.`cpm_length` AS `cpm_length`,`c`.`cpm_throttle` AS `cpm_throttle`,`c`.`cpc_fc` AS `cpc_fc`,`c`.`cpc_length` AS `cpc_length` from (((((((((((`pub_slot` `t` join `pub_site` `s` on((`t`.`site_id` = `s`.`site_id`))) join `pub` `p` on((`s`.`pub_id` = `p`.`pub_id`))) join `adv_item` `i` on((`t`.`size_id` = `i`.`size_id`))) join `adv_campaign` `c` on((`i`.`campaign_id` = `c`.`campaign_id`))) join `adv` `a` on((`c`.`adv_id` = `a`.`adv_id`))) left join `ac` on(((`ac`.`entitytype_id` = 4) and (`ac`.`entity_id` = `a`.`adv_id`) and (((`ac`.`othertype_id` = 3) and (`ac`.`other_id` = `p`.`pub_id`)) or ((`ac`.`othertype_id` = 31) and (`ac`.`other_id` = `s`.`site_id`)))))) left join `ac` `bc` on(((`bc`.`entitytype_id` = 3) and (`bc`.`entity_id` = `p`.`pub_id`) and (((`bc`.`othertype_id` = 4) and (`bc`.`other_id` = `a`.`adv_id`)) or ((`bc`.`othertype_id` = 41) and (`bc`.`other_id` = `c`.`campaign_id`)))))) left join `ch_ac` `ha` on(((`ha`.`entitytype_id` = 41) and (`ha`.`entity_id` = `c`.`campaign_id`)))) left join `ch_belong` `hb` on(((`hb`.`entitytype_id` = 31) and (`hb`.`entity_id` = `s`.`site_id`) and (`hb`.`channel_id` = `ha`.`channel_id`)))) left join `ch_ac` `ca` on(((`ca`.`entitytype_id` = 31) and (`ca`.`entity_id` = `s`.`site_id`)))) left join `ch_belong` `cb` on(((`cb`.`entitytype_id` = 41) and (`cb`.`entity_id` = `c`.`campaign_id`) and (`ca`.`channel_id` = `cb`.`channel_id`)))) where ((`p`.`active` = 'Yes') and (`s`.`active` = 'Yes') and (`t`.`active` = 'Yes') and (`a`.`active` = 'Yes') and (`c`.`active` = 'Yes') and (`i`.`active` = 'Yes') and (find_in_set(`i`.`qa_mime`,`t`.`fl_mime`) > 0) and (find_in_set(`t`.`qa_language`,`i`.`fl_language`) > 0) and (find_in_set(`t`.`qa_device`,`i`.`fl_device`) > 0) and (find_in_set(`t`.`qa_position`,`i`.`fl_position`) > 0) and (find_in_set(`t`.`qa_content`,`i`.`fl_content`) > 0) and (find_in_set(`i`.`qa_creative`,`t`.`fl_creative`) > 0) and (((`c`.`qa_campaign` >> 0) & 7) >= ((`s`.`fl_campaign` >> 0) & 7)) and (((`c`.`qa_campaign` >> 3) & 7) >= ((`s`.`fl_campaign` >> 3) & 7)) and (((`c`.`qa_campaign` >> 6) & 7) >= ((`s`.`fl_campaign` >> 6) & 7)) and (((`c`.`qa_campaign` >> 9) & 7) >= ((`s`.`fl_campaign` >> 9) & 7)) and (((`c`.`qa_campaign` >> 12) & 7) >= ((`s`.`fl_campaign` >> 12) & 7)) and (((`c`.`qa_campaign` >> 15) & 7) >= ((`s`.`fl_campaign` >> 15) & 7)) and (((`c`.`fl_site` >> 0) & 3) <= ((`s`.`qa_site` >> 0) & 3)) and (((`c`.`fl_site` >> 2) & 3) <= ((`s`.`qa_site` >> 2) & 3)) and (((`c`.`fl_site` >> 4) & 3) <= ((`s`.`qa_site` >> 4) & 3)) and (((`c`.`fl_site` >> 6) & 3) <= ((`s`.`qa_site` >> 6) & 3)) and (((`c`.`fl_site` >> 8) & 3) <= ((`s`.`qa_site` >> 8) & 3)) and (((`c`.`fl_site` >> 10) & 3) <= ((`s`.`qa_site` >> 10) & 3)) and (((`c`.`fl_site` >> 12) & 3) <= ((`s`.`qa_site` >> 12) & 3)) and (((`c`.`fl_site` >> 14) & 3) <= ((`s`.`qa_site` >> 14) & 3)) and (((`c`.`fl_site` >> 16) & 3) <= ((`s`.`qa_site` >> 16) & 3)) and (((`c`.`fl_site` >> 18) & 3) <= ((`s`.`qa_site` >> 18) & 3)) and (((`c`.`fl_site` >> 20) & 3) <= ((`s`.`qa_site` >> 20) & 3)) and ((`i`.`endx` >= now()) or (`i`.`endx` is null)) and (((`a`.`access_order` = 'White') and (`ac`.`entity_id` is not null)) or ((`a`.`access_order` = 'Black') and (`ac`.`entity_id` is null))) and (((`c`.`channel_order` = 'Black') and ((`ha`.`entity_id` is null) or (`hb`.`entity_id` is null))) or ((`c`.`channel_order` = 'White') and (`ha`.`entity_id` is not null) and (`hb`.`entity_id` is not null))) and (((`s`.`channel_order` = 'Black') and ((`ca`.`entity_id` is null) or (`cb`.`entity_id` is null))) or ((`s`.`channel_order` = 'White') and (`ca`.`entity_id` is not null) and (`cb`.`entity_id` is not null))) and (((`p`.`access_order` = 'White') and (`bc`.`entity_id` is not null)) or ((`p`.`access_order` = 'Black') and (`bc`.`entity_id` is null)))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2267,7 +2284,6 @@ DELIMITER ;
 /*!50001 SET character_set_results     = utf8mb3 */;
 /*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`eightran_goto`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `view_payment` AS select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`p`.`payment_id` AS `entity_id`,`a`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,concat(`a`.`firstname`,' ',`a`.`lastname`) AS `sender_name`,`a`.`adv_id` AS `sender_id`,unix_timestamp(`p`.`created`) AS `transaction_id` from ((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `adv` `a` on((`p`.`adv_id` = `a`.`adv_id`))) where (`p`.`paytype_id` in (1,2)) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`cc`.`cc_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`a`.`contact` AS `sender_name`,`a`.`address_id` AS `sender_id`,`cc`.`transaction_id` AS `transaction_id` from (((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_cc` `cc` on(((`p`.`paytype_id` = 3) and (`p`.`payment_id` = `cc`.`payment_id`)))) join `add_address` `a` on((`cc`.`address_id` = `a`.`address_id`))) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`cq`.`cheque_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`a`.`contact` AS `sender_name`,`a`.`address_id` AS `sender_id`,`cq`.`transaction_id` AS `transaction_id` from (((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_cheque` `cq` on(((`p`.`paytype_id` = 4) and (`p`.`payment_id` = `cq`.`payment_id`)))) join `add_address` `a` on((`cq`.`address_id` = `a`.`address_id`))) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`w`.`wechat_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`w`.`sender_name` AS `sender_name`,`w`.`sender_id` AS `sender_id`,`w`.`transaction_id` AS `transaction_id` from ((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_wechat` `w` on(((`p`.`paytype_id` = 5) and (`p`.`payment_id` = `w`.`payment_id`)))) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`a`.`alipay_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`a`.`sender_name` AS `sender_name`,`a`.`sender_id` AS `sender_id`,`a`.`transaction_id` AS `transaction_id` from ((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_alipay` `a` on(((`p`.`paytype_id` = 6) and (`p`.`payment_id` = `a`.`payment_id`)))) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;

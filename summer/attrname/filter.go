@@ -1,3 +1,4 @@
+// Package attrname manage user's attributes
 package attrname
 
 import (
@@ -5,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/genelet/winter/summer"
-	"github.com/golang/glog"
 )
 
 type Filter struct {
@@ -44,7 +44,6 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 		if err != nil {
 			return err
 		}
-		glog.Infof("whole args 11111111: %#v", ARGS)
 	} else if who == "adv" && action == "delete" {
 		extra.Set("adv_id", ARGS.Get("adv_id"))
 	}

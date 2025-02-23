@@ -4,7 +4,6 @@ import (
 	"net/url"
 
 	"github.com/genelet/winter/summer"
-	"github.com/golang/glog"
 )
 
 type Model struct {
@@ -13,7 +12,6 @@ type Model struct {
 
 func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
-	glog.Infof("whole args 2222222: %#v", ARGS)
 	if err := self.Model.Insert(extra...); err != nil {
 		return err
 	}

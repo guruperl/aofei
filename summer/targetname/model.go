@@ -15,8 +15,9 @@ type Model struct {
 
 func (self *Model) TopicsDmas(extra ...url.Values) error {
 	return self.Select_sql(self.LISTS,
-		`SELECT s.state_id, s.state_name, d.dma_id, d.metro_code, tmp.value_id
+		`SELECT t.city_id, t.city_name, d.dma_id, d.metro_code, tmp.value_id
 FROM def_dma d
+INNER JOIN def_city t USING (city_id)
 INNER JOIN def_state s USING (state_id)
 INNER JOIN def_country c USING (country_id)
 LEFT JOIN (
@@ -47,16 +48,16 @@ WHERE c.active="Yes"`, self.ProperValue("campaign_id", extra[0]))
 
 func (self *Model) TopicsStates(extra ...url.Values) error {
 	return self.Select_sql(self.LISTS,
-		`SELECT s.state_id, s.state_name, tmp.value_id
-FROM def_state s
-INNER JOIN def_country c USING (country_id)
+		`SELECT c.country_id, c.country_name, s.shortstate_id, s.autoid, s.state_code, s.state_name, tmp.value_id
+FROM def_shortstate s
+INNER JOIN def_country c USING (autoid)
 LEFT JOIN (
 	SELECT tn.targetname_id, tn.attrname_id, tv.value_id
 	FROM adv_targetname tn
 	INNER JOIN adv_targetvalue tv USING (targetname_id)
 	INNER JOIN adv_attrname an USING (attrname_id)
 	WHERE tn.campaign_id=? AND an.attrname='state'
-) tmp ON (s.state_id=tmp.value_id)
+) tmp ON (s.shortstate_id=tmp.value_id)
 WHERE c.active="Yes"`, self.ProperValue("campaign_id", extra[0]))
 }
 
