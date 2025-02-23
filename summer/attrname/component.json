@@ -10,6 +10,5 @@
   "topics_pars":["attrname_id","adv_id","attrname"],
   "edit_pars"  :["attrname_id","adv_id","attrname"],
   "current_table":"adv_attrname",
-  "current_key":"attrname_id",
-  "current_id_auto":"attrname_id"
+  "current_key":"attrname_id"
 }
