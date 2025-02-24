@@ -1,0 +1,140 @@
+{
+    "ProjectRoot" : "/home/disk_user/aofei",
+    "Script"       : "/goto",
+    "ServerURL"   : "https://www.w8m.com",
+    "ServerPort"  : "8888",
+    "DocumentRoot": "/home/disk_user/pzdesign/www",
+    "Upload_url"   : "https://www.w8m.com/uploads",
+    "Upload_dir"   : "/home/disk_user/pzdesign/www/uploads",
+    "Template"     : "/home/disk_user/pzdesign/tmpls",
+    "ConnectArray": ["mysql","db_user:db_pass@tcp(db_host)/db_name"],
+    "Pubrole": "web",
+    "Secret": "21&*&UGIKSOUbgsdkfw708GOu*Y(Ijsaf3e0dgndfgfjldshnfh4124132",
+    "Chartags": {
+        "e": {
+            "Content_type": "text/html; charset='UTF-8'",
+            "Short": "html"
+        },
+        "g": {
+            "Content_type": "text/html; charset='UTF-8'",
+            "Short": "htm"
+        },
+        "t": {
+            "Content_type": "text/plain; charset='UTF-8'",
+            "Short": "text"
+        },
+        "json": {
+            "Case": 1,
+            "Content_type": "application/json; charset='UTF-8'",
+            "Short": "json",
+            "challenge": "challenge",
+            "logged": "logged",
+            "logout": "logout",
+            "failed": "falied"
+        }
+    },
+    "Blks": {
+        "_gmail": {
+            'Address": "smtp_host",
+            "Username": "smtp_user",
+            "Password": "smtp_pass",
+            "From": "service@w8m.com",
+            "Reply_To": "greetingland@gmail.com"
+        }
+    },
+    "Errors": {
+        "3001": "Invalid document root or template path.",
+        "3002": "Max 20 images only.",
+        "3003": "This inventory is either no sold or not existing.",
+        "3102": "The password and confirm password does not match please go back and reenter..",
+        "3104": "This user name has already been taken."
+    },
+    "Roles": {
+        "adv": {
+            "Id_name": "adv_id",
+            "Type_id": 4,
+            "Attributes": ["adv_id", "a_email", "a_company", "a_contact", "a_timezone_id"],
+            "Secret": "n,HK(U*HKNcasfdaf 340fdsfds96jdskf dsfwrrpytdsnvalua",
+            "Coding": "faspf 093^&*(HUKk4i 1[rjqwle fd$%^*&()_JLKNLIIOpj ua",
+            "Surface": "gadv",
+            "Duration": 86400,
+            "Max_age": 86400,
+            "Logout": "/",
+            "Issuers": {
+                "db": {
+		    "Default": true,
+                    "Screen": 1,
+                    "Sql": "proc_adv",
+                    "Sql_as": "proc_adv_as",
+                    "Credential": [ "email", "passwd", "direct", "gadv" ],
+                    "Condition_uri" : [
+                        ["uC01","/goto/adv/e/","_md5","/goto/adv/e/campaign?action=topics"],
+                        ["uC01","/goto/adv/g/","_md5","/goto/adv/g/campaign?action=topics"]
+                    ]
+                }
+            }
+        },
+        "pub": {
+            "Id_name": "pub_id",
+            "Type_id": 3,
+            "Attributes": ["pub_id", "p_email", "p_company", "p_contact", "p_timezone_id"],
+            "Secret": "13123ed%OINK()H%^*&(PIHNdsncxzdlgpwwq;akdsgfhgf f982",
+            "Coding": "(*&*(&(*)sfd fasf 14812 4HJKL BS1312fhdf fd0-41fdf f",
+            "Surface": "gpub",
+            "Duration": 86400,
+            "Max_age": 86400,
+            "Logout": "/",
+            "Issuers": {
+                "db": {
+		    "Default": true,
+                    "Screen": 1,
+                    "Sql": "proc_pub",
+                    "Sql_as": "proc_pub_as",
+                    "Credential": ["email", "passwd", "direct", "gpub"],
+                    "Condition_uri" : [
+                        ["uC01","/goto/pub/e/","_md5","/goto/pub/e/site?action=topics"],
+                        ["uC01","/goto/pub/g/","_md5","/goto/pub/g/site?action=topics"]
+                    ]
+                }
+            }
+        },
+        "agent": {
+            "Id_name": "agent_id",
+            "Type_id": 4,
+            "Attributes": [ "agent_id", "agent_login", "agent_level" ],
+            "Secret": "982hlqfew (*HGKCYJUILKJ%$ERDTCsdjfIUUO&*(hksdaw*&GYdf",
+            "Coding": "UIadsfk898uierhelt^&*(jksdlgGJOIKRDTCsdjfIUUO&*(hksda",
+            "Surface": "gagent",
+            "Duration": 86400,
+            "Max_age": 86400,
+            "Logout": "/",
+            "Issuers": {
+                "db": {
+                    "Default": true,
+                    "Credential": [ "login", "passwd", "direct", "gagent" ],
+                    "Sql_as": "SELECT agent_id, login, level FROM agent WHERE login=? AND active='Yes'",
+                    "Sql": "SELECT agent_id, login, level FROM agent WHERE login=? AND passwd=SHA1(CONCAT(?,login)) AND active='Yes'"
+                }
+            }
+        },
+        "admin": {
+            "Id_name": "admin_id",
+            "Type_id": 1,
+            "Attributes": [ "admin_id", "admin_login" ],
+            "Is_admin": true,
+            "Secret": "a*&*HYG%$FYLNSXUT89ff23(*&HBSAxtajdIUJ984hfodfw*&GYdf",
+            "Coding": "UIRERsfsdf25915ngWNJKDGBHFDHwdrf093Jd2guy#%$&BHJkgfdg",
+            "Surface": "gadmin",
+            "Duration": 86400,
+            "Max_age": 86400,
+            "Logout": "/",
+            "Issuers": {
+                "db": {
+		"Default": true,
+                    "Credential": [ "login", "passwd", "direct", "gadmin" ],
+                    "Sql": "SELECT admin_id, login FROM admin WHERE login=? AND passwd=SHA1(CONCAT(?,login)) AND active='Yes'"
+                }
+            }
+        }
+    }
+}

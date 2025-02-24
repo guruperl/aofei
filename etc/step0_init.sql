@@ -1196,7 +1196,7 @@ CREATE TABLE `def_country` (
   PRIMARY KEY (`country_id`),
   UNIQUE KEY `country_code` (`country_code`),
   KEY `continent_id` (`continent_id`),
-  index `autoid` (`aotuid`),
+  index `autoid` (`autoid`),
   CONSTRAINT `def_country_ibfk_1` FOREIGN KEY (`continent_id`) REFERENCES `def_continent` (`continent_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -1346,7 +1346,7 @@ DROP TABLE IF EXISTS `def_state`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `def_state` (
-  `state_id` int unsigned NOT NULL,
+  `state_id` int unsigned AUTO_INCREMENT NOT NULL,
   `country_id` int unsigned NOT NULL,
   `state_code` char(4) DEFAULT NULL,
   `state_name` varchar(255) DEFAULT NULL,
@@ -1365,25 +1365,6 @@ LOCK TABLES `def_state` WRITE;
 /*!40000 ALTER TABLE `def_state` DISABLE KEYS */;
 /*!40000 ALTER TABLE `def_state` ENABLE KEYS */;
 UNLOCK TABLES;
-
---
--- Table structure for table `def_shortstate`
---
-
-DROP TABLE IF EXISTS `def_shortstate`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `def_shortstate` (
-  `shortstate_id` int unsigned auto_increment NOT NULL,
-  `autoid` tinyint unsigned NOT NULL,
-  `state_code` char(4) DEFAULT NULL,
-  `state_name` varchar(255) DEFAULT NULL,
-  `english_name` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`shortstate_id`),
-  KEY `autoid` (`autoid`),
-  CONSTRAINT `def_shortstate_ibfk_1` FOREIGN KEY (`autoid`) REFERENCES `def_country` (`autoid`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `his_balance`
