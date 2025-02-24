@@ -148,10 +148,6 @@ FROM def_country`)
 			continue
 		}
 		ref[country+"-"+state] = true
-		//city := arr[23]
-		//dma := arr[26]
-		//fmt.Printf("geoname id: %s, country_id: %d, state_code: %s, state_name: %s, english_name: %s\n", arr[1], countryID, state, stateName, englishName)
-		//continue
 		_, err := db.ExecContext(ctx, `
 INSERT INTO def_state (country_id, state_code, state_name, english_name)
 VALUES (?,?,?,?)`, countryID, state, stateName, englishName)
@@ -251,9 +247,5 @@ VALUES (?,?,?)`, arr[1], dma, desc)
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	return nil
+	return scanner.Err()
 }
