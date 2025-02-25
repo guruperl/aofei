@@ -13,19 +13,19 @@ type TProcedure struct {
 	Procedure
 }
 
-func New_TProcedure(base Base, db *sql.DB, uri string, provider string) *TProcedure {
+func NewTProcedure(base Base, db *sql.DB, uri string, provider string) *TProcedure {
 	a := new(TProcedure)
 	a.CGI = a
 	a.Base = base
-	a.Db = db
+	a.DB = db
 	a.Uri = uri
 	a.Provider = provider
 	return a
 }
-func (self *TProcedure) Set_ip() string {
+func (self *TProcedure) SetIP() string {
 	return "123.123.123.123"
 }
-func (self *TProcedure) Set_when() int {
+func (self *TProcedure) SetWhen() int {
 	return 1
 }
 
@@ -43,9 +43,9 @@ func TestDbiProcedure(t *testing.T) {
 		log.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	b := new_Base(configure, "m", "json", w, req)
+	b := newBase(configure, "m", "json", w, req)
 
-	tticket := New_TProcedure(*b, db, "http://xxx.yyy.zzz/foo/bar", "db")
+	tticket := NewTProcedure(*b, db, "http://xxx.yyy.zzz/foo/bar", "db")
 	//issuer := tticket.C.Roles["m"].Issuers["db"]
 	db.Exec("DROP TABLE IF EXISTS user")
 	db.Exec("CREATE TABLE `user` (   `m_id` int(11) NOT NULL AUTO_INCREMENT,   `email` varchar(255) DEFAULT NULL,   `passwd` varchar(255) DEFAULT NULL,   `first_name` varchar(255) DEFAULT NULL,   `last_name` varchar(255) DEFAULT NULL,   `address` varchar(255) DEFAULT NULL,   `company` varchar(255) DEFAULT NULL,   PRIMARY KEY (`m_id`) )")
@@ -61,7 +61,7 @@ func TestDbiProcedure(t *testing.T) {
 	if string(tticket.Out_hash["first_name"].(string)) != "c" {
 		t.Errorf("%s wanted", tticket.Out_hash["first_name"].(string))
 	}
-	ret = tticket.Handler_fields()
+	ret = tticket.HandlerFields()
 	if ret != nil {
 		t.Errorf("%s returned", ret.Error())
 	}
@@ -69,8 +69,8 @@ func TestDbiProcedure(t *testing.T) {
 	// test Handler with direct login
 	req, _ = http.NewRequest("GET", "http://example.com/foo?email=a&passwd=b&direct=1", nil)
 	w = httptest.NewRecorder()
-	b = new_Base(configure, "m", "e", w, req)
-	tticket = New_TProcedure(*b, db, "http://xxx.yyy.zzz/foo/bar", "db")
+	b = newBase(configure, "m", "e", w, req)
+	tticket = NewTProcedure(*b, db, "http://xxx.yyy.zzz/foo/bar", "db")
 	_ = req.ParseForm()
 	ret = tticket.Handler_login()
 	if ret.(Gerror).Code != 303 {

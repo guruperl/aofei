@@ -36,10 +36,10 @@ func TestConfig(t *testing.T) {
 	if c.Template != "ee" {
 		t.Errorf("%s wanted", "ee")
 	}
-	if c.Action_name != "action" {
+	if c.ActionName != "action" {
 		t.Errorf("%s wanted", "action")
 	}
-	if c.Go_uri_name != "go_uri" {
+	if c.GoURIName != "go_uri" {
 		t.Errorf("%s wanted", "go_uri")
 	}
 	if c.ConnectArray[0] != "mysql" {
@@ -61,7 +61,7 @@ func TestConfig(t *testing.T) {
 	*/
 
 	char := c.Chartags["json"]
-	if char.Content_type != "application/json; charset=\"UTF-8\"" {
+	if char.ContentType != "application/json; charset=\"UTF-8\"" {
 		t.Errorf("%s wanted", "application/json; charset=\"UTF-8\"")
 	}
 	if char.Challenge != "challenge" {

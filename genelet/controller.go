@@ -22,8 +22,8 @@ import (
 /*
 type Mmodel interface {
     Initialize(*Component)
-    Set_db(*sql.DB)
-    Set_defaults(url.Values, *[]map[string]interface{}, *map[string]interface{})
+    SetDB(*sql.DB)
+    SetDefaults(url.Values, *[]map[string]interface{}, *map[string]interface{})
 }
 
 type Ffilter interface {
@@ -38,13 +38,13 @@ type Ffilter interface {
 
 type Controller struct {
 	C       *Config
-	Db      *sql.DB
+	DB      *sql.DB
 	Models  map[string]interface{}
 	Filters map[string]interface{}
 	Storage map[string]interface{}
 }
 
-func (self *Controller) static_page(w http.ResponseWriter, r *http.Request) {
+func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.URL.Path, `..`) {
 		http.NotFound(w, r)
 	}
@@ -88,13 +88,13 @@ func (self *Controller) static_page(w http.ResponseWriter, r *http.Request) {
 	               form.Set(key, values[i])
 	           }
 
-	   		role := form.Get(c.Role_name)
-	   		tag := form.Get(c.Tag_name)
-	   		component := form.Get(c.Component_name)
+	   		role := form.Get(c.RoleName)
+	   		tag := form.Get(c.TagName)
+	   		component := form.Get(c.ComponentName)
 
-	   		role := form.Get(c.Role_name)
-	   		tag := form.Get(c.Tag_name)
-	   		component := form.Get(c.Component_name)
+	   		role := form.Get(c.RoleName)
+	   		tag := form.Get(c.TagName)
+	   		component := form.Get(c.ComponentName)
 	   		if pattern.Case==STATIC || pattern.Case==CACHE {
 	   			if (role=="" || role==c.Pubrole) {
 	   				break
@@ -104,12 +104,12 @@ func (self *Controller) static_page(w http.ResponseWriter, r *http.Request) {
 	   				http.NotFound(w,r)
 	   				return
 	   			}
-	   			base := &Base{C:c, R:r, W:w, Role_value:role, Chartag_value:tag}
-	   			gate := New_Gate(*base)
+	   			base := &Base{C:c, R:r, W:w, RoleValue:role, ChartagValue:tag}
+	   			gate := NewGate(*base)
 	   			err := gate.Forbid()
 	   			if (err != nil) {
 	   glog.Infof("(%d) %s\n", os.Getpid(), "static file asks for login")
-	   				self.login_page(base)
+	   				self.loginPage(base)
 	   				return
 	   			}
 	   			break
@@ -118,9 +118,9 @@ func (self *Controller) static_page(w http.ResponseWriter, r *http.Request) {
 	   				http.NotFound(w,r)
 	   			} else {
 	   				url.Path = c.Script+"/"+role+"/"+tag+"/"+component
-	   				form.Del(c.Role_name)
-	   				form.Del(c.Tag_name)
-	   				form.Del(c.Component_name)
+	   				form.Del(c.RoleName)
+	   				form.Del(c.TagName)
+	   				form.Del(c.ComponentName)
 	   				url.RawQuery = form.Encode()
 	   			}
 	   			return
@@ -129,58 +129,57 @@ func (self *Controller) static_page(w http.ResponseWriter, r *http.Request) {
 
 	*/
 	http.ServeFile(w, r, d_root+url.Path)
-	return
 }
 
-func (self *Controller) login_page(base *Base) {
+func (self *Controller) loginPage(base *Base) {
 	c := self.C
-	uri := base.R.Form.Get(c.Go_uri_name)
+	uri := base.R.Form.Get(c.GoURIName)
 
-	provider := base.R.Form.Get(c.Provider_name)
+	provider := base.R.Form.Get(c.ProviderName)
 	glog.Infof("(%d) %s %s\n", os.Getpid(), "provider? ", provider)
 	if provider == "" {
-		provider = base.Get_provider()
+		provider = base.GetProvider()
 		if provider == "" {
 			http.NotFound(base.W, base.R)
 			return
 		}
 	}
 
-	db := self.Db
+	db := self.DB
 
 	var err error
 	if Grep(c.Oauth2s, provider) {
-		ticket := New_Oauth2(*base, db, uri, provider)
+		ticket := NewOauth2(*base, db, uri, provider)
 		glog.Infof("(%d) %s %s\n", os.Getpid(), "oauth2 uses: ", provider)
 		err = ticket.Handler_login()
 		uri = ticket.Uri // use the same vriable for the targeting uri
 	} else if Grep(c.Oauth1s, provider) {
-		ticket := New_Oauth1(*base, db, uri, provider)
+		ticket := NewOauth1(*base, db, uri, provider)
 		glog.Infof("(%d) %s %s\n", os.Getpid(), "oauth1 uses: ", provider)
 		err = ticket.Handler_login()
 		uri = ticket.Uri // use the same vriable for the targeting uri
 	} else {
 		glog.Infof("(%d) %s %s\n", os.Getpid(), "login uses: ", provider)
-		ticket := New_Procedure(*base, db, uri, provider)
+		ticket := NewProcedure(*base, db, uri, provider)
 		err = ticket.Handler()
 		uri = ticket.Uri // use the same vriable for the targeting uri
 	}
 	if err == nil {
 		return
 	}
-	if base.Chartag_value == "json" {
-		base.Send_page(c.Chartags[base.Chartag_value].Call_challenge())
+	if base.ChartagValue == "json" {
+		base.SendPage(c.Chartags[base.ChartagValue].CallChallenge())
 		return
 	}
 
 	glog.Infof("(%d) %s %#v\n", os.Getpid(), "ticket returns error: ", err)
 	gerr := err.(Gerror)
 	if gerr.Code < 1000 {
-		base.Send_status_page(gerr.Code, gerr.Errstr)
+		base.SendStatusPage(gerr.Code, gerr.Errstr)
 		return
 	}
-	issuer := (c.Roles[base.Role_value]).Issuers[provider]
-	T, err := template.ParseFiles(c.Template + "/" + base.Role_value + "/" + c.Login_name + "." + base.Chartag_value)
+	issuer := (c.Roles[base.RoleValue]).Issuers[provider]
+	T, err := template.ParseFiles(c.Template + "/" + base.RoleValue + "/" + c.LoginName + "." + base.ChartagValue)
 	if err == nil {
 		errstr := c.Errors[strconv.Itoa(gerr.Code)]
 		if errstr == "" {
@@ -188,17 +187,17 @@ func (self *Controller) login_page(base *Base) {
 		}
 		var buffer bytes.Buffer
 		err = T.Execute(&buffer, map[string]interface{}{
-			"Login_name": c.Login_name, "Go_uri_name": c.Go_uri_name,
+			"LoginName": c.LoginName, "GoURIName": c.GoURIName,
 			"Errorstr": errstr, "Go_uri": uri,
 			"Login": issuer.Credential[0], "Password": issuer.Credential[1]})
-		base.Send_nocache(buffer.String())
+		base.SendNocache(buffer.String())
 	}
 	if err != nil {
 		http.Error(base.W, err.Error(), 500)
 	}
 }
 
-func check_form(r *http.Request, dir string) error {
+func checkForm(r *http.Request, dir string) error {
 	reader, err := r.MultipartReader()
 
 	if reader == nil {
@@ -302,12 +301,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	glog.Infof("(%d) start: %s => %s => %s\n", os.Getpid(), r.URL.Path, r.Method, r.Header.Get("X-Forwarded-For"))
 	if l_url <= length || r.URL.Path[:length+1] != c.Script+"/" {
-		self.static_page(w, r)
+		self.staticPage(w, r)
 		return
 	}
 
 	method_found := false
-	for k := range c.Default_actions {
+	for k := range c.DefaultActions {
 		if k == r.Method {
 			method_found = true
 			break
@@ -334,48 +333,48 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	base := &Base{C: c, W: w, R: r, Role_value: path_info[0], Chartag_value: path_info[1]}
-	gate := New_Gate(*base)
+	base := &Base{C: c, W: w, R: r, RoleValue: path_info[0], ChartagValue: path_info[1]}
+	gate := NewGate(*base)
 	obj := path_info[2]
 
 	glog.Infof("(%d) %s\n", os.Getpid(), "parse form")
-	err := check_form(r, c.Upload_dir)
+	err := checkForm(r, c.UploadDir)
 	if err != nil {
 		http.Error(w, "Bad Request", 400)
 		return
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "if role "+base.Role_value+", is defined or public")
-	_, ok = c.Roles[base.Role_value]
-	if !ok && (gate.Role_value != c.Pubrole) {
+	glog.Infof("(%d) %s\n", os.Getpid(), "if role "+base.RoleValue+", is defined or public")
+	_, ok = c.Roles[base.RoleValue]
+	if !ok && (gate.RoleValue != c.Pubrole) {
 		http.NotFound(w, r)
 		return
 	}
 
 	glog.Infof("(%d) %s %s\n", os.Getpid(), "object is", obj)
-	if obj == c.Login_name || Grep(c.Oauth2s, obj) || Grep(c.Oauth1s, obj) {
+	if obj == c.LoginName || Grep(c.Oauth2s, obj) || Grep(c.Oauth1s, obj) {
 		glog.Infof("(%d) %s %s\n", os.Getpid(), "start login for", obj)
-		if obj != c.Login_name {
-			r.Form.Set(c.Provider_name, obj)
+		if obj != c.LoginName {
+			r.Form.Set(c.ProviderName, obj)
 		}
-		self.login_page(base)
+		self.loginPage(base)
 		glog.Infof("(%d) %s\n\n", os.Getpid(), "end login ...")
 		return
-	} else if obj == c.Logout_name {
+	} else if obj == c.LogoutName {
 		glog.Infof("(%d) %s\n", os.Getpid(), "start logout")
-		err = gate.Handler_logout()
+		err = gate.HandleLogout()
 		if err != nil {
-			gate.Send_status_page(err.(Gerror).Code, err.(Gerror).Errstr)
+			gate.SendStatusPage(err.(Gerror).Code, err.(Gerror).Errstr)
 			glog.Infof("(%d) %s\n\n", os.Getpid(), "end logout ...")
 		}
 		return
 	}
 
-	if gate.Role_value != c.Pubrole {
+	if gate.RoleValue != c.Pubrole {
 		err = gate.Forbid()
 		if err != nil {
 			glog.Infof("(%d) forbidden ... %d : %s\n\n", os.Getpid(), err.(Gerror).Code, err.(Gerror).Errstr)
-			gate.Send_status_page(err.(Gerror).Code, err.(Gerror).Errstr)
+			gate.SendStatusPage(err.(Gerror).Code, err.(Gerror).Errstr)
 			return
 		}
 	}
@@ -383,11 +382,10 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Infof("(%d) %s\n", os.Getpid(), "starting genelet handler ...")
 	err = self.Handle(obj, *base, r.Method)
 	if err != nil {
-		switch err.(type) {
+		switch g := err.(type) {
 		case Gerror:
-			g := err.(Gerror)
 			if g.Code == 303 {
-				base.Send_status_page(303, err.Error())
+				base.SendStatusPage(303, err.Error())
 				return
 			} else if g.Code < 1000 {
 				err = Gerror{g.Code, http.StatusText(g.Code)}
@@ -399,27 +397,26 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		glog.Infof("(%d) error found: %#v\n", os.Getpid(), err)
 
-		tmplfile := c.Template + "/" + base.Role_value + "/error." + base.Chartag_value
+		tmplfile := c.Template + "/" + base.RoleValue + "/error." + base.ChartagValue
 		T0, er := template.ParseFiles(tmplfile)
 		if er != nil {
-			base.Send_page(add_json(chartag.Case, er.Error()))
+			base.SendPage(addJSON(chartag.Case, er.Error()))
 			return
 		}
 		var buffer bytes.Buffer
 		er = T0.Execute(&buffer, err)
 		if er != nil {
-			base.Send_page(add_json(chartag.Case, er.Error()))
+			base.SendPage(addJSON(chartag.Case, er.Error()))
 		} else if err.(Gerror).Code < 1000 {
-			base.Send_status_page(err.(Gerror).Code, buffer.String())
+			base.SendStatusPage(err.(Gerror).Code, buffer.String())
 		} else {
-			base.Send_page(buffer.String())
+			base.SendPage(buffer.String())
 		}
 	}
 	glog.Infof("(%d) %s\n\n", os.Getpid(), "genelet handler ended.")
-	return
 }
 
-func add_json(c int8, msg string) string {
+func addJSON(c int8, msg string) string {
 	if c > 0 {
 		return `{"data": "` + msg + `"}`
 	}
@@ -435,8 +432,8 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	if !ok {
 		return Err(404)
 	}
-	who := base.Role_value
-	tag := base.Chartag_value
+	who := base.RoleValue
+	tag := base.ChartagValue
 
 	c := self.C
 	r := base.R
@@ -448,13 +445,13 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
 	glog.Infof("(%d) %s\n", os.Getpid(), "set defaults")
-	Invoke0(model, "Set_defaults", ARGS, &lists, &other, self.Storage)
+	Invoke0(model, "SetDefaults", ARGS, &lists, &other, self.Storage)
 
-	action := ARGS.Get(c.Action_name)
+	action := ARGS.Get(c.ActionName)
 	if action == "" {
-		action = c.Default_actions[method]
+		action = c.DefaultActions[method]
 		if method == "GET" && r.Header.Get("X-Forwarded-ID") != "" {
-			action = c.Default_actions["GET_item"]
+			action = c.DefaultActions["GET_item"]
 		}
 	}
 	if r.Header.Get("X-Forwarded-ID") != "" {
@@ -478,8 +475,8 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	ARGS.Set("_grole", who)
 	ARGS.Set("_action", action)
 
-	role, ok := c.Roles[base.Role_value]
-	is_admin := false
+	role, ok := c.Roles[base.RoleValue]
+	var is_admin bool
 	if ok {
 		glog.Infof("(%d) %s\n", os.Getpid(), "parsing role's ARGS")
 		ARGS.Set("_gid_name", role.Id_name)
@@ -522,9 +519,9 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	extra := make(url.Values)
 	if !is_admin && ok {
 		glog.Infof("(%d) %s\n", os.Getpid(), "check fk")
-		err := self.assign_fk(who, fk, ARGS, extra)
+		err := self.assignFK(who, fk, ARGS, extra)
 		if err != nil {
-			return err.(error)
+			return err
 		}
 	}
 
@@ -546,7 +543,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 
 	options, ok := actionHash["options"]
 	if !ok || !Grep(options, "no_db") {
-		Invoke0(model, "Set_db", self.Db)
+		Invoke0(model, "SetDB", self.DB)
 	}
 
 	nextextra := make(url.Values)
@@ -568,7 +565,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 
 	if !is_admin && len(lists) > 0 {
 		glog.Infof("(%d) %s\n", os.Getpid(), "fk tobe")
-		self.assign_fk_tobe(who, fk, ARGS, lists)
+		self.assignFKTobe(who, fk, ARGS, lists)
 	}
 
 	glog.Infof("(%d) %s\n", os.Getpid(), "after")
@@ -599,7 +596,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		if eb != nil {
 			return eb
 		}
-		base.Send_page(string(b))
+		base.SendPage(string(b))
 		return nil
 	}
 
@@ -620,14 +617,14 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 			var output string
 			if output, er = tmpl.Get_page(T0); er == nil {
 				glog.Infof("(%d) %s\n", os.Getpid(), "sending page")
-				base.Send_page(output)
+				base.SendPage(output)
 			}
 		}
 	}
 	return er
 }
 
-func (self *Controller) assign_fk(who string, fk []string, ARGS url.Values, extra url.Values) error {
+func (self *Controller) assignFK(who string, fk []string, ARGS url.Values, extra url.Values) error {
 	if fk == nil || self.C.Secret == "" {
 		return nil
 	}
@@ -670,7 +667,7 @@ func (self *Controller) assign_fk(who string, fk []string, ARGS url.Values, extr
 	return nil
 }
 
-func (self *Controller) fk_tobe(lists []map[string]interface{}, fk []string, stamp, who, roleid, value_roleid string) {
+func (self *Controller) fkTobe(lists []map[string]interface{}, fk []string, stamp, who, roleid, value_roleid string) {
 	if len(fk) <= 2 || fk[2] == "" || fk[2] == roleid || fk[3] == "" {
 		return
 	}
@@ -686,7 +683,7 @@ func (self *Controller) fk_tobe(lists []map[string]interface{}, fk []string, sta
 	return
 }
 
-func (self *Controller) assign_fk_tobe(who string, fk0 []string, ARGS url.Values, lists []map[string]interface{}) error {
+func (self *Controller) assignFKTobe(who string, fk0 []string, ARGS url.Values, lists []map[string]interface{}) error {
 	if fk0 == nil || self.C.Secret == "" {
 		return nil
 	}
@@ -698,7 +695,7 @@ func (self *Controller) assign_fk_tobe(who string, fk0 []string, ARGS url.Values
 	fk := make([]string, len(fk0))
 	copy(fk, fk0)
 
-	self.fk_tobe(lists, fk, stamp, who, roleid, value_roleid)
+	self.fkTobe(lists, fk, stamp, who, roleid, value_roleid)
 
 	for len(fk) > 4 {
 		fk = fk[3:]
@@ -707,7 +704,7 @@ func (self *Controller) assign_fk_tobe(who string, fk0 []string, ARGS url.Values
 			return Err(1056)
 		}
 		for _, item := range lists {
-			self.fk_tobe(item[which].([]map[string]interface{}), fk, stamp, who, roleid, value_roleid)
+			self.fkTobe(item[which].([]map[string]interface{}), fk, stamp, who, roleid, value_roleid)
 		}
 	}
 	return nil

@@ -9,7 +9,7 @@ type Gate struct {
 	Access
 }
 
-func New_Gate(base Base) *Gate {
+func NewGate(base Base) *Gate {
 	a := new(Gate)
 	a.CGI = a
 	a.Base = base
@@ -18,63 +18,63 @@ func New_Gate(base Base) *Gate {
 
 func (self *Gate) Forbid() error {
 	c := self.C
-	role, ok := c.Roles[self.Role_value]
+	role, ok := c.Roles[self.RoleValue]
 	if !ok {
 		return nil
 	}
 
 	coo, err := self.R.Cookie(role.Surface)
 	if err == nil {
-		err = self.Verify_cookie(coo.Value)
+		err = self.VerifyCookie(coo.Value)
 		if err == nil {
 			return nil
 		}
 	}
 
-	chartag, ok := c.Chartags[self.Chartag_value]
+	chartag, ok := c.Chartags[self.ChartagValue]
 	if ok && chartag.Case > 0 {
-		return Err(200, chartag.Call_challenge())
+		return Err(200, chartag.CallChallenge())
 	}
 
 	escaped := url.QueryEscape(self.R.RequestURI)
-	self.Set_cookie_session(c.Go_probe_name, escaped)
-	self.Set_cookie_expire(role.Surface)
+	self.SetCookieSession(c.GoProbeName, escaped)
+	self.SetCookieExpire(role.Surface)
 
 	var k string
 	for k = range role.Issuers {
 		if !Grep(c.Oauth2s, k) && !Grep(c.Oauth1s, k) {
-			redirect := c.Script + "/" + self.Role_value + "/" + self.Chartag_value + "/" + c.Login_name + "?" + c.Go_uri_name + "=" + escaped + "&" + c.Go_err_name + "=1025&" + c.Role_name + "=" + self.Role_value + "&" + c.Tag_name + "=" + self.Chartag_value + "&" + c.Provider_name + "=" + k
+			redirect := c.Script + "/" + self.RoleValue + "/" + self.ChartagValue + "/" + c.LoginName + "?" + c.GoURIName + "=" + escaped + "&" + c.GoErrName + "=1025&" + c.RoleName + "=" + self.RoleValue + "&" + c.TagName + "=" + self.ChartagValue + "&" + c.ProviderName + "=" + k
 			return Err(303, redirect)
 		}
 	}
-	redirect := c.Script + "/" + self.Role_value + "/" + self.Chartag_value + "/" + k + "?" + c.Go_uri_name + "=" + escaped + "&" + c.Go_err_name + "=1025&" + c.Tag_name + "=" + self.Chartag_value
+	redirect := c.Script + "/" + self.RoleValue + "/" + self.ChartagValue + "/" + k + "?" + c.GoURIName + "=" + escaped + "&" + c.GoErrName + "=1025&" + c.TagName + "=" + self.ChartagValue
 	return Err(303, redirect)
 }
 
-func (self *Gate) Handler_logout() error {
-	role, ok := self.C.Roles[self.Role_value]
+func (self *Gate) HandleLogout() error {
+	role, ok := self.C.Roles[self.RoleValue]
 	if !ok {
 		return Err(1029)
 	}
 
-	self.Set_cookie_expire(role.Surface)
-	self.Set_cookie_expire(role.Surface + "_")
-	self.Set_cookie_expire(self.C.Go_probe_name)
+	self.SetCookieExpire(role.Surface)
+	self.SetCookieExpire(role.Surface + "_")
+	self.SetCookieExpire(self.C.GoProbeName)
 
-	chartag, ok := self.C.Chartags[self.Chartag_value]
+	chartag, ok := self.C.Chartags[self.ChartagValue]
 	if ok && chartag.Case > 0 {
-		return Err(200, chartag.Call_logout())
+		return Err(200, chartag.CallLogout())
 	} else {
 		return Err(303, role.Logout)
 	}
 }
 
 /*
-func (self *Gate)Get_attribute(ref string) (string, error) {
-	role, ok := self.C.Roles[self.Role_value]
+func (self *Gate)GetAttribute(ref string) (string, error) {
+	role, ok := self.C.Roles[self.RoleValue]
     if (!ok) { return "", Err(1029) }
 
-	_, login, group, _, _, err := self.get_cookie()
+	_, login, group, _, _, err := self.getCookie()
     if err != nil { return "", err }
 
 	if (ref==role.Attributes[0]) {
@@ -92,9 +92,9 @@ func (self *Gate)Get_attribute(ref string) (string, error) {
 }
 */
 
-func (self *Gate) Get_attribute(key string) (string, error) {
+func (self *Gate) GetAttribute(key string) (string, error) {
 	ref := make(map[string]string)
-	err := self.Get_attributes(ref)
+	err := self.GetAttributes(ref)
 	if err != nil {
 		return "", err
 	}
@@ -106,13 +106,13 @@ func (self *Gate) Get_attribute(key string) (string, error) {
 	return val, nil
 }
 
-func (self *Gate) Get_attributes(ref map[string]string) error {
-	role, ok := self.C.Roles[self.Role_value]
+func (self *Gate) GetAttributes(ref map[string]string) error {
+	role, ok := self.C.Roles[self.RoleValue]
 	if !ok {
 		return Err(1029)
 	}
 
-	_, login, group, _, _, err := self.get_cookie()
+	_, login, group, _, _, err := self.getCookie()
 	if err != nil {
 		return err
 	}
@@ -128,19 +128,19 @@ func (self *Gate) Get_attributes(ref map[string]string) error {
 	return nil
 }
 
-func (self *Gate) Set_attribute(key string, value string) error {
+func (self *Gate) SetAttribute(key string, value string) error {
 	ref := make(map[string]string)
 	ref[key] = value
-	return self.Set_attributes(ref)
+	return self.SetAttributes(ref)
 }
 
-func (self *Gate) Set_attributes(ref map[string]string) error {
-	role, ok := self.C.Roles[self.Role_value]
+func (self *Gate) SetAttributes(ref map[string]string) error {
+	role, ok := self.C.Roles[self.RoleValue]
 	if !ok {
 		return Err(1029)
 	}
 
-	ip, login, group, when, hash, err := self.get_cookie()
+	ip, login, group, when, hash, err := self.getCookie()
 	if err != nil {
 		return err
 	}
@@ -165,10 +165,10 @@ func (self *Gate) Set_attributes(ref map[string]string) error {
 
 	new_group := strings.Join(new_groups, "|")
 	hash = Digest(role.Secret, ip, login, new_group, when)
-	signed := Encode_scoder(strings.Join([]string{ip, login, new_group, when, hash}, "/"), role.Coding)
+	signed := EncodeScoder(strings.Join([]string{ip, login, new_group, when, hash}, "/"), role.Coding)
 
-	self.Set_cookie(role.Surface, signed, role.Max_age)
-	self.Set_cookie_session(role.Surface+"_", signed)
+	self.SetCookie(role.Surface, signed, role.MaxAge)
+	self.SetCookieSession(role.Surface+"_", signed)
 
 	return nil
 }

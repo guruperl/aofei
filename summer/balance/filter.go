@@ -31,7 +31,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	//action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 
 	entitytype_id := ARGS.Get("entitytype_id")
 	idname := summer.TABLES[entitytype_id][1]
@@ -69,7 +69,7 @@ func (self *Filter) After(model *Model) error {
 	lists := *model.LISTS
 	ARGS := self.R.Form
 	action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 
 	if action == "topics" {
 		for _, item := range lists {

@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func new_Base(c *Config, rv string, cv string, w http.ResponseWriter, r *http.Request) *Base {
-	return &Base{C: c, W: w, R: r, Role_value: rv, Chartag_value: cv}
+func newBase(c *Config, rv string, cv string, w http.ResponseWriter, r *http.Request) *Base {
+	return &Base{C: c, W: w, R: r, RoleValue: rv, ChartagValue: cv}
 }
 
 func TestBase(t *testing.T) {
@@ -30,8 +30,8 @@ func TestBase(t *testing.T) {
 		log.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	b := new_Base(configure, "", "", w, req)
-	b.Set_cookie("c", "v", 100)
+	b := newBase(configure, "", "", w, req)
+	b.SetCookie("c", "v", 100)
 	h := w.Header()
 	matched, err := regexp.MatchString("^c=v; Path=/; Domain=example.com; Expires=", h.Get("Set-Cookie"))
 	if err != nil || !matched {
@@ -43,9 +43,9 @@ func TestBase(t *testing.T) {
 		log.Fatal(err)
 	}
 	w = httptest.NewRecorder()
-	b = new_Base(configure, "", "", w, req)
-	b.Set_cookie_expire("c")
-	b.Send_page("okokok")
+	b = newBase(configure, "", "", w, req)
+	b.SetCookieExpire("c")
+	b.SendPage("okokok")
 	h = w.Header()
 	matched, err = regexp.MatchString("^c=0; Path=/; Domain=example.com; Expires=", h.Get("Set-Cookie"))
 	if err != nil || !matched {
@@ -62,22 +62,22 @@ func TestBase(t *testing.T) {
 	req.Form.Add("go_uri", "bbAAA/BBB/CCC?action=x")
 	err = b.Fulfill()
 	if err == nil || err.(Gerror).Errstr != "Redirected role not found" {
-		t.Errorf("%d code for %s\n", err.(Gerror).Code, b.Role_value)
+		t.Errorf("%d code for %s\n", err.(Gerror).Code, b.RoleValue)
 	}
 	b.C.Script = "/bb"
 	req.Form.Set("go_uri", "/bb/m/BBB/CCC?action=x")
 	err = b.Fulfill()
 	if err != nil {
-		t.Errorf("%d code for %s\n", err.(Gerror).Code, b.Role_value)
+		t.Errorf("%d code for %s\n", err.(Gerror).Code, b.RoleValue)
 	}
 
-	if b.Role_value != "m" {
-		t.Errorf("role is %s", b.Role_value)
+	if b.RoleValue != "m" {
+		t.Errorf("role is %s", b.RoleValue)
 	}
-	if b.Chartag_value != "BBB" {
-		t.Errorf("chartag is %s", b.Chartag_value)
+	if b.ChartagValue != "BBB" {
+		t.Errorf("chartag is %s", b.ChartagValue)
 	}
-	if b.Get_provider() != "db" {
-		t.Errorf("provider is %s", b.Get_provider())
+	if b.GetProvider() != "db" {
+		t.Errorf("provider is %s", b.GetProvider())
 	}
 }

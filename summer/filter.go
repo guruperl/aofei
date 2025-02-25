@@ -1,6 +1,7 @@
 package summer
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -9,7 +10,8 @@ import (
 
 	"github.com/genelet/winter/genelet"
 	"github.com/genelet/winter/pzutil"
-	"github.com/mediocregopher/radix.v2/pool"
+	"github.com/golang/glog"
+	"github.com/mediocregopher/radix/v4"
 )
 
 type Filter struct {
@@ -28,9 +30,9 @@ var TABLES = map[string][]string{
 var LARGES = map[string][]map[string]interface{}{
 	"mime": {
 		{"which": "MimeUnknown", "label": "Unknown", "default": true},
-		{"which": "Iframe", "label": "Iframe", "default": true},
-		{"which": "XMTLText", "label": "Text", "default": true},
 		{"which": "JSMime", "label": "Javascript", "default": false},
+		{"which": "Iframe", "label": "Iframe", "default": true},
+		{"which": "XHTMLText", "label": "MobileText", "default": true},
 		{"which": "XHTMLBanner", "label": "MobileHtml", "default": true},
 	},
 	"device": {
@@ -108,7 +110,7 @@ func (self *Filter) Preset() error {
 
 	action := self.Action
 	if action == "insert" || action == "insupd" {
-		ARGS.Set("ip", self.Base.Get_ip())
+		ARGS.Set("ip", self.Base.GetIP())
 		if i64, err := strconv.ParseInt(ARGS.Get("_gtime"), 10, 64); err == nil {
 			y, m, d := time.Unix(i64, 0).Date()
 			ARGS.Set("created", fmt.Sprintf("%d-%d-%d", y, m, d))
@@ -152,10 +154,10 @@ func (self *Filter) BalanceBefore(model *Model) error {
 		}
 	}
 	if len(total) > 0 {
-		if err := model.Insert_hash(total); err != nil {
+		if err := model.InsertHash(total); err != nil {
 			return err
 		}
-		ARGS.Set("total_balance_id", strconv.FormatInt(model.Last_id, 10))
+		ARGS.Set("total_balance_id", strconv.FormatInt(model.LastID, 10))
 	}
 	daily := url.Values{}
 	for name, v := range map[string]string{"daily_spend": "limit_spend", "daily_imp": "limit_imp", "daily_cli": "limit_cli"} {
@@ -165,10 +167,10 @@ func (self *Filter) BalanceBefore(model *Model) error {
 		}
 	}
 	if len(daily) > 0 {
-		if err := model.Insert_hash(daily); err != nil {
+		if err := model.InsertHash(daily); err != nil {
 			return err
 		}
-		ARGS.Set("daily_balance_id", strconv.FormatInt(model.Last_id, 10))
+		ARGS.Set("daily_balance_id", strconv.FormatInt(model.LastID, 10))
 	}
 
 	return nil
@@ -217,52 +219,36 @@ func (self *Filter) After(model *Model) error {
 		other["campaignAttrsChinese"] = Translate(other["campaignAttrs"])
 	}
 
+	var err error
 	if (obj == "site" && (action == "delete" || action == "update")) ||
 		(obj == "chac" && ARGS.Get("entitytype_id") == "31" && action == "update") {
 		siteid := ARGS.Get("site_id")
 		if siteid == "" && ARGS.Get("entitytype_id") == "31" {
 			siteid = ARGS.Get("entity_id")
 		}
-		p := (model.Storage)["Redis"].(*pool.Pool)
+		conn := (model.Storage)["Redis"].(radix.Client)
 		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		conn, err := p.Get()
-		if err == nil {
-			conn.Cmd("DEL", c.SITE+":"+siteid)
-		}
-		p.Put(conn)
+		err = conn.Do(context.Background(), radix.Cmd(nil, "DEL", c.SITE+":"+siteid))
 	} else if obj == "slot" && (action == "delete" || action == "update") {
 		slotid := ARGS.Get("slot_id")
-		err := model.Do_sql("DELETE FROM pub_weight WHERE slot_id=?", slotid)
-		if err != nil {
-			return err
+		if err = model.DoSQL("DELETE FROM pub_weight WHERE slot_id=?", slotid); err == nil {
+			conn := (model.Storage)["Redis"].(radix.Client)
+			c := (model.Storage)["Ssp"].(*pzutil.Config)
+			err = conn.Do(context.Background(), radix.Cmd(nil, "DEL", c.SLOT+":"+slotid))
 		}
-		p := (model.Storage)["Redis"].(*pool.Pool)
-		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		conn, err := p.Get()
-		if err == nil {
-			conn.Cmd("DEL", c.SLOT+":"+slotid)
-		}
-		p.Put(conn)
 	} else if (obj == "targetname" && (action == "delete" || action == "insert")) ||
 		(obj == "campaign" && (action == "delete" || action == "update")) {
 		campaignid := ARGS.Get("campaign_id")
-		p := (model.Storage)["Redis"].(*pool.Pool)
+		conn := (model.Storage)["Redis"].(radix.Client)
 		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		conn, err := p.Get()
-		if err == nil {
-			conn.Cmd("HDEL", c.AUDIENCE, campaignid)
-		}
-		p.Put(conn)
+		glog.Infof("111111111 HDEL %s %s", c.AUDIENCE, campaignid)
+		err = conn.Do(context.Background(), radix.Cmd(nil, "HDEL", c.AUDIENCE, campaignid))
 	} else if (obj == "item" || obj == "creative") && (action == "delete" || action == "update") {
 		itemid := ARGS.Get("item_id")
-		p := (model.Storage)["Redis"].(*pool.Pool)
+		p := (model.Storage)["Redis"].(radix.Client)
 		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		conn, err := p.Get()
-		if err == nil {
-			conn.Cmd("HDEL", c.ITEM, itemid)
-		}
-		p.Put(conn)
+		err = p.Do(context.Background(), radix.Cmd(nil, "HDEL", c.ITEM, itemid))
 	}
 
-	return nil
+	return err
 }

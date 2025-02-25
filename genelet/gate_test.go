@@ -11,13 +11,13 @@ type TGate struct {
 	Gate
 }
 
-func (self *TGate) Set_ip() string {
+func (self *TGate) SetIP() string {
 	return "123.123.123.123"
 }
-func (self *TGate) Set_when() int {
+func (self *TGate) SetWhen() int {
 	return 1
 }
-func New_TGate(base Base) *TGate {
+func NewTGate(base Base) *TGate {
 	a := new(TGate)
 	a.CGI = a
 	a.Base = base
@@ -34,9 +34,9 @@ func TestGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	b := new_Base(configure, "m", "json", w, req)
-	g := New_Gate(*b)
-	err = g.Handler_logout()
+	b := newBase(configure, "m", "json", w, req)
+	g := NewGate(*b)
+	err = g.HandleLogout()
 
 	h := w.Header()["Set-Cookie"]
 	matched, err := regexp.MatchString("^mc=0; Path=/; Domain=genelet", h[0])
@@ -54,13 +54,13 @@ func TestGate(t *testing.T) {
 
 	cookie := &http.Cookie{Name: "mc", Value: "Ec9rwEEzh1/0UTuoE7dvi/k4lCC5RHm/SgbasG0Jca7XoTUFbKrrnkpWOcmZ8UQUEPAMPeLsi0pteOPNl2s1TO2I", Path: "/", Domain: "genelet.com"}
 	b.R.AddCookie(cookie)
-	access := New_TGate(*b)
+	access := NewTGate(*b)
 	err = access.Forbid()
 	if err != nil {
 		t.Errorf("%s got\n", err.Error())
 	}
 
-	access.Set_attributes(map[string]string{"last_name": "aaa", "address": "bbb", "company": "ccc"})
+	access.SetAttributes(map[string]string{"last_name": "aaa", "address": "bbb", "company": "ccc"})
 	x := w.Header()
 	c := x["Set-Cookie"][3]
 	matched, err = regexp.MatchString("Ec9rwEEzh1\\/0UTuoE7dvi\\/k4lCC5RHm\\/SgbasG0JIvyA8HlXP\\+fAv38AbqPM8jhMZe8wWvTCyWgdOfaQklgxZvC24NY9RuvIwjMplkfD", c)
@@ -71,7 +71,7 @@ func TestGate(t *testing.T) {
 	b.R.Header.Del("Cookie")
 	cookie = &http.Cookie{Name: "mc", Value: "Ec9rwEEzh1/0UTuoE7dvi/k4lCC5RHm/SgbasG0JIvyA8HlXP+fAv38AbqPM8jhMZe8wWvTCyWgdOfaQklgxZvC24NY9RuvIwjMplkfD", Path: "/", Domain: "genelet.com"}
 	b.R.AddCookie(cookie)
-	access = New_TGate(*b)
+	access = NewTGate(*b)
 	err = access.Forbid()
 	if err != nil {
 		t.Errorf("%s got\n", err.Error())
@@ -84,7 +84,7 @@ func TestGate(t *testing.T) {
 	if err.Error() != `{"data":"challenge"}` {
 		t.Errorf("%s got\n", err.Error())
 	}
-	access.Chartag_value = "e"
+	access.ChartagValue = "e"
 	err = access.Forbid()
 	if err.Error() != `bb/m/e/login?go_uri=&go_err=1025&role=m&tag=e&provider=db` {
 		t.Errorf("%s got\n", err.Error())

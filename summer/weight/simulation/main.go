@@ -12,7 +12,7 @@ import (
 
 func getModel(db *sql.DB, component string) (*weight.Model, map[string]interface{}, error) {
 	model := new(weight.Model)
-	model.Db = db
+	model.DB = db
 	model.Initialize(genelet.NewComponent(component))
 	add := new(weight.Model)
 	add.Initialize(genelet.NewComponent(component))
@@ -46,9 +46,9 @@ func main() {
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
 	extra := []url.Values{{}}
-	model.Set_defaults(args, &lists, &other, storage)
-	epars := model.Edit_pars
-	if model.Current_key != "weight_id" ||
+	model.SetDefaults(args, &lists, &other, storage)
+	epars := model.EditPars
+	if model.CurrentKey != "weight_id" ||
 		epars[0] != "weight_id" ||
 		epars[1] != "slot_id" ||
 		epars[2] != "item_id" ||

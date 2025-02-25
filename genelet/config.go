@@ -27,15 +27,15 @@ type Pattern struct {
 }
 
 type Issuer struct {
-	Default       bool
-	Screen        int8
-	Sql           string
-	Sql_as        string
-	Provider_pars map[string]string
-	Credential    []string
-	In_pars       []string
-	Out_pars      []string
-	Condition_uri [][]string
+	Default      bool
+	Screen       int8
+	Sql          string
+	Sql_as       string
+	ProviderPars map[string]string
+	Credential   []string
+	InPars       []string
+	OutPars      []string
+	ConditionURI [][]string
 }
 
 type Role struct {
@@ -55,39 +55,39 @@ type Role struct {
 	Logout    string
 	Domain    string
 	Path      string
-	Max_age   int
+	MaxAge    int
 
 	Issuers map[string]Issuer
 }
 
 type Config struct {
-	Upload_dir      string
-	Template        string
-	Pubrole         string
-	Secret          string
-	ServerURL       string
-	Upload_url      string
-	ServerPort      string
-	DocumentRoot    string
-	DocumentRoots   map[string]string
-	ProjectRoot     string
-	Script          string
-	Component_name  string
-	Action_name     string
-	Default_actions map[string]string
-	Role_name       string
-	Oauth2s         []string
-	Oauth1s         []string
-	Login_name      string
-	Logout_name     string
-	Tag_name        string
-	Provider_name   string
-	Callback_name   string
-	Go_stamp_name   string
-	Go_md5_name     string
-	Go_uri_name     string
-	Go_probe_name   string
-	Go_err_name     string
+	UploadDir      string
+	Template       string
+	Pubrole        string
+	Secret         string
+	ServerURL      string
+	UploadURL      string
+	ServerPort     string
+	DocumentRoot   string
+	DocumentRoots  map[string]string
+	ProjectRoot    string
+	Script         string
+	ComponentName  string
+	ActionName     string
+	DefaultActions map[string]string
+	RoleName       string
+	Oauth2s        []string
+	Oauth1s        []string
+	LoginName      string
+	LogoutName     string
+	TagName        string
+	ProviderName   string
+	CallbackName   string
+	GoStampName    string
+	GoMD5Name      string
+	GoURIName      string
+	GoProbeName    string
+	GoErrName      string
 
 	ConnectArray []string
 	Blks         map[string]map[string]string
@@ -130,29 +130,29 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.ServerPort == "" {
 		parsed.ServerPort = "80"
 	}
-	if parsed.Upload_dir == "" {
-		parsed.Upload_dir = "/tmp"
+	if parsed.UploadDir == "" {
+		parsed.UploadDir = "/tmp"
 	}
-	if parsed.Upload_url == "" {
-		parsed.Upload_url = parsed.ServerURL + "/uploads"
+	if parsed.UploadURL == "" {
+		parsed.UploadURL = parsed.ServerURL + "/uploads"
 	}
-	if parsed.Component_name == "" {
-		parsed.Component_name = "component"
+	if parsed.ComponentName == "" {
+		parsed.ComponentName = "component"
 	}
-	if parsed.Action_name == "" {
-		parsed.Action_name = "action"
+	if parsed.ActionName == "" {
+		parsed.ActionName = "action"
 	}
-	if parsed.Go_stamp_name == "" {
-		parsed.Go_stamp_name = "go_stamp"
+	if parsed.GoStampName == "" {
+		parsed.GoStampName = "go_stamp"
 	}
-	if parsed.Go_md5_name == "" {
-		parsed.Go_md5_name = "go_md5"
+	if parsed.GoMD5Name == "" {
+		parsed.GoMD5Name = "go_md5"
 	}
-	if parsed.Go_uri_name == "" {
-		parsed.Go_uri_name = "go_uri"
+	if parsed.GoURIName == "" {
+		parsed.GoURIName = "go_uri"
 	}
-	if parsed.Role_name == "" {
-		parsed.Role_name = "role"
+	if parsed.RoleName == "" {
+		parsed.RoleName = "role"
 	}
 	if parsed.Oauth2s == nil {
 		parsed.Oauth2s = []string{"google", "facebook", "microsoft", "qq", "sina"}
@@ -160,33 +160,33 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.Oauth1s == nil {
 		parsed.Oauth1s = []string{"twitter", "linkedin"}
 	}
-	if parsed.Login_name == "" {
-		parsed.Login_name = "login"
+	if parsed.LoginName == "" {
+		parsed.LoginName = "login"
 	}
-	if parsed.Logout_name == "" {
-		parsed.Logout_name = "logout"
+	if parsed.LogoutName == "" {
+		parsed.LogoutName = "logout"
 	}
-	if parsed.Tag_name == "" {
-		parsed.Tag_name = "tag"
+	if parsed.TagName == "" {
+		parsed.TagName = "tag"
 	}
-	if parsed.Provider_name == "" {
-		parsed.Provider_name = "provider"
+	if parsed.ProviderName == "" {
+		parsed.ProviderName = "provider"
 	}
-	if parsed.Callback_name == "" {
-		parsed.Callback_name = "callback"
+	if parsed.CallbackName == "" {
+		parsed.CallbackName = "callback"
 	}
-	if parsed.Go_probe_name == "" {
-		parsed.Go_probe_name = "go_probe"
+	if parsed.GoProbeName == "" {
+		parsed.GoProbeName = "go_probe"
 	}
-	if parsed.Go_err_name == "" {
-		parsed.Go_err_name = "go_err"
+	if parsed.GoErrName == "" {
+		parsed.GoErrName = "go_err"
 	}
 	if parsed.Errors == nil {
 		parsed.Errors = make(map[string]string)
 	}
 
-	if parsed.Default_actions == nil {
-		parsed.Default_actions = map[string]string{"GET": "dashboard", "GET_item": "edit", "PUT": "update", "POST": "insert", "DELETE": "delete"}
+	if parsed.DefaultActions == nil {
+		parsed.DefaultActions = map[string]string{"GET": "dashboard", "GET_item": "edit", "PUT": "update", "POST": "insert", "DELETE": "delete"}
 	}
 
 	//for _, pattern := range parsed.Patterns {

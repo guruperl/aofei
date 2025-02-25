@@ -12,23 +12,23 @@ type Model struct {
 }
 
 func (self *Model) Review(extra ...url.Values) error {
-	return self.Do_sql(
+	return self.DoSQL(
 		`UPDATE adv_item SET active="New" WHERE active="Prepare" AND item_id=?`, self.ARGS.Get("item_id"))
 }
 
 func (self *Model) Authen(extra ...url.Values) error {
 	ARGS := self.ARGS
 	if ARGS.Get("agent_level") == "1" {
-		return self.Do_sql(
+		return self.DoSQL(
 			`UPDATE adv_item SET active=? WHERE active="New" AND item_id=?`, ARGS.Get("active"), ARGS.Get("item_id"))
 	}
-	return self.Do_sql(
+	return self.DoSQL(
 		`UPDATE adv_item SET active=? WHERE active IN ("Pass2", "New") AND item_id=?`, ARGS.Get("active"), ARGS.Get("item_id"))
 }
 
 func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
-	err := self.Get_args(ARGS,
+	err := self.GetArgs(ARGS,
 		`SELECT active AS item_active FROM adv_item WHERE item_id=?`, ARGS.Get("item_id"))
 	if err != nil {
 		return err

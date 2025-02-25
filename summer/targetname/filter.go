@@ -37,7 +37,7 @@ func (self *Filter) Preset() error {
 	}
 
 	ARGS := self.R.Form
-	//who := self.Role_value
+	//who := self.RoleValue
 
 	if ARGS.Get("entitytype_id") == "41" {
 		ARGS.Set("entity_id", ARGS.Get("campaign_id"))
@@ -72,7 +72,7 @@ func (self *Filter) After(model *Model) error {
 
 	//ARGS := self.R.Form
 	action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -95,8 +95,8 @@ func (self *Filter) After(model *Model) error {
 		if other["targetname_topicsStates"] != nil {
 			for _, item := range other["targetname_topicsStates"].([]map[string]interface{}) {
 				state_name := item["state_name"].(string)
-				shortstate_id := uint32(item["shortstate_id"].(int64))
-				states[shortstate_id] = []interface{}{state_name, item["value_id"], item["state_code"], item["country_name"]}
+				state_id := uint32(item["state_id"].(int64))
+				states[state_id] = []interface{}{state_name, item["value_id"], item["state_code"], item["country_name"]}
 				cities[state_name] = make(map[uint32][]interface{})
 			}
 			other["state"] = states

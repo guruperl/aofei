@@ -18,23 +18,23 @@ type Table struct {
 
 type Crud struct {
 	DBI
-	Current_table  string
-	Current_tables []Table
+	CurrentTable  string  `json:"current_table"`
+	CurrentTables []Table `json:"current_tables"`
 }
 
-func New_Crud(db *sql.DB, table string, tables []Table) *Crud {
+func NewCrud(db *sql.DB, table string, tables []Table) *Crud {
 	crud := new(Crud)
-	crud.Db = db
-	crud.Current_table = table
+	crud.DB = db
+	crud.CurrentTable = table
 	if tables != nil {
-		crud.Current_tables = tables
+		crud.CurrentTables = tables
 	}
 	return crud
 }
 
-func Table_string(current_tables []Table) string {
+func TableString(currentTables []Table) string {
 	sql := ""
-	for i, table := range current_tables {
+	for i, table := range currentTables {
 		name := table.Name
 		if table.Alias != "" {
 			name += " " + table.Alias
@@ -51,18 +51,18 @@ func Table_string(current_tables []Table) string {
 	return sql
 }
 
-func Select_label_string(select_pars interface{}) (string, []string) {
+func SelectLabelString(selectPars interface{}) (string, []string) {
 	select_labels := make([]string, 0)
 	sql := ""
-	switch select_pars.(type) {
+	switch selectPars.(type) {
 	case []string:
-		for _, v := range select_pars.([]string) {
+		for _, v := range selectPars.([]string) {
 			select_labels = append(select_labels, v)
 		}
 		sql = strings.Join(select_labels, ", ")
 	case map[string]string:
 		i := 0
-		for key, val := range select_pars.(map[string]string) {
+		for key, val := range selectPars.(map[string]string) {
 			if i == 0 {
 				sql = key
 			} else {
@@ -72,13 +72,13 @@ func Select_label_string(select_pars interface{}) (string, []string) {
 			select_labels = append(select_labels, val)
 		}
 	default:
-		sql = select_pars.(string)
+		sql = selectPars.(string)
 		select_labels = append(select_labels, sql)
 	}
 	return sql, select_labels
 }
 
-func Select_condition_string(extra url.Values, table ...string) (string, []interface{}) {
+func SelectConditionString(extra url.Values, table ...string) (string, []interface{}) {
 	sql := ""
 	values := make([]interface{}, 0)
 	i := 0
@@ -115,9 +115,9 @@ func Select_condition_string(extra url.Values, table ...string) (string, []inter
 	return sql, values
 }
 
-func Single_condition_string(keyname interface{}, ids []interface{}, extra ...url.Values) (string, []interface{}) {
+func SingleConditionString(keyname interface{}, ids []interface{}, extra ...url.Values) (string, []interface{}) {
 	sql := ""
-	extra_values := make([]interface{}, 0)
+	extraValues := make([]interface{}, 0)
 
 	switch keyname.(type) {
 	case []string:
@@ -133,11 +133,11 @@ func Single_condition_string(keyname interface{}, ids []interface{}, extra ...ur
 				n := len(val.([]interface{}))
 				sql += item + " IN (" + strings.Join(strings.Split(strings.Repeat("?", n), ""), ",") + ")"
 				for _, v := range val.([]interface{}) {
-					extra_values = append(extra_values, v)
+					extraValues = append(extraValues, v)
 				}
 			default:
 				sql += item + " =?"
-				extra_values = append(extra_values, val)
+				extraValues = append(extraValues, val)
 			}
 		}
 		sql += ")"
@@ -149,60 +149,60 @@ func Single_condition_string(keyname interface{}, ids []interface{}, extra ...ur
 			sql = "(" + keyname.(string) + "=?)"
 		}
 		for _, v := range ids {
-			extra_values = append(extra_values, v)
+			extraValues = append(extraValues, v)
 		}
 	}
 
 	if extra != nil && len(extra) > 0 {
-		s, arr := Select_condition_string(extra[0])
+		s, arr := SelectConditionString(extra[0])
 		if s != "" {
 			sql += " AND " + s
 			for _, v := range arr {
-				extra_values = append(extra_values, v)
+				extraValues = append(extraValues, v)
 			}
 		}
 	}
 
-	return sql, extra_values
+	return sql, extraValues
 }
 
-func (self *Crud) Insert_hash(field_values url.Values) error {
-	return self.insert_hash_("INSERT", field_values)
+func (self *Crud) InsertHash(fieldValues url.Values) error {
+	return self.insertHash_("INSERT", fieldValues)
 }
 
-func (self *Crud) Replace_hash(field_values url.Values) error {
-	return self.insert_hash_("REPLACE", field_values)
+func (self *Crud) ReplaceHash(fieldValues url.Values) error {
+	return self.insertHash_("REPLACE", fieldValues)
 }
 
-func (self *Crud) insert_hash_(how string, field_values url.Values) error {
+func (self *Crud) insertHash_(how string, fieldValues url.Values) error {
 	fields := make([]string, 0)
 	values := make([]interface{}, 0)
-	for k, v := range field_values {
+	for k, v := range fieldValues {
 		fields = append(fields, k)
 		values = append(values, v[0])
 	}
-	sql := how + " INTO " + self.Current_table + " (" + strings.Join(fields, ", ") + ") VALUES (" + strings.Join(strings.Split(strings.Repeat("?", len(fields)), ""), ",") + ")"
-	return self.Do_sql(sql, values...)
+	sql := how + " INTO " + self.CurrentTable + " (" + strings.Join(fields, ", ") + ") VALUES (" + strings.Join(strings.Split(strings.Repeat("?", len(fields)), ""), ",") + ")"
+	return self.DoSQL(sql, values...)
 }
 
-func (self *Crud) Update_hash(field_values url.Values, keyname interface{}, ids []interface{}, extra ...url.Values) error {
+func (self *Crud) UpdateHash(fieldValues url.Values, keyname interface{}, ids []interface{}, extra ...url.Values) error {
 	empties := make([]string, 0)
-	return self.Update_hash_nulls(field_values, keyname, ids, empties, extra...)
+	return self.UpdateHashNulls(fieldValues, keyname, ids, empties, extra...)
 }
 
-func (self *Crud) Update_hash_nulls(field_values url.Values, keyname interface{}, ids []interface{}, empties []string, extra ...url.Values) error {
+func (self *Crud) UpdateHashNulls(fieldValues url.Values, keyname interface{}, ids []interface{}, empties []string, extra ...url.Values) error {
 	fields := make([]string, 0)
 	field0 := make([]string, 0)
 	values := make([]interface{}, 0)
-	for k, v := range field_values {
+	for k, v := range fieldValues {
 		fields = append(fields, k)
 		field0 = append(field0, k+"=?")
 		values = append(values, v[0])
 	}
 
-	sql := "UPDATE " + self.Current_table + " SET " + strings.Join(field0, ", ")
+	sql := "UPDATE " + self.CurrentTable + " SET " + strings.Join(field0, ", ")
 	for _, v := range empties {
-		if field_values.Get(v) != "" {
+		if fieldValues.Get(v) != "" {
 			continue
 		}
 		switch keyname.(type) {
@@ -218,30 +218,30 @@ func (self *Crud) Update_hash_nulls(field_values url.Values, keyname interface{}
 		sql += ", " + v + "=NULL"
 	}
 
-	where, extra_values := Single_condition_string(keyname, ids, extra...)
+	where, extraValues := SingleConditionString(keyname, ids, extra...)
 	if where != "" {
 		sql += "\nWHERE " + where
 	}
-	for _, v := range extra_values {
+	for _, v := range extraValues {
 		values = append(values, v)
 	}
 
-	return self.Do_sql(sql, values...)
+	return self.DoSQL(sql, values...)
 }
 
-func (self *Crud) Insupd_table(field_values url.Values, keyname string, uniques []string, s_hash *string) error {
-	s := "SELECT " + keyname + " FROM " + self.Current_table + "\nWHERE "
+func (self *Crud) InsupdTable(fieldValues url.Values, keyname string, uniques []string, s_hash *string) error {
+	s := "SELECT " + keyname + " FROM " + self.CurrentTable + "\nWHERE "
 	v := make([]interface{}, 0)
 	for i, val := range uniques {
 		if i > 0 {
 			s += " AND "
 		}
 		s += val + "=?"
-		v = append(v, field_values.Get(val))
+		v = append(v, fieldValues.Get(val))
 	}
 
 	lists := make([]map[string]interface{}, 0)
-	err := self.Select_sql(&lists, s, v...)
+	err := self.SelectSQL(&lists, s, v...)
 	if err != nil {
 		return err
 	}
@@ -251,25 +251,25 @@ func (self *Crud) Insupd_table(field_values url.Values, keyname string, uniques 
 
 	if len(lists) == 1 {
 		id := lists[0][keyname].(int64)
-		err = self.Update_hash(field_values, keyname, []interface{}{id}, nil)
+		err = self.UpdateHash(fieldValues, keyname, []interface{}{id}, nil)
 		if err != nil {
 			return err
 		}
 		*s_hash = "update"
-		field_values.Set(keyname, strconv.FormatInt(id, 10))
+		fieldValues.Set(keyname, strconv.FormatInt(id, 10))
 	} else {
-		err = self.Insert_hash(field_values)
+		err = self.InsertHash(fieldValues)
 		if err != nil {
 			return err
 		}
 		*s_hash = "insert"
-		field_values.Set(keyname, strconv.FormatInt(self.Last_id, 10))
+		fieldValues.Set(keyname, strconv.FormatInt(self.LastID, 10))
 	}
 
 	return nil
 }
 
-func (self *Crud) Insupd_hash(field_values url.Values, upd_field_values url.Values, keyname interface{}, uniques []string, s_hash *string) error {
+func (self *Crud) InsupdHash(fieldValues url.Values, upd_fieldValues url.Values, keyname interface{}, uniques []string, s_hash *string) error {
 	var ks []string
 	switch keyname.(type) {
 	case []string:
@@ -277,18 +277,18 @@ func (self *Crud) Insupd_hash(field_values url.Values, upd_field_values url.Valu
 	default:
 		ks = []string{keyname.(string)}
 	}
-	s := "SELECT " + strings.Join(ks, ",") + " FROM " + self.Current_table + "\nWHERE "
+	s := "SELECT " + strings.Join(ks, ",") + " FROM " + self.CurrentTable + "\nWHERE "
 	v := make([]interface{}, 0)
 	for i, val := range uniques {
 		if i > 0 {
 			s += " AND "
 		}
 		s += val + "=?"
-		v = append(v, field_values.Get(val))
+		v = append(v, fieldValues.Get(val))
 	}
 
 	lists := make([]map[string]interface{}, 0)
-	err := self.Select_sql(&lists, s, v...)
+	err := self.SelectSQL(&lists, s, v...)
 	if err != nil {
 		return err
 	}
@@ -300,15 +300,15 @@ func (self *Crud) Insupd_hash(field_values url.Values, upd_field_values url.Valu
 		ids := make([]interface{}, len(ks))
 		for i, k := range ks {
 			ids[i] = lists[0][k]
-			field_values.Set(k, Interface2String(ids[i]))
+			fieldValues.Set(k, Interface2String(ids[i]))
 		}
-		err = self.Update_hash(upd_field_values, keyname, ids, nil)
+		err = self.UpdateHash(upd_fieldValues, keyname, ids, nil)
 		if err != nil {
 			return err
 		}
 		*s_hash = "update"
 	} else {
-		err = self.Insert_hash(field_values)
+		err = self.InsertHash(fieldValues)
 		if err != nil {
 			return err
 		}
@@ -318,81 +318,81 @@ func (self *Crud) Insupd_hash(field_values url.Values, upd_field_values url.Valu
 	return nil
 }
 
-func (self *Crud) Delete_hash(keyname interface{}, ids []interface{}, extra ...url.Values) error {
-	sql := "DELETE FROM " + self.Current_table
-	where, extra_values := Single_condition_string(keyname, ids, extra...)
+func (self *Crud) DeleteHash(keyname interface{}, ids []interface{}, extra ...url.Values) error {
+	sql := "DELETE FROM " + self.CurrentTable
+	where, extraValues := SingleConditionString(keyname, ids, extra...)
 	if where != "" {
 		sql += "\nWHERE " + where
 	}
 
-	return self.Do_sql(sql, extra_values...)
+	return self.DoSQL(sql, extraValues...)
 }
 
-func (self *Crud) Edit_hash(lists *[]map[string]interface{}, select_pars interface{}, keyname interface{}, ids []interface{}, extra ...url.Values) error {
-	sql, select_labels := Select_label_string(select_pars)
-	sql = "SELECT " + sql + "\nFROM " + self.Current_table
-	where, extra_values := Single_condition_string(keyname, ids, extra...)
+func (self *Crud) EditHash(lists *[]map[string]interface{}, selectPars interface{}, keyname interface{}, ids []interface{}, extra ...url.Values) error {
+	sql, select_labels := SelectLabelString(selectPars)
+	sql = "SELECT " + sql + "\nFROM " + self.CurrentTable
+	where, extraValues := SingleConditionString(keyname, ids, extra...)
 	if where != "" {
 		sql += "\nWHERE " + where
 	}
 
-	return self.Select_sql_label(lists, sql, select_labels, extra_values...)
+	return self.SelectSQLLabel(lists, sql, select_labels, extraValues...)
 }
 
-func (self *Crud) Topics_hash(lists *[]map[string]interface{}, select_pars interface{}, extra ...url.Values) error {
-	return self.Topics_hash_order(lists, select_pars, "", extra...)
+func (self *Crud) TopicsHash(lists *[]map[string]interface{}, selectPars interface{}, extra ...url.Values) error {
+	return self.TopicsHashOrder(lists, selectPars, "", extra...)
 }
 
-func (self *Crud) Topics_hash_order(lists *[]map[string]interface{}, select_pars interface{}, order string, extra ...url.Values) error {
-	sql, select_labels := Select_label_string(select_pars)
+func (self *Crud) TopicsHashOrder(lists *[]map[string]interface{}, selectPars interface{}, order string, extra ...url.Values) error {
+	sql, select_labels := SelectLabelString(selectPars)
 	table := ""
-	if len(self.Current_tables) > 0 {
-		sql = "SELECT " + sql + "\nFROM " + Table_string(self.Current_tables)
-		table = self.Current_tables[0].Alias
+	if len(self.CurrentTables) > 0 {
+		sql = "SELECT " + sql + "\nFROM " + TableString(self.CurrentTables)
+		table = self.CurrentTables[0].Alias
 		if table == "" {
-			table = self.Current_tables[0].Name
+			table = self.CurrentTables[0].Name
 		}
 	} else {
-		sql = "SELECT " + sql + "\nFROM " + self.Current_table
+		sql = "SELECT " + sql + "\nFROM " + self.CurrentTable
 	}
 
-	if extra != nil && len(extra) > 0 {
-		where, values := Select_condition_string(extra[0], table)
+	if len(extra) > 0 {
+		where, values := SelectConditionString(extra[0], table)
 		if where != "" {
 			sql += "\nWHERE " + where
 		}
 		if order != "" {
 			sql += "\n" + order
 		}
-		return self.Select_sql_label(lists, sql, select_labels, values...)
+		return self.SelectSQLLabel(lists, sql, select_labels, values...)
 	}
 
 	if order != "" {
 		sql += "\n" + order
 	}
-	return self.Select_sql_label(lists, sql, select_labels)
+	return self.SelectSQLLabel(lists, sql, select_labels)
 }
 
-func (self *Crud) Total_hash(hash map[string]interface{}, label string, extra ...url.Values) error {
+func (self *Crud) TotalHash(hash map[string]interface{}, label string, extra ...url.Values) error {
 	table := ""
 	sql := "SELECT COUNT(*) FROM "
-	if self.Current_tables != nil {
-		sql += Table_string(self.Current_tables)
-		table = self.Current_tables[0].Alias
+	if self.CurrentTables != nil {
+		sql += TableString(self.CurrentTables)
+		table = self.CurrentTables[0].Alias
 		if table == "" {
-			table = self.Current_tables[0].Name
+			table = self.CurrentTables[0].Name
 		}
 	} else {
-		sql += self.Current_table
+		sql += self.CurrentTable
 	}
 
-	if extra != nil && len(extra) > 0 {
-		where, values := Select_condition_string(extra[0], table)
+	if len(extra) > 0 {
+		where, values := SelectConditionString(extra[0], table)
 		if where != "" {
 			sql += "\nWHERE " + where
 		}
-		return self.Get_sql_label(hash, sql, []string{label}, values...)
+		return self.GetSQLLabel(hash, sql, []string{label}, values...)
 	}
 
-	return self.Get_sql_label(hash, sql, []string{label})
+	return self.GetSQLLabel(hash, sql, []string{label})
 }

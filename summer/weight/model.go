@@ -16,11 +16,11 @@ type Model struct {
 func (self *Model) StartnewFast(extra ...url.Values) error {
 	ARGS := self.ARGS
 
-	str, err := GetSlotWeightsString(self.Db, ARGS.Get("slot_id"))
+	str, err := GetSlotWeightsString(self.DB, ARGS.Get("slot_id"))
 	if err != nil {
 		return err
 	}
-	return self.Select_sql(self.LISTS, str)
+	return self.SelectSQL(self.LISTS, str)
 }
 
 func GetSlotWeightsString(db *sql.DB, slot_id string) (string, error) {
@@ -216,11 +216,11 @@ func (self *Model) Insupd(extra ...url.Values) error {
 		n++
 	}
 
-	if err = self.Do_sql("DELETE FROM pub_weight WHERE slot_id=?", slot_id); err == nil {
+	if err = self.DoSQL("DELETE FROM pub_weight WHERE slot_id=?", slot_id); err == nil {
 		if n == 0 {
 			return nil
 		} // in case no new item, we still delete the old items
-		err = self.Do_sql("INSERT INTO pub_weight (slot_id, item_id, weight, created) VALUES " + str[:len(str)-1])
+		err = self.DoSQL("INSERT INTO pub_weight (slot_id, item_id, weight, created) VALUES " + str[:len(str)-1])
 	}
 	return err
 }
@@ -238,7 +238,7 @@ func (self *Model) StartnewOld(extra ...url.Values) error {
 	ARGS := self.ARGS
 	slot_id := ARGS.Get("slot_id")
 
-	err := self.Get_args(ARGS,
+	err := self.GetArgs(ARGS,
 		`SELECT s.access_order, t.mychannel, t.channel_order
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)
@@ -251,7 +251,7 @@ WHERE slot_id=?`, slot_id)
 	tm := (ARGS.Get("mychannel") == "Inherit")
 	tc := (ARGS.Get("channel_order") == "Inherit")
 
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT DISTINCT item_id, cost_type, cost
 FROM `+SlotItemViewName(true, sa, tm, tc)+`
 WHERE slot_id=?
@@ -262,7 +262,7 @@ WHERE slot_id=?`, slot_id, slot_id)
 }
 
 func (self *Model) Startnew(extra ...url.Values) error {
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT DISTINCT item_id, item_name, campaign_id, campaign_name, cost_type, cost
 FROM ViewSlot
 WHERE slot_id=?`, self.ARGS.Get("slot_id"))
@@ -284,8 +284,8 @@ func (self *Model) MakeViewsForWhite() error {
 				for _, tc := range []bool{true, false} {
 					name := WhiteViewName(ca, sa, tm, tc)
 					str := SlotItemSelectString(ca, sa, tm, tc, true)
-					if err = self.Do_sql(`DROP VIEW IF EXISTS ` + name); err == nil {
-						err = self.Do_sql(`CREATE VIEW ` + name + ` AS ` + str)
+					if err = self.DoSQL(`DROP VIEW IF EXISTS ` + name); err == nil {
+						err = self.DoSQL(`CREATE VIEW ` + name + ` AS ` + str)
 					}
 					if err != nil {
 						return err
@@ -305,8 +305,8 @@ func (self *Model) MakeViewsForSlotItem() error {
 				for _, tc := range []bool{true, false} {
 					name := SlotItemViewName(ca, sa, tm, tc)
 					str := SlotItemSelectString(ca, sa, tm, tc, false)
-					if err = self.Do_sql(`DROP VIEW IF EXISTS ` + name); err == nil {
-						err = self.Do_sql(`CREATE VIEW ` + name + ` AS ` + str)
+					if err = self.DoSQL(`DROP VIEW IF EXISTS ` + name); err == nil {
+						err = self.DoSQL(`CREATE VIEW ` + name + ` AS ` + str)
 					}
 					if err != nil {
 						return err

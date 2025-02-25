@@ -1,15 +1,15 @@
-package genelet;
+package genelet
 
 import (
-    "testing"
+	"testing"
 )
 
 var CRYPTEXT = "12345678901234567890"
 var text = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
 
 func TestScoder(t *testing.T) {
-    encode := Encode_scoder(text, CRYPTEXT)
-    decode := Decode_scoder(encode, CRYPTEXT)
+	encode := EncodeScoder(text, CRYPTEXT)
+	decode := DecodeScoder(encode, CRYPTEXT)
 	if encode != "ukscLf6PQBEi+Vo9mHPWqRT/Uj/IUrQWeNo+gPxcBsuQWSLvtGVE9XckwY5bEBXkrWSxIpkK61z9sDsHNao/RMF+lQCXAufYsUoDNOP8" {
 		t.Errorf("%s got encode", encode)
 	}

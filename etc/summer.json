@@ -4,8 +4,8 @@
     "ServerURL"   : "https://www.w8m.com",
     "ServerPort"  : "8888",
     "DocumentRoot": "/home/disk_user/pzdesign/www",
-    "Upload_url"   : "https://www.w8m.com/uploads",
-    "Upload_dir"   : "/home/disk_user/pzdesign/www/uploads",
+    "UploadURL"   : "https://www.w8m.com/uploads",
+    "UploadDir"   : "/home/disk_user/pzdesign/www/uploads",
     "Template"     : "/home/disk_user/pzdesign/tmpls",
     "ConnectArray": ["mysql","db_user:db_pass@tcp(db_host)/db_name"],
     "Pubrole": "web",
@@ -35,7 +35,7 @@
     },
     "Blks": {
         "_gmail": {
-            'Address": "smtp_host",
+            "Address": "smtp_host",
             "Username": "smtp_user",
             "Password": "smtp_pass",
             "From": "service@w8m.com",
@@ -58,7 +58,7 @@
             "Coding": "faspf 093^&*(HUKk4i 1[rjqwle fd$%^*&()_JLKNLIIOpj ua",
             "Surface": "gadv",
             "Duration": 86400,
-            "Max_age": 86400,
+            "MaxAge": 86400,
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -67,7 +67,7 @@
                     "Sql": "proc_adv",
                     "Sql_as": "proc_adv_as",
                     "Credential": [ "email", "passwd", "direct", "gadv" ],
-                    "Condition_uri" : [
+                    "ConditionURI" : [
                         ["uC01","/goto/adv/e/","_md5","/goto/adv/e/campaign?action=topics"],
                         ["uC01","/goto/adv/g/","_md5","/goto/adv/g/campaign?action=topics"]
                     ]
@@ -82,7 +82,7 @@
             "Coding": "(*&*(&(*)sfd fasf 14812 4HJKL BS1312fhdf fd0-41fdf f",
             "Surface": "gpub",
             "Duration": 86400,
-            "Max_age": 86400,
+            "MaxAge": 86400,
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -91,7 +91,7 @@
                     "Sql": "proc_pub",
                     "Sql_as": "proc_pub_as",
                     "Credential": ["email", "passwd", "direct", "gpub"],
-                    "Condition_uri" : [
+                    "ConditionURI" : [
                         ["uC01","/goto/pub/e/","_md5","/goto/pub/e/site?action=topics"],
                         ["uC01","/goto/pub/g/","_md5","/goto/pub/g/site?action=topics"]
                     ]
@@ -106,7 +106,7 @@
             "Coding": "UIadsfk898uierhelt^&*(jksdlgGJOIKRDTCsdjfIUUO&*(hksda",
             "Surface": "gagent",
             "Duration": 86400,
-            "Max_age": 86400,
+            "MaxAge": 86400,
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -126,7 +126,7 @@
             "Coding": "UIRERsfsdf25915ngWNJKDGBHFDHwdrf093Jd2guy#%$&BHJkgfdg",
             "Surface": "gadmin",
             "Duration": 86400,
-            "Max_age": 86400,
+            "MaxAge": 86400,
             "Logout": "/",
             "Issuers": {
                 "db": {

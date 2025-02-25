@@ -58,16 +58,16 @@ func DBMakeNWeights(db *sql.DB, slotID uint32) (*Slot, error) {
 	}
 
 	model := new(weight.Model)
-	model.Db = db
-	model.Current_table = "pub_weight"
-	model.Current_key = "weight_id"
-	model.Current_id_auto = "weight_id"
+	model.DB = db
+	model.CurrentTable = "pub_weight"
+	model.CurrentKey = "weight_id"
+	model.CurrentIDAuto = "weight_id"
 	storage := map[string]interface{}{}
 	args := url.Values{}
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
 	extra := []url.Values{{}}
-	model.Set_defaults(args, &lists, &other, storage)
+	model.SetDefaults(args, &lists, &other, storage)
 
 	args.Set("slot_id", fmt.Sprintf("%d", slotID))
 	err = model.Insupd(extra...)

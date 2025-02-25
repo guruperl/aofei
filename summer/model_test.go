@@ -19,26 +19,26 @@ func TestModel(t *testing.T) {
 	}
 
 	model := new(Model)
-	model.Db = db
-	model.Current_table = "testing"
+	model.DB = db
+	model.CurrentTable = "testing"
 	model.SORTBY = "sortby"
 	model.SORTREVERSE = "sortreverse"
 	model.PAGENO = "pageno"
 	model.ROWCOUNT = "rowcount"
 	model.TOTALNO = "totalno"
-	model.MAX_PAGENO = "max_pageno"
+	model.MAXPAGENO = "max_pageno"
 	model.FIELD = "field"
 	model.EMPTIES = "empties"
 
-	ret := model.Exec_sql(`drop table if exists testing_f`)
+	ret := model.ExecSQL(`drop table if exists testing_f`)
 	if ret != nil {
 		t.Errorf("create table testing_f failed %s", ret.Error())
 	}
-	ret = model.Exec_sql(`drop table if exists testing`)
+	ret = model.ExecSQL(`drop table if exists testing`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
-	ret = model.Exec_sql(`CREATE TABLE testing (id int(10) unsigned NOT NULL, email varchar(255) not null, address_id int(10) unsigned DEFAULT NULL, active enum('Yes','No','New') default 'New', primary key (id))`)
+	ret = model.ExecSQL(`CREATE TABLE testing (id int(10) unsigned NOT NULL, email varchar(255) not null, address_id int(10) unsigned DEFAULT NULL, active enum('Yes','No','New') default 'New', primary key (id))`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
@@ -52,12 +52,12 @@ func TestModel(t *testing.T) {
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
 	extra := []url.Values{{}}
-	model.Set_defaults(args, &lists, &other, storage)
+	model.SetDefaults(args, &lists, &other, storage)
 
-	model.Current_key = "id"
-	model.Insert_pars = []string{"id", "email", "address_id"}
-	model.Edit_pars = []string{"id", "email", "address_id", "active"}
-	model.Update_pars = []string{"id", "email", "address_id"}
+	model.CurrentKey = "id"
+	model.InsertPars = []string{"id", "email", "address_id"}
+	model.EditPars = []string{"id", "email", "address_id", "active"}
+	model.UpdatePars = []string{"id", "email", "address_id"}
 
 	args["email"] = []string{"a_email"}
 	args["contact"] = []string{"b_contact"}
@@ -130,7 +130,7 @@ func TestModel(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 
-	model.Current_table = "pub_slot"
+	model.CurrentTable = "pub_slot"
 
 	storage = make(map[string]interface{})
 
@@ -138,10 +138,10 @@ func TestModel(t *testing.T) {
 	lists = make([]map[string]interface{}, 0)
 	other = make(map[string]interface{})
 	extra = []url.Values{{}}
-	model.Set_defaults(args, &lists, &other, storage)
+	model.SetDefaults(args, &lists, &other, storage)
 
-	model.Current_key = "slot_id"
-	model.Edit_pars = []string{"slot_id", "site_id", "slot_name", "size_id", "qa_device", "qa_position", "qa_content", "mychannel", "channel_order", "created", "active"}
+	model.CurrentKey = "slot_id"
+	model.EditPars = []string{"slot_id", "site_id", "slot_name", "size_id", "qa_device", "qa_position", "qa_content", "mychannel", "channel_order", "created", "active"}
 
 	args["slot_id"] = []string{"125"}
 	err = model.Edit(extra...)

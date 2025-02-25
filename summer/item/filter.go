@@ -20,7 +20,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if who == "adv" && (action == "insert" || action == "update") {
 		for _, name := range []string{"fl_language", "fl_device", "fl_position", "fl_content"} {
@@ -41,7 +41,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if who == "admin" && action == "topics" {
 		if ARGS.Get("campaign_id") != "" {
@@ -58,11 +58,11 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	} else if action == "topics" {
 		extra["active"] = []string{"Yes", "Pass2", "New", "Pause", "Prepare"}
 	} else if who == "adv" && action == "insert" {
-		model.Current_table = "adv_balance"
+		model.CurrentTable = "adv_balance"
 		if err := self.BalanceBefore(&model.Model); err != nil {
 			return err
 		}
-		model.Current_table = "adv_item"
+		model.CurrentTable = "adv_item"
 	}
 
 	return nil
@@ -75,7 +75,7 @@ func (self *Filter) After(model *Model) error {
 
 	//ARGS := self.R.Form
 	action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -133,7 +133,7 @@ func (self *Filter) After(model *Model) error {
 	   		err = hmodel.ExecSQL("drop table if exists item_"+ARGS.Get("item_id"))
 	   		if err != nil { return err }
 	   		lists := make([]map[string]interface{},0)
-	   		err = model.Select_sql(&lists,
+	   		err = model.SelectSQL(&lists,
 	   `SELECT i.item_id, creative_id, weight, item_click, cpc_fc, cpc_length, content
 	   FROM adv_item i
 	   INNER JOIN adv_campaign c USING (campaign_id)

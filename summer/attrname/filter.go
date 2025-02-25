@@ -19,7 +19,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 
 	if action == "insert" {
 		for _, v := range strings.Split(ARGS.Get("value"), ",") {
@@ -37,7 +37,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if action == "insert" {
 		err := model.Randomid("adv_attrname", "attrname_id", 10000, 16777216, 10)

@@ -17,7 +17,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 	}
 
 	for _, v := range ARGS["values"] {
-		err := self.Do_sql(
+		err := self.DoSQL(
 			`INSERT INTO adv_attrvalue (attrname_id, value) VALUES (?,?)`,
 			ARGS.Get("attrname_id"), v)
 		if err != nil {
@@ -29,7 +29,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 }
 
 func (self *Model) Topics(extra ...url.Values) error {
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT attrname_id, attrname, 
 GROUP_CONCAT(attrvalue_id) AS id,
 GROUP_CONCAT(value) AS value

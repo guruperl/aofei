@@ -17,9 +17,9 @@ func TestFilter(t *testing.T) {
 	args.Set("bbb", "222")
 	args.Set("Errorstr", Err(1001).Error())
 	args.Set("Script", configure.Script)
-	args.Set(configure.Role_name, "m")
-	args.Set(configure.Go_uri_name, "aaa")
-	args.Set("Login_name", "email")
+	args.Set(configure.RoleName, "m")
+	args.Set(configure.GoURIName, "aaa")
+	args.Set("LoginName", "email")
 	args.Set("Password_name", "passwd")
 
 	topics := map[string][]string{"aliases": {"list", "subj"}, "groups": {"m", "p"}, "validate": {"aaa", "bbb"}}
@@ -33,11 +33,11 @@ func TestFilter(t *testing.T) {
 	f := new(Filter)
 	f.C = configure
 	f.R = r
-	f.Role_value = "m"
-	f.Chartag_value = "json"
+	f.RoleValue = "m"
+	f.ChartagValue = "json"
 	f.R.Form = args
 	f.Actions = actions
-	f.Action = configure.Default_actions["GET"]
+	f.Action = configure.DefaultActions["GET"]
 
 	a := f.Action
 	// a, as := f.Get_action()

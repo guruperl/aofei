@@ -21,19 +21,19 @@ func TestModel(t *testing.T) {
 	comp := genelet.NewComponent("component.json")
 
 	model := new(Model)
-	model.Db = db
+	model.DB = db
 	add := new(Model)
-	add.Db = db
+	add.DB = db
 	model.Initialize(comp)
 	add.Initialize(comp)
 
 	storage := map[string]interface{}{"pub": add}
 
-	ret := model.Exec_sql(`drop table if exists testing`)
+	ret := model.ExecSQL(`drop table if exists testing`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
-	ret = model.Exec_sql(`CREATE TABLE testing (id int(10) unsigned NOT NULL, email varchar(255) not null, address_id int(10) unsigned DEFAULT NULL, active enum('Yes','No','New') default 'New', primary key (id), FOREIGN KEY (address_id) REFERENCES add_address (address_id) ON UPDATE CASCADE)`)
+	ret = model.ExecSQL(`CREATE TABLE testing (id int(10) unsigned NOT NULL, email varchar(255) not null, address_id int(10) unsigned DEFAULT NULL, active enum('Yes','No','New') default 'New', primary key (id), FOREIGN KEY (address_id) REFERENCES add_address (address_id) ON UPDATE CASCADE)`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
@@ -42,12 +42,12 @@ func TestModel(t *testing.T) {
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
 	extra := []url.Values{{}}
-	model.Set_defaults(args, &lists, &other, storage)
+	model.SetDefaults(args, &lists, &other, storage)
 
-	model.Current_key = "id"
-	model.Insert_pars = []string{"id", "email", "address_id"}
-	model.Edit_pars = []string{"id", "email", "address_id", "active"}
-	model.Update_pars = []string{"id", "email", "address_id"}
+	model.CurrentKey = "id"
+	model.InsertPars = []string{"id", "email", "address_id"}
+	model.EditPars = []string{"id", "email", "address_id", "active"}
+	model.UpdatePars = []string{"id", "email", "address_id"}
 
 	args["email"] = []string{"a_email"}
 	args["contact"] = []string{"b_contact"}

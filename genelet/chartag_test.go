@@ -1,22 +1,22 @@
-package genelet;
+package genelet
 
 import (
-    "testing"
+	"testing"
 )
 
 const (
-	full = "full"
-	short = "short"
-	c = 1
+	full      = "full"
+	short     = "short"
+	c         = 1
 	challenge = "challenge"
-	logged = "logged"
-	logout = "logout"
-	failed = "failed"
+	logged    = "logged"
+	logout    = "logout"
+	failed    = "failed"
 )
 
 func TestChartag(t *testing.T) {
-	char := Chartag{Content_type: full, Short: short, Case: c, Challenge: challenge, Logged: logged, Logout: logout, Failed: failed}
-	if char.Content_type != full {
+	char := Chartag{ContentType: full, Short: short, Case: c, Challenge: challenge, Logged: logged, Logout: logout, Failed: failed}
+	if char.ContentType != full {
 		t.Errorf("%s wanted", full)
 	}
 	if char.Case != c {
@@ -25,11 +25,11 @@ func TestChartag(t *testing.T) {
 	if char.Challenge != challenge {
 		t.Errorf("%s wanted", challenge)
 	}
-	if char.Call_challenge() != "{\"data\":\"challenge\"}" {
-		t.Errorf("%s wanted", char.Call_challenge())
+	if char.CallChallenge() != "{\"data\":\"challenge\"}" {
+		t.Errorf("%s wanted", char.CallChallenge())
 	}
-	char.Case=2
-	if char.Call_challenge() != "<?xml version=\"1.0\" encoding=\"UTF-8\"?><data>challenge</data>" {
-		t.Errorf("%s wanted", char.Call_challenge())
+	char.Case = 2
+	if char.CallChallenge() != "<?xml version=\"1.0\" encoding=\"UTF-8\"?><data>challenge</data>" {
+		t.Errorf("%s wanted", char.CallChallenge())
 	}
 }

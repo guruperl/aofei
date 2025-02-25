@@ -21,7 +21,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if (who == "pub" && action == "updatepass") || (who == "web" && (action == "insert" || action == "resetpass")) {
 		if ARGS.Get("firstname") == "" {
@@ -56,7 +56,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	}
 
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if who == "web" && action == "insert" {
 		if err := model.Randomid("pub", "pub_id", 0, 16777216, 10); err != nil {
@@ -74,7 +74,7 @@ func (self *Filter) After(model *Model) error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -91,7 +91,7 @@ func (self *Filter) After(model *Model) error {
 		other["_gmail"] = map[string]interface{}{
 			"To":      email,
 			"Subject": "Welcome to Aofei Publisher Service",
-			"file":    self.C.Template + "/" + who + "/pub/insert.mail." + self.Chartag_value}
+			"file":    self.C.Template + "/" + who + "/pub/insert.mail." + self.ChartagValue}
 	} else if who == "web" && action == "retrieve" && len(lists) > 0 {
 		item := lists[0]
 		email := item["email"].(string)
@@ -102,7 +102,7 @@ func (self *Filter) After(model *Model) error {
 		other["_gmail"] = map[string]interface{}{
 			"To":      email,
 			"Subject": "Reset Aofei Publisher Password",
-			"file":    self.C.Template + "/" + who + "/pub/retrieve.mail." + self.Chartag_value}
+			"file":    self.C.Template + "/" + who + "/pub/retrieve.mail." + self.ChartagValue}
 	}
 
 	return nil

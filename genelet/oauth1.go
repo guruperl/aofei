@@ -80,48 +80,48 @@ func get_body(method string, uri string, hash map[string]string, items []string,
 
 type Oauth1 struct {
 	Procedure
-	Default_pars map[string]string
-	Combined     []string
-	X_li_format  string
+	DefaultPars map[string]string
+	Combined    []string
+	X_li_format string
 }
 
-func New_Oauth1(base Base, db *sql.DB, uri string, provider string) *Oauth1 {
+func NewOauth1(base Base, db *sql.DB, uri string, provider string) *Oauth1 {
 	a := new(Oauth1)
 	a.CGI = a
 	a.Base = base
-	a.Db = db
+	a.DB = db
 	a.Uri = uri
 	a.Provider = provider
-	a.Default_pars = make(map[string]string)
+	a.DefaultPars = make(map[string]string)
 	a.Combined = make([]string, 0)
-	a.Default_pars["oauth_signature_method"] = "HMAC-SHA1"
-	a.Default_pars["oauth_version"] = "1.0"
+	a.DefaultPars["oauth_signature_method"] = "HMAC-SHA1"
+	a.DefaultPars["oauth_version"] = "1.0"
 	switch provider {
 	case "twitter":
-		a.Default_pars["oauth_request_token"] = "https://api.twitter.com/oauth/request_token"
-		a.Default_pars["oauth_authorize_uri"] = "https://api.twitter.com/oauth/authorize"
-		a.Default_pars["oauth_access_token"] = "https://api.twitter.com/oauth/access_token"
-	//a.Default_pars["oauth_endpoint"]			= "https://api.twitter.com/1.1/account/settings.json"
+		a.DefaultPars["oauth_request_token"] = "https://api.twitter.com/oauth/request_token"
+		a.DefaultPars["oauth_authorize_uri"] = "https://api.twitter.com/oauth/authorize"
+		a.DefaultPars["oauth_access_token"] = "https://api.twitter.com/oauth/access_token"
+	//a.DefaultPars["oauth_endpoint"]			= "https://api.twitter.com/1.1/account/settings.json"
 	case "linkedin":
-		a.Default_pars["oauth_request_token"] = "https://api.linkedin.com/uas/oauth/requestToken"
-		a.Default_pars["oauth_authorize_uri"] = "https://api.linkedin.com/uas/oauth/authenticate"
-		a.Default_pars["oauth_access_token"] = "https://api.linkedin.com/uas/oauth/accessToken"
-		a.Default_pars["oauth_endpoint"] = "https://api.linkedin.com/v1/people/~:(id,first-name,last-name,publicProfileUrl,pictureUrl)"
-		a.Default_pars["fields"] = "id,email,name,first_name,last_name,age_range,gender"
+		a.DefaultPars["oauth_request_token"] = "https://api.linkedin.com/uas/oauth/requestToken"
+		a.DefaultPars["oauth_authorize_uri"] = "https://api.linkedin.com/uas/oauth/authenticate"
+		a.DefaultPars["oauth_access_token"] = "https://api.linkedin.com/uas/oauth/accessToken"
+		a.DefaultPars["oauth_endpoint"] = "https://api.linkedin.com/v1/people/~:(id,first-name,last-name,publicProfileUrl,pictureUrl)"
+		a.DefaultPars["fields"] = "id,email,name,first_name,last_name,age_range,gender"
 	}
 
-	role := base.C.Roles[base.Role_value]
+	role := base.C.Roles[base.RoleValue]
 	issuer := role.Issuers[provider]
-	for k, v := range issuer.Provider_pars {
-		a.Default_pars[k] = v
+	for k, v := range issuer.ProviderPars {
+		a.DefaultPars[k] = v
 	}
 
 	return a
 }
 
 func (self *Oauth1) Authenticate(login, password string) error {
-	role := self.C.Roles[self.Role_value]
-	hash := self.Default_pars
+	role := self.C.Roles[self.RoleValue]
+	hash := self.DefaultPars
 	hash["oauth_callback"] = url.QueryEscape(self.Callback_address())
 
 	now := int32(time.Now().Unix())
@@ -138,7 +138,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 		if back["oauth_callback_confirmed"].(string) != "true" {
 			return Err(404)
 		}
-		self.Set_cookie(self.Provider, Encode_scoder(back["oauth_token_secret"].(string), role.Coding))
+		self.SetCookie(self.Provider, EncodeScoder(back["oauth_token_secret"].(string), role.Coding))
 		return Err(303, hash["oauth_authorize_uri"]+"?"+"oauth_token="+back["oauth_token"].(string)+"&oauth_callback="+hash["oauth_callback"])
 	}
 
@@ -153,7 +153,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 	}
 
 	hash["oauth_token_secret"] = oauth_token_secret.Value
-	hash["oauth_token_secret"] = Decode_scoder(hash["oauth_token_secret"], role.Coding)
+	hash["oauth_token_secret"] = DecodeScoder(hash["oauth_token_secret"], role.Coding)
 	self.Combined = []string{hash["oauth_consumer_secret"], hash["oauth_token_secret"]}
 	back, err := get_body("GET", hash["oauth_access_token"], hash, []string{"oauth_token", "oauth_verifier"}, self.Combined)
 	if err != nil {
@@ -187,7 +187,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 }
 
 func (self *Oauth1) oauth1_request(method string, uri string, form url.Values) ([]byte, error) {
-	hash := self.Default_pars
+	hash := self.DefaultPars
 	now := int32(time.Now().Unix())
 	hash["oauth_timestamp"] = fmt.Sprintf("%d", now)
 	hash["oauth_nonce"] = fmt.Sprintf("%x%8x", os.Getpid(), now)

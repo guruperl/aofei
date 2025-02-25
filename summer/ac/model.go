@@ -37,7 +37,7 @@ type Model struct {
 func (self *Model) Delete(extra ...url.Values) error {
 	ARGS := self.ARGS
 
-	return self.Do_sql(
+	return self.DoSQL(
 		`DELETE FROM ac
 WHERE ac_id=? AND entitytype_id=? AND entity_id=?`,
 		ARGS.Get("ac_id"), ARGS.Get("entitytype_id"), ARGS.Get("entity_id"))
@@ -76,7 +76,7 @@ func (self *Model) Inserts(extra ...url.Values) error {
 	ref := make(map[string]bool)
 	if len(ads) > 0 && len(campaigns) > 0 {
 		lists := make([]map[string]interface{}, 0)
-		err := self.Select_sql(&lists,
+		err := self.SelectSQL(&lists,
 			`SELECT campaign_id
 FROM adv_campaign
 WHERE campaign_id IN (`+strings.Join(ads, ",")+`) AND adv_id IN (`+strings.Join(campaigns, ",")+`))`)
@@ -122,18 +122,18 @@ WHERE campaign_id IN (`+strings.Join(ads, ",")+`) AND adv_id IN (`+strings.Join(
 	if n == 0 {
 		return nil
 	}
-	err := self.Do_sql(
+	err := self.DoSQL(
 		`DELETE FROM ac WHERE entitytype_id=? AND entity_id=?`, ARGS.Get("entitytype_id"), ARGS.Get("entity_id"))
 	if err != nil {
 		return err
 	}
-	return self.Do_sql(str[:len(str)-1])
+	return self.DoSQL(str[:len(str)-1])
 }
 
 func (self *Model) UpdateOrder(extra ...url.Values) error {
 	ARGS := self.ARGS
 
-	err := self.Do_sql(
+	err := self.DoSQL(
 		`DELETE FROM ac
 WHERE entitytype_id=? AND entity_id=?`,
 		ARGS.Get("entitytype_id"), ARGS.Get("entity_id"))
@@ -141,7 +141,7 @@ WHERE entitytype_id=? AND entity_id=?`,
 		return err
 	}
 
-	return self.Do_sql(
+	return self.DoSQL(
 		`UPDATE `+ARGS.Get("table")+`
 SET access_order=?
 WHERE `+ARGS.Get("idname")+`=?`,
@@ -150,7 +150,7 @@ WHERE `+ARGS.Get("idname")+`=?`,
 
 func (self *Model) get_access_order() error {
 	ARGS := self.ARGS
-	return self.Get_args(ARGS,
+	return self.GetArgs(ARGS,
 		`SELECT access_order FROM `+ARGS.Get("table")+`
 WHERE `+ARGS.Get("idname")+`=?`, ARGS.Get("entity_id"))
 }
@@ -166,7 +166,7 @@ func (self *Model) Topics(extra ...url.Values) error {
 	}
 
 	if ARGS.Get("entitytype_id") == "3" || ARGS.Get("entitytype_id") == "31" {
-		return self.Select_sql(self.LISTS,
+		return self.SelectSQL(self.LISTS,
 			`SELECT ac_id, adv.adv_id, a.company, a.url, '*' AS campaign_id, '*' AS campaign_name, a.url
 FROM ac
 INNER JOIN adv ON (ac.othertype_id=4 AND ac.other_id=adv.adv_id)
@@ -183,7 +183,7 @@ WHERE entitytype_id=? AND entity_id=?`,
 			ARGS.Get("entitytype_id"), ARGS.Get("entity_id"))
 	}
 
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT ac_id, pub.pub_id, a.company, a.url, '*' AS site_id, '*' AS site_name, '*' AS site_url
 FROM ac
 INNER JOIN pub ON (ac.othertype_id=3 AND ac.other_id=pub_id)
@@ -211,7 +211,7 @@ func (self *Model) Startnew(extra ...url.Values) error {
 		return nil
 	}
 
-	err = self.Select_sql(self.LISTS,
+	err = self.SelectSQL(self.LISTS,
 		`SELECT campaign_id, ANY_VALUE(campaign_name) AS campaign_name,
 	ANY_VALUE(adv_id) AS adv_id, ANY_VALUE(adv_name) AS adv_name,
 	ANY_VALUE(othertype_id) AS othertype_id, ANY_VALUE(other_id) AS other_id,
@@ -222,5 +222,5 @@ GROUP BY campaign_id`, ARGS.Get("entity_id"))
 		return err
 	}
 
-	return self.Process_after("startnew", extra...)
+	return self.ProcessAfter("startnew", extra...)
 }

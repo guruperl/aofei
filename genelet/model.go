@@ -25,26 +25,26 @@ type Model struct {
 	PAGENO      string
 	ROWCOUNT    string
 	TOTALNO     string
-	MAX_PAGENO  string
+	MAXPAGENO   string
 	FIELD       string
 	EMPTIES     string
 
 	Nextpages map[string][]map[string]interface{}
 	Storage   map[string]interface{}
 
-	Current_key     string
-	Current_keys    []string
-	Current_id_auto string
-	Key_in          map[string]string //delete , stop if key in other tables
+	CurrentKey    string            `json:"current_key"`
+	CurrentKeys   []string          `json:"current_keys"`
+	CurrentIDAuto string            `json:"current_id_auto"`
+	KeyIN         map[string]string `json:"key_in"`
 
-	Insert_pars     []string
-	Edit_pars       []string
-	Update_pars     []string
-	Insupd_pars     []string
-	Topics_pars     []string
-	Topics_hashpars map[string]string
+	InsertPars     []string          `json:"insert_pars"`
+	EditPars       []string          `json:"edit_pars"`
+	UpdatePars     []string          `json:"update_pars"`
+	InsupdPars     []string          `json:"insupd_pars"`
+	TopicsPars     []string          `json:"topics_pars"`
+	TopicsHashpars map[string]string `json:"topics_hashpars"`
 
-	Total_force int
+	TotalForce int `json:"total_force"`
 }
 
 func (self *Model) Initialize(comp *Component) {
@@ -53,41 +53,41 @@ func (self *Model) Initialize(comp *Component) {
 	self.PAGENO = comp.Pageno
 	self.ROWCOUNT = comp.Rowcount
 	self.TOTALNO = comp.Totalno
-	self.MAX_PAGENO = comp.Maxpageno
+	self.MAXPAGENO = comp.Maxpageno
 	self.FIELD = comp.Fields
 	self.EMPTIES = comp.Empties
 
 	self.Nextpages = comp.Nextpages
 
-	self.Current_table = comp.Current_table
-	self.Current_tables = comp.Current_tables
-	self.Current_key = comp.Current_key
-	self.Current_keys = comp.Current_keys
-	self.Current_id_auto = comp.Current_id_auto
-	self.Key_in = comp.Key_in
+	self.CurrentTable = comp.CurrentTable
+	self.CurrentTables = comp.CurrentTables
+	self.CurrentKey = comp.CurrentKey
+	self.CurrentKeys = comp.CurrentKeys
+	self.CurrentIDAuto = comp.CurrentIDAuto
+	self.KeyIN = comp.KeyIN
 
-	self.Insert_pars = comp.Insert_pars
-	self.Edit_pars = comp.Edit_pars
-	self.Update_pars = comp.Update_pars
-	self.Insupd_pars = comp.Insupd_pars
-	self.Topics_pars = comp.Topics_pars
-	self.Topics_hashpars = comp.Topics_hash
+	self.InsertPars = comp.InsertPars
+	self.EditPars = comp.EditPars
+	self.UpdatePars = comp.UpdatePars
+	self.InsupdPars = comp.InsupdPars
+	self.TopicsPars = comp.TopicsPars
+	self.TopicsHashpars = comp.TopicsHash
 
-	self.Total_force = comp.Total_force
+	self.TotalForce = comp.TotalForce
 }
 
-func (self *Model) Set_db(db *sql.DB) {
-	self.Db = db
+func (self *Model) SetDB(db *sql.DB) {
+	self.DB = db
 }
 
-func (self *Model) Set_defaults(args url.Values, lists *[]map[string]interface{}, other *map[string]interface{}, storage map[string]interface{}) {
+func (self *Model) SetDefaults(args url.Values, lists *[]map[string]interface{}, other *map[string]interface{}, storage map[string]interface{}) {
 	self.ARGS = args
 	self.LISTS = lists
 	self.OTHER = other
 	self.Storage = storage
 }
 
-func (self *Model) filtered_fields(pars []string) []string {
+func (self *Model) filteredFields(pars []string) []string {
 	ARGS := self.ARGS
 	field := ARGS[self.FIELD]
 	if field == nil {
@@ -108,51 +108,51 @@ func (self *Model) filtered_fields(pars []string) []string {
 
 func (self *Model) get_fv(pars []string) url.Values {
 	ARGS := self.ARGS
-	field_values := make(url.Values)
-	for _, f := range self.filtered_fields(pars) {
+	fieldValues := make(url.Values)
+	for _, f := range self.filteredFields(pars) {
 		if ARGS.Get(f) != "" {
-			field_values[f] = ARGS[f]
+			fieldValues[f] = ARGS[f]
 		}
 	}
-	return field_values
+	return fieldValues
 }
 
 func (self *Model) get_id_val(extra url.Values) (interface{}, []interface{}) {
 	ARGS := self.ARGS
-	if self.Current_keys != nil && len(self.Current_keys) > 0 {
+	if len(self.CurrentKeys) > 0 {
 		val := make([]interface{}, 0)
-		for _, v := range self.Current_keys {
+		for _, v := range self.CurrentKeys {
 			if ARGS.Get(v) != "" {
 				val = append(val, ARGS.Get(v))
 			} else if extra[v] != nil {
 				val = append(val, extra[v])
 			} else {
-				return self.Current_keys, nil
+				return self.CurrentKeys, nil
 			}
 		}
-		return self.Current_keys, val
+		return self.CurrentKeys, val
 	}
 
-	if ARGS.Get(self.Current_key) != "" {
-		return self.Current_key, []interface{}{ARGS.Get(self.Current_key)}
-	} else if extra.Get(self.Current_key) != "" {
-		return self.Current_key, []interface{}{extra.Get(self.Current_key)}
+	if ARGS.Get(self.CurrentKey) != "" {
+		return self.CurrentKey, []interface{}{ARGS.Get(self.CurrentKey)}
+	} else if extra.Get(self.CurrentKey) != "" {
+		return self.CurrentKey, []interface{}{extra.Get(self.CurrentKey)}
 	} else if ARGS.Get("_gid_url") != "" {
-		return self.Current_key, []interface{}{ARGS.Get("_gid_url")}
+		return self.CurrentKey, []interface{}{ARGS.Get("_gid_url")}
 	}
-	return self.Current_key, nil
+	return self.CurrentKey, nil
 }
 
 func (self *Model) Topics(extra ...url.Values) error {
 	ARGS := self.ARGS
 	totalno := self.TOTALNO
-	if self.Total_force != 0 && ARGS.Get(self.ROWCOUNT) != "" && (ARGS.Get(self.PAGENO) == "" || ARGS.Get(self.PAGENO) == "1") {
+	if self.TotalForce != 0 && ARGS.Get(self.ROWCOUNT) != "" && (ARGS.Get(self.PAGENO) == "" || ARGS.Get(self.PAGENO) == "1") {
 		var nt int
-		if self.Total_force < -1 {
-			nt = int(math.Abs(float64(self.Total_force)))
-		} else if self.Total_force == -1 || ARGS.Get(totalno) == "" {
+		if self.TotalForce < -1 {
+			nt = int(math.Abs(float64(self.TotalForce)))
+		} else if self.TotalForce == -1 || ARGS.Get(totalno) == "" {
 			hash := make(map[string]interface{})
-			err := self.Total_hash(hash, totalno, extra...)
+			err := self.TotalHash(hash, totalno, extra...)
 			if err != nil {
 				return err
 			}
@@ -163,27 +163,27 @@ func (self *Model) Topics(extra ...url.Values) error {
 		ARGS.Set(totalno, strconv.Itoa(nt))
 		nr, _ := strconv.Atoi(ARGS.Get(self.ROWCOUNT))
 		max_pageno := int((nt-1)/nr) + 1
-		ARGS.Set(self.MAX_PAGENO, strconv.Itoa(max_pageno))
+		ARGS.Set(self.MAXPAGENO, strconv.Itoa(max_pageno))
 	}
 
 	var fields interface{}
-	if self.Topics_hashpars == nil {
-		fields = self.filtered_fields(self.Topics_pars)
+	if self.TopicsHashpars == nil {
+		fields = self.filteredFields(self.TopicsPars)
 	} else {
-		fields = self.Topics_hashpars
+		fields = self.TopicsHashpars
 	}
-	err := self.Topics_hash_order(self.LISTS, fields, self.Get_order_string(), extra...)
+	err := self.TopicsHashOrder(self.LISTS, fields, self.GetOrderString(), extra...)
 	if err != nil {
 		return err
 	}
 
-	return self.Process_after("topics", extra...)
+	return self.ProcessAfter("topics", extra...)
 }
 
 func (self *Model) Edit(extra ...url.Values) error {
 	var id interface{}
 	var val []interface{}
-	if extra == nil || len(extra) == 0 {
+	if len(extra) == 0 {
 		id, val = self.get_id_val(nil)
 	} else {
 		id, val = self.get_id_val(extra[0])
@@ -192,103 +192,103 @@ func (self *Model) Edit(extra ...url.Values) error {
 		return Err(1040)
 	}
 
-	fields := self.filtered_fields(self.Edit_pars)
+	fields := self.filteredFields(self.EditPars)
 	if fields == nil {
 		return Err(1077)
 	}
 
 	var err error
-	if extra != nil && len(extra) > 0 && extra[0] != nil {
-		err = self.Edit_hash(self.LISTS, fields, id, val, extra[0])
+	if len(extra) > 0 && extra[0] != nil {
+		err = self.EditHash(self.LISTS, fields, id, val, extra[0])
 	} else {
-		err = self.Edit_hash(self.LISTS, fields, id, val)
+		err = self.EditHash(self.LISTS, fields, id, val)
 	}
 	if err != nil {
 		return err
 	}
 
-	return self.Process_after("edit", extra...)
+	return self.ProcessAfter("edit", extra...)
 }
 
-// use 'extra' to override field_values for selected fields
+// Insert use 'extra' to override fieldValues for selected fields
 func (self *Model) Insert(extra ...url.Values) error {
-	field_values := self.get_fv(self.Insert_pars)
+	fieldValues := self.get_fv(self.InsertPars)
 
-	if extra != nil && len(extra) > 0 {
+	if len(extra) > 0 {
 		for key, value := range extra[0] {
-			if Grep(self.Insert_pars, key) {
-				field_values[key] = value
+			if Grep(self.InsertPars, key) {
+				fieldValues[key] = value
 			}
 		}
 	}
-	if field_values == nil {
+	if fieldValues == nil {
 		return Err(1078)
 	}
 
-	err := self.Insert_hash(field_values)
+	err := self.InsertHash(fieldValues)
 	if err != nil {
 		return err
 	}
 
-	if self.Current_id_auto != "" {
-		auto_id := strconv.FormatInt(self.Last_id, 10)
-		field_values.Set(self.Current_id_auto, auto_id)
-		self.ARGS.Set(self.Current_id_auto, auto_id)
+	if self.CurrentIDAuto != "" {
+		autoID := strconv.FormatInt(self.LastID, 10)
+		fieldValues.Set(self.CurrentIDAuto, autoID)
+		self.ARGS.Set(self.CurrentIDAuto, autoID)
 	}
-	*self.LISTS = from_fv(field_values)
+	*self.LISTS = from_fv(fieldValues)
 
-	return self.Process_after("insert", extra...)
+	return self.ProcessAfter("insert", extra...)
 }
 
 func (self *Model) Insupd(extra ...url.Values) error {
-	uniques := self.Insupd_pars
+	uniques := self.InsupdPars
 	if uniques == nil {
 		return Err(1078)
 	}
 
-	field_values := self.get_fv(self.Insert_pars)
-	if extra != nil && len(extra) > 0 {
+	fieldValues := self.get_fv(self.InsertPars)
+	if len(extra) > 0 {
 		for key, value := range extra[0] {
-			if Grep(self.Insert_pars, key) {
-				field_values[key] = value
+			if Grep(self.InsertPars, key) {
+				fieldValues[key] = value
 			}
 		}
 	}
-	if field_values == nil {
+	if fieldValues == nil {
 		return Err(1076)
 	}
 
 	for _, v := range uniques {
-		if field_values[v] == nil {
+		if fieldValues[v] == nil {
 			return Err(1075)
 		}
 	}
 
-	upd_field_values := self.get_fv(self.Update_pars)
+	upd_fieldValues := self.get_fv(self.UpdatePars)
 
 	s_hash := ""
-	err := self.Insupd_hash(field_values, upd_field_values, self.Current_key, uniques, &s_hash)
+	err := self.InsupdHash(fieldValues, upd_fieldValues, self.CurrentKey, uniques, &s_hash)
 	if err != nil {
 		return err
 	}
 
-	if self.Current_id_auto != "" && s_hash == "insert" {
-		field_values[self.Current_id_auto] = []string{strconv.FormatInt(self.Last_id, 10)}
+	if self.CurrentIDAuto != "" && s_hash == "insert" {
+		fieldValues[self.CurrentIDAuto] = []string{strconv.FormatInt(self.LastID, 10)}
 	}
 	hash := make(map[string]interface{})
-	for k, v := range field_values {
+	for k, v := range fieldValues {
 		hash[k] = v[0]
 	}
 	*self.LISTS = append(*self.LISTS, hash)
 
-	return self.Process_after("insupd", extra...)
+	return self.ProcessAfter("insupd", extra...)
 }
 
 func (self *Model) Update(extra ...url.Values) error {
 	ARGS := self.ARGS
 	var id interface{}
 	var val []interface{}
-	if extra != nil && len(extra) > 0 {
+	if len(extra) > 0 {
 		id, val = self.get_id_val(extra[0])
 	} else {
 		id, val = self.get_id_val(nil)
@@ -297,21 +297,21 @@ func (self *Model) Update(extra ...url.Values) error {
 		return Err(1040)
 	}
 
-	field_values := self.get_fv(self.Update_pars)
-	if field_values == nil {
+	fieldValues := self.get_fv(self.UpdatePars)
+	if fieldValues == nil {
 		return Err(1074)
 	}
 
-	if len(field_values) <= 1 && field_values[id.(string)] != nil {
-		*self.LISTS = from_fv(field_values)
-		return self.Process_after("update", extra...)
+	if len(fieldValues) <= 1 && fieldValues[id.(string)] != nil {
+		*self.LISTS = from_fv(fieldValues)
+		return self.ProcessAfter("update", extra...)
 	}
 
 	var err error
 	if ARGS.Get(self.EMPTIES) != "" {
-		err = self.Update_hash_nulls(field_values, id, val, ARGS[self.EMPTIES], extra...)
+		err = self.UpdateHashNulls(fieldValues, id, val, ARGS[self.EMPTIES], extra...)
 	} else {
-		err = self.Update_hash(field_values, id, val, extra...)
+		err = self.UpdateHash(fieldValues, id, val, extra...)
 	}
 	if err != nil {
 		return err
@@ -320,19 +320,19 @@ func (self *Model) Update(extra ...url.Values) error {
 	switch id.(type) {
 	case []string:
 		for i, v := range id.([]string) {
-			field_values.Set(v, val[i].(string))
+			fieldValues.Set(v, val[i].(string))
 		}
 	case string:
-		field_values.Set(id.(string), val[0].(string))
+		fieldValues.Set(id.(string), val[0].(string))
 	}
-	*self.LISTS = from_fv(field_values)
+	*self.LISTS = from_fv(fieldValues)
 
-	return self.Process_after("Update", extra...)
+	return self.ProcessAfter("Update", extra...)
 }
 
-func from_fv(field_values url.Values) []map[string]interface{} {
+func from_fv(fieldValues url.Values) []map[string]interface{} {
 	hash := make(map[string]interface{})
-	for k, v := range field_values {
+	for k, v := range fieldValues {
 		hash[k] = v[0]
 	}
 	return []map[string]interface{}{hash}
@@ -350,8 +350,8 @@ func (self *Model) Delete(extra ...url.Values) error {
 		return Err(1040)
 	}
 
-	if self.Key_in != nil {
-		for table, keyname := range self.Key_in {
+	if self.KeyIN != nil {
+		for table, keyname := range self.KeyIN {
 			for _, v := range val {
 				err := self.Existing(table, keyname, v)
 				if err != nil {
@@ -361,15 +361,15 @@ func (self *Model) Delete(extra ...url.Values) error {
 		}
 	}
 
-	err := self.Delete_hash(id, val, extra...)
+	err := self.DeleteHash(id, val, extra...)
 	if err != nil {
 		return err
 	}
 
 	hash := make(map[string]interface{})
-	switch id.(type) {
+	switch t := id.(type) {
 	case []string:
-		for i, v := range id.([]string) {
+		for i, v := range t {
 			hash[v] = val[i]
 		}
 	case string:
@@ -378,12 +378,12 @@ func (self *Model) Delete(extra ...url.Values) error {
 	*self.LISTS = make([]map[string]interface{}, 0)
 	*self.LISTS = append(*self.LISTS, hash)
 
-	return self.Process_after("delete", extra...)
+	return self.ProcessAfter("delete", extra...)
 }
 
 func (self *Model) Existing(table string, field string, val interface{}) error {
 	hash := make(map[string]interface{})
-	err := self.Get_sql(hash, "SELECT "+field+" FROM "+table+" WHERE "+field+"=?", val)
+	err := self.GetSQL(hash, "SELECT "+field+" FROM "+table+" WHERE "+field+"=?", val)
 	if err != nil {
 		glog.Infof("err: %v\n", err)
 		return err
@@ -425,26 +425,26 @@ func (self *Model) Randomid(table string, field string, m ...interface{}) error 
 	return Err(1076)
 }
 
-func (self *Model) Get_order_string() string {
+func (self *Model) GetOrderString() string {
 	ARGS := self.ARGS
 	var column string
 	if ARGS.Get(self.SORTBY) == "" {
-		if self.Current_keys != nil && len(self.Current_keys) > 0 {
-			column = strings.Join(self.Current_keys, ",")
+		if len(self.CurrentKeys) > 0 {
+			column = strings.Join(self.CurrentKeys, ",")
 		} else {
-			column = self.Current_key
+			column = self.CurrentKey
 		}
 	} else {
 		column = ARGS.Get(self.SORTBY)
 	}
 
 	matched, err := regexp.MatchString("\\.", column)
-	if self.Current_tables != nil && err == nil && matched {
+	if self.CurrentTables != nil && err == nil && matched {
 		if !strings.Contains(column, `.`) {
-			if self.Current_tables[0].Alias != "" {
-				column = self.Current_tables[0].Alias + "." + column
+			if self.CurrentTables[0].Alias != "" {
+				column = self.CurrentTables[0].Alias + "." + column
 			} else {
-				column = self.Current_tables[0].Name + "." + column
+				column = self.CurrentTables[0].Name + "." + column
 			}
 		}
 	}
@@ -487,14 +487,14 @@ func (self *Model) another_object(page map[string]interface{}, args url.Values, 
 		return nil, "", "", Err(2013, "No stored "+model)
 	}
 
-	Invoke0(p, "Set_defaults", args, lists, other, self.Storage)
-	Invoke0(p, "Set_db", self.Db)
+	Invoke0(p, "SetDefaults", args, lists, other, self.Storage)
+	Invoke0(p, "SetDB", self.DB)
 
 	action := page["action"].(string)
 	return p, strings.Title(action), model + "_" + action, nil
 }
 
-func (self *Model) Call_once(page map[string]interface{}, extra ...url.Values) error {
+func (self *Model) CallOnce(page map[string]interface{}, extra ...url.Values) error {
 	args := self.ARGS
 	ARGS, err := url.ParseQuery(args.Encode())
 	if err != nil {
@@ -559,7 +559,7 @@ func (self *Model) Call_once(page map[string]interface{}, extra ...url.Values) e
 	return nil
 }
 
-func (self *Model) Call_nextpage(page map[string]interface{}, extra ...url.Values) error {
+func (self *Model) CallNextpage(page map[string]interface{}, extra ...url.Values) error {
 	LISTS := *self.LISTS
 	if len(LISTS) < 1 {
 		return nil
@@ -612,7 +612,7 @@ func (self *Model) Call_nextpage(page map[string]interface{}, extra ...url.Value
 				next_extra.Del(v.(string))
 			}
 		}
-		if found == false {
+		if !found {
 			continue
 		}
 		nextextra := make(url.Values)
@@ -637,7 +637,7 @@ func (self *Model) Call_nextpage(page map[string]interface{}, extra ...url.Value
 	return nil
 }
 
-func (self *Model) Process_after(action string, extra ...url.Values) error {
+func (self *Model) ProcessAfter(action string, extra ...url.Values) error {
 	if self.Nextpages == nil || self.Nextpages[action] == nil {
 		return nil
 	}
@@ -646,17 +646,17 @@ func (self *Model) Process_after(action string, extra ...url.Values) error {
 		var err error
 		if page["relate_item"] == nil {
 			if extra != nil && len(extra) >= (i+2) && extra[i+1] != nil {
-				err = self.Call_once(page, extra[i+1])
+				err = self.CallOnce(page, extra[i+1])
 			} else {
-				err = self.Call_once(page, make(url.Values))
+				err = self.CallOnce(page, make(url.Values))
 			}
 		} else if len(*self.LISTS) == 0 {
 			return nil
 		} else {
 			if extra != nil && len(extra) >= (i+2) && extra[i+1] != nil {
-				err = self.Call_nextpage(page, extra[i+1])
+				err = self.CallNextpage(page, extra[i+1])
 			} else {
-				err = self.Call_nextpage(page, make(url.Values))
+				err = self.CallNextpage(page, make(url.Values))
 			}
 		}
 		if err != nil {

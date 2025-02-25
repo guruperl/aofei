@@ -43,7 +43,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 		}
 		if found {
 			item_id := ARGS.Get("item_id")
-			dir := self.C.Upload_dir + "/" + item_id
+			dir := self.C.UploadDir + "/" + item_id
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
 				if err = os.Mkdir(dir, 0755); err != nil {
 					return err
@@ -72,13 +72,13 @@ func (self *Filter) After(model *Model) error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 	lists := *model.LISTS
 	//other := *model.OTHER
 
 	if action == "insert" && ARGS.Get("media") != "" {
 		for i, m := range ARGS["media"] {
-			if err := model.Do_sql(
+			if err := model.DoSQL(
 				`INSERT INTO adv_media (creative_id, series, media, disk, mime, created)
 VALUES (?,?,?,?,?,NOW())`, lists[0]["creative_id"], ARGS["series"][i], m,
 				ARGS["disk"][i], ARGS["mime"][i]); err != nil {
@@ -93,7 +93,7 @@ VALUES (?,?,?,?,?,NOW())`, lists[0]["creative_id"], ARGS["series"][i], m,
 func (self *Filter) Uploading(dir, item_id, file, series string) error {
 	ARGS := self.R.Form
 
-	fh, err := os.Open(self.C.Upload_dir + "/" + file)
+	fh, err := os.Open(self.C.UploadDir + "/" + file)
 	if err != nil {
 		return err
 	}
@@ -118,12 +118,12 @@ func (self *Filter) Uploading(dir, item_id, file, series string) error {
 		}
 	}
 
-	err = os.Rename(self.C.Upload_dir+"/"+file, dir+"/"+file)
+	err = os.Rename(self.C.UploadDir+"/"+file, dir+"/"+file)
 	if err != nil {
 		return err
 	}
 
-	media := self.C.Upload_url + "/" + item_id + "/" + file
+	media := self.C.UploadURL + "/" + item_id + "/" + file
 	ARGS.Add("mime", mime)
 	ARGS.Add("series", series)
 	ARGS.Add("media", media)

@@ -14,22 +14,22 @@ func TestModelSimple(t *testing.T) {
 	}
 
 	model := new(Model)
-	model.Db = db
-	model.Current_table = "testing"
+	model.DB = db
+	model.CurrentTable = "testing"
 	model.SORTBY = "sortby"
 	model.SORTREVERSE = "sortreverse"
 	model.PAGENO = "pageno"
 	model.ROWCOUNT = "rowcount"
 	model.TOTALNO = "totalno"
-	model.MAX_PAGENO = "max_pageno"
+	model.MAXPAGENO = "max_pageno"
 	model.FIELD = "field"
 	model.EMPTIES = "empties"
 
-	ret := model.Exec_sql(`drop table if exists testing`)
+	ret := model.ExecSQL(`drop table if exists testing`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
-	ret = model.Exec_sql(`CREATE TABLE testing (id int auto_increment, x varchar(255), y varchar(255), primary key (id))`)
+	ret = model.ExecSQL(`CREATE TABLE testing (id int auto_increment, x varchar(255), y varchar(255), primary key (id))`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
@@ -38,24 +38,24 @@ func TestModelSimple(t *testing.T) {
 	LISTS := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
 	storage := make(map[string]interface{})
-	model.Set_defaults(args, &LISTS, &other, storage)
+	model.SetDefaults(args, &LISTS, &other, storage)
 
-	model.Current_key = "id"
-	model.Current_id_auto = "id"
-	model.Insert_pars = []string{"id", "x", "y"}
-	model.Topics_pars = []string{"id", "x", "y"}
+	model.CurrentKey = "id"
+	model.CurrentIDAuto = "id"
+	model.InsertPars = []string{"id", "x", "y"}
+	model.TopicsPars = []string{"id", "x", "y"}
 
 	args["x"] = []string{"a"}
 	args["y"] = []string{"b"}
 	ret = model.Insert()
-	if model.Last_id != 1 {
-		t.Errorf("%d wanted", model.Last_id)
+	if model.LastID != 1 {
+		t.Errorf("%d wanted", model.LastID)
 	}
 	hash := make(url.Values)
 	hash.Set("x", "c")
 	hash.Set("y", "d")
-	ret = model.Insert_hash(hash)
-	id := model.Last_id
+	ret = model.InsertHash(hash)
+	id := model.LastID
 	if id != 2 {
 		t.Errorf("%d wanted", id)
 	}
@@ -66,9 +66,9 @@ func TestModelSimple(t *testing.T) {
 		t.Errorf("%d 2 columns wanted", len(LISTS))
 	}
 
-	model.Update_pars = []string{"id", "x", "y"}
+	model.UpdatePars = []string{"id", "x", "y"}
 	LISTS = LISTS[:0]
-	model.Edit_pars = []string{"id", "x", "y"}
+	model.EditPars = []string{"id", "x", "y"}
 	args.Set("id", "2")
 	args["x"] = []string{"c"}
 	args["y"] = []string{"z"}
@@ -151,7 +151,7 @@ func TestModelSimple(t *testing.T) {
 		t.Errorf("%s %d wanted", ret.Error(), model.Affected)
 	}
 
-	model.Exec_sql(`truncate table testing`)
+	model.ExecSQL(`truncate table testing`)
 	delete(args, "id")
 	for i := 1; i < 100; i++ {
 		delete(args, "id")
@@ -199,7 +199,7 @@ func TestModelSimple(t *testing.T) {
 	}
 
 	args["rowcount"] = []string{"20"}
-	model.Total_force = -1
+	model.TotalForce = -1
 	LISTS = LISTS[:0]
 	ret = model.Topics()
 	if ret != nil {

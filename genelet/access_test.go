@@ -11,13 +11,13 @@ type TAccess struct {
 	Access
 }
 
-func (self *TAccess) Set_ip() string {
+func (self *TAccess) SetIP() string {
 	return "123.123.123.123"
 }
-func (self *TAccess) Set_when() int {
+func (self *TAccess) SetWhen() int {
 	return 1
 }
-func New_TAccess(base Base) *TAccess {
+func NewTAccess(base Base) *TAccess {
 	a := new(TAccess)
 	a.CGI = a
 	a.Base = base
@@ -61,11 +61,11 @@ func TestAccess(t *testing.T) {
 		panic(err)
 	}
 	w := httptest.NewRecorder()
-	base := new_Base(configure, "m", "json", w, r)
-	access := New_TAccess(*base)
+	base := newBase(configure, "m", "json", w, r)
+	access := NewTAccess(*base)
 
 	sig := access.Signature("x2", "g1", "g2", "g3")
-	ret := access.Verify_cookie(sig) // within 1 second
+	ret := access.VerifyCookie(sig) // within 1 second
 	if ret != nil {
 		t.Errorf("%s wanted", ret.Error())
 	}
@@ -94,7 +94,7 @@ func TestAccess(t *testing.T) {
 	}
 
 	sig = access.Signature("x3", "g2", "g3", "g4")
-	ret = access.Verify_cookie(sig) // within 1 second
+	ret = access.VerifyCookie(sig) // within 1 second
 	if ret != nil {
 		t.Errorf("%s wanted", ret.Error())
 	}
@@ -112,12 +112,12 @@ func TestAccess(t *testing.T) {
 	}
 
 	sig = access.Signature("bad_guy", "g2", "g3", "g4")
-	ret = access.Verify_cookie(sig) // within 1 second
+	ret = access.VerifyCookie(sig) // within 1 second
 	if ret.(Gerror).Code != 1021 {
 		t.Errorf("%s wanted", ret.Error())
 	}
 
-	access.Send_nocache("okok")
+	access.SendNocache("okok")
 	h := w.Header()
 	if h.Get("Cache-Control") != "no-cache, no-store, max-age=0, must-revalidate" {
 		t.Errorf("%s gotten", h.Get("Cache-Control"))

@@ -1,28 +1,29 @@
 package ssp
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
 	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/summer/weight"
 
-	"github.com/mediocregopher/radix.v2/pool"
+	"github.com/mediocregopher/radix/v4"
 )
 
-func DBMakeHalfHour(c *pzutil.Config, db *sql.DB, p *pool.Pool, min int) error {
-	if _, err := db.Exec(`
+func DBMakeHalfHour(ctx context.Context, c *pzutil.Config, db *sql.DB, conn radix.Client, min int) error {
+	if _, err := db.ExecContext(ctx, `
 UPDATE adv_item SET active="Yes"
-WHERE active = "New" AND ( ((UNIX_TIMESTAMP(NOW())-UNIX_TIMESTAMP(startx))) BETWEEN 0 AND ` + fmt.Sprintf("%d", min) + `)`); err != nil {
+WHERE active = "New" AND ( ((UNIX_TIMESTAMP(NOW())-UNIX_TIMESTAMP(startx))) BETWEEN 0 AND `+fmt.Sprintf("%d", min)+`)`); err != nil {
 		return err
 	}
-	if _, err := db.Exec(`
+	if _, err := db.ExecContext(ctx, `
 UPDATE adv_item SET active="No"
-WHERE active = "Yes" AND ( ((UNIX_TIMESTAMP(endx )-UNIX_TIMESTAMP(NOW() ))) BETWEEN 0 AND ` + fmt.Sprintf("%d", min) + `)`); err != nil {
+WHERE active = "Yes" AND ( ((UNIX_TIMESTAMP(endx )-UNIX_TIMESTAMP(NOW() ))) BETWEEN 0 AND `+fmt.Sprintf("%d", min)+`)`); err != nil {
 		return err
 	}
-	if _, err := db.Exec(
-		`UPDATE cron_halfhour SET status='processing' WHERE status='new'`); err != nil {
+	if _, err := db.ExecContext(ctx, `
+UPDATE cron_halfhour SET status='processing' WHERE status='new'`); err != nil {
 		return err
 	}
 
@@ -90,7 +91,7 @@ INNER JOIN pub_weight w USING (slot_id)
 WHERE l.active="No" AND h.status="processing" AND h.why IN ("No","channel","ch_ac","ch_ac_","ch_belong","ch_belong_")
 `
 
-	rows, err := db.Query(str)
+	rows, err := db.QueryContext(ctx, str)
 	if err != nil {
 		return err
 	}
@@ -108,26 +109,23 @@ WHERE l.active="No" AND h.status="processing" AND h.why IN ("No","channel","ch_a
 		return err
 	}
 
-	conn, err := p.Get()
-	if err != nil {
-		return err
-	}
-
 	if len(ids) > 0 {
 		str := ``
 		for _, id := range ids {
 			idstr := pzutil.IDStr(id)
 			str += idstr + `,`
-			conn.Cmd("HDEL", c.SLOT, idstr)
+			if err = conn.Do(ctx, radix.Cmd("HDEL", c.SLOT, idstr)); err != nil {
+				return err
+			}
 		}
 		str = str[:len(str)-1]
-		_, err = db.Exec(`DELETE FROM pub_weight WHERE slot_id IN (` + str + `)`)
+		_, err = db.ExecContext(ctx, `DELETE FROM pub_weight WHERE slot_id IN (`+str+`)`)
 		if err != nil {
 			return err
 		}
 	}
-	p.Put(conn)
-	_, err = db.Exec(`UPDATE cron_halfhour SET status='done' WHERE status='processing'`)
+
+	_, err = db.ExecContext(ctx, `UPDATE cron_halfhour SET status='done' WHERE status='processing'`)
 	if err != nil {
 		return err
 	}

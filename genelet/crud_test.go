@@ -8,14 +8,14 @@ import (
 
 /*
 	func TestCrudStr(t *testing.T) {
-		current_tables := []Table{{Name:"user", Alias:"u"}, {Name:"parent", Alias:"p", Type:"INNER", On:"u.parent_id=p.parent_id"}, {Name:"education", Alias:"e", Type: "LEFT", Using: "edu_id"}}
-		str := Table_string(current_tables)
+		currentTables := []Table{{Name:"user", Alias:"u"}, {Name:"parent", Alias:"p", Type:"INNER", On:"u.parent_id=p.parent_id"}, {Name:"education", Alias:"e", Type: "LEFT", Using: "edu_id"}}
+		str := TableString(currentTables)
 		if (str != "user u\nINNER JOIN parent p ON (u.parent_id=p.parent_id)\nLEFT JOIN education e USING (edu_id)") {
 			t.Errorf("%s wanted", str)
 		}
 
 		select_par :=  "firstname"
-		sql, labels := Select_label_string(select_par)
+		sql, labels := SelectLabelString(select_par)
 		if (sql != "firstname") {
 			t.Errorf("%s wanted", sql)
 		}
@@ -23,8 +23,8 @@ import (
 			t.Errorf("%s wanted", labels[0])
 		}
 
-		select_pars :=  []string{"firstname", "lastname", "id"}
-		sql, labels = Select_label_string(select_pars)
+		selectPars :=  []string{"firstname", "lastname", "id"}
+		sql, labels = SelectLabelString(selectPars)
 		if (sql != "firstname, lastname, id") {
 			t.Errorf("%s wanted", sql)
 		}
@@ -33,7 +33,7 @@ import (
 		}
 
 		select_hash :=  map[string]string{"firstname":"First", "lastname":"Last", "id":"ID"}
-		sql, labels = Select_label_string(select_hash)
+		sql, labels = SelectLabelString(select_hash)
 		if (sql != "firstname, lastname, id") {
 			t.Errorf("%s wanted", sql)
 		}
@@ -48,7 +48,7 @@ import (
 		}
 
 		extra := map[string]interface{}{"firstname":"Peter"}
-		sql, c := Select_condition_string(extra)
+		sql, c := SelectConditionString(extra)
 		if (sql != "(firstname =?)") {
 			t.Errorf("%s wanted", sql)
 		}
@@ -56,7 +56,7 @@ import (
 			t.Errorf("%s wanted", c[0].(string))
 		}
 
-		sql, c = Select_condition_string(extra, "user")
+		sql, c = SelectConditionString(extra, "user")
 		if (sql != "(user.firstname =?)") {
 			t.Errorf("%s wanted", sql)
 		}
@@ -66,7 +66,7 @@ import (
 
 
 		extra = map[string]interface{}{"firstname":"Peter", "lastname":"Tong", "id":[]interface{}{1,2,3,4}}
-		sql, c = Select_condition_string(extra)
+		sql, c = SelectConditionString(extra)
 		if (sql != "(firstname =?) AND (lastname =?) AND (id IN (?,?,?,?))") {
 			t.Errorf("%s wanted", sql)
 		}
@@ -92,7 +92,7 @@ import (
 
 		keyname := []string{"user_id","edu_id"}
 		ids := []interface{}{[]interface{}{11,22},[]interface{}{33,44,55}}
-		s, arr := Single_condition_string(keyname, ids, extra)
+		s, arr := SingleConditionString(keyname, ids, extra)
 		if (s != "(user_id IN (?,?) AND edu_id IN (?,?,?)) AND (firstname =?) AND (lastname =?) AND (id IN (?,?,?,?))") {
 			t.Errorf("%s wanted", s)
 		}
@@ -121,41 +121,41 @@ func TestCrudDb(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	crud := New_Crud(db, "atesting", nil)
+	crud := NewCrud(db, "atesting", nil)
 
-	crud.Exec_sql(`drop table if exists atesting`)
-	ret := crud.Exec_sql(`drop table if exists testing`)
+	crud.ExecSQL(`drop table if exists atesting`)
+	ret := crud.ExecSQL(`drop table if exists testing`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
-	ret = crud.Exec_sql(`CREATE TABLE atesting (id int auto_increment, x varchar(255), y varchar(255), primary key (id))`)
+	ret = crud.ExecSQL(`CREATE TABLE atesting (id int auto_increment, x varchar(255), y varchar(255), primary key (id))`)
 	if ret != nil {
 		t.Errorf("create table atesting failed")
 	}
 	hash := make(url.Values)
 	hash.Set("x", "a")
 	hash.Set("y", "b")
-	ret = crud.Insert_hash(hash)
-	if crud.Last_id != 1 {
-		t.Errorf("%d wanted", crud.Last_id)
+	ret = crud.InsertHash(hash)
+	if crud.LastID != 1 {
+		t.Errorf("%d wanted", crud.LastID)
 	}
 	hash.Set("x", "c")
 	hash.Set("y", "d")
-	ret = crud.Insert_hash(hash)
-	id := crud.Last_id
+	ret = crud.InsertHash(hash)
+	id := crud.LastID
 	if id != 2 {
 		t.Errorf("%d wanted", id)
 	}
 	hash1 := make(url.Values)
 	hash1.Set("y", "z")
-	ret = crud.Update_hash(hash1, "id", []interface{}{id})
+	ret = crud.UpdateHash(hash1, "id", []interface{}{id})
 	if ret != nil {
 		t.Errorf("%s update table testing failed", ret.Error())
 	}
 
 	lists := make([]map[string]interface{}, 0)
 	label := []string{"x", "y"}
-	ret = crud.Edit_hash(&lists, label, "id", []interface{}{id})
+	ret = crud.EditHash(&lists, label, "id", []interface{}{id})
 	if ret != nil {
 		t.Errorf("%s select table testing failed", ret.Error())
 	}
@@ -170,7 +170,7 @@ func TestCrudDb(t *testing.T) {
 	}
 
 	lists = make([]map[string]interface{}, 0)
-	ret = crud.Topics_hash(&lists, label)
+	ret = crud.TopicsHash(&lists, label)
 	if ret != nil {
 		t.Errorf("%s select table testing failed", ret.Error())
 	}
@@ -191,7 +191,7 @@ func TestCrudDb(t *testing.T) {
 	}
 
 	what := make(map[string]interface{})
-	ret = crud.Total_hash(what, "total")
+	ret = crud.TotalHash(what, "total")
 	if ret != nil {
 		t.Errorf("%s total table testing failed", ret.Error())
 	}
@@ -199,14 +199,14 @@ func TestCrudDb(t *testing.T) {
 		t.Errorf("%d total table testing failed", what["total"].(int64))
 	}
 
-	ret = crud.Delete_hash("id", []interface{}{1})
+	ret = crud.DeleteHash("id", []interface{}{1})
 	if ret != nil {
 		t.Errorf("%s delete table testing failed", ret.Error())
 	}
 
 	lists = make([]map[string]interface{}, 0)
 	label = []string{"id", "x", "y"}
-	ret = crud.Topics_hash(&lists, label)
+	ret = crud.TopicsHash(&lists, label)
 	if ret != nil {
 		t.Errorf("%s select table testing failed", ret.Error())
 	}
@@ -228,14 +228,14 @@ func TestCrudDb(t *testing.T) {
 	hash.Set("id", "2")
 	hash.Set("x", "a")
 	hash.Set("y", "b")
-	ret = crud.Insert_hash(hash)
+	ret = crud.InsertHash(hash)
 	if ret.Error() == "" {
 		t.Errorf("%s wanted", ret.Error())
 	}
 
 	hash1 = make(url.Values)
 	hash1.Set("y", "zz")
-	ret = crud.Update_hash(hash1, "id", []interface{}{3})
+	ret = crud.UpdateHash(hash1, "id", []interface{}{3})
 	if ret != nil {
 		t.Errorf("%s wanted", ret.Error())
 	}

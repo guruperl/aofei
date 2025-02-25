@@ -20,7 +20,7 @@
     ],
     "edit" : [
       {"model":"balance", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"table":"adv_campaign","idname":"campaign_id"}},
-      {"model":"chac", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"entitytype_id":41}}
+      {"model":"chac", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"entitytype_id":41, "level":1}}
     ]
   },
 

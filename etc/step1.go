@@ -13,9 +13,9 @@ import (
 )
 
 func doCountry(ctx context.Context, db *sql.DB) error {
-	dbi := &genelet.DBI{Db: db}
+	dbi := &genelet.DBI{DB: db}
 	lists := make([]map[string]interface{}, 0)
-	err := dbi.Select_sql(&lists, `
+	err := dbi.SelectSQL(&lists, `
 SELECT continent_id, continent_code
 FROM def_continent`)
 	if err != nil {
@@ -74,10 +74,10 @@ IN ('US')`)
 }
 
 func doState(ctx context.Context, db *sql.DB) error {
-	dbi := &genelet.DBI{Db: db}
+	dbi := &genelet.DBI{DB: db}
 	lists := make([]map[string]interface{}, 0)
 	hash := make(map[string]interface{})
-	err := dbi.Select_sql(&lists, `
+	err := dbi.SelectSQL(&lists, `
 SELECT country_id, country_code
 FROM def_country`)
 	if err != nil {
@@ -180,9 +180,9 @@ func doCity(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 
-	dbi := &genelet.DBI{Db: db}
+	dbi := &genelet.DBI{DB: db}
 	lists := make([]map[string]interface{}, 0)
-	err = dbi.Select_sql(&lists, `
+	err = dbi.SelectSQL(&lists, `
 SELECT s.state_id, s.state_code, c.country_code
 FROM def_state s
 INNER JOIN def_country c USING (country_id)`)

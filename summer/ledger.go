@@ -5,7 +5,6 @@ import (
 )
 
 func InsertLedger(db *sql.DB, myDay string, slots, items map[int][]int, imps, clis map[int]map[int]int, spes map[int]map[int]float32) error {
-
 	insLog := `INSERT INTO ledger_log (timely, created) VALUES (?, NOW())`
 	insPub := `INSERT INTO ledger_pub (log_id, slot_id, site_id, pub_id) VALUES (?,?,?,?)`
 	insAdv := `INSERT INTO ledger_adv (log_id, item_id, campaign_id, adv_id) VALUES (?,?,?,?)`
@@ -44,36 +43,36 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		return err
 	}
 
-	for slot_id, arr := range slots {
+	for slotID, arr := range slots {
 		var lpID int64
-		if res, err = db.Exec(insPub, logID, slot_id, arr[0], arr[1]); err != nil {
+		if res, err = db.Exec(insPub, logID, slotID, arr[0], arr[1]); err != nil {
 			return err
 		}
 		if lpID, err = res.LastInsertId(); err != nil {
 			return err
 		}
-		lpIds[slot_id] = lpID
+		lpIds[slotID] = lpID
 	}
 
-	for item_id, arr := range items {
+	for itemID, arr := range items {
 		var laID int64
-		if res, err = db.Exec(insAdv, logID, item_id, arr[0], arr[1]); err != nil {
+		if res, err = db.Exec(insAdv, logID, itemID, arr[0], arr[1]); err != nil {
 			return err
 		}
 		if laID, err = res.LastInsertId(); err != nil {
 			return err
 		}
-		laIds[item_id] = laID
+		laIds[itemID] = laID
 	}
 
 	is := 0
 	cs := 0
 	ss := float32(0)
-	for slot_id, lpID := range lpIds {
-		for item_id, laID := range laIds {
-			i := imps[slot_id][item_id]
-			c := clis[slot_id][item_id]
-			s := spes[slot_id][item_id]
+	for slotID, lpID := range lpIds {
+		for itemID, laID := range laIds {
+			i := imps[slotID][itemID]
+			c := clis[slotID][itemID]
+			s := spes[slotID][itemID]
 			if _, err = db.Exec(insPubAdv, lpID, laID, i, c, s); err != nil {
 				return err
 			}

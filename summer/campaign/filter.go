@@ -7,12 +7,10 @@ package campaign
 
 import (
 	"net/url"
-	//	"fmt"
 	"strconv"
 
 	"github.com/genelet/winter/summer"
-	//	   "database/sql"
-	//		hitem "github.com/genelet/winter/holiday/item"
+	// hitem "github.com/genelet/winter/holiday/item"
 )
 
 type Filter struct {
@@ -26,7 +24,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if (who == "adv" || who == "admin") && (action == "insert" || action == "update") {
 		fl_site := summer.GetSiteScoreArgs(ARGS)
@@ -50,7 +48,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if who == "admin" && action == "topics" {
 		if ARGS.Get("adv_id") != "" {
@@ -65,11 +63,11 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	} else if action == "topics" {
 		extra["c.active"] = []string{"Yes", "New", "Pass2", "Pause"}
 	} else if who == "adv" && action == "insert" {
-		model.Current_table = "adv_balance"
+		model.CurrentTable = "adv_balance"
 		if err := self.BalanceBefore(&model.Model); err != nil {
 			return err
 		}
-		model.Current_table = "adv_campaign"
+		model.CurrentTable = "adv_campaign"
 	}
 
 	return nil
@@ -82,7 +80,7 @@ func (self *Filter) After(model *Model) error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -98,7 +96,6 @@ func (self *Filter) After(model *Model) error {
 		}
 		summer.TranslateOne(item, "access_order", "access_order_g")
 		summer.TranslateOne(item, "channel_order", "channel_order_g")
-		//summer.Translate(item["chac_topics"], "channel_name", "channel_name_g")
 		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
 	} else if action == "startnew" {
 		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
@@ -109,13 +106,13 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("entity_id", item["campaign_id"].(string))
 
 		if ARGS.Get("belong_ids") != "" {
-			err := model.Call_once(map[string]interface{}{"model": "chac", "action": "insertBelong"})
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
 			if err != nil {
 				return err
 			}
 		}
 		if ARGS.Get("channel_order") != "" && ARGS.Get("ac_ids") != "" {
-			err := model.Call_once(map[string]interface{}{"model": "chac", "action": "insertAc"})
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertAc"})
 			if err != nil {
 				return err
 			}
@@ -125,7 +122,7 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("idname", "campaign_id")
 		ARGS.Set("entitytype_id", "41")
 		ARGS.Set("entity_id", ARGS.Get("campaign_id"))
-		err := model.Call_once(map[string]interface{}{"model": "chac", "action": "update"})
+		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
 		if err != nil {
 			return err
 		}
@@ -141,7 +138,7 @@ func (self *Filter) After(model *Model) error {
 	           hmodel.Db = taodb
 
 	   		items := make([]map[string]interface{},0)
-	   		err = model.Select_sql(&items,
+	   		err = model.SelectSQL(&items,
 	   `SELECT item_id
 	   FROM adv_item i
 	   INNER JOIN adv_campaign c USING (campaign_id)
@@ -153,7 +150,7 @@ func (self *Filter) After(model *Model) error {
 	   			if err != nil { return err }
 	   		}
 	           lists := make([]map[string]interface{},0)
-	           err = model.Select_sql(&lists,
+	           err = model.SelectSQL(&lists,
 	   `SELECT i.item_id, creative_id, weight, item_click, cpc_fc, cpc_length, content
 	   FROM adv_item i
 	   INNER JOIN adv_campaign c USING (campaign_id)

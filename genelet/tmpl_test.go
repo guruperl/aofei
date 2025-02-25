@@ -12,7 +12,7 @@ func TestTmpl(t *testing.T) {
 		t.Fatal(err)
 	}
 	tmpl := new(Tmpl)
-	tmpl.Other = map[string]interface{}{"Errorstr": Err(1001).Error(), "Script": configure.Script, configure.Role_name: "m", configure.Go_uri_name: "aaa", "Login_name": "email", "Password_name": "passwd"}
+	tmpl.Other = map[string]interface{}{"Errorstr": Err(1001).Error(), "Script": configure.Script, configure.RoleName: "m", configure.GoURIName: "aaa", "LoginName": "email", "Password_name": "passwd"}
 	T0, err := template.ParseFiles("tmpl.html")
 	if err != nil {
 		t.Errorf("%s error", err.Error())

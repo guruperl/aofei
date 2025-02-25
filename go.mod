@@ -11,7 +11,6 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/golang/glog v1.2.3
 	github.com/golang/protobuf v1.5.4
-	github.com/mediocregopher/radix.v2 v0.0.0-20181115013041-b67df6e626f9
 	github.com/mediocregopher/radix/v4 v4.1.4
 	github.com/nats-io/nats.go v1.38.0
 	github.com/prebid/openrtb/v20 v20.3.0

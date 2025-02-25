@@ -12,7 +12,7 @@ type Filter struct {
 }
 
 func (self *Filter) Get_all() (map[string][]string, []string) {
-	who := self.Role_value
+	who := self.RoleValue
 	if who == "pub" {
 		self.Fks = map[string][]string{"pub": {"pub_id", ""}}
 	} else if who == "adv" {
@@ -31,7 +31,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	//who := self.Role_value
+	//who := self.RoleValue
 
 	if summer.Grep([]string{"topicsAdv24Hours", "topicsAdvTopItems", "topicsAdvTopSlots", "topicsPub24Hours", "topicsPubTopSlots", "topicsPubTopCampaigns"}, action) {
 		if ARGS.Get("day") == "" {

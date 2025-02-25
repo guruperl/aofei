@@ -13,7 +13,7 @@ type Model struct {
 func (self *Model) TopicsPub24Hours(extra ...url.Values) error {
 	ARGS := self.ARGS
 	//`SELECT DATE_FORMAT(MIN(l.timely), '%Y-%m-%d %H:%i:00') AS hours,
-	if err := self.Select_sql(self.LISTS,
+	if err := self.SelectSQL(self.LISTS,
 		`SELECT DATE_FORMAT(MIN(l.timely), '%H:%i:00') AS hours,
 SUM(p.imps) AS imps, SUM(p.clis) AS clis, SUM(p.spend) AS spend
 FROM ledger_pub p
@@ -24,12 +24,12 @@ GROUP BY FLOOR(UNIX_TIMESTAMP(timely) / 3600)`,
 		return err
 	}
 
-	return self.Process_after("topicsPub24Hours", extra...)
+	return self.ProcessAfter("topicsPub24Hours", extra...)
 }
 
 func (self *Model) TopicsPubTopSlots(extra ...url.Values) error {
 	ARGS := self.ARGS
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT p.slot_id, s.slot_name, p.site_id, p.pub_id, p.imps, p.clis, p.spend, (p.spend*1000/p.imps) AS cpm, (p.spend/p.clis) AS cpc, (p.clis/p.imps) AS ctr
 FROM daily_pub p
 INNER JOIN daily_log l USING (log_id)
@@ -41,7 +41,7 @@ ORDER BY p.spend DESC LIMIT ?`,
 
 func (self *Model) TopicsPubTopCampaigns(extra ...url.Values) error {
 	ARGS := self.ARGS
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT a.campaign_id, c.campaign_name, ANY_VALUE(a.adv_id) AS adv_id, SUM(pa.spend) AS spend, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, (SUM(pa.spend)*1000/SUM(pa.imps)) AS cpm, (SUM(pa.spend)/SUM(pa.clis)) AS cpc, (SUM(pa.clis)/SUM(pa.imps)) AS ctr
 FROM daily_pub_adv pa
 INNER JOIN daily_pub p USING (lp_id)
@@ -55,7 +55,7 @@ GROUP BY a.campaign_id ORDER BY spend DESC LIMIT ?`,
 
 func (self *Model) TopicsAdv24Hours(extra ...url.Values) error {
 	ARGS := self.ARGS
-	if err := self.Select_sql(self.LISTS,
+	if err := self.SelectSQL(self.LISTS,
 		`SELECT DATE_FORMAT(MIN(l.timely), '%H:%i') AS hours,
 SUM(a.imps) AS imps, SUM(a.clis) AS clis, SUM(a.spend) AS spend
 FROM ledger_adv a
@@ -65,12 +65,12 @@ GROUP BY FLOOR(UNIX_TIMESTAMP(timely) / 3600)`,
 		ARGS.Get("adv_id"), ARGS.Get("day"), ARGS.Get("idays"), ARGS.Get("day")+" 23:59:59"); err != nil {
 		return err
 	}
-	return self.Process_after("topicsAdv24Hours", extra...)
+	return self.ProcessAfter("topicsAdv24Hours", extra...)
 }
 
 func (self *Model) TopicsAdvTopItems(extra ...url.Values) error {
 	ARGS := self.ARGS
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT a.item_id, i.item_name, a.campaign_id, a.adv_id, a.imps, a.clis, a.spend, (a.spend*1000/a.imps) AS cpm, (a.spend/a.clis) AS cpc, (a.clis/a.imps) AS ctr
 FROM daily_adv a
 INNER JOIN daily_log l USING (log_id)
@@ -82,7 +82,7 @@ ORDER BY a.spend DESC LIMIT ?`,
 
 func (self *Model) TopicsAdvTopSlots(extra ...url.Values) error {
 	ARGS := self.ARGS
-	return self.Select_sql(self.LISTS,
+	return self.SelectSQL(self.LISTS,
 		`SELECT p.slot_id, s.slot_name, ANY_VALUE(p.site_id) AS site_id, ANY_VALUE(p.pub_id) AS pub_id, SUM(pa.spend) AS spend, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, (SUM(pa.spend)*1000/SUM(pa.imps)) AS cpm, (SUM(pa.spend)/SUM(pa.clis)) AS cpc, (SUM(pa.clis)/SUM(pa.imps)) AS ctr
 FROM daily_pub_adv pa
 INNER JOIN daily_adv a USING (la_id)

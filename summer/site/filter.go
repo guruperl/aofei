@@ -19,7 +19,7 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if (who == "pub" || who == "admin") && (action == "insert" || action == "update") {
 		qa_site := summer.GetSiteScoreArgs(ARGS)
@@ -43,7 +43,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.Role_value
+	who := self.RoleValue
 
 	if who == "pub" && action == "topics" {
 		extra["active"] = []string{"New", "Yes"}
@@ -62,7 +62,7 @@ func (self *Filter) After(model *Model) error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	//role  := self.Role_value
+	//role  := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -87,13 +87,13 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("entity_id", item["site_id"].(string))
 
 		if ARGS.Get("belong_ids") != "" {
-			err := model.Call_once(map[string]interface{}{"model": "chac", "action": "insertBelong"})
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
 			if err != nil {
 				return err
 			}
 		}
 		if ARGS.Get("channel_order") != "" && ARGS.Get("ac_ids") != "" {
-			err := model.Call_once(map[string]interface{}{"model": "chac", "action": "insertAc"})
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertAc"})
 			if err != nil {
 				return err
 			}
@@ -103,7 +103,7 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("idname", "site_id")
 		ARGS.Set("entitytype_id", "31")
 		ARGS.Set("entity_id", ARGS.Get("site_id"))
-		err := model.Call_once(map[string]interface{}{"model": "chac", "action": "update"})
+		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
 		if err != nil {
 			return err
 		}

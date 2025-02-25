@@ -70,7 +70,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	gc.Db = sc.DB
+	gc.DB = sc.DB
 	gc.Storage["Redis"] = sc.Redis
 	gc.Storage["Ssp"] = sc.C
 	if gc.C.ServerPort == "" {

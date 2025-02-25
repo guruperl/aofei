@@ -59,5 +59,5 @@ func NewController(fn string) (*genelet.Controller, error) {
 		genelet.Invoke0(filters[k], "Initialize", comp)
 	}
 
-	return &genelet.Controller{C: c, Db: db, Models: models, Filters: filters, Storage: storage}, nil
+	return &genelet.Controller{C: c, DB: db, Models: models, Filters: filters, Storage: storage}, nil
 }

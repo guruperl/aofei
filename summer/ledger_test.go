@@ -13,10 +13,10 @@ import (
 
 func TestInitLedger(t *testing.T) {
 
-	slot_idend := 2
-	item_idend := 2
-	slot_idstart := 1
-	item_idstart := 1
+	slotIdend := 2
+	itemIdend := 2
+	slotIdstart := 1
+	itemIdstart := 1
 	upperImp := 200
 	upperCli := 5
 	upperSpe := float32(2.0)
@@ -47,12 +47,12 @@ WHERE s.slot_id=?`)
 	}
 	defer sthSlot.Close()
 	slots := make(map[int][]int)
-	for slot_id := slot_idstart; slot_id <= slot_idend; slot_id++ {
-		var site_id, pub_id int
-		if err := sthSlot.QueryRow(slot_id).Scan(&site_id, &pub_id); err != nil {
+	for slotID := slotIdstart; slotID <= slotIdend; slotID++ {
+		var siteID, pubID int
+		if err := sthSlot.QueryRow(slotID).Scan(&siteID, &pubID); err != nil {
 			panic(err)
 		}
-		slots[slot_id] = []int{site_id, pub_id}
+		slots[slotID] = []int{siteID, pubID}
 	}
 
 	sthItem, err := db.Prepare(
@@ -65,12 +65,12 @@ WHERE i.item_id=?`)
 	}
 	defer sthItem.Close()
 	items := make(map[int][]int)
-	for item_id := item_idstart; item_id <= item_idend; item_id++ {
-		var campaign_id, adv_id int
-		if err := sthItem.QueryRow(item_id).Scan(&campaign_id, &adv_id); err != nil {
+	for itemID := itemIdstart; itemID <= itemIdend; itemID++ {
+		var campaignID, advID int
+		if err := sthItem.QueryRow(itemID).Scan(&campaignID, &advID); err != nil {
 			panic(err)
 		}
-		items[item_id] = []int{campaign_id, adv_id}
+		items[itemID] = []int{campaignID, advID}
 	}
 
 	for hour := 0; hour < 24; hour++ {
@@ -80,17 +80,17 @@ WHERE i.item_id=?`)
 			spes := make(map[int]map[int]float32)
 
 			// simulations
-			for slot_id := range slots {
-				imps[slot_id] = make(map[int]int)
-				clis[slot_id] = make(map[int]int)
-				spes[slot_id] = make(map[int]float32)
-				for item_id := range items {
+			for slotID := range slots {
+				imps[slotID] = make(map[int]int)
+				clis[slotID] = make(map[int]int)
+				spes[slotID] = make(map[int]float32)
+				for itemID := range items {
 					i := rand.Intn(upperImp)
 					c := rand.Intn(upperCli)
 					s := upperSpe * rand.Float32()
-					imps[slot_id][item_id] = i
-					clis[slot_id][item_id] = c
-					spes[slot_id][item_id] = s
+					imps[slotID][itemID] = i
+					clis[slotID][itemID] = c
+					spes[slotID][itemID] = s
 				}
 			}
 

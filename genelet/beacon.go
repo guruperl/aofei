@@ -1,19 +1,20 @@
 package genelet
 
 import (
-	"golang.org/x/net/publicsuffix"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 type Beacon struct {
 	Controller
-	Role_value    string
-	Chartag_value string
-	Header        http.Header
+	RoleValue    string
+	ChartagValue string
+	Header       http.Header
 
 	u   *url.URL
 	jar *cookiejar.Jar
@@ -55,9 +56,9 @@ func (self *Beacon) setCommon(r *http.Request) {
 	}
 }
 
-func (self *Beacon) getUrl(pars ...string) string {
+func (self *Beacon) getURL(pars ...string) string {
 	c := self.C
-	in := c.ServerURL + c.Script + "/" + self.Role_value + "/" + self.Chartag_value + "/" + pars[0]
+	in := c.ServerURL + c.Script + "/" + self.RoleValue + "/" + self.ChartagValue + "/" + pars[0]
 	if len(pars) > 1 {
 		in += "?" + pars[1]
 	}
@@ -72,21 +73,21 @@ func (self *Beacon) GetDirect(in string) error {
 }
 
 func (self *Beacon) GetMock(pars ...string) error {
-	r := httptest.NewRequest("GET", self.getUrl(pars...), nil)
+	r := httptest.NewRequest("GET", self.getURL(pars...), nil)
 	self.setCommon(r)
 	self.run(r)
 	return nil
 }
 
 func (self *Beacon) PostMock(obj string, args url.Values) error {
-	req := httptest.NewRequest("POST", self.getUrl(obj), strings.NewReader(args.Encode()))
+	req := httptest.NewRequest("POST", self.getURL(obj), strings.NewReader(args.Encode()))
 	self.setCommon(req)
 	self.run(req)
 	return nil
 }
 
 func (self *Beacon) LOGIN(args url.Values) error {
-	return self.PostMock(self.C.Login_name, args)
+	return self.PostMock(self.C.LoginName, args)
 }
 
 func (self *Beacon) run(r *http.Request) {
@@ -109,5 +110,4 @@ func (self *Beacon) run(r *http.Request) {
 		self.Content = w.Body.String()
 	}
 	self.Code = w.Code
-	return
 }
