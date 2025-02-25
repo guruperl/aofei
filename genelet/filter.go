@@ -27,7 +27,7 @@ func (self *Filter) Set_all(base Base, action string, component string, other *m
 	self.OTHER = other
 }
 
-func (self *Filter) Get_all() (map[string][]string, []string) {
+func (self *Filter) GetAll() (map[string][]string, []string) {
 	actionHash, found := self.Actions[self.Action]
 	if !found {
 		return nil, nil

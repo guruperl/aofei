@@ -41,7 +41,7 @@ func TestFilter(t *testing.T) {
 
 	a := f.Action
 	// a, as := f.Get_action()
-	as, _ := f.Get_all()
+	as, _ := f.GetAll()
 	if a != "dashboard" {
 		t.Errorf("%v got", a)
 	}

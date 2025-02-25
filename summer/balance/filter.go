@@ -11,7 +11,7 @@ type Filter struct {
 	summer.Filter
 }
 
-func (self *Filter) Get_all() (map[string][]string, []string) {
+func (self *Filter) GetAll() (map[string][]string, []string) {
 	ARGS := self.R.Form
 	entitytype_id := ARGS.Get("entitytype_id")
 	if entitytype_id == "41" {
@@ -21,7 +21,7 @@ func (self *Filter) Get_all() (map[string][]string, []string) {
 	} else {
 		self.Fks = map[string][]string{"pub": {"item_id", "item_md5"}}
 	}
-	return self.Filter.Get_all()
+	return self.Filter.GetAll()
 }
 
 func (self *Filter) Preset() error {

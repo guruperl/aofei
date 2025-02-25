@@ -15,20 +15,20 @@ type Filter struct {
 	summer.Filter
 }
 
-// filter is initialized and re-used. if reset fks, please reset all, no default
-func (self *Filter) Get_all() (map[string][]string, []string) {
+// GetAll is initialized and re-used. if reset fks, please reset all, no default
+func (self *Filter) GetAll() (map[string][]string, []string) {
 	ARGS := self.R.Form
 
-	entitytype_id := ARGS.Get("entitytype_id")
-	if entitytype_id == "41" {
+	entitytypeID := ARGS.Get("entitytype_id")
+	if entitytypeID == "41" {
 		self.Fks = map[string][]string{"adv": {"campaign_id", "campaign_md5", "targetname_id", "targetname_md5"}}
-	} else if entitytype_id == "42" {
+	} else if entitytypeID == "42" {
 		self.Fks = map[string][]string{"adv": {"item_id", "item_md5", "targetname_id", "targetname_md5"}}
 	} else {
 		self.Fks = map[string][]string{"pub": {"item_id", "item_md5", "targetname_id", "targetname_md5"}}
 	}
 
-	return self.Filter.Get_all()
+	return self.Filter.GetAll()
 }
 
 func (self *Filter) Preset() error {
@@ -84,9 +84,9 @@ func (self *Filter) After(model *Model) error {
 		dmas := make(map[string]map[uint32][]interface{})
 		if other["targetname_topicsIsps"] != nil {
 			for _, item := range other["targetname_topicsIsps"].([]map[string]interface{}) {
-				isp_name := item["isp_name"].(string)
-				isp_id := uint32(item["isp_id"].(int64))
-				isps[isp_id] = []interface{}{isp_name, item["value_id"]}
+				ispName := item["isp_name"].(string)
+				ispID := uint32(item["isp_id"].(int64))
+				isps[ispID] = []interface{}{ispName, item["value_id"]}
 			}
 			other["isp"] = isps
 			delete(other, "targetname_topicsIsps")
@@ -94,10 +94,10 @@ func (self *Filter) After(model *Model) error {
 
 		if other["targetname_topicsStates"] != nil {
 			for _, item := range other["targetname_topicsStates"].([]map[string]interface{}) {
-				state_name := item["state_name"].(string)
-				state_id := uint32(item["state_id"].(int64))
-				states[state_id] = []interface{}{state_name, item["value_id"], item["state_code"], item["country_name"]}
-				cities[state_name] = make(map[uint32][]interface{})
+				stateName := item["state_name"].(string)
+				stateID := uint32(item["state_id"].(int64))
+				states[stateID] = []interface{}{stateName, item["value_id"], item["state_code"], item["country_name"]}
+				cities[stateName] = make(map[uint32][]interface{})
 			}
 			other["state"] = states
 			delete(other, "targetname_topicsStates")
@@ -105,10 +105,10 @@ func (self *Filter) After(model *Model) error {
 
 		if other["targetname_topicsCities"] != nil {
 			for _, item := range other["targetname_topicsCities"].([]map[string]interface{}) {
-				state_name := item["state_name"].(string)
-				city_name := item["city_name"].(string)
-				city_id := uint32(item["city_id"].(int64))
-				cities[state_name][city_id] = []interface{}{city_name, item["value_id"]}
+				stateName := item["state_name"].(string)
+				cityName := item["city_name"].(string)
+				cityID := uint32(item["city_id"].(int64))
+				cities[stateName][cityID] = []interface{}{cityName, item["value_id"]}
 			}
 			other["city"] = cities
 			delete(other, "targetname_topicsCities")
@@ -116,13 +116,13 @@ func (self *Filter) After(model *Model) error {
 
 		if other["targetname_topicsDmas"] != nil {
 			for _, item := range other["targetname_topicsDmas"].([]map[string]interface{}) {
-				city_name := item["city_name"].(string)
-				if _, ok := dmas[city_name]; !ok {
-					dmas[city_name] = make(map[uint32][]interface{})
+				cityName := item["city_name"].(string)
+				if _, ok := dmas[cityName]; !ok {
+					dmas[cityName] = make(map[uint32][]interface{})
 				}
-				metro_code := item["metro_code"].(string)
-				dma_id := uint32(item["dma_id"].(int64))
-				dmas[city_name][dma_id] = []interface{}{metro_code, item["value_id"]}
+				metroCode := item["metro_code"].(string)
+				dmaID := uint32(item["dma_id"].(int64))
+				dmas[cityName][dmaID] = []interface{}{metroCode, item["value_id"]}
 			}
 			other["dma"] = dmas
 			delete(other, "targetname_topicsDmas")
@@ -131,41 +131,71 @@ func (self *Filter) After(model *Model) error {
 		if other["targetname_topicsCustom"] != nil {
 			for _, item := range other["targetname_topicsCustom"].([]map[string]interface{}) {
 				attrname := item["attrname"].(string) + "_" + strconv.FormatInt(item["attrname_id"].(int64), 10)
-				attrvalue_id := uint32(item["attrvalue_id"].(int64))
+				attrvalueID := uint32(item["attrvalue_id"].(int64))
 				if _, ok := customs[attrname]; !ok {
 					customs[attrname] = make(map[uint32][]interface{})
 				}
-				customs[attrname][attrvalue_id] = []interface{}{item["value"], item["value_id"]}
+				customs[attrname][attrvalueID] = []interface{}{item["value"], item["value_id"]}
 			}
 			other["custom"] = customs
 			delete(other, "targetname_topicsCustom")
 		}
 
-		ref := make(map[string]map[uint32]bool)
-		hours := uint32(0)
-		days := uint32(0)
+		/* the standard Topics lists, one state selected and two selected for hour and day
+				SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id FROM adv_targetname tn INNER JOIN adv_targetvalue tv USING (targetname_id)
+		INNER JOIN adv_attrname an USING (attrname_id) LEFT JOIN adv_attrvalue av ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id) WHERE (tn.campaign_id =5) ORDER BY targetname_id DESC LIMIT 100 OFFSET 0;
+		+---------------+----------------+----------+-------------+----------+--------------+
+		| targetname_id | targetvalue_id | value_id | attrname_id | attrname | attrvalue_id |
+		+---------------+----------------+----------+-------------+----------+--------------+
+		|             4 |              5 |        1 |        1004 | weekhour |         NULL |
+		|             4 |              6 |        2 |        1004 | weekhour |         NULL |
+		|             3 |              3 |        1 |        1003 | weekday  |         NULL |
+		|             3 |              4 |        6 |        1003 | weekday  |         NULL |
+		|             2 |              2 |     3263 |        1103 | state    |         NULL |
+		+---------------+----------------+----------+-------------+----------+--------------+
+		*/
+		ref := make(map[string]map[int]bool)
+		hours := make(map[int]bool)
+		days := make(map[int]bool)
 		for _, item := range lists {
 			attrname := item["attrname"].(string)
 			if _, ok := ref[attrname]; !ok {
-				ref[attrname] = make(map[uint32]bool)
+				ref[attrname] = make(map[int]bool)
 			}
-			value_id := uint32(item["value_id"].(int64))
+			valueID := int(item["value_id"].(int64))
 			switch attrname {
 			case "weekhour":
-				hours = value_id
+				hours[valueID] = true
 			case "weekday":
-				days = value_id
+				days[valueID] = true
 			case "isp", "state", "city", "dma":
 			default:
-				ref[attrname][value_id] = true
+				ref[attrname][valueID] = true
 			}
 		}
 
-		pzuas := make(map[string]map[uint32][]interface{})
+		weekhours := make(map[int][]interface{})
+		for i := 0; i < 24; i++ {
+			str := strconv.Itoa(i)
+			selected := hours[i]
+			weekhours[i] = []interface{}{str, selected}
+		}
+		other["weekhour"] = weekhours
+
+		weekdays := make(map[int][]interface{})
+		WEEK := map[int]string{0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat"}
+		for i, name := range WEEK {
+			selected := days[i]
+			weekdays[i] = []interface{}{name, selected}
+		}
+		other["weekday"] = weekdays
+		other["weekdayChinese"] = summer.Translate(other["weekday"])
+
+		pzuas := make(map[string]map[int][]interface{})
 		for attrname, val := range uadevice.UaNames() {
-			item := make(map[uint32][]interface{})
-			for value_id, name := range val {
-				item[value_id] = []interface{}{name, ref[attrname][value_id]}
+			item := make(map[int][]interface{})
+			for valueID, name := range val {
+				item[int(valueID)] = []interface{}{name, ref[attrname][int(valueID)]}
 			}
 			pzuas[attrname] = item
 		}
@@ -174,11 +204,11 @@ func (self *Filter) After(model *Model) error {
 		other["pzAttrs"] = uadevice.UaAttrs()
 		other["pzAttrsChinese"] = summer.Translate(other["pzAttrs"])
 
-		demos := make(map[string]map[uint32][]interface{})
+		demos := make(map[string]map[int][]interface{})
 		for attrname, val := range demo.DemoNames() {
-			item := make(map[uint32][]interface{})
-			for value_id, name := range val {
-				item[value_id] = []interface{}{name, ref[attrname][value_id]}
+			item := make(map[int][]interface{})
+			for valueID, name := range val {
+				item[int(valueID)] = []interface{}{name, ref[attrname][int(valueID)]}
 			}
 			demos[attrname] = item
 		}
@@ -186,21 +216,6 @@ func (self *Filter) After(model *Model) error {
 		other["demoChinese"] = summer.Translate(other["demo"])
 		other["dAttrs"] = demo.DemoAttrs()
 		other["dAttrsChinese"] = summer.Translate(other["dAttrs"])
-
-		weekhours := make(map[uint32][]interface{})
-		for i := uint32(0); i < 24; i++ {
-			str := strconv.FormatUint(uint64(i), 10)
-			weekhours[i] = []interface{}{str, ((1 << i) & hours) > 0}
-		}
-		other["weekhour"] = weekhours
-
-		weekdays := make(map[uint32][]interface{})
-		WEEK := map[uint32]string{0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat"}
-		for i, name := range WEEK {
-			weekdays[i] = []interface{}{name, ((1 << i) & days) > 0}
-		}
-		other["weekday"] = weekdays
-		other["weekdayChinese"] = summer.Translate(other["weekday"])
 	}
 
 	/*

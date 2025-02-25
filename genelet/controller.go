@@ -29,7 +29,7 @@ type Mmodel interface {
 type Ffilter interface {
     Initialize(*Component)
     Set_all(Base, string, string, *map[string]interface{})
-    Get_all() (map[string][]string, []string)
+    GetAll() (map[string][]string, []string)
     Preset() error
     Before(*sql.DB, url.Values, url.Values) error
     After(*sql.DB, *[]map[string]interface{}, *map[string]interface{}) error
@@ -171,7 +171,9 @@ func (self *Controller) loginPage(base *Base) {
 		return
 	}
 	issuer := (c.Roles[base.RoleValue]).Issuers[provider]
-	T, err := template.ParseFiles(c.Template + "/" + base.RoleValue + "/" + c.LoginName + "." + base.ChartagValue)
+	fn := c.LoginName + "." + base.ChartagValue
+	T := template.New(fn).Option("missingkey=zero")
+	T, err = T.ParseFiles(c.Template + "/" + base.RoleValue + "/" + c.LoginName + "." + base.ChartagValue)
 	if err == nil {
 		errstr := c.Errors[strconv.Itoa(gerr.Code)]
 		if errstr == "" {
@@ -180,7 +182,7 @@ func (self *Controller) loginPage(base *Base) {
 		var buffer bytes.Buffer
 		err = T.Execute(&buffer, map[string]interface{}{
 			"LoginName": c.LoginName, "GoURIName": c.GoURIName,
-			"Errorstr": errstr, "Go_uri": uri,
+			"Errorstr": errstr, "GoURI": uri,
 			"Login": issuer.Credential[0], "Password": issuer.Credential[1]})
 		base.SendNocache(buffer.String())
 	}
@@ -454,7 +456,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	}
 	glog.Infof("(%d) %s\n", os.Getpid(), "get action: "+action)
 	Invoke0(filter, "Set_all", base, action, obj, &other)
-	ret := Invoke(filter, "Get_all")
+	ret := Invoke(filter, "GetAll")
 	if ret[0].Interface() == nil {
 		return Err(404)
 	}

@@ -10,7 +10,7 @@ type Filter struct {
 	summer.Filter
 }
 
-func (self *Filter) Get_all() (map[string][]string, []string) {
+func (self *Filter) GetAll() (map[string][]string, []string) {
 	action := self.Action
 	ARGS := self.R.Form
 	entitytype_id := ARGS.Get("entitytype_id")
@@ -29,7 +29,7 @@ func (self *Filter) Get_all() (map[string][]string, []string) {
 	} else {
 		self.Fks = map[string][]string{"pub": {"campaign_id", "campaign_md5"}}
 	}
-	return self.Filter.Get_all()
+	return self.Filter.GetAll()
 }
 
 func (self *Filter) Preset() error {

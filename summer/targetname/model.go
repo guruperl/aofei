@@ -90,19 +90,19 @@ WHERE an.adv_id=? AND an.attrname_id>=10000`,
 
 func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
-	campaign_id := ARGS.Get("campaign_id")
+	campaignID := ARGS.Get("campaign_id")
 
 	data := ``
 	err := self.DoSQL(
-		`DELETE FROM adv_targetname WHERE campaign_id=?`, campaign_id)
+		`DELETE FROM adv_targetname WHERE campaign_id=?`, campaignID)
 	if err != nil {
 		return err
 	}
 
 	hash := make(map[string]string)
-	for attrname, attrname_id := range pzutil.AttrValue {
+	for attrname, attrnameID := range pzutil.AttrValue {
 		if _, ok := ARGS[attrname]; ok {
-			hash[attrname] = strconv.FormatUint(uint64(attrname_id), 10)
+			hash[attrname] = strconv.FormatUint(uint64(attrnameID), 10)
 		}
 	}
 	for k, _ := range ARGS {
@@ -116,25 +116,25 @@ func (self *Model) Insert(extra ...url.Values) error {
 		}
 	}
 
-	for attrname, attrname_id := range hash {
+	for attrname, attrnameID := range hash {
 		err = self.DoSQL(
 			`INSERT INTO adv_targetname (campaign_id, attrname_id) VALUES (?, ?)`,
-			campaign_id, attrname_id)
+			campaignID, attrnameID)
 		if err != nil {
 			return err
 		}
-		targetname_id := strconv.FormatInt(self.LastID, 10)
+		targetnameID := strconv.FormatInt(self.LastID, 10)
 		total := 0
 		for _, id := range ARGS[attrname] {
 			if pzutil.IsDigit(id) {
-				data += `(` + targetname_id + `, ` + id + `),`
+				data += `(` + targetnameID + `, ` + id + `),`
 				total++
-				*self.LISTS = append(*self.LISTS, map[string]interface{}{"campaign_id": campaign_id, "attrname_id": attrname_id, "value_id": id})
+				*self.LISTS = append(*self.LISTS, map[string]interface{}{"campaign_id": campaignID, "attrname_id": attrnameID, "value_id": id})
 			}
 		}
 		if total == 0 {
 			err = self.DoSQL(
-				`DELETE FROM adv_targetname WHERE targetname_id=?`, targetname_id)
+				`DELETE FROM adv_targetname WHERE targetname_id=?`, targetnameID)
 			if err != nil {
 				return err
 			}

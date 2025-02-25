@@ -29,7 +29,7 @@
     {"name":"adv_targetname", "alias":"tn"},
     {"name":"adv_targetvalue", "alias":"tv", "type":"INNER", "using":"targetname_id"},
     {"name":"adv_attrname", "alias":"an", "type":"INNER", "using":"attrname_id"},
-    {"name":"adv_attrvalue", "alias":"av", "type":"LEFT", "ON":"an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id"}
+   {"name":"adv_attrvalue", "alias":"av", "type":"LEFT", "ON":"an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id"}
   ],
   "topics_hash" : {
     "tn.targetname_id":"targetname_id",
