@@ -10,7 +10,6 @@ import (
 
 	"github.com/genelet/winter/genelet"
 	"github.com/genelet/winter/pzutil"
-	"github.com/golang/glog"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -87,16 +86,20 @@ var LARGES = map[string][]map[string]interface{}{
 	},
 }
 
-func SetSizeID(args url.Values) {
+func SetSizeID(args url.Values) error {
+	if args.Get("w") == "" || args.Get("h") == "" {
+		return fmt.Errorf("w or h is empty")
+	}
 	w, err := strconv.Atoi(args.Get("w"))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	h, err := strconv.Atoi(args.Get("h"))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	args.Set("size_id", fmt.Sprintf("%d", pzutil.GetSizeID(uint16(w), uint16(h))))
+	return nil
 }
 
 func SetWH(item map[string]interface{}) {
@@ -241,7 +244,6 @@ func (self *Filter) After(model *Model) error {
 		campaignid := ARGS.Get("campaign_id")
 		conn := (model.Storage)["Redis"].(radix.Client)
 		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		glog.Infof("111111111 HDEL %s %s", c.AUDIENCE, campaignid)
 		err = conn.Do(context.Background(), radix.Cmd(nil, "HDEL", c.AUDIENCE, campaignid))
 	} else if (obj == "item" || obj == "creative") && (action == "delete" || action == "update") {
 		itemid := ARGS.Get("item_id")

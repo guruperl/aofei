@@ -49,16 +49,8 @@ func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "not genelet pattern")
 	c := self.C
 	url := r.URL
-	d_root := c.DocumentRoot
-	if c.DocumentRoots != nil {
-		glog.Infof("(%d) %s\n", os.Getpid(), "virtual host: "+r.Host)
-		if x, ok := c.DocumentRoots[r.Host]; ok {
-			d_root = x
-		}
-	}
 
 	/*
 	   	form := r.Form
@@ -128,7 +120,7 @@ func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
 	   	}
 
 	*/
-	http.ServeFile(w, r, d_root+url.Path)
+	http.ServeFile(w, r, c.DocumentRoot+url.Path)
 }
 
 func (self *Controller) loginPage(base *Base) {
@@ -199,6 +191,9 @@ func (self *Controller) loginPage(base *Base) {
 
 func checkForm(r *http.Request, dir string) error {
 	reader, err := r.MultipartReader()
+	if reader != nil && err != nil {
+		return err
+	}
 
 	if reader == nil {
 		glog.Infof("(%d) %s\n", os.Getpid(), "No multipart")
@@ -228,15 +223,15 @@ func checkForm(r *http.Request, dir string) error {
 			if value == nil {
 				continue
 			}
-			switch value.(type) {
+			switch s := value.(type) {
 			case []string:
-				for _, v := range value.([]string) {
+				for _, v := range s {
 					form.Add(key, v)
 				}
 			case []uint8:
-				form.Add(key, string(value.([]uint8)))
+				form.Add(key, string(s))
 			case []interface{}:
-				for _, v := range value.([]interface{}) {
+				for _, v := range s {
 					form.Add(key, Interface2String(v))
 				}
 			default:
@@ -253,23 +248,23 @@ func checkForm(r *http.Request, dir string) error {
 				break
 			}
 
-			field_name := part.FormName()
-			file_name := part.FileName()
-			if file_name == "" {
+			fieldName := part.FormName()
+			fileName := part.FileName()
+			if fileName == "" {
 				scanner := bufio.NewScanner(part)
 				scanner.Scan()
-				form.Add(field_name, scanner.Text())
+				form.Add(fieldName, scanner.Text())
 			} else {
-				fullname := dir + "/" + file_name
+				fullname := dir + "/" + fileName
 				dst, err := os.Create(fullname)
-				defer dst.Close()
 				if err != nil {
 					return err
 				}
+				defer dst.Close()
 				if _, err := io.Copy(dst, part); err != nil {
 					return err
 				}
-				form.Add(field_name, file_name)
+				form.Add(fieldName, fileName)
 			}
 			part.Close()
 		}
@@ -281,7 +276,6 @@ func checkForm(r *http.Request, dir string) error {
 func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := self.C
 	length := len(c.Script)
-	l_url := len(r.URL.Path)
 
 	if origin := r.Header.Get("Origin"); origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -299,48 +293,49 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	glog.Infof("(%d) start: %s => %s => %s\n", os.Getpid(), r.URL.Path, r.Method, r.Header.Get("X-Forwarded-For"))
-	if l_url <= length || r.URL.Path[:length+1] != c.Script+"/" {
+	if !strings.HasPrefix(r.URL.Path, c.Script+"/") {
+		glog.Infof("(%d) %s %s, [static]\n\n", os.Getpid(), r.Method, r.URL.Path)
 		self.staticPage(w, r)
 		return
 	}
 
-	method_found := false
+	glog.Infof("(%d) %s %s, %v\n", os.Getpid(), r.Method, r.URL.Path, r.URL.Query())
+	var methodFound bool
 	for k := range c.DefaultActions {
 		if k == r.Method {
-			method_found = true
+			methodFound = true
 			break
 		}
 	}
-	if method_found == false {
-		http.Error(w, "The http method is not supported", 405)
+	if !methodFound {
+		http.Error(w, "The http method is not supported", http.StatusMethodNotAllowed)
 		return
 	}
 
-	path_info := strings.Split(r.URL.Path[length+1:], "/")
-	if len(path_info) == 4 {
-		r.Header.Add("X-Forwarded-ID", path_info[3])
-	} else if len(path_info) != 3 {
+	pathInfo := strings.Split(r.URL.Path[length+1:], "/")
+	if len(pathInfo) == 4 {
+		r.Header.Add("X-Forwarded-ID", pathInfo[3])
+	} else if len(pathInfo) != 3 {
 		glog.Infof("(%d) %s\n", os.Getpid(), "not genelet url")
 		http.Error(w, "Bad Request", 400)
 		return
 	}
 
-	chartag, ok := c.Chartags[path_info[1]]
+	chartag, ok := c.Chartags[pathInfo[1]]
 	if !ok {
 		glog.Infof("(%d) %s\n", os.Getpid(), "check chartag")
 		http.Error(w, "Bad Request", 400)
 		return
 	}
 
-	base := &Base{C: c, W: w, R: r, RoleValue: path_info[0], ChartagValue: path_info[1]}
+	base := &Base{C: c, W: w, R: r, RoleValue: pathInfo[0], ChartagValue: pathInfo[1]}
 	gate := NewGate(*base)
-	obj := path_info[2]
+	obj := pathInfo[2]
 
 	glog.Infof("(%d) %s\n", os.Getpid(), "parse form")
 	err := checkForm(r, c.UploadDir)
 	if err != nil {
-		http.Error(w, "Bad Request", 400)
+		http.Error(w, "Bad Request: "+err.Error(), 400)
 		return
 	}
 
@@ -476,14 +471,14 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	ARGS.Set("_action", action)
 
 	role, ok := c.Roles[base.RoleValue]
-	var is_admin bool
+	var isAdmin bool
 	if ok {
 		glog.Infof("(%d) %s\n", os.Getpid(), "parsing role's ARGS")
 		ARGS.Set("_gid_name", role.Id_name)
 		ARGS.Set("_gtype_id", strconv.Itoa(role.Type_id))
 		if role.Is_admin {
 			ARGS.Set("_gadmin", "1")
-			is_admin = true
+			isAdmin = true
 		}
 		h := r.Header
 		ARGS.Set("_gwhen", h.Get("X-Forwarded-Time"))
@@ -512,12 +507,12 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	}
 
 	glog.Infof("(%d) %s\n", os.Getpid(), "role access control")
-	if !is_admin && !Grep(actionHash["groups"], who) {
+	if !isAdmin && !Grep(actionHash["groups"], who) {
 		return Err(401)
 	}
 
 	extra := make(url.Values)
-	if !is_admin && ok {
+	if !isAdmin && ok {
 		glog.Infof("(%d) %s\n", os.Getpid(), "check fk")
 		err := self.assignFK(who, fk, ARGS, extra)
 		if err != nil {
@@ -563,7 +558,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		glog.Infof("(%d) %s\n", os.Getpid(), "call model OK")
 	}
 
-	if !is_admin && len(lists) > 0 {
+	if !isAdmin && len(lists) > 0 {
 		glog.Infof("(%d) %s\n", os.Getpid(), "fk tobe")
 		self.assignFKTobe(who, fk, ARGS, lists)
 	}
@@ -652,8 +647,8 @@ func (self *Controller) assignFK(who string, fk []string, ARGS url.Values, extra
 	}
 
 	stamp := ARGS.Get("_gwhen")
-	value_roleid := ARGS.Get(roleid)
-	if md5 != Digest(self.C.Secret, stamp, who, roleid, value_roleid, name, value) {
+	valueRoleID := ARGS.Get(roleid)
+	if md5 != Digest(self.C.Secret, stamp, who, roleid, valueRoleID, name, value) {
 		return Err(1052)
 	}
 	if ARGS.Get("_gduration") != "" {
@@ -667,20 +662,19 @@ func (self *Controller) assignFK(who string, fk []string, ARGS url.Values, extra
 	return nil
 }
 
-func (self *Controller) fkTobe(lists []map[string]interface{}, fk []string, stamp, who, roleid, value_roleid string) {
+func (self *Controller) fkTobe(lists []map[string]interface{}, fk []string, stamp, who, roleid, valueRoleID string) {
 	if len(fk) <= 2 || fk[2] == "" || fk[2] == roleid || fk[3] == "" {
 		return
 	}
 	name := fk[2]
 	for _, item := range lists {
-		item_name, ok := item[name]
+		itemName, ok := item[name]
 		if !ok {
 			continue
 		}
-		value := Interface2String(item_name)
-		item[fk[3]] = Digest(self.C.Secret, stamp, who, roleid, value_roleid, name, value)
+		value := Interface2String(itemName)
+		item[fk[3]] = Digest(self.C.Secret, stamp, who, roleid, valueRoleID, name, value)
 	}
-	return
 }
 
 func (self *Controller) assignFKTobe(who string, fk0 []string, ARGS url.Values, lists []map[string]interface{}) error {
@@ -690,12 +684,12 @@ func (self *Controller) assignFKTobe(who string, fk0 []string, ARGS url.Values, 
 	roleid := ARGS.Get("_gid_name")
 
 	stamp := ARGS.Get("_gwhen")
-	value_roleid := ARGS.Get(roleid)
+	valueRoleID := ARGS.Get(roleid)
 
 	fk := make([]string, len(fk0))
 	copy(fk, fk0)
 
-	self.fkTobe(lists, fk, stamp, who, roleid, value_roleid)
+	self.fkTobe(lists, fk, stamp, who, roleid, valueRoleID)
 
 	for len(fk) > 4 {
 		fk = fk[3:]
@@ -704,7 +698,7 @@ func (self *Controller) assignFKTobe(who string, fk0 []string, ARGS url.Values, 
 			return Err(1056)
 		}
 		for _, item := range lists {
-			self.fkTobe(item[which].([]map[string]interface{}), fk, stamp, who, roleid, value_roleid)
+			self.fkTobe(item[which].([]map[string]interface{}), fk, stamp, who, roleid, valueRoleID)
 		}
 	}
 	return nil

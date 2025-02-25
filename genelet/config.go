@@ -69,7 +69,6 @@ type Config struct {
 	UploadURL      string
 	ServerPort     string
 	DocumentRoot   string
-	DocumentRoots  map[string]string
 	ProjectRoot    string
 	Script         string
 	ComponentName  string
