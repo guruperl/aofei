@@ -98,6 +98,9 @@ func SetSizeID(args url.Values) error {
 	if err != nil {
 		return err
 	}
+	if w > 65535 || h > 65535 {
+		return fmt.Errorf("w or h are over 65535")
+	}
 	args.Set("size_id", fmt.Sprintf("%d", pzutil.GetSizeID(uint16(w), uint16(h))))
 	return nil
 }

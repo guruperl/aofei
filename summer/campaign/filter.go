@@ -6,6 +6,7 @@ About insert:
 package campaign
 
 import (
+	"fmt"
 	"net/url"
 	"strconv"
 
@@ -31,6 +32,26 @@ func (self *Filter) Preset() error {
 		ARGS.Set("fl_site", strconv.FormatUint(uint64(fl_site), 10))
 		qa_camp := summer.GetCampaignScoreArgs(ARGS)
 		ARGS.Set("qa_campaign", strconv.FormatUint(uint64(qa_camp), 10))
+		if ARGS.Get("page_cap") != "" {
+			i, err := strconv.Atoi(ARGS.Get("page_cap"))
+			if err != nil {
+				return err
+			}
+			if i > 255 {
+				return fmt.Errorf("page_cap should be less than 256")
+			}
+		}
+		for _, v := range []string{"cpc_fc", "cpm_fc"} {
+			if ARGS.Get(v) != "" {
+				i, err := strconv.Atoi(ARGS.Get(v))
+				if err != nil {
+					return err
+				}
+				if i > 65535 {
+					return fmt.Errorf("%s should be less than 65536", v)
+				}
+			}
+		}
 	}
 	if ARGS.Get("_gadmin") != "1" && (action == "insert" || action == "update") {
 		if ARGS.Get("active") != "" {
