@@ -142,8 +142,13 @@ func (self *Filter) After(model *Model) error {
 		}
 
 		/* the standard Topics lists, one state selected and two selected for hour and day
-				SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id FROM adv_targetname tn INNER JOIN adv_targetvalue tv USING (targetname_id)
-		INNER JOIN adv_attrname an USING (attrname_id) LEFT JOIN adv_attrvalue av ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id) WHERE (tn.campaign_id =5) ORDER BY targetname_id DESC LIMIT 100 OFFSET 0;
+SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id
+FROM adv_targetname tn
+INNER JOIN adv_targetvalue tv USING (targetname_id)
+INNER JOIN adv_attrname an USING (attrname_id)
+LEFT JOIN adv_attrvalue av ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id)
+WHERE (tn.campaign_id =5)
+ORDER BY targetname_id DESC LIMIT 100 OFFSET 0;
 		+---------------+----------------+----------+-------------+----------+--------------+
 		| targetname_id | targetvalue_id | value_id | attrname_id | attrname | attrvalue_id |
 		+---------------+----------------+----------+-------------+----------+--------------+
