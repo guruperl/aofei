@@ -383,7 +383,7 @@ func (self *Model) Delete(extra ...url.Values) error {
 
 func (self *Model) Existing(table string, field string, val interface{}) error {
 	hash := make(map[string]interface{})
-	err := self.GetSQL(hash, "SELECT "+field+" FROM "+table+" WHERE "+field+"=?", val)
+	err := self.GetSQL(hash, "SELECT "+field+" FROM "+table+" WHERE "+field+"=? LIMIT 1", val)
 	if err != nil {
 		glog.Infof("err: %v\n", err)
 		return err
