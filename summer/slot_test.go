@@ -1,11 +1,11 @@
-package summer;
+package summer
 
 import (
-    "testing"
+	"testing"
 )
 
-func TestSite(t *testing.T) {
-	s := CreateSite("", "", "", "", "", "", "", "", "", "", "")
+func TestSlot(t *testing.T) {
+	s := CreateSlot("", "", "", "", "", "", "", "", "", "", "")
 	if s.TotalScore() != float32(0.0) {
 		t.Errorf("%v", s)
 	}

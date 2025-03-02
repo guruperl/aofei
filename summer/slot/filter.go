@@ -1,4 +1,4 @@
-// Description: Filter for slot.
+// Package slot describes slot.
 package slot
 
 import (
@@ -25,12 +25,20 @@ func (self *Filter) Preset() error {
 	//	who := self.RoleValue
 
 	if action == "insert" || action == "update" {
-		for _, name := range []string{"fl_mime"} {
+		qaSlot := summer.GetSlotScoreArgs(ARGS)
+		ARGS.Set("qa_slot", strconv.FormatUint(uint64(qaSlot), 10))
+		flItem := summer.GetItemScoreArgs(ARGS)
+		ARGS.Set("fl_item", strconv.FormatUint(uint64(flItem), 10))
+		err := summer.SetSizeID(ARGS)
+		if err != nil {
+			return err
+		}
+		for _, name := range []string{"fl_mime", "fl_creative", "fl_expnd"} {
 			if ARGS.Get(name) != "" {
 				ARGS.Set(name, strings.Join(ARGS[name], ","))
 			}
 		}
-		err := summer.SetSizeID(ARGS)
+		err = summer.SetSizeID(ARGS)
 		if err != nil {
 			return err
 		}
@@ -49,8 +57,8 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	//who := self.RoleValue
 
 	if action == "topics" {
-		if site_id := ARGS.Get("site_id"); site_id != "" {
-			extra.Set("site_id", site_id)
+		if siteID := ARGS.Get("site_id"); siteID != "" {
+			extra.Set("site_id", siteID)
 		}
 		extra["active"] = []string{"Yes", "New"}
 	}
@@ -65,16 +73,15 @@ func (self *Filter) After(model *Model) error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	//role  := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
 	if action == "startnew" {
-		for _, name := range []string{"language", "device", "position", "content"} {
+		for _, name := range []string{"language", "device", "position"} {
 			other["qa_"+name] = summer.LARGES[name]
 			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
 		}
-		for _, name := range []string{"mime", "creative"} {
+		for _, name := range []string{"mime", "creative", "expnd"} {
 			other["fl_"+name] = summer.LARGES[name]
 			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
 		}
@@ -82,7 +89,15 @@ func (self *Filter) After(model *Model) error {
 	} else if action == "edit" {
 		item := lists[0]
 		summer.SetWH(item)
-		for _, name := range []string{"language", "device", "position", "content"} {
+		slot := summer.UnpackSlot((uint32(item["qa_slot"].(int64))))
+		for k, v := range slot.InHash() {
+			item[k] = v
+		}
+		campItem := summer.UnpackItem((uint32(item["fl_item"].(int64))))
+		for k, v := range campItem.InHash() {
+			item[k] = v
+		}
+		for _, name := range []string{"language", "device", "position"} {
 			str := ""
 			if item["qa_"+name] != nil {
 				str = item["qa_"+name].(string)
@@ -90,7 +105,7 @@ func (self *Filter) After(model *Model) error {
 			other["qa_"+name] = self.AfterItemSet(name, str)
 			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
 		}
-		for _, name := range []string{"mime", "creative"} {
+		for _, name := range []string{"mime", "creative", "expnd"} {
 			str := ""
 			if item["fl_"+name] != nil {
 				str = item["fl_"+name].(string)
@@ -104,20 +119,26 @@ func (self *Filter) After(model *Model) error {
 		c := model.Storage["Ssp"].(*pzutil.Config)
 		ARGS.Set("serverUrl", c.ServerURL)
 		ARGS.Set("serverScript", c.ServerURL+c.Handle["ssp"])
-		pub_id, _ := strconv.ParseUint(ARGS.Get("pub_id"), 10, 32)
-		site_id, _ := strconv.ParseUint(ARGS.Get("site_id"), 10, 32)
-		ARGS.Set("site_str", pzutil.PackTwo(uint32(pub_id), uint32(site_id)))
+		pubID, err := strconv.ParseUint(ARGS.Get("pub_id"), 10, 32)
+		if err != nil {
+			return err
+		}
+		siteID, err := strconv.ParseUint(ARGS.Get("site_id"), 10, 32)
+		if err != nil {
+			return err
+		}
+		ARGS.Set("site_str", pzutil.PackTwo(uint32(pubID), uint32(siteID)))
 		for _, item := range lists {
-			slot_id := uint32(item["slot_id"].(int64))
-			size_id := uint32(item["size_id"].(int64))
+			slotID := uint32(item["slot_id"].(int64))
+			sizeID := uint32(item["size_id"].(int64))
 			summer.SetWH(item)
-			item["slot_str"] = pzutil.PackTwo(slot_id, size_id)
+			item["slot_str"] = pzutil.PackTwo(slotID, sizeID)
 			var err error
-			item["code"], err = match.RPub{PubID: uint32(pub_id), SiteID: uint32(site_id), SlotID: slot_id, SizeID: size_id}.Pack1()
+			item["code"], err = match.RPub{PubID: uint32(pubID), SiteID: uint32(siteID), SlotID: slotID, SizeID: sizeID}.Pack1()
 			if err != nil {
 				return err
 			}
-			item["mediaTypes"] = mime_format(item)
+			item["mediaTypes"] = mimeFormat(item)
 			if created := item["created"]; created != nil {
 				c := created.(string)
 				item["created"] = c[:len(c)-9]
@@ -129,13 +150,13 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("entity_id", item["slot_id"].(string))
 		ARGS.Set("othertype_id", "4")
 
-		if ARGS.Get("mychannel") != "Inherit" && ARGS.Get("belong_ids") != "" {
+		if ARGS.Get("belong_ids") != "" {
 			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
 			if err != nil {
 				return err
 			}
 		}
-		if ARGS.Get("channel_order") != "Inherit" && ARGS.Get("ac_ids") != "" {
+		if ARGS.Get("ac_ids") != "" {
 			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertAc"})
 			if err != nil {
 				return err
@@ -156,18 +177,18 @@ func (self *Filter) After(model *Model) error {
 	return nil
 }
 
-func mime_format(item map[string]interface{}) string {
+func mimeFormat(item map[string]interface{}) string {
 	w := item["w"].(uint16)
 	h := item["h"].(uint16)
 	hash := make(map[string]string)
-	size_str := `[` + strconv.Itoa(int(w)) + `,` + strconv.Itoa(int(h)) + `]`
+	sizeStr := `[` + strconv.Itoa(int(w)) + `,` + strconv.Itoa(int(h)) + `]`
 
-	fl_mime := item["fl_mime"].(string)
-	switch fl_mime {
+	flMime := item["fl_mime"].(string)
+	switch flMime {
 	case "Iframe":
-		hash["iframe"] = `{wrong:` + size_str + `}`
+		hash["iframe"] = `{wrong:` + sizeStr + `}`
 	default:
-		hash["native"] = `{image:` + size_str + `}`
+		hash["native"] = `{image:` + sizeStr + `}`
 	}
 	str := ""
 	for k, v := range hash {

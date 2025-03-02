@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-type Site struct {
+type Slot struct {
 	Internet uint32
 	World    uint32
 	Local    uint32
@@ -19,295 +19,295 @@ type Site struct {
 	Control  uint32
 }
 
-func GetSiteAttrs() map[string]string {
+func GetSlotAttrs() map[string]string {
 	return map[string]string{
 		"s_internet": "Internet", "s_world": "World", "s_local": "Local", "s_domain": "Domain", "s_age": "Age", "s_visual": "Visual", "s_popup": "Popup", "s_crowd": "Crowd", "s_traffic": "Traffic", "s_source": "Source", "s_control": "Control"}
 }
 
-func (self *Site) InHash() map[string]uint32 {
+func (self *Slot) InHash() map[string]uint32 {
 	return map[string]uint32{
 		"s_internet": self.Internet, "s_world": self.World, "s_local": self.Local, "s_domain": self.Domain, "s_age": self.Age, "s_visual": self.Visual, "s_popup": self.Popup, "s_crowd": self.Crowd, "s_traffic": self.Traffic, "s_source": self.Source, "s_control": self.Control}
 }
 
-func GetSiteNames() map[string]map[uint32]string {
+func GetSlotNames() map[string]map[uint32]string {
 	return map[string]map[uint32]string{
-		"s_internet": SiteBrandName, "s_world": SiteBrandName, "s_local": SiteBrandName, "s_domain": SiteDomainName, "s_age": SiteAgeName, "s_visual": SiteVisualName, "s_popup": SitePopupName, "s_crowd": SiteCrowdName, "s_traffic": SiteTrafficName, "s_source": SiteSourceName, "s_control": SiteControlName}
+		"s_internet": SlotBrandName, "s_world": SlotBrandName, "s_local": SlotBrandName, "s_domain": SlotDomainName, "s_age": SlotAgeName, "s_visual": SlotVisualName, "s_popup": SlotPopupName, "s_crowd": SlotCrowdName, "s_traffic": SlotTrafficName, "s_source": SlotSourceName, "s_control": SlotControlName}
 }
 
-func GetSiteScoreArgs(ARGS url.Values) uint32 {
+func GetSlotScoreArgs(ARGS url.Values) uint32 {
 	v := Map([]string{"s_internet", "s_world", "s_local", "s_domain", "s_age", "s_visual", "s_popup", "s_crowd", "s_traffic", "s_source", "s_control"}, ARGS.Get)
-	site := CreateSite(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10])
+	site := CreateSlot(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10])
 	return site.Pack()
 }
 
 /*
-func SetSiteScoreArgs(num uint32, ARGS url.Values) {
-	S_attrs := GetSiteAttrs()
-	site := UnpackSite(num)
+func SetSlotScoreArgs(num uint32, ARGS url.Values) {
+	S_attrs := GetSlotAttrs()
+	site := UnpackSlot(num)
 	for i, name := range site.ToNames() {
 		ARGS.Set(S_attrs[i], name)
 	}
 }
 
-func SetSiteScoreItem(num uint32, item map[string]interface{}) {
-	S_attrs := GetSiteAttrs()
-	site := UnpackSite(num)
+func SetSlotScoreItem(num uint32, item map[string]interface{}) {
+	S_attrs := GetSlotAttrs()
+	site := UnpackSlot(num)
 	for i, name := range site.ToNames() {
 		item[S_attrs[i]] = name
 	}
 }
 */
 
-type SiteBrand uint32
+type SlotBrand uint32
 
 const (
-	SiteBrandUnknown SiteBrand = iota
-	SiteBrandNormal
-	SiteBrandSometimes
-	SiteBrandFamous
+	SlotBrandUnknown SlotBrand = iota
+	SlotBrandNormal
+	SlotBrandSometimes
+	SlotBrandFamous
 )
 
-var SiteBrandName = map[uint32]string{
+var SlotBrandName = map[uint32]string{
 	1: "Normal",
 	3: "Famous",
 	2: "Sometimes",
 	0: "Unknow/New",
 }
-var SiteBrandScore = map[uint32]float32{
+var SlotBrandScore = map[uint32]float32{
 	1: 0.0,
 	3: 10.0,
 	2: 2.0,
 	0: -1.0,
 }
-var SiteBrandValue = map[string]uint32{
+var SlotBrandValue = map[string]uint32{
 	"Normal":    1,
 	"Famous":    3,
 	"Sometimes": 2,
 	"Unknown":   0,
 }
 
-type SiteDomain uint32
+type SlotDomain uint32
 
 const (
-	SiteDomainSubpoor SiteDomain = iota
-	SiteDomainPoordomain
-	SiteDomainNormal
-	SiteDomainTopdomain
+	SlotDomainSubpoor SlotDomain = iota
+	SlotDomainPoordomain
+	SlotDomainNormal
+	SlotDomainTopdomain
 )
 
-var SiteDomainName = map[uint32]string{
+var SlotDomainName = map[uint32]string{
 	2: "Normal Domain Name",
 	3: "Top/Short Name",
 	1: "Poor Name",
 	0: "Sub of Poor Domain Name",
 }
-var SiteDomainScore = map[uint32]float32{
+var SlotDomainScore = map[uint32]float32{
 	2: 0.0,
 	3: 1.0,
 	1: -2.0,
 	0: -3.0,
 }
-var SiteDomainValue = map[string]uint32{
+var SlotDomainValue = map[string]uint32{
 	"Normal":     2,
 	"Topdomain":  3,
 	"Poordomain": 1,
 	"Subpoor":    0,
 }
 
-type SiteAge uint32
+type SlotAge uint32
 
 const (
-	SiteAge1Year SiteAge = iota
-	SiteAgeNormal
-	SiteAge10Years
-	SiteAge20Years
+	SlotAge1Year SlotAge = iota
+	SlotAgeNormal
+	SlotAge10Years
+	SlotAge20Years
 )
 
-var SiteAgeName = map[uint32]string{
+var SlotAgeName = map[uint32]string{
 	1: "Normal, 1-10 Years",
 	2: "10-20 Years",
 	3: "20 or more Years",
 	0: "Less 1 Year",
 }
-var SiteAgeScore = map[uint32]float32{
+var SlotAgeScore = map[uint32]float32{
 	1: 0.0,
 	2: 1.0,
 	3: 2.0,
 	0: -1.0,
 }
-var SiteAgeValue = map[string]uint32{
+var SlotAgeValue = map[string]uint32{
 	"Normal":  1,
 	"10Years": 2,
 	"20Years": 3,
 	"1Year":   0,
 }
 
-type SiteVisual uint32
+type SlotVisual uint32
 
 const (
-	SiteVisualUgly SiteVisual = iota
-	SiteVisualPoor
-	SiteVisualNormal
-	SiteVisualGood
+	SlotVisualUgly SlotVisual = iota
+	SlotVisualPoor
+	SlotVisualNormal
+	SlotVisualGood
 )
 
-var SiteVisualName = map[uint32]string{
+var SlotVisualName = map[uint32]string{
 	2: "Normal",
 	3: "Good",
 	1: "Poor/Negative etc.",
 	0: "Ugly/Blank/Body etc.",
 }
-var SiteVisualScore = map[uint32]float32{
+var SlotVisualScore = map[uint32]float32{
 	2: 0.0,
 	3: 1.0,
 	1: -1.0,
 	0: -2.0,
 }
-var SiteVisualValue = map[string]uint32{
+var SlotVisualValue = map[string]uint32{
 	"Normal": 2,
 	"Good":   3,
 	"Poor":   1,
 	"Ugly":   0,
 }
 
-type SitePopup uint32
+type SlotPopup uint32
 
 const (
-	SitePopup5Popups SitePopup = iota
-	SitePopup2Popups
-	SitePopup1Popups
-	SitePopupNormal
+	SlotPopup5Popups SlotPopup = iota
+	SlotPopup2Popups
+	SlotPopup1Popups
+	SlotPopupNormal
 )
 
-var SitePopupName = map[uint32]string{
+var SlotPopupName = map[uint32]string{
 	3: "Normal",
 	2: "1 Popups",
 	1: "2-4 Popups",
 	0: "5 or more popups",
 }
-var SitePopupScore = map[uint32]float32{
+var SlotPopupScore = map[uint32]float32{
 	3: 0.0,
 	2: -1.0,
 	1: -2.0,
 	0: -5.0,
 }
-var SitePopupValue = map[string]uint32{
+var SlotPopupValue = map[string]uint32{
 	"Normal":  3,
 	"1Popups": 2,
 	"2Popups": 1,
 	"5Popups": 0,
 }
 
-type SiteCrowd uint32
+type SlotCrowd uint32
 
 const (
-	SiteCrowd10Ads SiteCrowd = iota
-	SiteCrowd5Ads
-	SiteCrowdNormal
-	SiteCrowdClean
+	SlotCrowd10Ads SlotCrowd = iota
+	SlotCrowd5Ads
+	SlotCrowdNormal
+	SlotCrowdClean
 )
 
-var SiteCrowdName = map[uint32]string{
+var SlotCrowdName = map[uint32]string{
 	2: "Normal 1-5 per page",
 	3: "1 or no ad",
 	1: "5-10 ads",
 	0: "10 or more ads",
 }
-var SiteCrowdScore = map[uint32]float32{
+var SlotCrowdScore = map[uint32]float32{
 	2: 0.0,
 	3: 1.0,
 	1: -2.0,
 	0: -4.0,
 }
-var SiteCrowdValue = map[string]uint32{
+var SlotCrowdValue = map[string]uint32{
 	"Normal": 2,
 	"Clean":  3,
 	"5Ads":   1,
 	"10Ads":  0,
 }
 
-type SiteTraffic uint32
+type SlotTraffic uint32
 
 const (
-	SiteTrafficPoor SiteTraffic = iota
-	SiteTrafficNormal
-	SiteTrafficGood
-	SiteTrafficExcellent
+	SlotTrafficPoor SlotTraffic = iota
+	SlotTrafficNormal
+	SlotTrafficGood
+	SlotTrafficExcellent
 )
 
-var SiteTrafficName = map[uint32]string{
+var SlotTrafficName = map[uint32]string{
 	1: "Normal Traffic",
 	3: "Excellent",
 	2: "Good",
 	0: "Poor",
 }
-var SiteTrafficScore = map[uint32]float32{
+var SlotTrafficScore = map[uint32]float32{
 	1: 0.0,
 	3: 2.0,
 	2: 1.0,
 	0: -2.0,
 }
-var SiteTrafficValue = map[string]uint32{
+var SlotTrafficValue = map[string]uint32{
 	"Normal":    1,
 	"Excellent": 3,
 	"Good":      2,
 	"Poor":      0,
 }
 
-type SiteSource uint32
+type SlotSource uint32
 
 const (
-	SiteSourceSpiderware SiteSource = iota
-	SiteSourceProxy
-	SiteSourceHijack
-	SiteSourceNormal
+	SlotSourceSpiderware SlotSource = iota
+	SlotSourceProxy
+	SlotSourceHijack
+	SlotSourceNormal
 )
 
-var SiteSourceName = map[uint32]string{
-	3: "Normal Site/App",
+var SlotSourceName = map[uint32]string{
+	3: "Normal Slot/App",
 	2: "Hijack/Plugin",
 	1: "Proxy",
 	0: "Spiderware",
 }
-var SiteSourceScore = map[uint32]float32{
+var SlotSourceScore = map[uint32]float32{
 	3: 0.0,
 	2: -1.0,
 	1: -2.0,
 	0: -10.0,
 }
-var SiteSourceValue = map[string]uint32{
+var SlotSourceValue = map[string]uint32{
 	"Normal":     3,
 	"Hijack":     2,
 	"Proxy":      1,
 	"Spiderware": 0,
 }
 
-type SiteControl uint32
+type SlotControl uint32
 
 const (
-	SiteControlUser SiteControl = iota
-	SiteControlCopied
-	SiteControlNormal
+	SlotControlUser SlotControl = iota
+	SlotControlCopied
+	SlotControlNormal
 )
 
-var SiteControlName = map[uint32]string{
+var SlotControlName = map[uint32]string{
 	2: "Normal Managed",
-	1: "Copied Site",
+	1: "Copied Slot",
 	0: "No or User Uploaded",
 }
-var SiteControlScore = map[uint32]float32{
+var SlotControlScore = map[uint32]float32{
 	2: 0.0,
 	1: -1.0,
 	0: -2.0,
 }
-var SiteControlValue = map[string]uint32{
+var SlotControlValue = map[string]uint32{
 	"Normal":   2,
 	"Copied":   1,
 	"Uploaded": 0,
 }
 
-func CreateSite(internet, world, local, domain, age, visual, popup, crowd, traffic, source, control string) *Site {
-	site := &Site{1, 1, 1, 2, 1, 2, 3, 2, 1, 3, 2}
+func CreateSlot(internet, world, local, domain, age, visual, popup, crowd, traffic, source, control string) *Slot {
+	site := &Slot{1, 1, 1, 2, 1, 2, 3, 2, 1, 3, 2}
 	if internet != "" {
 		if v, err := strconv.Atoi(internet); err == nil {
 			site.Internet = uint32(v)
@@ -367,7 +367,7 @@ func CreateSite(internet, world, local, domain, age, visual, popup, crowd, traff
 	return site
 }
 
-func (self *Site) Pack() uint32 {
+func (self *Slot) Pack() uint32 {
 	if self.Internet >= 4 {
 		self.Internet = 1
 	}
@@ -415,7 +415,7 @@ func (self *Site) Pack() uint32 {
 		((self.Control & 3) << 20)
 }
 
-func UnpackSite(site uint32) *Site {
+func UnpackSlot(site uint32) *Slot {
 	a := site & 3
 	b := (site >> 2) & 3
 	c := (site >> 4) & 3
@@ -427,14 +427,14 @@ func UnpackSite(site uint32) *Site {
 	i := (site >> 16) & 3
 	j := (site >> 18) & 3
 	k := (site >> 20) & 3
-	return &Site{a, b, c, d, e, f, g, h, i, j, k}
+	return &Slot{a, b, c, d, e, f, g, h, i, j, k}
 }
 
-func (self *Site) ToNames() []string {
-	return []string{SiteBrandName[self.Internet], SiteBrandName[self.World], SiteBrandName[self.Local], SiteDomainName[self.Domain], SiteAgeName[self.Age], SiteVisualName[self.Visual], SitePopupName[self.Popup], SiteCrowdName[self.Crowd], SiteTrafficName[self.Traffic], SiteSourceName[self.Source], SiteControlName[self.Control]}
+func (self *Slot) ToNames() []string {
+	return []string{SlotBrandName[self.Internet], SlotBrandName[self.World], SlotBrandName[self.Local], SlotDomainName[self.Domain], SlotAgeName[self.Age], SlotVisualName[self.Visual], SlotPopupName[self.Popup], SlotCrowdName[self.Crowd], SlotTrafficName[self.Traffic], SlotSourceName[self.Source], SlotControlName[self.Control]}
 }
 
-func (self *Site) TotalScore() float32 {
+func (self *Slot) TotalScore() float32 {
 	return self.InternetScore() +
 		self.WorldScore() +
 		self.LocalScore() +
@@ -448,46 +448,46 @@ func (self *Site) TotalScore() float32 {
 		self.ControlScore()
 }
 
-func (self *Site) InternetScore() float32 {
-	return SiteBrandScore[self.Internet]
+func (self *Slot) InternetScore() float32 {
+	return SlotBrandScore[self.Internet]
 }
 
-func (self *Site) WorldScore() float32 {
-	return SiteBrandScore[self.World]
+func (self *Slot) WorldScore() float32 {
+	return SlotBrandScore[self.World]
 }
 
-func (self *Site) LocalScore() float32 {
-	return SiteBrandScore[self.Local]
+func (self *Slot) LocalScore() float32 {
+	return SlotBrandScore[self.Local]
 }
 
-func (self *Site) DomainScore() float32 {
-	return SiteDomainScore[self.Domain]
+func (self *Slot) DomainScore() float32 {
+	return SlotDomainScore[self.Domain]
 }
 
-func (self *Site) AgeScore() float32 {
-	return SiteAgeScore[self.Age]
+func (self *Slot) AgeScore() float32 {
+	return SlotAgeScore[self.Age]
 }
 
-func (self *Site) VisualScore() float32 {
-	return SiteVisualScore[self.Visual]
+func (self *Slot) VisualScore() float32 {
+	return SlotVisualScore[self.Visual]
 }
 
-func (self *Site) PopupScore() float32 {
-	return SitePopupScore[self.Popup]
+func (self *Slot) PopupScore() float32 {
+	return SlotPopupScore[self.Popup]
 }
 
-func (self *Site) CrowdScore() float32 {
-	return SiteCrowdScore[self.Crowd]
+func (self *Slot) CrowdScore() float32 {
+	return SlotCrowdScore[self.Crowd]
 }
 
-func (self *Site) TrafficScore() float32 {
-	return SiteTrafficScore[self.Traffic]
+func (self *Slot) TrafficScore() float32 {
+	return SlotTrafficScore[self.Traffic]
 }
 
-func (self *Site) SourceScore() float32 {
-	return SiteSourceScore[self.Source]
+func (self *Slot) SourceScore() float32 {
+	return SlotSourceScore[self.Source]
 }
 
-func (self *Site) ControlScore() float32 {
-	return SiteControlScore[self.Control]
+func (self *Slot) ControlScore() float32 {
+	return SlotControlScore[self.Control]
 }

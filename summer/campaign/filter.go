@@ -1,14 +1,10 @@
-/*
-About insert:
-1) into to adv_balance needs to do before action, to get balance_id
-2) ac, channel - InserAc, channel - InsertBelong after, to get entity_id
-*/
+// Package campaign has insert:
+// 1) into to adv_balance needs to do before action, to get balance_id
+// 2) ac, channel - InserAc, channel - InsertBelong after, to get entity_id
 package campaign
 
 import (
-	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/genelet/winter/summer"
 	// hitem "github.com/genelet/winter/holiday/item"
@@ -25,34 +21,8 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	who := self.RoleValue
+	//who := self.RoleValue
 
-	if (who == "adv" || who == "admin") && (action == "insert" || action == "update") {
-		fl_site := summer.GetSiteScoreArgs(ARGS)
-		ARGS.Set("fl_site", strconv.FormatUint(uint64(fl_site), 10))
-		qa_camp := summer.GetCampaignScoreArgs(ARGS)
-		ARGS.Set("qa_campaign", strconv.FormatUint(uint64(qa_camp), 10))
-		if ARGS.Get("page_cap") != "" {
-			i, err := strconv.Atoi(ARGS.Get("page_cap"))
-			if err != nil {
-				return err
-			}
-			if i > 255 {
-				return fmt.Errorf("page_cap should be less than 256")
-			}
-		}
-		for _, v := range []string{"cpc_fc", "cpm_fc"} {
-			if ARGS.Get(v) != "" {
-				i, err := strconv.Atoi(ARGS.Get(v))
-				if err != nil {
-					return err
-				}
-				if i > 65535 {
-					return fmt.Errorf("%s should be less than 65536", v)
-				}
-			}
-		}
-	}
 	if ARGS.Get("_gadmin") != "1" && (action == "insert" || action == "update") {
 		if ARGS.Get("active") != "" {
 			ARGS.Del("active")
@@ -99,54 +69,17 @@ func (self *Filter) After(model *Model) error {
 		return err
 	}
 
-	ARGS := self.R.Form
+	//ARGS := self.R.Form
 	action := self.Action
-	who := self.RoleValue
+	//who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
-	if action == "edit" {
-		item := lists[0]
-		camp := summer.UnpackCampaign((uint32(item["qa_campaign"].(int64))))
-		for k, v := range camp.InHash() {
-			item[k] = v
-		}
-		site := summer.UnpackSite((uint32(item["fl_site"].(int64))))
-		for k, v := range site.InHash() {
-			item[k] = v
-		}
-		summer.TranslateOne(item, "access_order", "access_order_g")
-		summer.TranslateOne(item, "channel_order", "channel_order_g")
-		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
-	} else if action == "startnew" {
+	if action == "startnew" {
 		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
-	} else if who == "adv" && action == "insert" {
+	} else if action == "edit" {
 		item := lists[0]
-		ARGS.Set("entitytype_id", "41")
-		// in genelet model, auto id is returned as string
-		ARGS.Set("entity_id", item["campaign_id"].(string))
-
-		if ARGS.Get("belong_ids") != "" {
-			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
-			if err != nil {
-				return err
-			}
-		}
-		if ARGS.Get("channel_order") != "" && ARGS.Get("ac_ids") != "" {
-			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertAc"})
-			if err != nil {
-				return err
-			}
-		}
-	} else if action == "update" {
-		ARGS.Set("table", "adv_campaign")
-		ARGS.Set("idname", "campaign_id")
-		ARGS.Set("entitytype_id", "41")
-		ARGS.Set("entity_id", ARGS.Get("campaign_id"))
-		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
-		if err != nil {
-			return err
-		}
+		summer.TranslateOne(item, "access_order", "access_order_g")
 	}
 
 	/*

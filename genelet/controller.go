@@ -19,23 +19,6 @@ import (
 	"github.com/golang/glog"
 )
 
-/*
-type Mmodel interface {
-    Initialize(*Component)
-    SetDB(*sql.DB)
-    SetDefaults(url.Values, *[]map[string]interface{}, *map[string]interface{})
-}
-
-type Ffilter interface {
-    Initialize(*Component)
-    Set_all(Base, string, string, *map[string]interface{})
-    GetAll() (map[string][]string, []string)
-    Preset() error
-    Before(*sql.DB, url.Values, url.Values) error
-    After(*sql.DB, *[]map[string]interface{}, *map[string]interface{}) error
-}
-*/
-
 type Controller struct {
 	C       *Config
 	DB      *sql.DB

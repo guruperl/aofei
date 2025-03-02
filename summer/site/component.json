@@ -21,10 +21,10 @@
     ]
   },
 
-  "insert_pars" : [           "pub_id","site_name","site_url","qa_site","fl_campaign","channel_order","access_order","created","active"],
-  "topics_pars" : ["site_id", "pub_id","site_name","site_url","qa_site","fl_campaign","channel_order","access_order","created","active"],
-  "update_pars" : ["site_id", "pub_id","site_name","site_url","qa_site","fl_campaign","channel_order","access_order",          "active"],
-  "edit_pars"   : ["site_id", "pub_id","site_name","site_url","qa_site","fl_campaign","channel_order","access_order","created","active"],
+  "insert_pars" : [           "pub_id","site_name","site_url","access_order","created","active"],
+  "topics_pars" : ["site_id", "pub_id","site_name","site_url","access_order","created","active"],
+  "update_pars" : ["site_id", "pub_id","site_name","site_url","access_order",          "active"],
+  "edit_pars"   : ["site_id", "pub_id","site_name","site_url","access_order","created","active"],
 
   "current_table" : "pub_site",
     "current_key" : "site_id",

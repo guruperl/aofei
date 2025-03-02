@@ -15,22 +15,6 @@ type Filter struct {
 	summer.Filter
 }
 
-// GetAll is initialized and re-used. if reset fks, please reset all, no default
-func (self *Filter) GetAll() (map[string][]string, []string) {
-	ARGS := self.R.Form
-
-	entitytypeID := ARGS.Get("entitytype_id")
-	if entitytypeID == "41" {
-		self.Fks = map[string][]string{"adv": {"campaign_id", "campaign_md5", "targetname_id", "targetname_md5"}}
-	} else if entitytypeID == "42" {
-		self.Fks = map[string][]string{"adv": {"item_id", "item_md5", "targetname_id", "targetname_md5"}}
-	} else {
-		self.Fks = map[string][]string{"pub": {"item_id", "item_md5", "targetname_id", "targetname_md5"}}
-	}
-
-	return self.Filter.GetAll()
-}
-
 func (self *Filter) Preset() error {
 	if err := self.Filter.Preset(); err != nil {
 		return err
@@ -57,9 +41,9 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	action := self.Action
 
 	if action == "topics" {
-		extra.Set("tn.campaign_id", ARGS.Get("campaign_id"))
+		extra.Set("tn.item_id", ARGS.Get("item_id"))
 	} else if action == "delete" {
-		extra.Set("campaign_id", ARGS.Get("campaign_id"))
+		extra.Set("item_id", ARGS.Get("item_id"))
 	}
 
 	return nil
@@ -142,22 +126,22 @@ func (self *Filter) After(model *Model) error {
 		}
 
 		/* the standard Topics lists, one state selected and two selected for hour and day
-SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id
-FROM adv_targetname tn
-INNER JOIN adv_targetvalue tv USING (targetname_id)
-INNER JOIN adv_attrname an USING (attrname_id)
-LEFT JOIN adv_attrvalue av ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id)
-WHERE (tn.campaign_id =5)
-ORDER BY targetname_id DESC LIMIT 100 OFFSET 0;
-		+---------------+----------------+----------+-------------+----------+--------------+
-		| targetname_id | targetvalue_id | value_id | attrname_id | attrname | attrvalue_id |
-		+---------------+----------------+----------+-------------+----------+--------------+
-		|             4 |              5 |        1 |        1004 | weekhour |         NULL |
-		|             4 |              6 |        2 |        1004 | weekhour |         NULL |
-		|             3 |              3 |        1 |        1003 | weekday  |         NULL |
-		|             3 |              4 |        6 |        1003 | weekday  |         NULL |
-		|             2 |              2 |     3263 |        1103 | state    |         NULL |
-		+---------------+----------------+----------+-------------+----------+--------------+
+		SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id
+		FROM adv_targetname tn
+		INNER JOIN adv_targetvalue tv USING (targetname_id)
+		INNER JOIN adv_attrname an USING (attrname_id)
+		LEFT JOIN adv_attrvalue av ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id)
+		WHERE (tn.item_id =5)
+		ORDER BY targetname_id DESC LIMIT 100 OFFSET 0;
+				+---------------+----------------+----------+-------------+----------+--------------+
+				| targetname_id | targetvalue_id | value_id | attrname_id | attrname | attrvalue_id |
+				+---------------+----------------+----------+-------------+----------+--------------+
+				|             4 |              5 |        1 |        1004 | weekhour |         NULL |
+				|             4 |              6 |        2 |        1004 | weekhour |         NULL |
+				|             3 |              3 |        1 |        1003 | weekday  |         NULL |
+				|             3 |              4 |        6 |        1003 | weekday  |         NULL |
+				|             2 |              2 |     3263 |        1103 | state    |         NULL |
+				+---------------+----------------+----------+-------------+----------+--------------+
 		*/
 		ref := make(map[string]map[int]bool)
 		hours := make(map[int]bool)
@@ -231,7 +215,7 @@ ORDER BY targetname_id DESC LIMIT 100 OFFSET 0;
 	       err = tmodel.Load(self.C.ProjectRoot+"/src/holiday/target/component.json")
 	       if err != nil { return err }
 	       tmodel.Db = taodb
-	       err = tmodel.ExecSQL("drop table if exists target_"+ARGS.Get("campaign_id"))
+	       err = tmodel.ExecSQL("drop table if exists target_"+ARGS.Get("item_id"))
 	       if err != nil { return err }
 	       for _, one := range lists {
 	           err = tmodel.Insert(one)

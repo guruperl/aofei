@@ -15,19 +15,15 @@
   },
 
   "nextpages" : {
-    "startnew" : [
-      {"model":"channel", "action":"topics", "manual":{"level":1}}
-    ],
     "edit" : [
-      {"model":"balance", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"table":"adv_campaign","idname":"campaign_id"}},
-      {"model":"chac", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"entitytype_id":41, "level":1}}
+      {"model":"balance", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"table":"adv_campaign","idname":"campaign_id"}}
     ]
   },
 
-  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active","created","total_balance_id","daily_balance_id"],
-  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active"],
-  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active","created","total_balance_id","daily_balance_id"],
-  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","fl_site","qa_campaign","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","access_order","active","created","total_balance_id","daily_balance_id"],
+  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","access_order","active","created","total_balance_id","daily_balance_id"],
+  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","active"],
+  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","active","created","total_balance_id","daily_balance_id"],
+  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","active","created","total_balance_id","daily_balance_id"],
 
   "current_table" : "adv_campaign",
   "current_key" :  "campaign_id",

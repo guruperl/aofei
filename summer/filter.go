@@ -212,17 +212,17 @@ func (self *Filter) After(model *Model) error {
 	action := self.Action
 	obj := ARGS.Get("_gobj")
 
-	if genelet.Grep([]string{"campaign", "site"}, obj) && genelet.Grep([]string{"startnew", "edit"}, action) {
-		other["sites"] = GetSiteNames()
-		other["sitesChinese"] = Translate(other["sites"])
-		other["sitesDefault"] = CreateSite("", "", "", "", "", "", "", "", "", "", "").InHash()
-		other["siteAttrs"] = GetSiteAttrs()
-		other["siteAttrsChinese"] = Translate(other["siteAttrs"])
-		other["campaigns"] = GetCampaignNames()
-		other["campaignsChinese"] = Translate(other["campaigns"])
-		other["campaignsDefault"] = CreateCampaign("", "", "", "", "", "").InHash()
-		other["campaignAttrs"] = GetCampaignAttrs()
-		other["campaignAttrsChinese"] = Translate(other["campaignAttrs"])
+	if genelet.Grep([]string{"item", "slot"}, obj) && genelet.Grep([]string{"startnew", "edit"}, action) {
+		other["slots"] = GetSlotNames()
+		other["slotsChinese"] = Translate(other["slots"])
+		other["slotsDefault"] = CreateSlot("", "", "", "", "", "", "", "", "", "", "").InHash()
+		other["slotAttrs"] = GetSlotAttrs()
+		other["slotAttrsChinese"] = Translate(other["slotAttrs"])
+		other["items"] = GetItemNames()
+		other["itemsChinese"] = Translate(other["items"])
+		other["itemsDefault"] = CreateItem("", "", "", "", "", "").InHash()
+		other["itemAttrs"] = GetItemAttrs()
+		other["itemAttrsChinese"] = Translate(other["itemAttrs"])
 	}
 
 	var err error
@@ -243,11 +243,11 @@ func (self *Filter) After(model *Model) error {
 			err = conn.Do(context.Background(), radix.Cmd(nil, "DEL", c.SLOT+":"+slotid))
 		}
 	} else if (obj == "targetname" && (action == "delete" || action == "insert")) ||
-		(obj == "campaign" && (action == "delete" || action == "update")) {
-		campaignid := ARGS.Get("campaign_id")
+		(obj == "item" && (action == "delete" || action == "update")) {
+		itemid := ARGS.Get("item_id")
 		conn := (model.Storage)["Redis"].(radix.Client)
 		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		err = conn.Do(context.Background(), radix.Cmd(nil, "HDEL", c.AUDIENCE, campaignid))
+		err = conn.Do(context.Background(), radix.Cmd(nil, "HDEL", c.AUDIENCE, itemid))
 	} else if (obj == "item" || obj == "creative") && (action == "delete" || action == "update") {
 		itemid := ARGS.Get("item_id")
 		p := (model.Storage)["Redis"].(radix.Client)

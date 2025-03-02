@@ -1,7 +1,9 @@
 package item
 
 import (
+	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/genelet/winter/summer"
@@ -23,7 +25,31 @@ func (self *Filter) Preset() error {
 	who := self.RoleValue
 
 	if who == "adv" && (action == "insert" || action == "update") {
-		for _, name := range []string{"fl_language", "fl_device", "fl_position", "fl_content"} {
+		slot := summer.GetSlotScoreArgs(ARGS)
+		ARGS.Set("fl_slot", strconv.FormatUint(uint64(slot), 10))
+		item := summer.GetItemScoreArgs(ARGS)
+		ARGS.Set("qa_item", strconv.FormatUint(uint64(item), 10))
+		if ARGS.Get("page_cap") != "" {
+			i, err := strconv.Atoi(ARGS.Get("page_cap"))
+			if err != nil {
+				return err
+			}
+			if i > 255 {
+				return fmt.Errorf("page_cap should be less than 256")
+			}
+		}
+		for _, v := range []string{"cpc_fc", "cpm_fc"} {
+			if ARGS.Get(v) != "" {
+				i, err := strconv.Atoi(ARGS.Get(v))
+				if err != nil {
+					return err
+				}
+				if i > 65535 {
+					return fmt.Errorf("%s should be less than 65536", v)
+				}
+			}
+		}
+		for _, name := range []string{"fl_language", "fl_device", "fl_position"} {
 			if ARGS.Get(name) != "" {
 				ARGS.Set(name, strings.Join(ARGS[name], ","))
 			}
@@ -76,13 +102,52 @@ func (self *Filter) After(model *Model) error {
 		return err
 	}
 
-	//ARGS := self.R.Form
+	ARGS := self.R.Form
 	action := self.Action
-	//who := self.RoleValue
+	who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
-	if action == "topics" {
+	if action == "startnew" {
+		for _, name := range []string{"language", "device", "position"} {
+			other["fl_"+name] = summer.LARGES[name]
+			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
+		}
+		for _, name := range []string{"mime", "creative", "expnd"} {
+			other["qa_"+name] = summer.LARGES[name]
+			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+		}
+		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
+	} else if action == "edit" {
+		item := lists[0]
+		summer.SetWH(item)
+		campItem := summer.UnpackItem((uint32(item["qa_item"].(int64))))
+		for k, v := range campItem.InHash() {
+			item[k] = v
+		}
+		slot := summer.UnpackSlot((uint32(item["fl_slot"].(int64))))
+		for k, v := range slot.InHash() {
+			item[k] = v
+		}
+		for _, name := range []string{"language", "device", "position"} {
+			str := ""
+			if item["fl_"+name] != nil {
+				str = item["fl_"+name].(string)
+			}
+			other["fl_"+name] = self.AfterItemSet(name, str)
+			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
+		}
+		for _, name := range []string{"mime", "creative", "expnd"} {
+			str := ""
+			if item["qa_"+name] != nil {
+				str = item["qa_"+name].(string)
+			}
+			other["qa_"+name] = self.AfterItemSet(name, str)
+			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+		}
+		summer.TranslateOne(item, "channel_order", "channel_order_g")
+		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
+	} else if action == "topics" {
 		for _, item := range lists {
 			if item["startx"] != nil {
 				startx := item["startx"].(string)
@@ -95,33 +160,32 @@ func (self *Filter) After(model *Model) error {
 			summer.SetWH(item)
 		}
 		summer.TranslateOne(lists, "qa_mime", "qa_chinese")
-	} else if action == "startnew" {
-		for _, name := range []string{"language", "device", "position", "content"} {
-			other["fl_"+name] = summer.LARGES[name]
-			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
-		}
-		for _, name := range []string{"mime", "creative"} {
-			other["qa_"+name] = summer.LARGES[name]
-			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
-		}
-	} else if action == "edit" {
+	} else if who == "adv" && action == "insert" {
 		item := lists[0]
-		summer.SetWH(item)
-		for _, name := range []string{"language", "device", "position", "content"} {
-			str := ""
-			if item["fl_"+name] != nil {
-				str = item["fl_"+name].(string)
+		ARGS.Set("entitytype_id", "42")
+		// in genelet model, auto id is returned as string
+		ARGS.Set("entity_id", item["item_id"].(string))
+
+		if ARGS.Get("belong_ids") != "" {
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
+			if err != nil {
+				return err
 			}
-			other["fl_"+name] = self.AfterItemSet(name, str)
-			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
 		}
-		for _, name := range []string{"mime", "creative"} {
-			str := ""
-			if item["qa_"+name] != nil {
-				str = item["qa_"+name].(string)
+		if ARGS.Get("channel_order") != "" && ARGS.Get("ac_ids") != "" {
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertAc"})
+			if err != nil {
+				return err
 			}
-			other["qa_"+name] = self.AfterItemSet(name, str)
-			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+		}
+	} else if action == "update" {
+		ARGS.Set("table", "adv_item")
+		ARGS.Set("idname", "item_id")
+		ARGS.Set("entitytype_id", "42")
+		ARGS.Set("entity_id", ARGS.Get("item_id"))
+		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
+		if err != nil {
+			return err
 		}
 	}
 

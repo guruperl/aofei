@@ -1,12 +1,12 @@
 {
   "actions" : {
-    "topics" :{"groups":["adv"],"validate":["campaign_id"]},
-    "insert" :{"groups":["adv"],"validate":["campaign_id"]},
-    "delete" :{"groups":["adv"],"validate":["campaign_id"]}
+    "topics" :{"groups":["adv"],"validate":["item_id"]},
+    "insert" :{"groups":["adv"],"validate":["item_id"]},
+    "delete" :{"groups":["adv"],"validate":["item_id"]}
   },
 
   "fks" : {
-    "adv" : ["campaign_id", "campaign_md5", "targetname_id", "targetname_md5"]
+    "adv" : ["item_id", "item_md5", "targetname_id", "targetname_md5"]
   },
 
   "nextpages" : {
@@ -19,7 +19,7 @@
     ]
   },
 
-  "topics_pars":["targetname_id","campaign_id","attrname_id"],
+  "topics_pars":["targetname_id","item_id","attrname_id"],
 
   "current_table"  :"adv_targetname",
   "current_key"    :"targetname_id",
@@ -32,7 +32,7 @@
    {"name":"adv_attrvalue", "alias":"av", "type":"LEFT", "ON":"an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id"}
   ],
   "topics_hash" : {
-    "tn.targetname_id":"targetname_id",
+  "tn.targetname_id":"targetname_id",
 	"tv.targetvalue_id":"targetvalue_id",
 	"tv.value_id":"value_id",
 	"an.attrname_id":"attrname_id",
