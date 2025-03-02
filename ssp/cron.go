@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/summer/weight"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -31,10 +30,8 @@ UPDATE cron_halfhour SET status='processing' WHERE status='new'`); err != nil {
 	var err error
 	for _, ca := range []bool{true, false} {
 		for _, sa := range []bool{true, false} {
-			for _, tm := range []bool{true, false} {
-				for _, tc := range []bool{true, false} {
-					name := weight.SlotItemViewName(ca, sa, tm, tc)
-					str += `SELECT DISTINCT w.slot_id
+			name := fmt.Sprintf("VIEW%t%t", ca, sa)
+			str += `SELECT DISTINCT w.slot_id
 FROM cron_halfhour h
 INNER JOIN adv_creative c ON (h.entitytype_id=43 AND h.entity_id=c.creative_id)
 INNER JOIN ` + name + ` v USING (item_id)
@@ -42,8 +39,6 @@ INNER JOIN pub_weight w ON (v.slot_id=w.slot_id)
 WHERE h.status="processing" AND h.why IN ("content","creative","creative_")
 UNION
 `
-				}
-			}
 		}
 	}
 

@@ -1,24 +1,25 @@
-//NEW
+// Package ac handles access control relationship
+//
+// NEW
 // pub.3, accepts adv.  4
 // pub.3, accepts camp  41
 // adv.4, accepts pub.  3
 // adv.4, accepts site  31
-
-//             1 | admin        | admin_id    |
-//             3 | pub          | pub_id      |
-//             4 | adv          | adv_id      |
-//             5 | anon         | anon_id     |
-//            31 | pub_site     | site_id     |
-//            32 | pub_slot     | slot_id     |
-//            41 | adv_campaign | campaign_id |
-//            42 | adv_item     | item_id     |
-
-//OLD
-//publisher 3, can block advertiser 4
-//publisher's site 31, can block advertiser 4
-//advertiser 4, can block site 31
-//advertiser's campaign 41, can block site 31
-
+//
+//	 1 | admin        | admin_id    |
+//	 3 | pub          | pub_id      |
+//	 4 | adv          | adv_id      |
+//	 5 | anon         | anon_id     |
+//	31 | pub_site     | site_id     |
+//	32 | pub_slot     | slot_id     |
+//	41 | adv_campaign | campaign_id |
+//	42 | adv_item     | item_id     |
+//
+// OLD
+// publisher 3, can block advertiser 4
+// publisher's site 31, can block advertiser 4
+// advertiser 4, can block site 31
+// advertiser's campaign 41, can block site 31
 package ac
 
 import (
@@ -91,31 +92,31 @@ WHERE campaign_id IN (`+strings.Join(ads, ",")+`) AND adv_id IN (`+strings.Join(
 	str := `INSERT INTO ac (entitytype_id, entity_id, othertype_id, other_id) VALUES`
 	n := 0
 	if ARGS.Get("adv_ids") != "" {
-		found_adv := make(map[string]bool)
-		for _, adv_id := range ARGS["adv_ids"] {
-			if found_adv[adv_id] {
+		foundAdv := make(map[string]bool)
+		for _, advID := range ARGS["adv_ids"] {
+			if foundAdv[advID] {
 				continue
 			}
-			found_adv[adv_id] = true
-			if pzutil.IsDigit(adv_id) {
+			foundAdv[advID] = true
+			if pzutil.IsDigit(advID) {
 				n++
-				str += fmt.Sprintf(" (%s, %s, 4, %s),", ARGS.Get("entitytype_id"), ARGS.Get("entity_id"), adv_id)
+				str += fmt.Sprintf(" (%s, %s, 4, %s),", ARGS.Get("entitytype_id"), ARGS.Get("entity_id"), advID)
 			}
 		}
 	}
 	if ARGS.Get("campaign_ids") != "" {
-		found_campaign := make(map[string]bool)
-		for _, campaign_id := range ARGS["campaign_ids"] {
-			if found_campaign[campaign_id] {
+		foundCampaign := make(map[string]bool)
+		for _, campaignID := range ARGS["campaign_ids"] {
+			if foundCampaign[campaignID] {
 				continue
 			}
-			found_campaign[campaign_id] = true
-			if ref[campaign_id] {
+			foundCampaign[campaignID] = true
+			if ref[campaignID] {
 				continue
 			}
-			if pzutil.IsDigit(campaign_id) {
+			if pzutil.IsDigit(campaignID) {
 				n++
-				str += fmt.Sprintf(" (%s, %s, 41, %s),", ARGS.Get("entitytype_id"), ARGS.Get("entity_id"), campaign_id)
+				str += fmt.Sprintf(" (%s, %s, 41, %s),", ARGS.Get("entitytype_id"), ARGS.Get("entity_id"), campaignID)
 			}
 		}
 	}
@@ -148,7 +149,7 @@ WHERE `+ARGS.Get("idname")+`=?`,
 		ARGS.Get("access_order"), ARGS.Get("entity_id"))
 }
 
-func (self *Model) get_access_order() error {
+func (self *Model) getAccessOrder() error {
 	ARGS := self.ARGS
 	return self.GetArgs(ARGS,
 		`SELECT access_order FROM `+ARGS.Get("table")+`
@@ -158,7 +159,7 @@ WHERE `+ARGS.Get("idname")+`=?`, ARGS.Get("entity_id"))
 func (self *Model) Topics(extra ...url.Values) error {
 	ARGS := self.ARGS
 
-	if err := self.get_access_order(); err != nil {
+	if err := self.getAccessOrder(); err != nil {
 		return err
 	}
 	if ARGS.Get("access_order") == "Inherit" {
@@ -204,7 +205,7 @@ func (self *Model) Startnew(extra ...url.Values) error {
 	ARGS := self.ARGS
 
 	var err error
-	if err = self.get_access_order(); err != nil {
+	if err = self.getAccessOrder(); err != nil {
 		return err
 	}
 	if ARGS.Get("access_order") == "Inherit" {

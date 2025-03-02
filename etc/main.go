@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	c, err := pzutil.NewConfig("../conf/gotest.conf")
+	c, err := pzutil.NewConfig("../conf/aofei.json")
 	if err != nil {
 		panic(err)
 	}
@@ -21,23 +21,29 @@ func main() {
 	db := control.DB
 	defer db.Close()
 
-	err = doCountry(context.Background(), db)
+	ctx := context.Background()
+	err = makeViewsForSlotItem(ctx, db)
+	if err != nil {
+		log.Printf("makeViewsForSlotItem")
+		panic(err)
+	}
+	err = doCountry(ctx, db)
 	if err != nil {
 		log.Println("doCountry:", err)
 		panic(err)
 	}
-	err = doState(context.Background(), db)
+	err = doState(ctx, db)
 	if err != nil {
 		log.Println("doState:", err)
 		panic(err)
 	}
-	err = doCity(context.Background(), db)
+	err = doCity(ctx, db)
 	if err != nil {
 		log.Println("doCity:", err)
 		panic(err)
 	}
 
-	err = doChannel(context.Background(), db)
+	err = doChannel(ctx, db)
 	if err != nil {
 		log.Println("doChannel:", err)
 		panic(err)

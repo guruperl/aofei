@@ -13,20 +13,20 @@ type Filter struct {
 func (self *Filter) GetAll() (map[string][]string, []string) {
 	action := self.Action
 	ARGS := self.R.Form
-	entitytype_id := ARGS.Get("entitytype_id")
-	if entitytype_id == "3" {
+	switch ARGS.Get("entitytype_id") {
+	case "3":
 		if action == "startnew" {
 			self.Fks = map[string][]string{"pub": {"pub_id", "", "campaign_id", "campaign_md5"}}
 		} else {
 			self.Fks = map[string][]string{"pub": {"pub_id", ""}}
 		}
-	} else if entitytype_id == "31" {
+	case "31":
 		self.Fks = map[string][]string{"pub": {"site_id", "site_md5"}}
-	} else if entitytype_id == "4" {
+	case "4":
 		self.Fks = map[string][]string{"adv": {"adv_id", ""}}
-	} else if entitytype_id == "41" {
+	case "41":
 		self.Fks = map[string][]string{"adv": {"campaign_id", "campaign_md5"}}
-	} else {
+	default:
 		self.Fks = map[string][]string{"pub": {"campaign_id", "campaign_md5"}}
 	}
 	return self.Filter.GetAll()
