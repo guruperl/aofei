@@ -1,7 +1,10 @@
-package summer
+package main
 
 import (
 	"database/sql"
+	"fmt"
+	"math/rand"
+	"time"
 )
 
 func InsertLedger(db *sql.DB, myDay string, slots, items map[int][]int, imps, clis map[int]map[int]int, spes map[int]map[int]float32) error {
@@ -125,7 +128,7 @@ INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 INSERT INTO daily_pub_adv (lp_id, la_id, imps, clis, spend)
 SELECT dp.lp_id, da.la_id, tmp.imps, tmp.clis, tmp.spend
 FROM (
-	SELECT DATE(timely) AS daily, slot_id, item_id, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, SUM(pa.spend) AS spend
+	SELECT DATE(timely) AS daily, slot_id, item_id, SUM(pa.imps) AS imps, SUM(pa.clis) InsertLedgerAS clis, SUM(pa.spend) AS spend
 	FROM ledger_pub_adv pa
 	INNER JOIN ledger_pub p USING (lp_id)
 	INNER JOIN ledger_adv a USING (la_id)
@@ -152,4 +155,85 @@ WHERE ldp.daily=? AND lda.daily=?`
 	}
 
 	return nil
+}
+
+func insertSampleLedger(db *sql.DB) error {
+	slotIdend := 2
+	itemIdend := 2
+	slotIdstart := 1
+	itemIdstart := 1
+	upperImp := 200
+	upperCli := 5
+	upperSpe := float32(2.0)
+
+	//day := "2018-05-06"
+	dayTime := time.Now().AddDate(0, 0, -1).String()
+	day := dayTime[0:10]
+	//rand.Seed(time.Now().UTC().UnixNano())
+
+	sthSlot, err := db.Prepare(
+		`SELECT s.site_id, t.pub_id 
+FROM pub_slot s
+INNER JOIN pub_site t USING (site_id)
+WHERE s.slot_id=?`)
+	if err != nil {
+		return err
+	}
+	defer sthSlot.Close()
+	slots := make(map[int][]int)
+	for slotID := slotIdstart; slotID <= slotIdend; slotID++ {
+		var siteID, pubID int
+		if err := sthSlot.QueryRow(slotID).Scan(&siteID, &pubID); err != nil {
+			return err
+		}
+		slots[slotID] = []int{siteID, pubID}
+	}
+
+	sthItem, err := db.Prepare(
+		`SELECT i.campaign_id, c.adv_id 
+FROM adv_item i
+INNER JOIN adv_campaign c USING (campaign_id)
+WHERE i.item_id=?`)
+	if err != nil {
+		return err
+	}
+	defer sthItem.Close()
+	items := make(map[int][]int)
+	for itemID := itemIdstart; itemID <= itemIdend; itemID++ {
+		var campaignID, advID int
+		if err := sthItem.QueryRow(itemID).Scan(&campaignID, &advID); err != nil {
+			return err
+		}
+		items[itemID] = []int{campaignID, advID}
+	}
+
+	for hour := 0; hour < 24; hour++ {
+		for minute := 0; minute < 60; minute += 5 {
+			imps := make(map[int]map[int]int)
+			clis := make(map[int]map[int]int)
+			spes := make(map[int]map[int]float32)
+
+			// simulations
+			for slotID := range slots {
+				imps[slotID] = make(map[int]int)
+				clis[slotID] = make(map[int]int)
+				spes[slotID] = make(map[int]float32)
+				for itemID := range items {
+					i := rand.Intn(upperImp)
+					c := rand.Intn(upperCli)
+					s := upperSpe * rand.Float32()
+					imps[slotID][itemID] = i
+					clis[slotID][itemID] = c
+					spes[slotID][itemID] = s
+				}
+			}
+
+			myDay := fmt.Sprintf("%s %d:%d:0", day, hour, minute)
+			err := InsertLedger(db, myDay, slots, items, imps, clis, spes)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return InsertDaily(db, day)
 }

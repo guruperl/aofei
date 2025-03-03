@@ -2,10 +2,7 @@ package summer
 
 import (
 	"database/sql"
-	"fmt"
 	"net/url"
-	"os/exec"
-	"regexp"
 	"testing"
 
 	"github.com/genelet/winter/genelet"
@@ -125,8 +122,8 @@ func TestModelExternal(t *testing.T) {
 	}
 
 	if _, err = db.Exec("DROP TABLE testing"); err == nil {
-		if _, err = db.Exec("DELETE FROM add_address"); err == nil {
-			_, err = db.Exec("ALTER TABLE add_address AUTO_INCREMENT=1")
+		if _, err = db.Exec("DELETE FROM add_address WHERE address_id>=21"); err == nil {
+			_, err = db.Exec("ALTER TABLE add_address AUTO_INCREMENT=21")
 		}
 	}
 	if err != nil {
@@ -134,61 +131,34 @@ func TestModelExternal(t *testing.T) {
 	}
 }
 
-func loadSample(mysqlConn string) error {
-	re := regexp.MustCompile(`^(\S+):(\S+)@tcp\((\S+)\)\/(\S+)$`)
-	arr := re.FindStringSubmatch(mysqlConn)
-	if len(arr) != 5 {
-		return fmt.Errorf("%s not found", mysqlConn)
-	}
-	user := arr[1]
-	pass := arr[2]
-	host := arr[3]
-	name := arr[4]
-	if user == "" || pass == "" || host == "" || name == "" {
-		return fmt.Errorf("%s", mysqlConn)
-	}
-	cmd := exec.Command("mysql", "-u"+user, "-p"+pass, "-h", host, name, "<", "sample.sql")
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-	cmd = exec.Command("mysql", "-u"+user, "-p"+pass, "-h", host, name, "<", "more.sql")
-	return cmd.Run()
-}
-
-func loadWeight(db *sql.DB) error {
-	dbi := &genelet.DBI{DB: db}
-	err := dbi.DoSQL("DROP TABLE IF EXISTS weight")
-	if err != nil {
-		return err
-	}
-	err = dbi.DoSQL(`TRUNCATE pub_weight`)
-	if err != nil {
-		return err
-	}
-	lists := make([]map[string]interface{}, 0)
-	err = dbi.SelectSQL(&lists, `SELECT slot_id, item_id FROM ViewSlot`)
-	if err != nil {
-		return err
-	}
-	for j, item := range lists {
-		err = dbi.DoSQL(`
-INSERT INTO pub_weight (slot_id, item_id, weight, created)
-VALUES (?, ?, ?, NOW())`, item["slot_id"], item["item_id"], j+1)
+/*
+	func loadSample(mysqlConn string) error {
+		re := regexp.MustCompile(`^(\S+):(\S+)@tcp\((\S+)\)\/(\S+)$`)
+		arr := re.FindStringSubmatch(mysqlConn)
+		if len(arr) != 5 {
+			return fmt.Errorf("%s not found", mysqlConn)
+		}
+		user := arr[1]
+		pass := arr[2]
+		host := arr[3]
+		name := arr[4]
+		if user == "" || pass == "" || host == "" || name == "" {
+			return fmt.Errorf("%s", mysqlConn)
+		}
+		cmd := exec.Command("mysql", "-u"+user, "-p"+pass, "-h", host, name, "<", "sample.sql")
+		bs, err := cmd.Output()
 		if err != nil {
+			log.Printf("%s", cmd.String()
+		)
+			log.Printf("%s", bs)
 			return err
 		}
+		cmd = exec.Command("mysql", "-u"+user, "-p"+pass, "-h", host, name, "<", "more.sql")
+		return cmd.Run()
 	}
-
-	return nil
-}
-
+*/
 func TestModelSummer(t *testing.T) {
 	c, err := genelet.NewConfig("../conf/summer.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = loadSample(c.ConnectArray[1])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,10 +166,7 @@ func TestModelSummer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = loadWeight(db)
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer db.Close()
 
 	model := new(Model)
 	model.DB = db
@@ -227,9 +194,12 @@ func TestModelSummer(t *testing.T) {
 	if one["size_id"].(int64) != 5 ||
 		one["active"].(string) != "Yes" ||
 		one["slot_name"].(string) != "slot 125" ||
-		one["channel_order"].(string) != "Inherit" ||
 		one["slot_id"].(int64) != 125 ||
-		one["site_id"].(int64) != 25 {
+		one["site_id"].(int64) != 25 ||
+		one["qa_device"].(string) != "0" ||
+		one["qa_position"].(string) != "0" ||
+		one["fl_expnd"].(string) != "0,1,2,3,4,5" ||
+		one["channel_order"].(string) != "Black" {
 		t.Errorf("%v", lists)
 	}
 }

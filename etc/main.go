@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
+	"database/sql"
+	"os"
 
+	"github.com/genelet/winter/genelet"
 	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/ssp"
 	_ "github.com/go-sql-driver/mysql"
@@ -22,32 +24,49 @@ func main() {
 	defer db.Close()
 
 	ctx := context.Background()
-	err = makeViewsForSlotItem(ctx, db)
-	if err != nil {
-		log.Printf("makeViewsForSlotItem")
-		panic(err)
-	}
-	err = doCountry(ctx, db)
-	if err != nil {
-		log.Println("doCountry:", err)
-		panic(err)
-	}
-	err = doState(ctx, db)
-	if err != nil {
-		log.Println("doState:", err)
-		panic(err)
-	}
-	err = doCity(ctx, db)
-	if err != nil {
-		log.Println("doCity:", err)
-		panic(err)
+
+	switch os.Args[1] {
+	case "weight":
+		err = insertSampleWeight(db)
+	case "ledger":
+		err = insertSampleLedger(db)
+	case "views":
+		err = makeViewsForSlotItem(ctx, db)
+	case "channel":
+		err = doChannel(ctx, db)
+	case "geography":
+		if err = doCountry(ctx, db); err == nil {
+			if err = doState(ctx, db); err == nil {
+				err = doCity(ctx, db)
+			}
+		}
+	default:
 	}
 
-	err = doChannel(ctx, db)
 	if err != nil {
-		log.Println("doChannel:", err)
 		panic(err)
 	}
+}
+
+func insertSampleWeight(db *sql.DB) error {
+	dbi := &genelet.DBI{DB: db}
+	lists := make([]map[string]interface{}, 0)
+	var err error
+	if err = dbi.DoSQL("DROP TABLE IF EXISTS weight"); err == nil {
+		if err = dbi.DoSQL(`TRUNCATE pub_weight`); err == nil {
+			if err = dbi.SelectSQL(&lists, `SELECT slot_id, item_id FROM ViewSlot`); err == nil {
+				for j, item := range lists {
+					err = dbi.DoSQL(`
+INSERT INTO pub_weight (slot_id, item_id, weight, created)
+VALUES (?, ?, ?, NOW())`, item["slot_id"], item["item_id"], j+1)
+					if err != nil {
+						break
+					}
+				}
+			}
+		}
+	}
+	return err
 }
 
 /*
