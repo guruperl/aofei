@@ -79,11 +79,11 @@ func (self *Filter) After(model *Model) error {
 	if action == "startnew" {
 		for _, name := range []string{"language", "device", "position"} {
 			other["qa_"+name] = summer.LARGES[name]
-			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
 		for _, name := range []string{"mime", "creative", "expnd"} {
 			other["fl_"+name] = summer.LARGES[name]
-			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["fl_"+name], "label", "label_chinese")
 		}
 		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
 	} else if action == "edit" {
@@ -103,7 +103,7 @@ func (self *Filter) After(model *Model) error {
 				str = item["qa_"+name].(string)
 			}
 			other["qa_"+name] = self.AfterItemSet(name, str)
-			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
 		for _, name := range []string{"mime", "creative", "expnd"} {
 			str := ""
@@ -111,7 +111,7 @@ func (self *Filter) After(model *Model) error {
 				str = item["fl_"+name].(string)
 			}
 			other["fl_"+name] = self.AfterItemSet(name, str)
-			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["fl_"+name], "label", "label_chinese")
 		}
 		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
 	} else if action == "topics" {

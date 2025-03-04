@@ -1,6 +1,6 @@
 {
   "actions":{ 
-    "startnew": {"groups":["adv"] },
+    "startnew": {"groups":["adv"], "options":["no_db","no_method"] },
     "dashboard":{"groups":["adv"]},
     "topics":   {"groups":["agent","adv"]},
     "insert":   {"groups":["adv"], "validate":["campaign_name"]},

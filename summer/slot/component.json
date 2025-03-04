@@ -13,11 +13,11 @@
 
   "nextpages": {
     "startnew" : [
-      {"model":"channel", "action":"topics", "manual":{"level":0}}
+      {"model":"channel", "action":"topics", "manual":{"level":1}}
     ],
-	"edit":[
-	  {"model":"chac", "action":"topics", "relate_item":{"slot_id":"entity_id"}, "manual":{"entitytype_id":32}}
-	]
+	  "edit":[
+	    {"model":"chac", "action":"topics", "relate_item":{"slot_id":"entity_id"}, "manual":{"entitytype_id":"32"}}
+	  ]
   },
   "insert_pars": [           "site_id","slot_name","size_id","qa_slot","fl_item","fl_mime","qa_language","qa_device","qa_position","fl_expnd","fl_creative","channel_order","created","active"],
   "update_pars": ["slot_id", "site_id","slot_name","size_id","qa_slot","fl_item","fl_mime","qa_language","qa_device","qa_position","fl_expnd","fl_creative","channel_order",          "active"],

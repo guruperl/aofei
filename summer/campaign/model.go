@@ -10,10 +10,6 @@ type Model struct {
 	summer.Model
 }
 
-func (self *Model) Startnew(extra ...url.Values) error {
-	return self.ProcessAfter("startnew", extra...)
-}
-
 func (self *Model) Authen(extra ...url.Values) error {
 	ARGS := self.ARGS
 	if ARGS.Get("agent_level") == "1" {

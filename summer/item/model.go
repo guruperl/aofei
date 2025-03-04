@@ -1,3 +1,4 @@
+// Package item handles the item model.
 package item
 
 import (
@@ -5,10 +6,16 @@ import (
 	"net/url"
 
 	"github.com/genelet/winter/summer"
+	"github.com/golang/glog"
 )
 
 type Model struct {
 	summer.Model
+}
+
+func (self *Model) Startnew(extra ...url.Values) error {
+	glog.Info("startnew .....")
+	return self.ProcessAfter("startnew", extra...)
 }
 
 func (self *Model) Review(extra ...url.Values) error {
@@ -34,7 +41,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 		return err
 	}
 	if summer.Grep([]string{"Pass2", "New", "Yes"}, ARGS.Get("item_active")) {
-		return errors.New("In reviewing")
+		return errors.New("in reviewing")
 	}
 	return self.Model.Insert(extra...)
 }

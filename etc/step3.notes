@@ -1,12 +1,12 @@
-grant all privileges on singapore.* to 'eightran_goto'@'%';
+grant all privileges on aofei.* to 'eightran_goto'@'%';
 grant super on *.* to 'eightran_goto'@'%';
 grant show_routine on *.* to 'eightran_goto'@'%';
 flush privileges;
 
-$ mysql -ueightran_goto -p12pass34 -h vm0 singapore < step0_init.sql
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei < step0_init.sql
 $ go run *go views
 $ go run *go channel
 $ go run *go geography
-$ mysqldump --routines --no-tablespaces -ueightran_goto -p12pass34 -h vm0 singapore  > step4_init.sql
+$ mysqldump --routines --no-tablespaces -ueightran_goto -p12pass34 -h vm0 aofei  > step4_init.sql
 
 the steps after step 4 are for sample testing only!

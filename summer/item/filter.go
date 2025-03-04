@@ -24,6 +24,10 @@ func (self *Filter) Preset() error {
 	action := self.Action
 	who := self.RoleValue
 
+	if who == "adv" {
+		ARGS.Set("entitytype_id", "42")
+	}
+
 	if who == "adv" && (action == "insert" || action == "update") {
 		slot := summer.GetSlotScoreArgs(ARGS)
 		ARGS.Set("fl_slot", strconv.FormatUint(uint64(slot), 10))
@@ -111,11 +115,11 @@ func (self *Filter) After(model *Model) error {
 	if action == "startnew" {
 		for _, name := range []string{"language", "device", "position"} {
 			other["fl_"+name] = summer.LARGES[name]
-			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["fl_"+name], "label", "label_chinese")
 		}
 		for _, name := range []string{"mime", "creative", "expnd"} {
 			other["qa_"+name] = summer.LARGES[name]
-			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
 		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
 	} else if action == "edit" {
@@ -135,7 +139,7 @@ func (self *Filter) After(model *Model) error {
 				str = item["fl_"+name].(string)
 			}
 			other["fl_"+name] = self.AfterItemSet(name, str)
-			summer.TranslateOne(other["fl_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["fl_"+name], "label", "label_chinese")
 		}
 		for _, name := range []string{"mime", "creative", "expnd"} {
 			str := ""
@@ -143,7 +147,7 @@ func (self *Filter) After(model *Model) error {
 				str = item["qa_"+name].(string)
 			}
 			other["qa_"+name] = self.AfterItemSet(name, str)
-			summer.TranslateOne(other["qa_"+name], "which", "label_chinese")
+			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
 		summer.TranslateOne(item, "channel_order", "channel_order_g")
 		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
@@ -162,7 +166,6 @@ func (self *Filter) After(model *Model) error {
 		summer.TranslateOne(lists, "qa_mime", "qa_chinese")
 	} else if who == "adv" && action == "insert" {
 		item := lists[0]
-		ARGS.Set("entitytype_id", "42")
 		// in genelet model, auto id is returned as string
 		ARGS.Set("entity_id", item["item_id"].(string))
 
@@ -181,7 +184,6 @@ func (self *Filter) After(model *Model) error {
 	} else if action == "update" {
 		ARGS.Set("table", "adv_item")
 		ARGS.Set("idname", "item_id")
-		ARGS.Set("entitytype_id", "42")
 		ARGS.Set("entity_id", ARGS.Get("item_id"))
 		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
 		if err != nil {

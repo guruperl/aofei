@@ -1,6 +1,6 @@
 {
   "actions" : {
-    "startnew": {"groups":["adv"],"options":["no_db", "no_method"]},
+    "startnew": {"groups":["adv"]},
       "insert": {"groups":["adv"],"validate":["campaign_id","item_name"]},
       "topics": {"groups":["agent","adv","pub"],"validate":["campaign_id"]},
         "edit": {"groups":["adv"],"validate":["item_id"]},
@@ -22,7 +22,7 @@
     ],
     "edit" : [
       {"model":"balance", "action":"topics", "relate_item":{"item_id":"entity_id"}, "manual":{"table":"adv_item","idname":"item_id"}},
-      {"model":"chac", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"entitytype_id":42, "level":1}},
+      {"model":"chac", "action":"topics", "relate_item":{"item_id":"entity_id"}, "manual":{"entitytype_id":"42", "level":1}},
       {"model":"creative", "action":"topics", "relate_item":{"item_id":"item_id"}}
     ],
     "topics" : [

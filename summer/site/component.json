@@ -12,15 +12,6 @@
     "pub" : ["pub_id", "", "site_id", "site_md5", "slot_topics", "slot_id", "slot_md5"]
   },
 
-  "nextpages": {
-    "startnew" : [
-      {"model":"channel", "action":"topics", "manual":{"level":1}}
-    ],
-    "edit":[
-      {"model":"chac", "action":"topics", "relate_item":{"site_id":"entity_id"}, "manual":{"entitytype_id":31}}
-    ]
-  },
-
   "insert_pars" : [           "pub_id","site_name","site_url","access_order","created","active"],
   "topics_pars" : ["site_id", "pub_id","site_name","site_url","access_order","created","active"],
   "update_pars" : ["site_id", "pub_id","site_name","site_url","access_order",          "active"],

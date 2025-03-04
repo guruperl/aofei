@@ -1,4 +1,4 @@
-$ mysql -ueightran_goto -p12pass34 -h vm0 singapore  < sample.sql
-$ mysql -ueightran_goto -p12pass34 -h vm0 singapore  < more.sql
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < sample.sql
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < more.sql
 $ go run *.go weight
 $ go run *.go ledger
