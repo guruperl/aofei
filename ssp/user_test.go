@@ -80,9 +80,7 @@ func TestUserGet(t *testing.T) {
 	}
 
 	ua1 := user.PzUa
-	if ua1.Browser != 1 ||
-		ua1.BVersion != 59 ||
-		ua1.OS != 2 ||
+	if ua1.OS != 2 ||
 		ua1.OVersion != 10 ||
 		ua1.Platform != 1 ||
 		ua1.Device != 1 {
@@ -135,9 +133,7 @@ func TestUserPost(t *testing.T) {
 	}
 
 	ua1 := user.PzUa
-	if ua1.Browser != 1 ||
-		ua1.BVersion != 59 || //"log"
-		ua1.OS != 2 ||
+	if ua1.OS != 2 ||
 		ua1.OVersion != 10 ||
 		ua1.Platform != 1 ||
 		ua1.Device != 1 {

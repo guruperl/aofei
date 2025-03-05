@@ -8,7 +8,7 @@ import (
 	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/summer"
-	// hitem "github.com/genelet/winter/holiday/target"
+	"github.com/golang/glog"
 )
 
 type Filter struct {
@@ -31,7 +31,10 @@ func (self *Filter) Preset() error {
 	}
 
 	if action == "insert" || action == "update" {
+		glog.Infof("%#v", ARGS["platform"])
 		uadevice.ResetArgs(ARGS)
+		glog.Infof("%#v", ARGS["platform"])
+		glog.Infof("%#v", ARGS["browser"])
 	}
 
 	return nil

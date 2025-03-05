@@ -5,19 +5,7 @@ import (
 	"github.com/mileusna/useragent"
 )
 
-/*
-type UA uint32;
-browser: 0
-version: 0
-os: 2^8
-version: 2^8
-platform: 2^8
-device: 2^8
-*/
-
 type PzUa struct {
-	Browser  uint32
-	BVersion uint32
 	OS       DeviceOS
 	OVersion DeviceOSV
 	Platform DeviceMake
@@ -55,26 +43,26 @@ func UaAttrs() map[string]string {
 }
 
 func uaNames() map[string]map[uint32]string {
-	osvs := make(map[uint32]string)
+	ovs := make(map[uint32]string)
 	oss := make(map[uint32]string)
 	platforms := make(map[uint32]string)
 	devices := make(map[uint32]string)
 
-	for i := range 20 {
+	for i := range int8(OVersion20) + 1 {
 		k := DeviceOSV(i)
-		osvs[uint32(i)] = k.String()
+		ovs[uint32(i)] = k.String()
 	}
-	for i := range 24 {
+	for i := range int8(OSWindowsPhone) + 1 {
 		k := DeviceOS(i)
 		oss[uint32(i)] = k.String()
 	}
-	for i := range 47 {
+	for i := range int(MakerBLACKBERRY) + 1 {
 		k := DeviceMake(i)
 		platforms[uint32(i)] = k.String()
 	}
-	for i := range 7 {
+	for i := range int(TypeTablet) + 1 {
 		k := DeviceType(i)
 		devices[uint32(i)] = k.String()
 	}
-	return map[string]map[uint32]string{"oversion": osvs, "os": oss, "platform": platforms, "device": devices}
+	return map[string]map[uint32]string{"oversion": ovs, "os": oss, "platform": platforms, "device": devices}
 }
