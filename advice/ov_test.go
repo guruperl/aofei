@@ -43,7 +43,7 @@ func TestOVString(t *testing.T) {
 		in  DeviceOSV
 		out string
 	}{
-		{OVersionUnknown, ""},
+		{OVersionUnknown, "Unknown"},
 		{OVersion1, "1"},
 		{OVersion2, "2"},
 		{OVersion3, "3"},

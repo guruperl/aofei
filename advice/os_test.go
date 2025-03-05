@@ -34,7 +34,7 @@ func TestOSParse(t *testing.T) {
 		{"WatchOS", OSWatchOS},
 		{"WebOS", OSWebOS},
 		{"Windows", OSWindows},
-		{"WindowsPhone", OSWindowsPhone},
+		{"Windows Phone", OSWindowsPhone},
 	}
 	for _, tt := range tests {
 		if got := ParseOS(tt.in); got != tt.out {
@@ -72,7 +72,7 @@ func TestOSString(t *testing.T) {
 		{OSWatchOS, "WatchOS"},
 		{OSWebOS, "webOS"},
 		{OSWindows, "Windows"},
-		{OSWindowsPhone, "WindowsPhone"},
+		{OSWindowsPhone, "Windows Phone"},
 	}
 	for _, tt := range tests {
 		if got := tt.in.String(); got != tt.out {
