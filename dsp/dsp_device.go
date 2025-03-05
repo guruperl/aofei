@@ -1,8 +1,8 @@
 package dsp
 
 import (
+	uadevice "github.com/genelet/winter/advice"
 	ipsearch "github.com/genelet/winter/maxmind"
-	"github.com/genelet/winter/uadevice"
 
 	openrtb2 "github.com/prebid/openrtb/v20/openrtb2"
 )

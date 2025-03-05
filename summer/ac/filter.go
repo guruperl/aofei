@@ -27,7 +27,6 @@ func (self *Filter) GetAll() (map[string][]string, []string) {
 	case "41":
 		self.Fks = map[string][]string{"adv": {"campaign_id", "campaign_md5"}}
 	default:
-		self.Fks = map[string][]string{"pub": {"campaign_id", "campaign_md5"}}
 	}
 	return self.Filter.GetAll()
 }

@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"testing"
 
+	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dmp"
 	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/uadevice"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -96,12 +96,11 @@ func GetAudienceSample() *Audience {
 		},
 		DemoAudience: demo.DemoAudience{},
 		UaAudience: uadevice.UaAudience{
-			UaBVersion:  1,
-			UaOVersion:  1,
-			UaBrowsers:  []uint32{2, 1},
-			UaOSs:       []uint32{3, 1},
-			UaPlatforms: []uint32{4, 1},
-			UaDevices:   []uint32{5, 1},
+			UaOVersions: 1,
+			UaBrowsers:  2,
+			UaOSs:       3,
+			UaPlatforms: 4,
+			UaDevices:   5,
 		},
 		WeekDays:  1111,
 		WeekHours: 2222,
@@ -189,7 +188,10 @@ func TestAudience(t *testing.T) {
 		t.Errorf("%v\n%v", aud, ARGS)
 	}
 
-	aud0 := AudienceFromArgs(ARGS)
+	aud0, err := AudienceFromArgs(ARGS)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 	if aud0.Sex != 1 ||
 		aud0.Bplaces[0] != 9 ||
 		aud0.Brands[0] != 11 ||

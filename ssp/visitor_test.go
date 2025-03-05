@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	uadevice "github.com/genelet/winter/advice"
 	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/uadevice"
 )
 
 func TestVisitor(t *testing.T) {

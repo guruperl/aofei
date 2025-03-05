@@ -8,17 +8,17 @@ import (
 	"strings"
 	"time"
 
+	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dmp"
 	"github.com/genelet/winter/match"
 	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/uadevice"
 )
 
 type User struct {
 	Visitor
-	uadevice.PzUa
+	*uadevice.PzUa
 	IsNew      bool
 	IsDailyNew bool
 	FullTime   time.Time
@@ -53,7 +53,7 @@ func CreateUser(r *http.Request, c *pzutil.Config, ips *ipsearch.IPSearch, curre
 	if r.UserAgent() == "" {
 		return nil, errors.New("user agent not found")
 	}
-	pzua := uadevice.CreateTwoUa(r.UserAgent())
+	pzua := uadevice.GetPzUa(r.UserAgent())
 	visitor, needCookie, isNew, err := RetrieveVisitor(cookieVal, ips, pzua, current, ipstr, ip32)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func CreateUser(r *http.Request, c *pzutil.Config, ips *ipsearch.IPSearch, curre
 		ccaps, _ = match.UnpackFcaps(current, ccookie.Value)
 	}
 
-	return &User{*visitor, *pzua, isNew, needCookie, current, ip32, icaps, ccaps}, nil
+	return &User{*visitor, pzua, isNew, needCookie, current, ip32, icaps, ccaps}, nil
 }
 
 func (self *User) ToImp(status pzutil.Status, rpub match.RPub) match.Imp {

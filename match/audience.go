@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
+	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dmp"
 	ipsearch "github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/uadevice"
 )
 
 type Audience struct {
@@ -51,11 +51,14 @@ func (self *Audience) MatchWeekTime(current time.Time) bool {
 	return true
 }
 
-func AudienceFromArgs(ARGS url.Values) *Audience {
+func AudienceFromArgs(ARGS url.Values) (*Audience, error) {
 	dmpA := dmp.DmpAudienceFromArgs(ARGS)
 	geoA := ipsearch.GeoAudienceFromArgs(ARGS)
 	demoA := demo.DemoAudienceFromArgs(ARGS)
-	uaA := uadevice.UaAudienceFromArgs(ARGS)
+	uaA, err := uadevice.UaAudienceFromArgs(ARGS)
+	if err != nil {
+		return nil, err
+	}
 	aud := &Audience{DmpAudience: *dmpA, GeoAudience: *geoA, DemoAudience: *demoA, UaAudience: *uaA}
 
 	f := func(_ url.Values, name string, which *uint32) {
@@ -70,7 +73,7 @@ func AudienceFromArgs(ARGS url.Values) *Audience {
 	f(ARGS, "weekday", &aud.WeekDays)
 	f(ARGS, "weekhour", &aud.WeekHours)
 
-	return aud
+	return aud, nil
 }
 
 func (self *Audience) ToArgs(ARGS url.Values) {
@@ -92,7 +95,7 @@ func (self *Audience) ToArgs(ARGS url.Values) {
 	f(ARGS, "weekhour", self.WeekHours)
 }
 
-func DBGetAudience(db *sql.DB, campaignID uint32) (*Audience, error) {
+func DBGetAudience(db *sql.DB, slotID uint32) (*Audience, error) {
 	rows, err := db.Query(
 		`SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id,
 	an.attrname_id, an.attrname, av.attrvalue_id
@@ -101,7 +104,7 @@ INNER JOIN adv_targetvalue tv USING (targetname_id)
 INNER JOIN adv_attrname an USING (attrname_id)
 LEFT JOIN adv_attrvalue av
 	ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id)
-WHERE tn.campaign_id=?`, campaignID)
+WHERE tn.slot_id=?`, slotID)
 	if err != nil {
 		return nil, err
 	}
@@ -128,13 +131,22 @@ WHERE tn.campaign_id=?`, campaignID)
 		dmpA.DBFillDmpAudience(attrname, valueID)
 		geoA.DBFillGeoAudience(attrname, valueID)
 		demoA.DBFillDemoAudience(attrname, valueID)
-		uaA.DBFillUaAudience(attrname, valueID)
 
 		switch attrname {
 		case "weekday":
 			weekdays += 1 << valueID
 		case "weekhour":
 			weekhours += 1 << valueID
+		case "os":
+			uaA.UaOSs = valueID
+		case "oversion":
+			uaA.UaOVersions = valueID
+		case "platform":
+			uaA.UaPlatforms = valueID
+		case "browser":
+			uaA.UaBrowsers = valueID
+		case "device":
+			uaA.UaDevices = valueID
 		default:
 		}
 	}
@@ -149,11 +161,11 @@ WHERE tn.campaign_id=?`, campaignID)
 }
 
 func DBInsertAudience(db *sql.DB, ARGS url.Values) error {
-	campaignID := ARGS.Get("campaign_id")
+	slotID := ARGS.Get("slot_id")
 
 	data := ``
 	_, err := db.Exec(
-		`DELETE FROM adv_targetname WHERE campaign_id=?`, campaignID)
+		`DELETE FROM adv_targetname WHERE slot_id=?`, slotID)
 	if err != nil {
 		return err
 	}
@@ -174,8 +186,8 @@ func DBInsertAudience(db *sql.DB, ARGS url.Values) error {
 
 	for attrname, attrnameID := range hash {
 		result, err := db.Exec(
-			`INSERT INTO adv_targetname (campaign_id, attrname_id) VALUES (?, ?)`,
-			campaignID, attrnameID)
+			`INSERT INTO adv_targetname (slot_id, attrname_id) VALUES (?, ?)`,
+			slotID, attrnameID)
 		if err != nil {
 			return err
 		}

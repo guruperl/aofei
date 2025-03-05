@@ -96,13 +96,13 @@ func UaNames() map[string]map[uint32]string {
 	platforms := make(map[uint32]string)
 	devices := make(map[uint32]string)
 
-	for i := 0; i < 29; i++ {
+	for i := range 29 {
 		k := uint32(i)
 		if pzutil.GrepUint32([]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17}, k) {
 			browsers[k] = uasurfer.BrowserName(i).String()
 		}
 	}
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		k := uint32(i)
 		if pzutil.GrepUint32([]uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}, k) {
 			oss[k] = uasurfer.OSName(i).String()

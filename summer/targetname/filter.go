@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"strconv"
 
+	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/summer"
-	"github.com/genelet/winter/uadevice"
 	// hitem "github.com/genelet/winter/holiday/target"
 )
 
@@ -21,12 +21,17 @@ func (self *Filter) Preset() error {
 	}
 
 	ARGS := self.R.Form
+	action := self.Action
 	//who := self.RoleValue
 
 	if ARGS.Get("entitytype_id") == "41" {
 		ARGS.Set("entity_id", ARGS.Get("campaign_id"))
 	} else if ARGS.Get("entitytype_id") == "42" {
 		ARGS.Set("entity_id", ARGS.Get("item_id"))
+	}
+
+	if action == "insert" || action == "update" {
+		uadevice.ResetArgs(ARGS)
 	}
 
 	return nil
@@ -146,6 +151,7 @@ func (self *Filter) After(model *Model) error {
 		ref := make(map[string]map[int]bool)
 		hours := make(map[int]bool)
 		days := make(map[int]bool)
+		uaAud := new(uadevice.UaAudience)
 		for _, item := range lists {
 			attrname := item["attrname"].(string)
 			if _, ok := ref[attrname]; !ok {
@@ -158,6 +164,16 @@ func (self *Filter) After(model *Model) error {
 			case "weekday":
 				days[valueID] = true
 			case "isp", "state", "city", "dma":
+			case "os":
+				uaAud.UaOSs = uint32(valueID)
+			case "oversion":
+				uaAud.UaOVersions = uint32(valueID)
+			case "platform":
+				uaAud.UaPlatforms = uint32(valueID)
+			case "browser":
+				uaAud.UaBrowsers = uint32(valueID)
+			case "device":
+				uaAud.UaDevices = uint32(valueID)
 			default:
 				ref[attrname][valueID] = true
 			}
@@ -180,15 +196,7 @@ func (self *Filter) After(model *Model) error {
 		other["weekday"] = weekdays
 		other["weekdayChinese"] = summer.Translate(other["weekday"])
 
-		pzuas := make(map[string]map[int][]interface{})
-		for attrname, val := range uadevice.UaNames() {
-			item := make(map[int][]interface{})
-			for valueID, name := range val {
-				item[int(valueID)] = []interface{}{name, ref[attrname][int(valueID)]}
-			}
-			pzuas[attrname] = item
-		}
-		other["pzua"] = pzuas
+		other["pzua"] = uaAud.Tmpls()
 		other["pzuaChinese"] = summer.Translate(other["pzua"])
 		other["pzAttrs"] = uadevice.UaAttrs()
 		other["pzAttrsChinese"] = summer.Translate(other["pzAttrs"])

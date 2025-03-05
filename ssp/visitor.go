@@ -6,9 +6,9 @@ import (
 	"encoding/gob"
 	"time"
 
+	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/match"
 	ipsearch "github.com/genelet/winter/maxmind"
-	"github.com/genelet/winter/uadevice"
 )
 
 type Visitor struct {
