@@ -1,0 +1,11 @@
+{
+    "crud": {
+        "current_key"  : "click_id",
+        "current_table": "rawclick",
+        "foreign_key"  : "imp_id",
+        "tags"         : ["pub_id","site_id"]
+    },
+    "insert_pars" : [           "imp_id","raw_id","user_id","slot_id","creative_id","item_id","cost_type","price","campaign_id","adv_id","pub_id","site_id"],
+    "edit_pars"   : ["click_id","imp_id","raw_id","user_id","slot_id","creative_id","item_id","cost_type","price","campaign_id","adv_id","pub_id","site_id"],
+    "topics_pars" : ["click_id","imp_id","raw_id","user_id","slot_id","creative_id","item_id","cost_type","price","campaign_id","adv_id","pub_id","site_id"]
+}

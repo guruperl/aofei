@@ -1,0 +1,11 @@
+{
+    "crud": {
+        "current_key"  : "ts",
+        "current_table": "target",
+        "foreign_key"  : "attrname_id",
+        "tags"         : ["campaign_id"]
+    },
+    "insert_pars" : [     "attrname_id","value_id","campaign_id"],
+    "edit_pars"   : ["ts","attrname_id","value_id","campaign_id"],
+    "topics_pars" : ["ts","attrname_id","value_id","campaign_id"]
+}
