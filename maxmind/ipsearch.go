@@ -5,7 +5,6 @@ import (
 	"net"
 
 	"github.com/IncSW/geoip2"
-	//"github.com/k0kubun/pp/v3"
 )
 
 type IPSearch struct {
@@ -49,7 +48,7 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 	}
 	if r.Subdivisions != nil {
 		pzg.State = r.Subdivisions[0].ISOCode
-		g.StateCode = stateCodeToUint32(r.Subdivisions[0].ISOCode)
+		g.StateCode = StateCodeToUint32(r.Subdivisions[0].ISOCode)
 	}
 	if r.City.Names != nil {
 		city, ok := r.City.Names["zh-CN"]

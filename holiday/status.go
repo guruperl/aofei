@@ -6,12 +6,12 @@ const (
 )
 
 type Status struct {
-	IsUser     bool
-	IsDevice   bool
-	IsIp   bool
-	RequestType	R_TYPE
+	IsUser      bool
+	IsDevice    bool
+	IsIp        bool
+	RequestType R_TYPE
 	MimeType    M_TYPE
-	IdSource   ID_SOURCE
+	IdSource    ID_SOURCE
 	Source      T_SOURCE
 }
 
@@ -28,13 +28,13 @@ const (
 type M_TYPE int
 
 const (
-    MimeUnknown M_TYPE = iota
-    JsonMime
-    H5Mime
-    JSMime
-    ImageMime
-    VideoMime
-    AudioMime
+	MimeUnknown M_TYPE = iota
+	JsonMime
+	H5Mime
+	JSMime
+	ImageMime
+	VideoMime
+	AudioMime
 )
 
 // user id type, ID_SOURCE 3 bits
@@ -56,24 +56,19 @@ type T_SOURCE int
 const (
 	TrafficUnknown T_SOURCE = iota
 	Browser
-    MobileH5
-    MobileNative
-	VideoSource
-	MMS
+	MobileH5
+	MobileNative
+	PREBID
 	DeviceSource
 	EmailSource
-    PDF
-	WechatSource
-	Tencent
-	Baidu
-	Alibaba
-    DSP
+	DSP
+	AOFEI
 )
 
 func (self *Status) Pack() uint16 {
 	d := uint16(0)
 
-	if self.IsUser{
+	if self.IsUser {
 		d += (1 << 0)
 	}
 	if self.IsDevice {
@@ -85,8 +80,8 @@ func (self *Status) Pack() uint16 {
 
 	d += uint16((int(self.RequestType) & 3) << 14) // 2
 	d += uint16((int(self.MimeType) & 7) << 11)    // 3
-	d += uint16((int(self.IdSource) & 7) << 8) // 3
-	d += uint16((int(self.Source) & 31) << 3)  // 5
+	d += uint16((int(self.IdSource) & 7) << 8)     // 3
+	d += uint16((int(self.Source) & 31) << 3)      // 5
 
 	return d
 }

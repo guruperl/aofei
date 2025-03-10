@@ -1,4 +1,4 @@
-package target
+package holiday
 
 import (
 	"time"

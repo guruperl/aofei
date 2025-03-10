@@ -3,7 +3,8 @@ package holiday
 import (
 	"fmt"
 	"time"
-    adcom1 "github.com/mxmCherry/openrtb/adcom1"
+
+	adcom1 "github.com/mxmCherry/openrtb/adcom1"
 )
 
 type User struct {
@@ -13,27 +14,33 @@ type User struct {
 }
 
 func (self *User) UpdateTags(device *Device, geo *Geo, current time.Time, refMap map[string]*TagMap) {
-    userTagMap := make(map[string]*Tags)
-    if self.Data != nil {
-        for _, data := range self.Data {
+	userTagMap := make(map[string]*Tags)
+	if self.User.Data != nil {
+		for _, data := range self.User.Data {
 			provider := data.ID
-            if tagMap, ok := refMap[provider]; ok {
-                if self.Tags == nil { self.Tags = make(map[string]*Tags) }
-                userTagMap[provider] = tagMap.GetTagsFromCodes(data.Segment[0].Value)
-            }
-        }
-    }
-    userTagMap["device"]  = device.GetTags()
-    userTagMap["geo"]     = geo.GetTags()
-    dayhour := &Dayhour{current}
-    userTagMap["dayhour"] = dayhour.GetTags()
-    if self.YOB == 0 || self.Gender != "" {
+			if tagMap, ok := refMap[provider]; ok {
+				if self.Tags == nil {
+					self.Tags = make(map[string]*Tags)
+				}
+				userTagMap[provider] = tagMap.GetTagsFromCodes(data.Segment[0].Value)
+			}
+		}
+	}
+	userTagMap["device"] = device.GetTags()
+	userTagMap["geo"] = geo.GetTags()
+	dayhour := &Dayhour{current}
+	userTagMap["dayhour"] = dayhour.GetTags()
+	if self.YOB == 0 || self.Gender != "" {
 		demo := new(Demo)
-		if self.YOB != 0 { demo.YOB = self.YOB }
-		if self.Gender != "" { demo.GENDER = self.Gender }
-        userTagMap["demo"] = demo.GetTags()
-    }
-    self.Tags = userTagMap
+		if self.YOB != 0 {
+			demo.YOB = self.YOB
+		}
+		if self.Gender != "" {
+			demo.GENDER = self.Gender
+		}
+		userTagMap["demo"] = demo.GetTags()
+	}
+	self.Tags = userTagMap
 	return
 }
 
@@ -52,18 +59,20 @@ func (self *User) MergeTags() *Tags {
 	return &Tags{hash}
 }
 
-func (self *User)Top10Tags() map[string]interface{} {
+func (self *User) Top10Tags() map[string]interface{} {
 	args := make(map[string]interface{})
 	k := 0
 	for provider, tags := range self.Tags {
-		if IndexString([]string{"device","geo","dayhour"}, provider) >= 0 {
+		if IndexString([]string{"device", "geo", "dayhour"}, provider) >= 0 {
 			continue
 		}
 		for attrname_id, values := range tags.TagHashArray {
 			for _, value_id := range values {
-				if k>=10 { return args }
-// we shrink to use only uint16
-				args[fmt.Sprintf("tag%d", k)] = GetSizeId(uint16(attrname_id),uint16(value_id))
+				if k >= 10 {
+					return args
+				}
+				// we shrink to use only uint16
+				args[fmt.Sprintf("tag%d", k)] = getSizeID(uint16(attrname_id), uint16(value_id))
 				k++
 			}
 		}

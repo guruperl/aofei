@@ -5,7 +5,7 @@ type Creative struct {
 	Weight     float32
 	Click      string
 	Content    string
-	Cap *Cap
+	Cap        Cap
 }
 
 func creativeFromTao(hash map[string]interface{}) *Creative {

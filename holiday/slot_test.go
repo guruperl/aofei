@@ -1,4 +1,4 @@
-package slot
+package holiday
 
 import (
     "testing"

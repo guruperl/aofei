@@ -101,7 +101,7 @@ func (self *Seat) SeatBid(status Status) openrtb2.SeatBid {
 }
 
 func (self *SeatBase) PSABid() openrtb2.SeatBid {
-	size_id := self.adunit.NativeSizeId()
+	size_id := self.adunit.SizeID()
 	psa, ok := self.c.PSAs[size_id]
 	if !ok {
 		psa = self.c.PSAs[0]

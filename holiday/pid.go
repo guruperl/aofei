@@ -1,5 +1,4 @@
-// Package pid provides models and methods for handling pid operations
-package pid
+package holiday
 
 import (
 	"crypto/md5"
@@ -10,29 +9,6 @@ import (
 	"github.com/genelet/winter/genelet"
 )
 
-type Model struct {
-	genelet.Model
-}
-
-func Uint32Byte(u uint32) []byte {
-	buf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(buf, u)
-	return buf
-}
-func Byte32Uint(bs []byte) uint32 {
-	return binary.LittleEndian.Uint32(bs)
-}
-
-func Int2Byte(u1 int64, u2 int64) []byte {
-	buf1 := make([]byte, 8)
-	buf2 := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buf1, uint64(u1))
-	binary.LittleEndian.PutUint64(buf2, uint64(u2))
-	return append(buf1, buf2...)
-}
-func Byte2Int(bs []byte) (int64, int64) {
-	return int64(binary.LittleEndian.Uint64(bs[0:8])), int64(binary.LittleEndian.Uint64(bs[8:]))
-}
 
 func (self *Model) Insupd(extra ...map[string]interface{}) error {
 	ARGS := self.ARGS
