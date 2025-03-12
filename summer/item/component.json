@@ -1,6 +1,6 @@
 {
   "actions" : {
-    "startnew": {"groups":["adv"]},
+    "startnew": {"groups":["adv"], "options":["no_db","no_method"]},
       "insert": {"groups":["adv"],"validate":["campaign_id","item_name"]},
       "topics": {"groups":["agent","adv","pub"],"validate":["campaign_id"]},
         "edit": {"groups":["adv"],"validate":["item_id"]},
@@ -17,12 +17,8 @@
   },
 
   "nextpages" : {
-    "startnew" : [
-      {"model":"channel", "action":"topics", "manual":{"level":1}}
-    ],
     "edit" : [
       {"model":"balance", "action":"topics", "relate_item":{"item_id":"entity_id"}, "manual":{"table":"adv_item","idname":"item_id"}},
-      {"model":"chac", "action":"topics", "relate_item":{"item_id":"entity_id"}, "manual":{"entitytype_id":"42", "level":1}},
       {"model":"creative", "action":"topics", "relate_item":{"item_id":"item_id"}}
     ],
     "topics" : [
@@ -30,10 +26,10 @@
     ]
   },
 
-  "insert_pars":[          "campaign_id","item_name","item_click","size_id","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active","created"],
-  "update_pars":["item_id","campaign_id","item_name","item_click","size_id","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active"],
-  "topics_pars":["item_id","campaign_id","item_name","item_click","size_id","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active","created"],
-    "edit_pars":["item_id","campaign_id","item_name","item_click","size_id","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active","created"],
+  "insert_pars":[          "campaign_id","item_name","item_click","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active","created"],
+  "update_pars":["item_id","campaign_id","item_name","item_click","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active"],
+  "topics_pars":["item_id","campaign_id","item_name","item_click","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active","created"],
+    "edit_pars":["item_id","campaign_id","item_name","item_click","cost_type","cost","total_balance_id","daily_balance_id","startx","endx","fl_slot","qa_item","cpm_fc","cpm_length","cpm_throttle","cpc_fc","cpc_length","page_cap","channel_order","qa_mime","fl_language","fl_device","fl_position","qa_expnd","qa_creative","active","created"],
 
   "current_table":"adv_item",
   "current_key":"item_id",

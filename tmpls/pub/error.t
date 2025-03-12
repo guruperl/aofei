@@ -1,3 +1,0 @@
-No. [% error %]: [% errorstr %]
-
-[% logger %]

@@ -106,9 +106,9 @@ func (self *Filter) After(model *Model) error {
 		return err
 	}
 
-	ARGS := self.R.Form
+	//ARGS := self.R.Form
 	action := self.Action
-	who := self.RoleValue
+	//who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -121,10 +121,8 @@ func (self *Filter) After(model *Model) error {
 			other["qa_"+name] = summer.LARGES[name]
 			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
-		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
 	} else if action == "edit" {
 		item := lists[0]
-		summer.SetWH(item)
 		campItem := summer.UnpackItem((uint32(item["qa_item"].(int64))))
 		for k, v := range campItem.InHash() {
 			item[k] = v
@@ -149,8 +147,6 @@ func (self *Filter) After(model *Model) error {
 			other["qa_"+name] = self.AfterItemSet(name, str)
 			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
-		summer.TranslateOne(item, "channel_order", "channel_order_g")
-		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
 	} else if action == "topics" {
 		for _, item := range lists {
 			if item["startx"] != nil {
@@ -161,34 +157,8 @@ func (self *Filter) After(model *Model) error {
 				endx := item["endx"].(string)
 				item["endx"] = endx[5 : len(endx)-9]
 			}
-			summer.SetWH(item)
 		}
 		summer.TranslateOne(lists, "qa_mime", "qa_chinese")
-	} else if who == "adv" && action == "insert" {
-		item := lists[0]
-		// in genelet model, auto id is returned as string
-		ARGS.Set("entity_id", item["item_id"].(string))
-
-		if ARGS.Get("belong_ids") != "" {
-			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
-			if err != nil {
-				return err
-			}
-		}
-		if ARGS.Get("channel_order") != "" && ARGS.Get("ac_ids") != "" {
-			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertAc"})
-			if err != nil {
-				return err
-			}
-		}
-	} else if action == "update" {
-		ARGS.Set("table", "adv_item")
-		ARGS.Set("idname", "item_id")
-		ARGS.Set("entity_id", ARGS.Get("item_id"))
-		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
-		if err != nil {
-			return err
-		}
 	}
 
 	/*

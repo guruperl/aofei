@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/genelet/winter/summer"
-	// hitem "github.com/genelet/winter/holiday/item"
 )
 
 type Filter struct {
@@ -21,12 +20,16 @@ func (self *Filter) Preset() error {
 
 	ARGS := self.R.Form
 	action := self.Action
-	//who := self.RoleValue
+	who := self.RoleValue
 
 	if ARGS.Get("_gadmin") != "1" && (action == "insert" || action == "update") {
 		if ARGS.Get("active") != "" {
 			ARGS.Del("active")
 		}
+	}
+
+	if who == "adv" {
+		ARGS.Set("entitytype_id", "41")
 	}
 
 	return nil
@@ -69,9 +72,9 @@ func (self *Filter) After(model *Model) error {
 		return err
 	}
 
-	//ARGS := self.R.Form
+	ARGS := self.R.Form
 	action := self.Action
-	//who := self.RoleValue
+	who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -80,44 +83,26 @@ func (self *Filter) After(model *Model) error {
 	} else if action == "edit" {
 		item := lists[0]
 		summer.TranslateOne(item, "access_order", "access_order_g")
+		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
+	} else if who == "adv" && action == "insert" {
+		item := lists[0]
+		ARGS.Set("entity_id", item["campaign_id"].(string))
+
+		if ARGS.Get("belong_ids") != "" {
+			err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "insertBelong"})
+			if err != nil {
+				return err
+			}
+		}
+	} else if action == "update" {
+		ARGS.Set("table", "adv_item")
+		ARGS.Set("idname", "campaign_id")
+		ARGS.Set("entity_id", ARGS.Get("campaign_id"))
+		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
+		if err != nil {
+			return err
+		}
 	}
-
-	/*
-	   	if action=="update" || (action=="authen" && ARGS.Get("active")=="Yes") {
-	           taodb, err := sql.Open(self.C.Custom["taoType"], self.C.Custom["taoAccount"])
-	           if err != nil { return err }
-	           hmodel := new(hitem.Model)
-	           err = hmodel.Load(self.C.ProjectRoot+"/src/holiday/item/component.json")
-	           if err != nil { return err }
-	           hmodel.Db = taodb
-
-	   		items := make([]map[string]interface{},0)
-	   		err = model.SelectSQL(&items,
-	   `SELECT item_id
-	   FROM adv_item i
-	   INNER JOIN adv_campaign c USING (campaign_id)
-	   WHERE i.campaign_id=? AND c.active="Yes" AND i.active="Yes"`, ARGS.Get("campaign_id"))
-	           if err != nil { return err }
-	   		for _, one := range items {
-	   			sql := fmt.Sprintf("drop table if exists item_%d", one["item_id"])
-	   			err = hmodel.ExecSQL(sql)
-	   			if err != nil { return err }
-	   		}
-	           lists := make([]map[string]interface{},0)
-	           err = model.SelectSQL(&lists,
-	   `SELECT i.item_id, creative_id, weight, item_click, cpc_fc, cpc_length, content
-	   FROM adv_item i
-	   INNER JOIN adv_campaign c USING (campaign_id)
-	   INNER JOIN adv_creative r USING (item_id)
-	   WHERE i.campaign_id=? AND c.active="Yes" AND i.active="Yes"`, ARGS.Get("campaign_id"))
-	           if err != nil { return err }
-	           for _, one := range lists {
-	               err = hmodel.Insert(one)
-	               if err != nil { return err }
-	           }
-	           taodb.Close()
-	   	}
-	*/
 
 	return nil
 }

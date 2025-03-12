@@ -1848,7 +1848,7 @@ LOCK TABLES `pub_referer` WRITE;
 /*!40000 ALTER TABLE `pub_referer` DISABLE KEYS */;
 /*!40000 ALTER TABLE `pub_referer` ENABLE KEYS */;
 UNLOCK TABLES;
-
+pub_site
 --
 -- Table structure for table `pub_site`
 --
@@ -1922,7 +1922,7 @@ CREATE TABLE `pub_slot` (
   `fl_item` int unsigned DEFAULT '0',
   `qa_language` enum("EN","ES","RU","DE","FR","JA","PT","TR","IT","FA","NL","PL","ZH","VI","ID","CS","KO","UK","AR","EL","FI","HE","SV","RO","HU","TH","DA","SK","BG","SR","NB","Other") DEFAULT 'EN',
   `qa_device` enum("0","1","2","3","4","5","6","7") DEFAULT '0',
-  `qa_position` enum('0','1','2','3','4','5''6','7') DEFAULT '0',
+  `qa_position` enum('0','1','2','3','4','5','6','7') DEFAULT '0',
   `fl_creative` set('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18') DEFAULT '0',
   `fl_expnd` set('0','1','2','3','4','5') DEFAULT '0,1,2,3,4,5',
   `fl_mime` set('0','1','2','3','4') DEFAULT '0,1,2,3,4',

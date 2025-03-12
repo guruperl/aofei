@@ -1,6 +1,6 @@
 {
   "actions":{ 
-    "startnew": {"groups":["adv"], "options":["no_db","no_method"] },
+    "startnew": {"groups":["adv"]},
     "dashboard":{"groups":["adv"]},
     "topics":   {"groups":["agent","adv"]},
     "insert":   {"groups":["adv"], "validate":["campaign_name"]},
@@ -15,15 +15,19 @@
   },
 
   "nextpages" : {
+    "startnew" : [
+      {"model":"channel", "action":"topics"}
+    ],
     "edit" : [
+      {"model":"chac", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"entitytype_id":"41"}},
       {"model":"balance", "action":"topics", "relate_item":{"campaign_id":"entity_id"}, "manual":{"table":"adv_campaign","idname":"campaign_id"}}
     ]
   },
 
-  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","access_order","active","created","total_balance_id","daily_balance_id"],
-  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","active"],
-  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","active","created","total_balance_id","daily_balance_id"],
-  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","active","created","total_balance_id","daily_balance_id"],
+  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active","created","total_balance_id","daily_balance_id"],
+  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active"],
+  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active","created","total_balance_id","daily_balance_id"],
+  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active","created","total_balance_id","daily_balance_id"],
 
   "current_table" : "adv_campaign",
   "current_key" :  "campaign_id",
@@ -41,6 +45,7 @@
     "c.adv_id":"adv_id",
     "c.campaign_id":"campaign_id",
     "c.campaign_name":"campaign_name",
+    "c.target_type":"target_type",
     "c.total_balance_id":"total_balance_id",
     "c.daily_balance_id":"daily_balance_id",
     "c.active":"active",

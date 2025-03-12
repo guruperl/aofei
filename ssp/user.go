@@ -1,6 +1,7 @@
 // Package ssp provides functionalities for user management and matching items.
 package ssp
 
+/*
 import (
 	"errors"
 	"net"
@@ -285,3 +286,4 @@ func (self *User) MatchItemRef(demo *demo.Demo, dmmp *dmp.Dmp, ref map[uint32]*m
 	}
 	return n, &weight
 }
+*/

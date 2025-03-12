@@ -85,6 +85,10 @@ VALUES (?,?,?,?,?,NOW())`, lists[0]["creative_id"], ARGS["series"][i], m,
 				return err
 			}
 		}
+	} else if action == "topics" {
+		for _, item := range lists {
+			summer.SetWH(item)
+		}
 	}
 
 	return nil

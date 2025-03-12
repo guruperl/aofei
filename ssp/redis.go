@@ -1,5 +1,6 @@
 package ssp
 
+/*
 import (
 	"context"
 
@@ -247,3 +248,4 @@ func (self *Controller) RedisGetItems(ctx context.Context, ids []uint32) ([]*mat
 
 	return items, err
 }
+*/

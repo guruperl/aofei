@@ -6,16 +6,10 @@ import (
 	"net/url"
 
 	"github.com/genelet/winter/summer"
-	"github.com/golang/glog"
 )
 
 type Model struct {
 	summer.Model
-}
-
-func (self *Model) Startnew(extra ...url.Values) error {
-	glog.Info("startnew .....")
-	return self.ProcessAfter("startnew", extra...)
 }
 
 func (self *Model) Review(extra ...url.Values) error {

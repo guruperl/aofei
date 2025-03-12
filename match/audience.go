@@ -2,27 +2,25 @@
 package match
 
 import (
+	"context"
 	"database/sql"
-	"net/url"
 	"strconv"
-	"strings"
-	"time"
 
-	uadevice "github.com/genelet/winter/advice"
+	"github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
-	"github.com/genelet/winter/dmp"
-	ipsearch "github.com/genelet/winter/maxmind"
+	"github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
+
+	"github.com/mediocregopher/radix/v4"
 )
 
 type Audience struct {
-	dmp.DmpAudience
-	ipsearch.GeoAudience
-	demo.DemoAudience
-	uadevice.UaAudience
-
-	WeekDays  uint32
-	WeekHours uint32
+	*DHAudience
+	*CategoryAudience
+	*maxmind.GeoAudience
+	*demo.DemoAudience
+	*advice.UaAudience
+	*WLangs
 }
 
 func (self *Audience) Pack() ([]byte, error) {
@@ -35,189 +33,194 @@ func UnpackAudience(data []byte) (*Audience, error) {
 	return audience, err
 }
 
-func (self *Audience) MatchWeekTime(current time.Time) bool {
-	if self.WeekDays != 0 {
-		wd := uint32(current.Weekday())
-		if (uint32(self.WeekDays)>>wd)&1 != 1 {
-			return false
-		}
-	}
-	if self.WeekHours != 0 {
-		hour := uint32(current.Hour())
-		if (uint32(self.WeekHours)>>hour)&1 != 1 {
-			return false
-		}
-	}
-	return true
-}
-
-func AudienceFromArgs(ARGS url.Values) (*Audience, error) {
-	dmpA := dmp.DmpAudienceFromArgs(ARGS)
-	geoA := ipsearch.GeoAudienceFromArgs(ARGS)
-	demoA := demo.DemoAudienceFromArgs(ARGS)
-	uaA, err := uadevice.UaAudienceFromArgs(ARGS)
+func DBGetAudience(db *sql.DB, itemID uint32) (*Audience, error) {
+	var output *Audience
+	cat, err := DBGetCategoryAudience(db, itemID)
 	if err != nil {
 		return nil, err
 	}
-	aud := &Audience{DmpAudience: *dmpA, GeoAudience: *geoA, DemoAudience: *demoA, UaAudience: *uaA}
-
-	f := func(_ url.Values, name string, which *uint32) {
-		value := ARGS.Get(name)
-		if value != "" {
-			v, err := strconv.ParseUint(value, 10, 32)
-			if err == nil {
-				*which = uint32(v)
-			}
+	if cat != nil {
+		output = &Audience{
+			CategoryAudience: cat,
 		}
 	}
-	f(ARGS, "weekday", &aud.WeekDays)
-	f(ARGS, "weekhour", &aud.WeekHours)
 
-	return aud, nil
-}
-
-func (self *Audience) ToArgs(ARGS url.Values) {
-	dmpA := &self.DmpAudience
-	dmpA.ToArgs(ARGS)
-	geoA := &self.GeoAudience
-	geoA.ToArgs(ARGS)
-	demoA := &self.DemoAudience
-	demoA.ToArgs(ARGS)
-	uaA := &self.UaAudience
-	uaA.ToArgs(ARGS)
-
-	f := func(args url.Values, name string, value uint32) {
-		if value > 0 {
-			args.Add(name, strconv.FormatUint(uint64(value), 10))
-		}
-	}
-	f(ARGS, "weekday", self.WeekDays)
-	f(ARGS, "weekhour", self.WeekHours)
-}
-
-func DBGetAudience(db *sql.DB, slotID uint32) (*Audience, error) {
-	rows, err := db.Query(
-		`SELECT tn.targetname_id, tv.targetvalue_id, tv.value_id,
-	an.attrname_id, an.attrname, av.attrvalue_id
+	rows, err := db.Query(`
+SELECT tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id
 FROM adv_targetname tn
 INNER JOIN adv_targetvalue tv USING (targetname_id)
 INNER JOIN adv_attrname an USING (attrname_id)
-LEFT JOIN adv_attrvalue av
-	ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id)
-WHERE tn.slot_id=?`, slotID)
+LEFT JOIN adv_attrvalue av ON (an.attrname_id=av.attrname_id AND tv.value_id=av.attrvalue_id)
+WHERE tn.item_id=?`, itemID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	dmpA := new(dmp.DmpAudience)
-	geoA := new(ipsearch.GeoAudience)
+	var idh, igeo, idemo, iua int
+	dhA := new(DHAudience)
+	geoA := new(maxmind.GeoAudience)
 	demoA := new(demo.DemoAudience)
-	uaA := new(uadevice.UaAudience)
-	var weekdays, weekhours uint32
-
-	i := 0
+	uaA := new(advice.UaAudience)
+	var wlangs uint32
 	for rows.Next() {
-		var targetnameID, targetvalueID, valueID, attrnameID uint32
+		var valueID, attrnameID uint32
 		var attrvalueID sql.NullInt64
 		var attrname string
-		err = rows.Scan(&targetnameID, &targetvalueID, &valueID, &attrnameID, &attrname, &attrvalueID)
+		err = rows.Scan(&valueID, &attrnameID, &attrname, &attrvalueID)
 		if err != nil {
 			return nil, err
 		}
 
-		i++
-
-		dmpA.DBFillDmpAudience(attrname, valueID)
-		geoA.DBFillGeoAudience(attrname, valueID)
-		demoA.DBFillDemoAudience(attrname, valueID)
-
-		switch attrname {
-		case "weekday":
-			weekdays += 1 << valueID
-		case "weekhour":
-			weekhours += 1 << valueID
-		case "os":
-			uaA.UaOSs = valueID
-		case "oversion":
-			uaA.UaOVersions = valueID
-		case "platform":
-			uaA.UaPlatforms = valueID
-		case "browser":
-			uaA.UaBrowsers = valueID
-		case "device":
-			uaA.UaDevices = valueID
-		default:
+		if attrname == "language" {
+			wlangs = valueID
 		}
+		idh += dhA.DBFillDhAudience(attrname, valueID)
+		igeo += geoA.DBFillGeoAudience(attrname, valueID)
+		idemo += demoA.DBFillDemoAudience(attrname, valueID)
+		iua += uaA.DBFillUaAudience(attrname, valueID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if i == 0 {
-		return nil, nil
+	rows.Close()
+
+	rows, err = db.Query(`
+SELECT c.channel_name
+FROM ch_belong b
+INNER JOIN def_channel c USING channel_id
+INNER JOIN adv_item i ON (b.entitytype_id=41 AND b.entity_id=i.campaign_id)
+WHERE i.item_id=?`, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var owns []string
+	for rows.Next() {
+		var channelName string
+		err = rows.Scan(&channelName)
+		if err != nil {
+			return nil, err
+		}
+		owns = append(owns, channelName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	var channelOrder string
+	err = db.QueryRow(`
+SELECT channel_order
+FROM adv_item
+WHERE item_id=?`, itemID).Scan(&channelOrder)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
 	}
 
-	return &Audience{DmpAudience: *dmpA, GeoAudience: *geoA, DemoAudience: *demoA, UaAudience: *uaA, WeekDays: weekdays, WeekHours: weekhours}, nil
+	rows, err = db.Query(`
+SELECT c.channel_name
+FROM ch_ac a
+INNER JOIN def_channel c USING channel_id
+INNER JOIN adv_item i ON (a.entitytype_id=42 AND a.entity_id=i.item_id)
+WHERE i.item_id=?`, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cats []string
+	for rows.Next() {
+		var channelName string
+		err = rows.Scan(&channelName)
+		if err != nil {
+			return nil, err
+		}
+		cats = append(cats, channelName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	if output == nil {
+		if idh == 0 && igeo == 0 && idemo == 0 && iua == 0 && wlangs == 0 {
+			return nil, nil
+		} else {
+			output = new(Audience)
+		}
+	}
+
+	if idh > 0 {
+		output.DHAudience = dhA
+	}
+	if igeo > 0 {
+		output.GeoAudience = geoA
+	}
+	if idemo > 0 {
+		output.DemoAudience = demoA
+	}
+	if iua > 0 {
+		output.UaAudience = uaA
+	}
+	if wlangs > 0 {
+		x := WLangs(wlangs)
+		output.WLangs = &x
+	}
+
+	return output, nil
 }
 
-func DBInsertAudience(db *sql.DB, ARGS url.Values) error {
-	slotID := ARGS.Get("slot_id")
-
-	data := ``
-	_, err := db.Exec(
-		`DELETE FROM adv_targetname WHERE slot_id=?`, slotID)
+// ToRedis inserts audience data into Redis.
+func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uint32, data []byte) error {
+	bs, err := self.Pack()
 	if err != nil {
 		return err
 	}
+	return conn.Do(ctx, radix.Cmd(nil, "SET", "audience:"+strconv.FormatUint(uint64(itemID), 10), string(bs)))
+}
 
-	hash := make(map[string]string)
-	for attrname, attrnameID := range pzutil.AttrValue {
-		if _, ok := ARGS[attrname]; ok {
-			hash[attrname] = strconv.FormatUint(uint64(attrnameID), 10)
-		}
+// FromRedis retrieves audience data from Redis.
+func FromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*Audience, error) {
+	var bs []byte
+	err := conn.Do(ctx, radix.Cmd(&bs, "GET", "audience:"+strconv.FormatUint(uint64(itemID), 10)))
+	if err != nil {
+		return nil, err
 	}
-	for k := range ARGS {
-		parts := strings.Split(k, "_")
-		id := parts[len(parts)-1]
-		if pzutil.IsDigit(id) {
-			hash[k] = id
-		}
-	}
+	return UnpackAudience(bs)
+}
 
-	for attrname, attrnameID := range hash {
-		result, err := db.Exec(
-			`INSERT INTO adv_targetname (slot_id, attrname_id) VALUES (?, ?)`,
-			slotID, attrnameID)
-		if err != nil {
-			return err
-		}
-		lastID, err := result.LastInsertId()
-		if err != nil {
-			continue
-		}
-		targetnameID := strconv.FormatInt(lastID, 10)
-		total := 0
-		for _, id := range ARGS[attrname] {
-			if pzutil.IsDigit(id) {
-				data += `(` + targetnameID + `, ` + id + `),`
-				total++
-			}
-		}
-		if total == 0 {
-			_, err = db.Exec(
-				`DELETE FROM adv_targetname WHERE targetname_id=?`, targetnameID)
-			if err != nil {
-				return err
-			}
-		}
-	}
+func (self *Audience) Has(attr *Attribute) bool {
+	d := attr.Demo
+	g := attr.Geo
+	u := attr.PzUa
+	dh := attr.DH
+	language := attr.Langs
+	white := attr.White
+	black := attr.Black
+	pub := attr.PubLevel
+	site := attr.SiteLevel
+	page := attr.PageLevel
 
-	length := len(data)
-	if length == 0 {
-		return nil
+	if self.GeoAudience != nil && !self.GeoAudience.Has(g) {
+		return false
+	}
+	if self.DemoAudience != nil && !self.DemoAudience.Has(d) {
+		return false
+	}
+	if self.UaAudience != nil && !self.UaAudience.Has(u) {
+		return false
+	}
+	if self.WLangs != nil && !self.WLangs.Has(language) {
+		return false
+	}
+	if self.DHAudience != nil && !self.DHAudience.Has(dh) {
+		return false
+	}
+	if self.CategoryAudience != nil && !self.CategoryAudience.Has(white, black, pub, site, page) {
+		return false
 	}
 
-	_, err = db.Exec(
-		`INSERT INTO adv_targetvalue (targetname_id, value_id) VALUES ` + data[:length-1])
-	return err
+	return true
 }

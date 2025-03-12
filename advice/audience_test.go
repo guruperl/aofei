@@ -146,55 +146,55 @@ func TestUaAudienceMatch(t *testing.T) {
 		t.Errorf("Error: %v", err)
 	}
 	ua := &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(1), Device: DeviceType(1)}
-	if !aud.MatchUa(ua) {
+	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(1), Device: DeviceType(3)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(30), Device: DeviceType(1)}
-	if !aud.MatchUa(ua) {
+	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(30), Device: DeviceType(3)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(31), Device: DeviceType(1)}
-	if !aud.MatchUa(ua) {
+	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(31), Device: DeviceType(3)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(32), Device: DeviceType(1)}
-	if !aud.MatchUa(ua) {
+	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(32), Device: DeviceType(3)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(33), Device: DeviceType(1)}
-	if !aud.MatchUa(ua) {
+	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(33), Device: DeviceType(3)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(34), Device: DeviceType(1)}
-	if !aud.MatchUa(ua) {
+	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(34), Device: DeviceType(3)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 	ua = &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(35), Device: DeviceType(1)}
-	if aud.MatchUa(ua) {
+	if aud.Has(ua) {
 		t.Errorf("Match: %v", ua)
 	}
 }

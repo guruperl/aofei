@@ -64,6 +64,32 @@ VALUES (?, ?, ?, ?, ?, ?)`, arr[0], arr[4], arr[5], arr[1], continentID, isEuro)
 		return err
 	}
 
+	g, err := os.Open("countries_codes_and_coordinates.csv")
+	if err != nil {
+		panic(err)
+	}
+	defer g.Close()
+
+	re := regexp.MustCompile(`^"([^"]+)",\s+"([^"]+)",\s+"([^"]+)",\s+"([^"]+)",\s+"([^"]+)",\s+"([^"]+)"$`)
+	scanner = bufio.NewScanner(g)
+	scanner.Scan() // skip first line
+	for scanner.Scan() {
+		line := scanner.Text()
+		arr := re.FindStringSubmatch(line)
+		if len(arr) == 0 {
+			fmt.Printf("wrong country: %v\n", arr)
+			continue
+		}
+		_, err = db.ExecContext(ctx, `
+UPDATE def_country SET alpha3=?, numeric_code=? WHERE country_code=?`, arr[3], arr[4], arr[2])
+		if err != nil {
+			panic(err)
+		}
+	}
+	if err = scanner.Err(); err != nil {
+		panic(err)
+	}
+
 	// IN ('US','CN','DE','FR','GB','AU','CA','JP','RU','KR','IN','BR','IT','NL','ES')`)
 	_, err = db.ExecContext(ctx, `
 UPDATE def_country SET active='Yes' 

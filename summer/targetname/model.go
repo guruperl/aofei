@@ -105,7 +105,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 			hash[attrname] = strconv.FormatUint(uint64(attrnameID), 10)
 		}
 	}
-	for k, _ := range ARGS {
+	for k := range ARGS {
 		parts := strings.Split(k, "_")
 		if len(parts) < 2 {
 			continue

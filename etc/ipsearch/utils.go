@@ -1,4 +1,4 @@
-package maxmind
+package ipsearch
 
 import (
 	"encoding/binary"

@@ -41,14 +41,14 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 		CountryID: r.Country.GeoNameID,
 		CityID:    r.City.GeoNameID,
 		Location: Location{
-			Lat:       r.Location.Latitude,
-			Lon:       r.Location.Longitude,
-			aAccuracy: int64(r.Location.AccuracyRadius),
+			Lat:      r.Location.Latitude,
+			Lon:      r.Location.Longitude,
+			Accuracy: int64(r.Location.AccuracyRadius),
 		},
 	}
 	if r.Subdivisions != nil {
 		pzg.State = r.Subdivisions[0].ISOCode
-		g.StateCode = StateCodeToUint32(r.Subdivisions[0].ISOCode)
+		g.StateID = StateMap[g.CountryID][r.Subdivisions[0].ISOCode]
 	}
 	if r.City.Names != nil {
 		city, ok := r.City.Names["zh-CN"]

@@ -7,7 +7,6 @@ import (
 
 	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/summer"
-	"github.com/golang/glog"
 )
 
 type Model struct {
@@ -15,7 +14,6 @@ type Model struct {
 }
 
 func (self *Model) Topics(extra ...url.Values) error {
-	glog.Infof("%#v", extra[0])
 	entitytypeID := extra[0].Get("entitytype_id")
 	entityID := extra[0].Get("entity_id")
 	level := extra[0].Get("level")
@@ -25,12 +23,6 @@ func (self *Model) Topics(extra ...url.Values) error {
 	}
 	if entityID == "" {
 		entityID = ARGS.Get("entity_id")
-	}
-	if level == "" {
-		level = ARGS.Get("level")
-		if level == "" {
-			level = "1"
-		}
 	}
 
 	var err error
@@ -42,12 +34,24 @@ SELECT channel_order FROM pub_slot WHERE slot_id=?`, entityID)
 		err = self.GetArgs(ARGS, `
 SELECT channel_order FROM adv_item WHERE item_id=?`, entityID)
 	default:
-		return fmt.Errorf("wrong id %s of type %s", entityID, entitytypeID)
+		//return fmt.Errorf("wrong id %s of type %s", entityID, entitytypeID)
 	}
 	if err != nil {
 		return err
 	}
 
+	// just to get a shorter list
+	if level == "" {
+		level = "1"
+	}
+	if level == "" {
+		return self.SelectSQL(self.LISTS, `
+SELECT c.channel_id, c.channel_name, b.chbelong_id, a.chac_id
+FROM def_channel c
+LEFT JOIN ch_belong b ON (c.channel_id=b.channel_id AND b.entitytype_id=? AND b.entity_id=?)
+LEFT JOIN ch_ac     a ON (c.channel_id=a.channel_id AND a.entitytype_id=? AND a.entity_id=?)
+`, entitytypeID, entityID, entitytypeID, entityID)
+	}
 	return self.SelectSQL(self.LISTS, `
 SELECT c.channel_id, c.channel_name, b.chbelong_id, a.chac_id
 FROM def_channel c
@@ -101,7 +105,7 @@ func (self *Model) Update(extra ...url.Values) error {
 	entitytypeID := ARGS.Get("entitytype_id")
 	entityID := ARGS.Get("entity_id")
 	channelOrder := ARGS.Get("channel_order")
-	if channelOrder == "" {
+	if (entitytypeID == "32" || entitytypeID == "42") && channelOrder == "" {
 		return fmt.Errorf("channel_order is empty")
 	}
 
@@ -110,9 +114,12 @@ func (self *Model) Update(extra ...url.Values) error {
 DELETE FROM ch_belong WHERE entitytype_id=? AND entity_id=?`, entitytypeID, entityID); err == nil {
 		if err = self.DoSQL(`
 DELETE FROM ch_ac WHERE entitytype_id=? AND entity_id=?`, entitytypeID, entityID); err == nil {
-			if err = self.DoSQL(`
+			if entitytypeID == "32" || entitytypeID == "42" {
+				err = self.DoSQL(`
 UPDATE `+ARGS.Get("table")+`
-SET channel_order=? WHERE `+ARGS.Get("idname")+`=?`, channelOrder, entityID); err == nil {
+SET channel_order=? WHERE `+ARGS.Get("idname")+`=?`, channelOrder, entityID)
+			}
+			if err == nil {
 				if err = self.InsertAc(extra...); err == nil {
 					err = self.InsertBelong(extra...)
 				}

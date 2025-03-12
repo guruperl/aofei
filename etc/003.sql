@@ -1,0 +1,109 @@
+-- possible ads for a slot, including the black-white list by campaign
+DROP VIEW IF EXISTS ViewRedisWeb;
+DROP VIEW IF EXISTS ViewRedisApp;
+
+CREATE VIEW ViewRedisApp AS
+SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+FROM pub_slot t
+INNER JOIN pub_site s USING (site_id)
+INNER JOIN pub      p USING (pub_id)
+INNER JOIN adv_creative v USING (size_id)
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+INNER JOIN adv      a USING (adv_id)
+LEFT JOIN ac ON (
+        (ac.entitytype_id=4 AND ac.entity_id=a.adv_id) 
+        AND
+        ((ac.othertype_id=3 AND ac.other_id=p.pub_id) OR (ac.othertype_id=31 AND ac.other_id=s.site_id))
+    )
+WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"
+AND   a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
+AND (
+    c.access_order ='Inherit'
+    AND (
+        (a.access_order="White" AND ac.entity_id IS NOT NULL) OR (a.access_order="Black" AND ac.entity_id IS NULL)
+    )
+)
+AND (i.startx <= NOW() OR (i.startx IS NULL))
+AND (  i.endx >= NOW() OR (  i.endx IS NULL))
+AND s.site_type = 'App' AND c.target_type = 'App'
+
+UNION
+
+SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+FROM pub_slot t
+INNER JOIN pub_site s USING (site_id)
+INNER JOIN pub      p USING (pub_id)
+INNER JOIN adv_creative v USING (size_id)
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+INNER JOIN adv      a USING (adv_id)
+LEFT JOIN ac ON (
+        (ac.entitytype_id=41 AND ac.entity_id=c.campaign_id)
+        AND
+        ((ac.othertype_id=3 AND ac.other_id=p.pub_id) OR (ac.othertype_id=31 AND ac.other_id=s.site_id))
+    )
+WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"
+AND   a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
+AND (
+    c.access_order != 'Inherit'
+    AND (
+        (c.access_order="White" AND ac.entity_id IS NOT NULL) OR (c.access_order="Black" AND ac.entity_id IS NULL)
+    )
+)
+AND (i.startx <= NOW() OR (i.startx IS NULL))
+AND (  i.endx >= NOW() OR (  i.endx IS NULL))
+AND s.site_type = 'App' AND c.target_type = 'App';
+
+CREATE VIEW ViewRedisWeb AS
+SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+FROM pub_slot t
+INNER JOIN pub_site s USING (site_id)
+INNER JOIN pub      p USING (pub_id)
+INNER JOIN adv_creative v USING (size_id)
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+INNER JOIN adv      a USING (adv_id)
+LEFT JOIN ac ON (
+        (ac.entitytype_id=4 AND ac.entity_id=a.adv_id) 
+        AND
+        ((ac.othertype_id=3 AND ac.other_id=p.pub_id) OR (ac.othertype_id=31 AND ac.other_id=s.site_id))
+    )
+WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"
+AND   a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
+AND (
+    c.access_order ='Inherit'
+    AND (
+        (a.access_order="White" AND ac.entity_id IS NOT NULL) OR (a.access_order="Black" AND ac.entity_id IS NULL)
+    )
+)
+AND (i.startx <= NOW() OR (i.startx IS NULL))
+AND (  i.endx >= NOW() OR (  i.endx IS NULL))
+AND s.site_type = 'App' AND c.target_type = 'App'
+
+UNION
+
+SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+FROM pub_slot t
+INNER JOIN pub_site s USING (site_id)
+INNER JOIN pub      p USING (pub_id)
+INNER JOIN adv_creative v USING (size_id)
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+INNER JOIN adv      a USING (adv_id)
+LEFT JOIN ac ON (
+        (ac.entitytype_id=41 AND ac.entity_id=c.campaign_id)
+        AND
+        ((ac.othertype_id=3 AND ac.other_id=p.pub_id) OR (ac.othertype_id=31 AND ac.other_id=s.site_id))
+    )
+WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"
+AND   a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
+AND (
+    c.access_order != 'Inherit'
+    AND (
+        (c.access_order="White" AND ac.entity_id IS NOT NULL) OR (c.access_order="Black" AND ac.entity_id IS NULL)
+    )
+)
+AND (i.startx <= NOW() OR (i.startx IS NULL))
+AND (  i.endx >= NOW() OR (  i.endx IS NULL))
+AND s.site_type = 'Web' AND c.target_type = 'Web';

@@ -15,5 +15,5 @@ var MimeTypes = map[MIMEType]string{
 	XHTMLText:   "XHTML Text Ad (usually mobile)",
 	XHTMLBanner: "XHTML Banner Ad. (usually mobile)",
 	JSMime:      "JavaScript Ad; must be valid XHTML (i.e., Script Tags Included)",
-	Iframe:      "iframe ",
+	Iframe:      "iframe",
 }

@@ -192,19 +192,19 @@ func uint32Devices(x uint32) []DeviceType {
 	return dts
 }
 
-func (self *UaAudience) MatchUa(ua *PzUa) bool {
+func (self *UaAudience) Has(ua *PzUa) bool {
 	// in case a ua component is unknown, or, the audience component is not set, it is a match!
-	if self.UaOSs != 0 && (ua.OS == OSUnknown || (self.UaOSs&(1<<uint32(ua.OS))) == 0) {
+	if self.UaOSs != 0 && (ua == nil || ua.OS == OSUnknown || (self.UaOSs&(1<<uint32(ua.OS))) == 0) {
 		return false
 	}
-	if self.UaOVersions != 0 && (ua.OVersion == OVersionUnknown || (self.UaOVersions&(1<<uint32(ua.OVersion))) == 0) {
+	if self.UaOVersions != 0 && (ua == nil || ua.OVersion == OVersionUnknown || (self.UaOVersions&(1<<uint32(ua.OVersion))) == 0) {
 		return false
 	}
-	if self.UaDevices != 0 && (ua.Device == TypeUnknown || (self.UaDevices&(1<<uint32(ua.Device))) == 0) {
+	if self.UaDevices != 0 && (ua == nil || ua.Device == TypeUnknown || (self.UaDevices&(1<<uint32(ua.Device))) == 0) {
 		return false
 	}
 	if self.UaPlatforms != 0 || self.UaBrowsers != 0 {
-		if ua.Platform == MakerUnknown {
+		if ua == nil || ua.Platform == MakerUnknown {
 			return false
 		} else if uint32(ua.Platform) >= 32 && (self.UaBrowsers&(1<<uint32(ua.Platform-32))) == 0 {
 			return false
@@ -214,4 +214,27 @@ func (self *UaAudience) MatchUa(ua *PzUa) bool {
 	}
 
 	return true
+}
+
+func (self *UaAudience) DBFillUaAudience(attrname string, valueID uint32) int {
+	switch attrname {
+	case "os":
+		self.UaOSs = valueID
+		return 1
+	case "oversion":
+		self.UaOVersions = valueID
+		return 1
+	case "platform":
+		self.UaPlatforms = valueID
+		return 1
+	case "browser":
+		self.UaBrowsers = valueID
+		return 1
+	case "device":
+		self.UaDevices = valueID
+		return 1
+	default:
+	}
+
+	return 0
 }

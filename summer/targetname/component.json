@@ -11,6 +11,7 @@
 
   "nextpages" : {
     "topics" : [
+      {"model":"chac", "action":"topics"},
       {"model":"targetname", "action":"topicsCustom"},
       {"model":"targetname", "action":"topicsCities"},
       {"model":"targetname", "action":"topicsStates"},

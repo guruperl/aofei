@@ -2,13 +2,13 @@
 package targetname
 
 import (
+	"database/sql"
 	"net/url"
 	"strconv"
 
 	uadevice "github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/summer"
-	"github.com/golang/glog"
 )
 
 type Filter struct {
@@ -31,10 +31,7 @@ func (self *Filter) Preset() error {
 	}
 
 	if action == "insert" || action == "update" {
-		glog.Infof("%#v", ARGS["platform"])
 		uadevice.ResetArgs(ARGS)
-		glog.Infof("%#v", ARGS["platform"])
-		glog.Infof("%#v", ARGS["browser"])
 	}
 
 	return nil
@@ -62,13 +59,22 @@ func (self *Filter) After(model *Model) error {
 		return err
 	}
 
-	//ARGS := self.R.Form
+	ARGS := self.R.Form
 	action := self.Action
-	//who := self.RoleValue
+	who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
 	if action == "topics" {
+		var channelOrder string
+		err := model.DB.QueryRow(`
+SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan(&channelOrder)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		other["channel_order"] = channelOrder
+		summer.TranslateOne(other["chac_topics"], "channel_name", "channel_name_g")
+
 		isps := make(map[uint32][]interface{})
 		states := make(map[uint32][]interface{})
 		cities := make(map[string]map[uint32][]interface{})
@@ -216,25 +222,16 @@ func (self *Filter) After(model *Model) error {
 		other["demoChinese"] = summer.Translate(other["demo"])
 		other["dAttrs"] = demo.DemoAttrs()
 		other["dAttrsChinese"] = summer.Translate(other["dAttrs"])
+	} else if who == "adv" && action == "insert" {
+		ARGS.Set("table", "adv_item")
+		ARGS.Set("idname", "item_id")
+		ARGS.Set("entity_id", ARGS.Get("item_id"))
+		ARGS.Set("entitytype_id", "42")
+		err := model.CallOnce(map[string]interface{}{"model": "chac", "action": "update"})
+		if err != nil {
+			return err
+		}
 	}
-
-	/*
-	   if action=="insert" {
-	       taodb, err := sql.Open(self.C.Custom["taoType"], self.C.Custom["taoAccount"])
-	       if err != nil { return err }
-	       tmodel := new(hitem.Model)
-	       err = tmodel.Load(self.C.ProjectRoot+"/src/holiday/target/component.json")
-	       if err != nil { return err }
-	       tmodel.Db = taodb
-	       err = tmodel.ExecSQL("drop table if exists target_"+ARGS.Get("item_id"))
-	       if err != nil { return err }
-	       for _, one := range lists {
-	           err = tmodel.Insert(one)
-	           if err != nil { return err }
-	       }
-	       taodb.Close()
-	   }
-	*/
 
 	return nil
 }

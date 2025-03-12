@@ -4,6 +4,9 @@ grant show_routine on *.* to 'eightran_goto'@'%';
 flush privileges;
 
 $ mysql -ueightran_goto -p12pass34 -h vm0 aofei < step0_init.sql
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei < 001.sql
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei < 002.sql
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei < 003.sql
 $ go run *go views
 $ go run *go channel
 $ go run *go geography

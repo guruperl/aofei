@@ -3,6 +3,11 @@ package summer
 //	"github.com/golang/glog"
 
 func Dictionary(word string) string {
+	hash := make(map[string]string)
+	for k, v := range String2CAT {
+		hash[k] = CAT2String[v]
+	}
+
 	var ref = map[string]string{
 		"IAB1":                                 "艺术娱乐",
 		"IAB2":                                 "汽车",
@@ -295,6 +300,8 @@ func Dictionary(word string) string {
 	}
 	if chinese, ok := ref[word]; ok {
 		return chinese
+	} else if english, ok := hash[word]; ok {
+		return english
 	}
 	return word
 }

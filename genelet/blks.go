@@ -1,9 +1,9 @@
 package genelet
 
 import (
+	"text/template"
 	"net/url"
 	"os"
-	"text/template"
 )
 
 func (self *Config) Sendmail(lists []map[string]interface{}, ARGS url.Values, other map[string]interface{}) error {
