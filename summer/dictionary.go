@@ -1,11 +1,13 @@
 package summer
 
-//	"github.com/golang/glog"
+import (
+	"github.com/genelet/winter/match"
+)
 
 func Dictionary(word string) string {
 	hash := make(map[string]string)
-	for k, v := range String2CAT {
-		hash[k] = CAT2String[v]
+	for k, v := range match.String2CAT {
+		hash[k] = match.CAT2String[v]
 	}
 
 	var ref = map[string]string{

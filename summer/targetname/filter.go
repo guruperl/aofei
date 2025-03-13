@@ -150,14 +150,16 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 				+---------------+----------------+----------+-------------+----------+--------------+
 				| targetname_id | targetvalue_id | value_id | attrname_id | attrname | attrvalue_id |
 				+---------------+----------------+----------+-------------+----------+--------------+
-				|             4 |              5 |        1 |        1004 | weekhour |         NULL |
-				|             4 |              6 |        2 |        1004 | weekhour |         NULL |
+				|             4 |              5 |        1 |        1002 | fullhour |         NULL |
+				|             4 |              6 |        2 |        1002 | fullhour |         NULL |
 				|             3 |              3 |        1 |        1003 | weekday  |         NULL |
 				|             3 |              4 |        6 |        1003 | weekday  |         NULL |
 				|             2 |              2 |     3263 |        1103 | state    |         NULL |
 				+---------------+----------------+----------+-------------+----------+--------------+
 		*/
 		ref := make(map[string]map[int]bool)
+		var utcoffsetFound bool
+		var utcoffset int
 		hours := make(map[int]bool)
 		days := make(map[int]bool)
 		uaAud := new(uadevice.UaAudience)
@@ -168,7 +170,10 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 			}
 			valueID := int(item["value_id"].(int64))
 			switch attrname {
-			case "weekhour":
+			case "utcoffset":
+				utcoffsetFound = true
+				utcoffset = int(int32(uint32(item["value_id"].(int64))))
+			case "fullhour":
 				hours[valueID] = true
 			case "weekday":
 				days[valueID] = true
@@ -188,13 +193,29 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 			}
 		}
 
-		weekhours := make(map[int][]interface{})
+		utcoffsets := make(map[int][]interface{})
+		for i := -11; i < 13; i++ {
+			str := strconv.Itoa(i)
+			selected := false
+			if utcoffsetFound && i == utcoffset {
+				selected = true
+			}
+			utcoffsets[i] = []interface{}{str, selected}
+		}
+		other["utcoffset"] = utcoffsets
+		if utcoffsetFound {
+			other["utcoffsetFound"] = "true"
+		} else {
+			other["utcoffsetFound"] = "false"
+		}
+
+		fullhours := make(map[int][]interface{})
 		for i := 0; i < 24; i++ {
 			str := strconv.Itoa(i)
 			selected := hours[i]
-			weekhours[i] = []interface{}{str, selected}
+			fullhours[i] = []interface{}{str, selected}
 		}
-		other["weekhour"] = weekhours
+		other["fullhour"] = fullhours
 
 		weekdays := make(map[int][]interface{})
 		WEEK := map[int]string{0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat"}

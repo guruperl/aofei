@@ -37,6 +37,9 @@ func UnpackTwo(text string) (uint32, uint32, error) {
 
 func IsDigit(s string) bool {
 	for _, r := range s {
+		if r == '-' || r == '+' {
+			continue
+		}
 		if r < '0' || r > '9' {
 			return false
 		}

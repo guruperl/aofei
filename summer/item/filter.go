@@ -58,10 +58,6 @@ func (self *Filter) Preset() error {
 				ARGS.Set(name, strings.Join(ARGS[name], ","))
 			}
 		}
-		err := summer.SetSizeID(ARGS)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

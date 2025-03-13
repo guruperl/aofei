@@ -19,6 +19,15 @@ func (self *Filter) Preset() error {
 		return err
 	}
 
+	ARGS := self.R.Form
+	action := self.Action
+	if action == "insert" || action == "update" {
+		err := summer.SetSizeID(ARGS)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

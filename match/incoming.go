@@ -1,9 +1,5 @@
 package match
 
-import (
-	"github.com/genelet/winter/pzutil"
-)
-
 type AdUnit struct {
 	Slot       string                 `json:"slot"`
 	Code       string                 `json:"code"`
@@ -16,6 +12,7 @@ type Incoming struct {
 	AdUnits  []*AdUnit `json:"adUnits"`
 }
 
+/*
 func (incoming *Incoming) Unpack() ([]*AdImp, error) {
 	pubID, siteID, err := pzutil.UnpackTwo(incoming.Site)
 	if err != nil {
@@ -93,3 +90,4 @@ func (incoming *Incoming) Unpack() ([]*AdImp, error) {
 
 	return adImps, nil
 }
+*/

@@ -1,5 +1,6 @@
 package match
 
+/*
 import (
 	"encoding/json"
 	"errors"
@@ -193,7 +194,7 @@ func GetPathIds(r *http.Request) (pzutil.Status, *Incoming, []*AdImp, *Clk, *ope
 	return status, nil, nil, nil, nil, nil
 }
 
-/*
+
 // clicks:
 // handler/IMP_ID32/rpub/radv.click
 // handler/c/site_id/slot_id.click
@@ -214,7 +215,7 @@ func GetPathIds(r *http.Request) (pzutil.Status, *Incoming, []*AdImp, *Clk, *ope
 func errall(err error) (pzutil.Status, *Incoming, []*AdImp, *Clk, *openrtb2.BidRequest, error) {
 	return pzutil.Status{}, nil, nil, nil, nil, err
 }
-/*
+
 func GetPathIds(r *http.Request, c *pzutil.Config) (pzutil.Status, *Incoming, []*AdImp, *Clk, *openrtb2.BidRequest, error) {
 	status := pzutil.Status{}
 	var err error

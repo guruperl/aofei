@@ -1,15 +1,8 @@
 package ssp
 
-import (
-	"context"
-	"encoding/base64"
-	"net/http"
+// "github.com/golang/glog"
 
-	"github.com/genelet/winter/match"
-	"github.com/genelet/winter/pzutil"
-	// "github.com/golang/glog"
-)
-
+/*
 func (self *Controller) setCcookie(ctx context.Context, w http.ResponseWriter, user *User, campaignid, itemid uint32) {
 	if item, err := self.RedisGetItem(ctx, itemid); err == nil {
 		if item.ClickTotal > 0 {
@@ -78,3 +71,4 @@ func (self *Controller) serveClick(ctx context.Context, w http.ResponseWriter, s
 		return
 	}
 }
+*/

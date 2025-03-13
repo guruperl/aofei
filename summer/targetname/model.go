@@ -127,6 +127,8 @@ func (self *Model) Insert(extra ...url.Values) error {
 		total := 0
 		for _, id := range ARGS[attrname] {
 			if pzutil.IsDigit(id) {
+				d, _ := strconv.Atoi(id)
+				id = strconv.FormatInt(int64(uint32(d)), 10)
 				data += `(` + targetnameID + `, ` + id + `),`
 				total++
 				*self.LISTS = append(*self.LISTS, map[string]interface{}{"item_id": itemID, "attrname_id": attrnameID, "value_id": id})
