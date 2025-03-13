@@ -91,6 +91,3 @@ func getRPub(bidRequest *openrtb2.BidRequest) RPub {
 
 	return rpub
 }
-
-fun (self RPub) GetRAdvs() []RAdv {
-	

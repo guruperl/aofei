@@ -2,15 +2,128 @@ package match
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/binary"
-	"errors"
-	"fmt"
-	"net/url"
+	"strconv"
 
-	"github.com/genelet/winter/summer/weight"
+	"github.com/mediocregopher/radix/v4"
 )
 
+// Block is the block of the slot.
+type Block struct {
+	CreativeID uint32
+	Weight     float32
+	ItemID     uint32
+	CostType   uint8
+	Cost       float32
+	Cap
+}
+
+// PackBlocks packs the creatives to binary.
+func PackBlocks(blocks []Block) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, blocks)
+	return buf.Bytes(), err
+}
+
+// UnpackBlocks unpacks the weights from binary.
+func UnpackBlocks(data []byte) ([]Block, error) {
+	n := len(data) / 25
+	blocks := make([]Block, n)
+	buf := bytes.NewReader(data)
+	err := binary.Read(buf, binary.LittleEndian, blocks)
+	return blocks, err
+}
+
+// BuildSlotDB2Redis builds the slot map and write to redis.
+func BuildSlotDB2Redis(ctx context.Context, db *sql.DB, conn radix.Client, what string) error {
+	hash := make(map[uint32][]Block)
+	rows, err := db.QueryContext(ctx, `
+SELECT slot_id, creative_id, weight, item_id, cost_type, cost, cpm_fc, cpm_length, cpm_throttle, cpc_fc, cpc_length
+FROM ViewRedis`+what)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		w := Block{}
+		var slotID uint32
+		var costType sql.NullString
+		var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
+		var cost sql.NullFloat64
+		err = rows.Scan(&slotID, &w.CreativeID, &w.Weight, &w.ItemID, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
+		if err != nil {
+			return err
+		}
+		if cost.Valid {
+			w.Cost = float32(cost.Float64)
+		}
+		if capNumber.Valid {
+			w.CapNumber = uint8(capNumber.Int64)
+		}
+		if clickNumber.Valid {
+			w.ClickNumber = uint8(clickNumber.Int64)
+		}
+		if capPeriod.Valid {
+			w.CapPeriod = uint16(capPeriod.Int64)
+		}
+		if clickPeriod.Valid {
+			w.ClickPeriod = uint16(clickPeriod.Int64)
+		}
+		if capThrottle.Valid {
+			w.CapThrottle = uint16(capThrottle.Int64)
+		}
+		if costType.Valid {
+			switch costType.String {
+			case "ROI":
+				w.CostType = 1
+			case "CPM":
+				w.CostType = 2
+			case "CPC":
+				w.CostType = 3
+			case "CPA":
+				w.CostType = 4
+			default:
+			}
+		}
+		hash[slotID] = append(hash[slotID], w)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	hashName := "slot" + what
+	for slotID, blocks := range hash {
+		key := strconv.FormatUint(uint64(slotID), 10)
+		data, err := PackBlocks(blocks)
+		if err != nil {
+			return err
+		}
+		if err := conn.Do(ctx, radix.Cmd(nil, "HSET", hashName, key, string(data))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BuildSlotRedis builds the slot map from redis.
+func BuildSlotRedis(ctx context.Context, conn radix.Client, what string, slotID uint32) ([]Block, error) {
+	hashName := "slot" + what
+	key := strconv.FormatUint(uint64(slotID), 10)
+	var data []byte
+	err := conn.Do(ctx, radix.Cmd(&data, "HGET", hashName, key))
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, nil
+	}
+
+	return UnpackBlocks(data)
+}
+
+/*
 type Slot struct {
 	SlotID  uint32
 	SizeID  uint32
@@ -140,3 +253,4 @@ WHERE w.slot_id=?`, slotID)
 
 	return &Slot{slotID, sizeID, weights}, nil
 }
+*/

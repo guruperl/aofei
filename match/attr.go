@@ -16,7 +16,6 @@ type Attribute struct {
 	RPub
 	IsApp   bool
 	IsVideo bool
-	SizeID  uint32
 	When    time.Time
 	IFA     string
 	UserID  string

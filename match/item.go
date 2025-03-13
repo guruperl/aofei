@@ -1,5 +1,55 @@
 package match
 
+const DefaultItemPrice float32 = 1.0
+const (
+	UnknownCost = iota
+	CPMCost
+	CPCCost
+	CPACost
+	ROICost
+)
+
+type Item struct {
+	RAdv
+	Cap Cap
+}
+
+func (self *Item) Eprice() float32 {
+	if self.Price <= 0.0 {
+		return DefaultItemPrice
+	}
+	switch int(self.CostType) {
+	case CPMCost:
+		return self.Price
+	case CPCCost:
+		return 10.0 * self.Price
+	case CPACost:
+		return 100.0 * self.Price
+	case ROICost:
+		return 1000.0 * self.Price
+	default:
+	}
+	return self.Price
+}
+
+// Weigh assigns a weight according to eprice, or whatever logic is
+func (self *Item) Weight() float32 {
+	ep := self.Eprice()
+	return ep * ep
+}
+
+// PickItem generates a random item according to their weights
+func PickItem(items []*Item) *Item {
+	n := len(items)
+	weights := make([]float32, n)
+	for i, item := range items {
+		weights[i] = item.Weight()
+	}
+	index := SelectOne(weights)
+	return items[index]
+}
+
+/*
 import (
 	"database/sql"
 	"errors"
@@ -49,7 +99,7 @@ func DBGetItem(db *sql.DB, itemID uint32) (*Item, error) {
 	rows, err := db.Query(`
 SELECT m.adv_id, i.size_id, i.item_click, i.qa_mime,
 		c.creative_id, c.weight, c.content, cpc_fc
-FROM adv_item i 
+FROM adv_item i
 INNER JOIN adv_creative c USING (item_id)
 INNER JOIN adv_campaign m USING (campaign_id)
 WHERE i.item_id=? AND c.active='Yes'`, itemID)
@@ -98,3 +148,4 @@ WHERE i.item_id=? AND c.active='Yes'`, itemID)
 	}
 	return item, nil
 }
+*/

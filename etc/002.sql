@@ -17,27 +17,31 @@ ALTER TABLE pub_site
 	ADD `description` TEXT DEFAULT NULL AFTER site_type;
 
 
-DROP VIEW IF EXISTS WHITEfalsefalse          |
-DROP VIEW IF EXISTS WHITEfalsetrue           |
-DROP VIEW IF EXISTS WHITEtruefalse           |
-DROP VIEW IF EXISTS WHITEtruetrue            |
-| VIEWfalsefalse           |
-| VIEWfalsefalsefalsefalse |
-| VIEWfalsefalsefalsetrue  |
-| VIEWfalsefalsetruefalse  |
-| VIEWfalsefalsetruetrue   |
-| VIEWfalsetrue            |
-| VIEWfalsetruefalsefalse  |
-| VIEWfalsetruefalsetrue   |
-| VIEWfalsetruetruefalse   |
-| VIEWfalsetruetruetrue    |
-| VIEWtruefalse            |
-| VIEWtruefalsefalsefalse  |
-| VIEWtruefalsefalsetrue   |
-| VIEWtruefalsetruefalse   |
-| VIEWtruefalsetruetrue    |
-| VIEWtruetrue             |
-| VIEWtruetruefalsefalse   |
-| VIEWtruetruefalsetrue    |
-| VIEWtruetruetruefalse    |
-| VIEWtruetruetruetrue   
+DROP VIEW IF EXISTS WHITEfalsefalse;
+DROP VIEW IF EXISTS WHITEfalsetrue;
+DROP VIEW IF EXISTS WHITEtruefalse;
+DROP VIEW IF EXISTS WHITEtruetrue;
+DROP VIEW IF EXISTS VIEWfalsefalse;
+DROP VIEW IF EXISTS VIEWfalsefalsefalsefalse;
+DROP VIEW IF EXISTS VIEWfalsefalsefalsetrue;
+DROP VIEW IF EXISTS VIEWfalsefalsetruefalse;
+DROP VIEW IF EXISTS VIEWfalsefalsetruetrue;
+DROP VIEW IF EXISTS VIEWfalsetrue;
+DROP VIEW IF EXISTS VIEWfalsetruefalsefalse;
+DROP VIEW IF EXISTS VIEWfalsetruefalsetrue;
+DROP VIEW IF EXISTS VIEWfalsetruetruefalse;
+DROP VIEW IF EXISTS VIEWfalsetruetruetrue;
+DROP VIEW IF EXISTS VIEWtruefalse;
+DROP VIEW IF EXISTS VIEWtruefalsefalsefalse;
+DROP VIEW IF EXISTS VIEWtruefalsefalsetrue;
+DROP VIEW IF EXISTS VIEWtruefalsetruefalse;
+DROP VIEW IF EXISTS VIEWtruefalsetruetrue;
+DROP VIEW IF EXISTS VIEWtruetrue;
+DROP VIEW IF EXISTS VIEWtruetruefalsefalse;
+DROP VIEW IF EXISTS VIEWtruetruefalsetrue;
+DROP VIEW IF EXISTS VIEWtruetruetruefalse;
+DROP VIEW IF EXISTS VIEWtruetruetruetrue;
+DROP VIEW IF EXISTS ViewGroupSlot;
+DROP VIEW IF EXISTS ViewSlot;
+DROP VIEW IF EXISTS ViewSlotOpen;
+DROP VIEW IF EXISTS ViewTaoSlot;

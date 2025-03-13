@@ -2,109 +2,148 @@ package match
 
 import (
 	"bytes"
-	"encoding/base64"
+	"context"
 	"encoding/binary"
+	"fmt"
 	"time"
-	// "encoding/ascii85"
+
+	"github.com/mediocregopher/radix/v4"
 )
 
+const (
+	FCAPStartYear = 2025
+	FCAPImp       = 1
+	FCAPCli       = 2
+)
+
+// Fcap is frequecy cap class
+// Total is total number of access since the starting time
+// StartYM and StartDHM are for starting time
+// Last is the minutes passed since the last time
 type Fcap struct {
-	Total    uint8
-	Startym  uint8
-	Startdhm uint16
-	Last     uint16
+	Total    uint8  `json:"total"`
+	StartYM  uint8  `json:"ym"`
+	StartDHM uint16 `json:"dhm"`
+	Last     uint16 `json:"ls"`
 }
 
-func NewFcap(when time.Time) Fcap {
-	years := when.Year() - 2017
+// CreateFcap creates a new Fcap instance from time
+// DO NOT exceeds 45 days!
+func CreateFcap(when time.Time) Fcap {
+	years := when.Year() - FCAPStartYear
 	months := int(when.Month())
 	days := when.Day()
 	hours := when.Hour()
 	minutes := when.Minute()
 
-	return Fcap{Total: uint8(1), Startym: uint8(years<<4 + months), Startdhm: uint16(days<<11 + hours<<6 + minutes), Last: uint16(0)}
+	return Fcap{
+		Total:    uint8(0),
+		StartYM:  uint8(years<<4 + months),
+		StartDHM: uint16(days<<11 + hours<<6 + minutes),
+		Last:     uint16(0),
+	}
 }
 
-func RefreshFcap(fcap Fcap, when time.Time) Fcap {
-	return Fcap{fcap.Total + uint8(1), fcap.Startym, fcap.Startdhm, uint16(when.Sub(fcap.GetStart(when.Location())) / time.Minute)}
-	// DO NOT exceeds 45 days!
+// Refresh adds one more count and update the last access time
+func (self Fcap) Refresh(when time.Time) {
+	self.Total += 1
+	self.Last = uint16(when.Sub(self.GetStart()) / time.Minute)
+	return
 }
 
-func (self Fcap) GetStart(loc *time.Location) time.Time {
-	return time.Date(2017+int(self.Startym>>4), time.Month(15&self.Startym), int(self.Startdhm>>11), int(31&(self.Startdhm>>6)), int(63&self.Startdhm), 0, 0, loc)
+// GetStart gets starting time in time
+func (self Fcap) GetStart() time.Time {
+	return time.Date(FCAPStartYear+int(self.StartYM>>4), time.Month(15&self.StartYM), int(self.StartDHM>>11), int(31&(self.StartDHM>>6)), int(63&self.StartDHM), 0, 0, time.Local)
 }
 
-func (self Fcap) GetLast(loc *time.Location) time.Time {
-	s := self.GetStart(loc)
+// GetLast gets last access time in time
+func (self Fcap) GetLast() time.Time {
+	s := self.GetStart()
 	return s.Add(time.Duration(self.Last) * time.Minute)
 }
 
+// SinceStart reports minutes passed since the start
 func (self Fcap) SinceStart(when time.Time) uint16 {
-	return uint16(when.Sub(self.GetStart(when.Location())) / time.Minute)
+	return uint16(when.Sub(self.GetStart()) / time.Minute)
 }
 
+// SinceLast reports minutes passed since the last access
 func (self Fcap) SinceLast(when time.Time) uint16 {
-	return uint16(when.Sub(self.GetLast(when.Location())) / time.Minute)
+	return uint16(when.Sub(self.GetLast()) / time.Minute)
 }
 
-type Cap struct {
-	Fcap
-	Cid uint32
+type BothCap struct {
+	Imp Fcap
+	Cli Fcap
 }
 
-func UpdateFcaps(fcaps *map[uint32]Fcap, id uint32, when time.Time) {
-	if fcap, ok := (*fcaps)[id]; ok {
-		(*fcaps)[id] = RefreshFcap(fcap, when)
-	} else {
-		(*fcaps)[id] = NewFcap(when)
+func (self BothCap) Refresh(ctx context.Context, conn radix.Client, when time.Time, pid string, item *Item, act int) error {
+	imp := self.Imp
+	cli := self.Cli
+	if act&FCAPImp == 1 {
+		if !item.Cap.ValidPeriodImp(when, imp) {
+			imp = CreateFcap(when)
+		}
+		imp.Refresh(when)
 	}
-}
+	if act&FCAPCli == 1 {
+		if !item.Cap.ValidPeriodImp(when, imp) {
+			cli = CreateFcap(when)
+		}
+		cli.Refresh(when)
+	}
 
-func PackFcaps(fcaps map[uint32]Fcap) (string, error) {
 	buf := new(bytes.Buffer)
-	for cid, fcap := range fcaps {
-		c := Cap{fcap, cid}
-		err := binary.Write(buf, binary.LittleEndian, c)
-		if err != nil {
-			return "", err
-		}
+	object := BothCap{Imp: imp, Cli: cli}
+	err := binary.Write(buf, binary.LittleEndian, object)
+	if err != nil {
+		return err
 	}
-
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
-	/*
-	   src := buf.Bytes()
-	   dbuf := make([]byte, ascii85.MaxEncodedLen(len(src)))
-	   n := ascii85.Encode(dbuf, src)
-	   return string(dbuf[0:n]), nil
-	*/
+	return conn.Do(ctx, radix.Cmd(nil, "HSET", "fcap", fmt.Sprintf("%s:%d", pid, item.ItemID), string(buf.Bytes())))
 }
 
-func UnpackFcaps(current time.Time, text string) (map[uint32]Fcap, error) {
-	data, err := base64.StdEncoding.DecodeString(text)
+func NewSFcaps(ctx context.Context, conn radix.Client, pid string, itemIDs []uint32) (map[uint32]BothCap, error) {
+	names := []string{"fcap"}
+	for _, itemID := range itemIDs {
+		names = append(names, fmt.Sprintf("%s:%d", pid, itemID))
+	}
+	sdata := make([][]byte, len(itemIDs))
+	err := conn.Do(ctx, radix.Cmd(&sdata, "HMGET", names...))
 	if err != nil {
 		return nil, err
 	}
-	/*
-		dbuf := make([]byte, 4*len(text))
-		ndst, _, err := ascii85.Decode(dbuf, []byte(text), true)
-		if err != nil { return nil, err }
-		data := dbuf[0:ndst]
-	*/
-
-	caps := make([]Cap, len(data)/10)
-	buf := bytes.NewReader([]byte(data))
-	err = binary.Read(buf, binary.LittleEndian, caps)
-	if err != nil {
-		return nil, err
-	}
-
-	fcaps := make(map[uint32]Fcap)
-	for _, c := range caps {
-		// DO NOT exceed 45 days
-		if current.Sub(c.GetStart(current.Location())) < 45*24*60*time.Minute {
-			fcap := c.Fcap
-			fcaps[c.Cid] = fcap
+	sfcaps := make(map[uint32]BothCap)
+	i := 0
+	for _, data := range sdata {
+		if len(data) < 1 {
+			i++
+			continue
 		}
+		buf := bytes.NewReader(data)
+		sfcap := BothCap{}
+		err := binary.Read(buf, binary.LittleEndian, &sfcap)
+		if err != nil {
+			return nil, err
+		}
+		sfcaps[itemIDs[i]] = sfcap
+		i++
 	}
-	return fcaps, nil
+	return sfcaps, nil
+}
+
+// GetCapped reports which campaigns are denied giving targeting caps requriment from advertisers,
+func GetCapped(when time.Time, sfcaps map[uint32]BothCap, caps map[uint32]Cap) map[uint32]bool {
+	denies := make(map[uint32]bool)
+	for cid, thisCap := range caps {
+		sfcap, ok := sfcaps[cid]
+		if !ok {
+			continue
+		}
+		if thisCap.CanServeImp(when, sfcap.Imp) &&
+			thisCap.CanServeCli(when, sfcap.Cli) {
+			continue
+		}
+		denies[cid] = true
+	}
+	return denies
 }
