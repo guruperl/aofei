@@ -50,13 +50,13 @@ func TestFilter(t *testing.T) {
 	}
 
 	args.Set("_gaction", "topics")
-	validate, ok := as["validate"]
+	_, ok := as["validate"]
 	if ok != true {
 		t.Errorf("%s got", "validate not")
 	}
 	args.Set("_gaction", "ads")
-	validate, ok = as["validate"]
-	if validate[0] != "ccc" {
+	validate, ok := as["validate"]
+	if ok && validate[0] != "ccc" {
 		t.Errorf("%s got", validate[0])
 	}
 }

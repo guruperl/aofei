@@ -42,13 +42,13 @@ func (self *Filter) After(model *Model) error {
 		uri := "/"
 		if role == "adv" {
 			uri = "/goto/adv/g/campaign?action=topics"
-			return self.Set_login_as(role, ARGS.Get("email"), uri, model.DB)
+			return self.SetLoginAs(role, ARGS.Get("email"), uri, model.DB)
 		} else if role == "pub" {
 			uri = "/goto/pub/g/site?action=topics"
-			return self.Set_login_as(role, ARGS.Get("email"), uri, model.DB)
+			return self.SetLoginAs(role, ARGS.Get("email"), uri, model.DB)
 		} else if role == "agent" {
 			uri = "/goto/agent/g/adv?action=topics"
-			return self.Set_login_as(role, ARGS.Get("login"), uri, model.DB)
+			return self.SetLoginAs(role, ARGS.Get("login"), uri, model.DB)
 		}
 	}
 

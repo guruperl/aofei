@@ -102,6 +102,9 @@ func (self *Model) Insert(extra ...url.Values) error {
 	hash := make(map[string]string)
 	for attrname, attrnameID := range pzutil.AttrValue {
 		if _, ok := ARGS[attrname]; ok {
+			if ARGS.Get(attrname) == "" {
+				continue
+			}
 			hash[attrname] = strconv.FormatUint(uint64(attrnameID), 10)
 		}
 	}

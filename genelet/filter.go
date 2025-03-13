@@ -20,7 +20,7 @@ func (self *Filter) Initialize(comp *Component) {
 	self.Fks = comp.Fks
 }
 
-func (self *Filter) Set_all(base Base, action string, component string, other *map[string]interface{}) {
+func (self *Filter) SetAll(base Base, action string, component string, other *map[string]interface{}) {
 	self.Base = base
 	self.Action = action
 	self.Component = component
@@ -43,8 +43,8 @@ func (self *Filter) GetAll() (map[string][]string, []string) {
 	return actionHash, nil
 }
 
-func (self *Filter) Set_login_as(role_value, login, uri string, db *sql.DB) error {
-	base := &Base{C: self.Base.C, W: self.Base.W, R: self.Base.R, RoleValue: role_value, ChartagValue: self.Base.ChartagValue}
+func (self *Filter) SetLoginAs(roleValue, login, uri string, db *sql.DB) error {
+	base := &Base{C: self.Base.C, W: self.Base.W, R: self.Base.R, RoleValue: roleValue, ChartagValue: self.Base.ChartagValue}
 	provider := base.GetProvider()
 	ticket := NewProcedure(*base, db, uri, provider)
 	if err := ticket.Authenticate_as(login); err != nil {
@@ -52,7 +52,7 @@ func (self *Filter) Set_login_as(role_value, login, uri string, db *sql.DB) erro
 	}
 	fields := ticket.GetAttributes()
 	signed := ticket.Signature(fields...)
-	role := self.C.Roles[role_value]
+	role := self.C.Roles[roleValue]
 	self.SetCookie(role.Surface, signed, role.MaxAge)
 
 	return Gerror{303, uri}

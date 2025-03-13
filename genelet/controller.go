@@ -35,74 +35,6 @@ func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
 	c := self.C
 	url := r.URL
 
-	/*
-	   	form := r.Form
-	   	for _, pattern := range c.Patterns {
-	   		values := pattern.Regs.FindStringSubmatch(url.Path)
-	   		if (values == nil) { continue }
-
-	   		// match found, we must serve with this pattern
-	   		need_cache := false
-	   		if pattern.Case==CACHE {
-	   			finfo, err := os.Stat(c.DocumentRoot+url.Path)
-	   			if err != nil || (time.Now().Sub(finfo.ModTime()) / time.Second ) > pattern.Expire {
-	   				need_cache = true
-	   				pattern.Case=REROUTE
-	   			}
-	   		}
-
-	   		form := make(*url.Values)
-	   		if pattern.Initials != "" {
-	               q, _ := url.ParseQuery(pattern.Initials)
-	               form = q
-	           }
-
-	           for i, key := range pattern.Keys {
-	               v := form.Get(key)
-	               if v != "" { continue; }
-	               form.Set(key, values[i])
-	           }
-
-	   		role := form.Get(c.RoleName)
-	   		tag := form.Get(c.TagName)
-	   		component := form.Get(c.ComponentName)
-
-	   		role := form.Get(c.RoleName)
-	   		tag := form.Get(c.TagName)
-	   		component := form.Get(c.ComponentName)
-	   		if pattern.Case==STATIC || pattern.Case==CACHE {
-	   			if (role=="" || role==c.Pubrole) {
-	   				break
-	   			}
-	   			if (tag=="") {
-	   glog.Infof("(%d) %s\n", os.Getpid(), "static file matched not good")
-	   				http.NotFound(w,r)
-	   				return
-	   			}
-	   			base := &Base{C:c, R:r, W:w, RoleValue:role, ChartagValue:tag}
-	   			gate := NewGate(*base)
-	   			err := gate.Forbid()
-	   			if (err != nil) {
-	   glog.Infof("(%d) %s\n", os.Getpid(), "static file asks for login")
-	   				self.loginPage(base)
-	   				return
-	   			}
-	   			break
-	   		} else {
-	   			if role=="" || tag=="" || component=="" {
-	   				http.NotFound(w,r)
-	   			} else {
-	   				url.Path = c.Script+"/"+role+"/"+tag+"/"+component
-	   				form.Del(c.RoleName)
-	   				form.Del(c.TagName)
-	   				form.Del(c.ComponentName)
-	   				url.RawQuery = form.Encode()
-	   			}
-	   			return
-	   		}
-	   	}
-
-	*/
 	http.ServeFile(w, r, c.DocumentRoot+url.Path)
 }
 
@@ -211,7 +143,9 @@ func checkForm(r *http.Request, dir string) error {
 			switch s := value.(type) {
 			case []string:
 				for _, v := range s {
-					form.Add(key, v)
+					if v != "" {
+						form.Add(key, v)
+					}
 				}
 			case []uint8:
 				form.Add(key, string(s))
@@ -438,7 +372,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		ARGS.Set("_gid_url", r.Header.Get("X-Forwarded-ID"))
 	}
 	glog.Infof("(%d) %s\n", os.Getpid(), "get action: "+action)
-	Invoke0(filter, "Set_all", base, action, obj, &other)
+	Invoke0(filter, "SetAll", base, action, obj, &other)
 	ret := Invoke(filter, "GetAll")
 	if ret[0].Interface() == nil {
 		return Err(404)

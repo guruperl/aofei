@@ -203,11 +203,6 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 			utcoffsets[i] = []interface{}{str, selected}
 		}
 		other["utcoffset"] = utcoffsets
-		if utcoffsetFound {
-			other["utcoffsetFound"] = "true"
-		} else {
-			other["utcoffsetFound"] = "false"
-		}
 
 		fullhours := make(map[int][]interface{})
 		for i := 0; i < 24; i++ {
