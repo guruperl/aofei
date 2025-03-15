@@ -8,6 +8,7 @@ import (
 
 	"github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
+	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/maxmind"
 	"github.com/genelet/winter/pzutil"
 
@@ -15,12 +16,11 @@ import (
 )
 
 type Audience struct {
-	*DHAudience
+	*dh.DHAudience
 	*CategoryAudience
 	*maxmind.GeoAudience
 	*demo.DemoAudience
 	*advice.UaAudience
-	*WLangs
 }
 
 func (self *Audience) Pack() ([]byte, error) {
@@ -58,11 +58,10 @@ WHERE tn.item_id=?`, itemID)
 	defer rows.Close()
 
 	var idh, igeo, idemo, iua int
-	dhA := new(DHAudience)
+	dhA := new(dh.DHAudience)
 	geoA := new(maxmind.GeoAudience)
 	demoA := new(demo.DemoAudience)
 	uaA := new(advice.UaAudience)
-	var wlangs uint32
 	for rows.Next() {
 		var valueID, attrnameID uint32
 		var attrvalueID sql.NullInt64
@@ -72,9 +71,6 @@ WHERE tn.item_id=?`, itemID)
 			return nil, err
 		}
 
-		if attrname == "language" {
-			wlangs = valueID
-		}
 		idh += dhA.DBFillDhAudience(attrname, valueID)
 		igeo += geoA.DBFillGeoAudience(attrname, valueID)
 		idemo += demoA.DBFillDemoAudience(attrname, valueID)
@@ -145,7 +141,7 @@ WHERE i.item_id=?`, itemID)
 	rows.Close()
 
 	if output == nil {
-		if idh == 0 && igeo == 0 && idemo == 0 && iua == 0 && wlangs == 0 {
+		if idh == 0 && igeo == 0 && idemo == 0 && iua == 0 {
 			return nil, nil
 		} else {
 			output = new(Audience)
@@ -163,10 +159,6 @@ WHERE i.item_id=?`, itemID)
 	}
 	if iua > 0 {
 		output.UaAudience = uaA
-	}
-	if wlangs > 0 {
-		x := WLangs(wlangs)
-		output.WLangs = &x
 	}
 
 	return output, nil
@@ -196,7 +188,6 @@ func (self *Audience) Has(attr *Attribute) bool {
 	g := attr.Geo
 	u := attr.PzUa
 	dh := attr.DH
-	language := attr.Langs
 	white := attr.White
 	black := attr.Black
 	pub := attr.PubLevel
@@ -210,9 +201,6 @@ func (self *Audience) Has(attr *Attribute) bool {
 		return false
 	}
 	if self.UaAudience != nil && !self.UaAudience.Has(u) {
-		return false
-	}
-	if self.WLangs != nil && !self.WLangs.Has(language) {
 		return false
 	}
 	if self.DHAudience != nil && !self.DHAudience.Has(dh) {

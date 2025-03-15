@@ -7,6 +7,18 @@ import (
 	"reflect"
 )
 
+func IsDigit(s string) bool {
+	for _, r := range s {
+		if r == '-' || r == '+' {
+			continue
+		}
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func Filtering(vs []string, f func(string) bool) []string {
 	vsf := make([]string, 0)
 	for _, v := range vs {

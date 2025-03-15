@@ -1,147 +1,179 @@
 package demo
 
 import (
-	"github.com/genelet/winter/pzutil"
+	"net/url"
+	"strconv"
 )
 
 type DemoAudience struct {
-	Genders     []uint32
-	Yobs        []uint32
-	Marrieds    []uint32
-	Incomes     []uint32
-	Childs      []uint32
-	Households  []uint32
-	Ethnicitys  []uint32
-	Educations  []uint32
-	Occupations []uint32
+	Genders   uint32
+	Yobs      uint32
+	Languages uint32
 }
 
+// has returns true if gender is in the DemoAudience set.
+func (self *DemoAudience) hasGender(gender GENDER, display ...bool) bool {
+	if (display == nil || !display[0]) && self.Genders == 0 {
+		return true
+	}
+	if gender == GENDERUndefined {
+		return false
+	}
+	if self.Genders&(1<<gender) != 0 {
+		return true
+	}
+
+	return false
+}
+
+func (self *DemoAudience) hasYob(yob YOB, display ...bool) bool {
+	if (display == nil || !display[0]) && self.Yobs == 0 {
+		return true
+	}
+	if yob == YOBUndefined {
+		return false
+	}
+	if self.Yobs&(1<<yob) != 0 {
+		return true
+	}
+
+	return false
+}
+
+func (self *DemoAudience) hasLanguage(lang LANGUAGE, display ...bool) bool {
+	if (display == nil || !display[0]) && self.Languages == 0 {
+		return true
+	}
+	if lang == LanguageOther {
+		return false
+	}
+	if self.Languages&(1<<lang) != 0 {
+		return true
+	}
+
+	return false
+}
+
+// hasLanguages returns true if one of the languages is in the DemoAudience set.
+func (self *DemoAudience) hasLanguages(langs WLangs) bool {
+	if langs == 0 {
+		return false
+	}
+	if self.Languages&uint32(langs) != 0 {
+		return true
+	}
+
+	return false
+}
+
+// Has returns true if the DemoAudience has the given Demo.
 func (self *DemoAudience) Has(dmo *Demo) bool {
-	if len(self.Genders) > 0 && (dmo == nil || dmo.Gender == 0 || !pzutil.GrepUint32(self.Genders, uint32(dmo.Gender))) {
+	// if self == nil, it means no audience is set, so it should be true.
+	if self == nil {
+		return true
+	}
+	if dmo == nil {
 		return false
 	}
-	if len(self.Yobs) > 0 && (dmo == nil || dmo.Yob == 0 || !pzutil.GrepUint32(self.Yobs, dmo.Yob)) {
+	if !self.hasGender(dmo.Gender) {
 		return false
 	}
-	if len(self.Marrieds) > 0 && (dmo == nil || dmo.Married == 0 || !pzutil.GrepUint32(self.Marrieds, dmo.Married)) {
+	if !self.hasLanguages(dmo.Language) {
 		return false
 	}
-	if len(self.Incomes) > 0 && (dmo == nil || dmo.Income == 0 || !pzutil.GrepUint32(self.Incomes, dmo.Income)) {
-		return false
-	}
-	if len(self.Childs) > 0 && (dmo == nil || dmo.Child == 0 || !pzutil.GrepUint32(self.Childs, dmo.Child)) {
-		return false
-	}
-	if len(self.Households) > 0 && (dmo == nil || dmo.Household == 0 || !pzutil.GrepUint32(self.Households, dmo.Household)) {
-		return false
-	}
-	if len(self.Ethnicitys) > 0 && (dmo == nil || dmo.Ethnicity == 0 || !pzutil.GrepUint32(self.Ethnicitys, dmo.Ethnicity)) {
-		return false
-	}
-	if len(self.Educations) > 0 && (dmo == nil || dmo.Education == 0 || !pzutil.GrepUint32(self.Educations, dmo.Education)) {
-		return false
-	}
-	if len(self.Occupations) > 0 && (dmo == nil || dmo.Occupation == 0 || !pzutil.GrepUint32(self.Occupations, dmo.Occupation)) {
+	if !self.hasYob(dmo.Yob) {
 		return false
 	}
 
 	return true
 }
 
-/*
-	func DemoAudienceFromArgs(ARGS url.Values) *DemoAudience {
-		g := func(_ url.Values, name string, which *[]uint32) {
-			values := ARGS[name]
-			if len(values) > 0 {
-				for _, value := range values {
-					v, err := strconv.ParseUint(value, 10, 32)
-					if err == nil && v > 0 {
-						*which = append(*which, uint32(v))
+func newDemoAudience(genders []uint32, yobs []uint32, langs []uint32) *DemoAudience {
+	aud := new(DemoAudience)
+	for _, gender := range genders {
+		aud.Genders += (1 << gender)
+	}
+	for _, yob := range yobs {
+		aud.Yobs += (1 << yob)
+	}
+	for _, lang := range langs {
+		aud.Languages += (1 << lang)
+	}
+	return aud
+}
+
+// DemoResetArgs resets the ARGS to the values in the DemoAudience, ready to be inserted or updated in the database.
+func DemoResetArgs(ARGS url.Values) error {
+	pars := make(map[string][]uint32)
+	for _, item := range []string{"gender", "yob", "language"} {
+		if values, ok := ARGS[item]; ok {
+			for _, value := range values {
+				if value != "" {
+					v, err := strconv.ParseInt(value, 10, 32)
+					if err != nil {
+						return err
 					}
+					pars[item] = append(pars[item], uint32(v))
 				}
 			}
 		}
-
-		aud := new(DemoAudience)
-
-		g(ARGS, "gender", &aud.Genders)
-		g(ARGS, "yob", &aud.Yobs)
-		g(ARGS, "married", &aud.Marrieds)
-		g(ARGS, "income", &aud.Incomes)
-		g(ARGS, "child", &aud.Childs)
-		g(ARGS, "household", &aud.Households)
-		g(ARGS, "ethnicity", &aud.Ethnicitys)
-		g(ARGS, "education", &aud.Educations)
-		g(ARGS, "occupation", &aud.Occupations)
-
-		return aud
+	}
+	if len(pars) == 0 {
+		return nil
 	}
 
-	func (self *DemoAudience) ToArgs(ARGS url.Values) {
-		g := func(args url.Values, name string, values []uint32) {
-			if len(values) > 0 {
-				for _, value := range values {
-					args.Add(name, strconv.FormatUint(uint64(value), 10))
-				}
+	aud := newDemoAudience(pars["gender"], pars["yob"], pars["language"])
+
+	ARGS.Del("gender")
+	ARGS.Del("yob")
+	ARGS.Del("language")
+	if aud.Genders != 0 {
+		ARGS.Set("gender", strconv.FormatInt(int64(aud.Genders), 10))
+	}
+	if aud.Languages != 0 {
+		ARGS.Set("language", strconv.FormatInt(int64(aud.Languages), 10))
+	}
+	if aud.Yobs != 0 {
+		ARGS.Add("yob", strconv.FormatInt(int64(aud.Yobs), 10))
+	}
+
+	return nil
+}
+
+// Tmpls returns the map of attribute name and valueID ready to use on web page.
+func (self *DemoAudience) Tmpls() map[string]map[int][]interface{} {
+	demos := make(map[string]map[int][]interface{})
+	for attrname, val := range demoNames() {
+		item := make(map[int][]interface{})
+		for valueID, name := range val {
+			switch attrname {
+			case "gender":
+				item[int(valueID)] = []interface{}{name, self.hasGender(GENDER(valueID), true)}
+			case "yob":
+				item[int(valueID)] = []interface{}{name, self.hasYob(YOB(valueID), true)}
+			case "language":
+				item[int(valueID)] = []interface{}{name, self.hasLanguage(LANGUAGE(valueID), true)}
 			}
 		}
-
-		g(ARGS, "gender", self.Genders)
-		g(ARGS, "yob", self.Yobs)
-		g(ARGS, "married", self.Marrieds)
-		g(ARGS, "income", self.Incomes)
-		g(ARGS, "child", self.Childs)
-		g(ARGS, "household", self.Households)
-		g(ARGS, "ethnicity", self.Ethnicitys)
-		g(ARGS, "education", self.Educations)
-		g(ARGS, "occupation", self.Occupations)
+		demos[attrname] = item
 	}
-*/
+	return demos
+}
 
+// DBFillDemoAudience fills the DemoAudience with the attribute name and valueID, derived from the database.
 func (self *DemoAudience) DBFillDemoAudience(attrname string, valueID uint32) int {
 	switch attrname {
 	case "gender":
-		self.Genders = append(self.Genders, valueID)
+		self.Genders = valueID
 		return 1
 	case "yob":
-		self.Yobs = append(self.Yobs, valueID)
+		self.Yobs = valueID
 		return 1
-	case "married":
-		self.Marrieds = append(self.Marrieds, valueID)
-		return 1
-	case "income":
-		self.Incomes = append(self.Incomes, valueID)
-		return 1
-	case "child":
-		self.Childs = append(self.Childs, valueID)
-		return 1
-	case "household":
-		self.Households = append(self.Households, valueID)
-		return 1
-	case "ethnicity":
-		self.Ethnicitys = append(self.Ethnicitys, valueID)
-		return 1
-	case "education":
-		self.Educations = append(self.Educations, valueID)
-		return 1
-	case "occupation":
-		self.Occupations = append(self.Occupations, valueID)
+	case "language":
+		self.Languages = valueID
 		return 1
 	default:
 	}
 
 	return 0
 }
-
-/*
-func (self *DemoAudience) DBLineDemoAudience(attrname string, valueIDs string) {
-	if valueIDs == "" {
-		return
-	}
-	for _, id := range strings.Split(valueIDs, ",") {
-		if valueID, err := strconv.ParseUint(id, 10, 32); err == nil {
-			self.DBFillDemoAudience(attrname, uint32(valueID))
-		}
-	}
-}
-*/

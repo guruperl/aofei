@@ -1,4 +1,4 @@
-package match
+package demo
 
 type LANGUAGE uint8
 
@@ -139,14 +139,14 @@ var Short2Full = map[string]string{
 	"BG":    "Bulgarian",
 	"SR":    "Serbian",
 	"NB":    "Norwegian",
-	"Other": "Other",
+	"Other": "All",
 }
 
 type WLangs uint32
 
-func NewWLangs(walng []string) WLangs {
+func NewWLangs(langs []string) WLangs {
 	var wlangs WLangs
-	for _, lang := range walng {
+	for _, lang := range langs {
 		if code, ok := Short2LANGUAGE[lang]; ok {
 			wlangs |= 1 << code
 		}
@@ -154,8 +154,8 @@ func NewWLangs(walng []string) WLangs {
 	return wlangs
 }
 
-// ToLANGUEs returns a slice of LANGUAGEs from the WLangs set.
-func (self WLangs) ToLANGUEs() []LANGUAGE {
+// toLANGUAGEs returns a slice of LANGUAGEs from the WLangs set.
+func (self WLangs) toLANGUAGEs() []LANGUAGE {
 	var langs []LANGUAGE
 	for lang := LanguageOther; lang <= LanguageNB; lang++ {
 		if self&(1<<lang) != 0 {
@@ -163,14 +163,4 @@ func (self WLangs) ToLANGUEs() []LANGUAGE {
 		}
 	}
 	return langs
-}
-
-// Has returns true if one the languages is in the WLangs set.
-func (self WLangs) Has(lang WLangs) bool {
-	for _, lang := range lang.ToLANGUEs() {
-		if self&(1<<lang) != 0 {
-			return true
-		}
-	}
-	return false
 }

@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/summer"
 )
 
@@ -70,7 +69,7 @@ func (self *Model) Inserts(extra ...url.Values) error {
 				continue
 			}
 			found[id] = true
-			if pzutil.IsDigit(id) {
+			if summer.IsDigit(id) {
 				ads = append(ads, id)
 			}
 		}
@@ -83,7 +82,7 @@ func (self *Model) Inserts(extra ...url.Values) error {
 				continue
 			}
 			found[id] = true
-			if pzutil.IsDigit(id) {
+			if summer.IsDigit(id) {
 				ads = append(ads, id)
 			}
 		}
@@ -113,7 +112,7 @@ WHERE campaign_id IN (`+strings.Join(ads, ",")+`) AND adv_id IN (`+strings.Join(
 				continue
 			}
 			foundAdv[advID] = true
-			if pzutil.IsDigit(advID) {
+			if summer.IsDigit(advID) {
 				n++
 				str += fmt.Sprintf(" (%s, %s, 4, %s),", ARGS.Get("entitytype_id"), ARGS.Get("entity_id"), advID)
 			}
@@ -129,7 +128,7 @@ WHERE campaign_id IN (`+strings.Join(ads, ",")+`) AND adv_id IN (`+strings.Join(
 			if ref[campaignID] {
 				continue
 			}
-			if pzutil.IsDigit(campaignID) {
+			if summer.IsDigit(campaignID) {
 				n++
 				str += fmt.Sprintf(" (%s, %s, 41, %s),", ARGS.Get("entitytype_id"), ARGS.Get("entity_id"), campaignID)
 			}

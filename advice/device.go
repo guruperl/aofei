@@ -38,10 +38,6 @@ func UnpackPzUa(n uint32) *PzUa {
 	return &PzUa{Platform: DeviceMake(n >> 8 & 0xff), OS: DeviceOS(n >> 24 & 0xff), OVersion: DeviceOSV(n >> 16 & 0xff), Device: DeviceType(n & 0xff)}
 }
 
-func UaAttrs() map[string]string {
-	return map[string]string{"oversion": "OS Version", "os": "OS", "platform": "Platform", "device": "Device type"}
-}
-
 func uaNames() map[string]map[uint32]string {
 	ovs := make(map[uint32]string)
 	oss := make(map[uint32]string)

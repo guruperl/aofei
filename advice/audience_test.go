@@ -15,39 +15,18 @@ func TestUaAudienceArgs(t *testing.T) {
 	ARGS.Add("platform", "2")
 	ARGS.Add("device", "1")
 	ARGS.Add("device", "2")
-	aud, err := UaAudienceFromArgs(ARGS)
-	if err != nil {
-		t.Errorf("Error: %v", err)
-	}
-	if aud.UaOSs != 6 {
-		t.Errorf("UaOSs: %v", aud.UaOSs)
-	}
-	if aud.UaOVersions != 6 {
-		t.Errorf("UaOVersions: %v", aud.UaOVersions)
-	}
-	if aud.UaPlatforms != 6 {
-		t.Errorf("UaPlatforms: %v", aud.UaPlatforms)
-	}
-	if aud.UaDevices != 6 {
-		t.Errorf("UaDevices: %v", aud.UaDevices)
-	}
-	args := url.Values{}
-	aud.ToArgs(args)
-	if err != nil {
-		t.Errorf("Error: %v", err)
-	}
 
-	if args["os"][0] != "1" || args["os"][1] != "2" {
-		t.Errorf("os: %v", args["os"])
+	if ARGS["os"][0] != "1" || ARGS["os"][1] != "2" {
+		t.Errorf("os: %v", ARGS["os"])
 	}
-	if args["oversion"][0] != "1" || args["oversion"][1] != "2" {
-		t.Errorf("oversion: %v", args["oversion"])
+	if ARGS["oversion"][0] != "1" || ARGS["oversion"][1] != "2" {
+		t.Errorf("oversion: %v", ARGS["oversion"])
 	}
-	if args["platform"][0] != "1" || args["platform"][1] != "2" {
-		t.Errorf("platform: %v", args["platform"])
+	if ARGS["platform"][0] != "1" || ARGS["platform"][1] != "2" {
+		t.Errorf("platform: %v", ARGS["platform"])
 	}
-	if args["device"][0] != "1" || args["device"][1] != "2" {
-		t.Errorf("device: %v", args["device"])
+	if ARGS["device"][0] != "1" || ARGS["device"][1] != "2" {
+		t.Errorf("device: %v", ARGS["device"])
 	}
 
 	ARGS.Add("platform", "30")
@@ -55,36 +34,26 @@ func TestUaAudienceArgs(t *testing.T) {
 	ARGS.Add("platform", "32")
 	ARGS.Add("platform", "33")
 	ARGS.Add("platform", "34")
-	aud, err = UaAudienceFromArgs(ARGS)
+	err := UAResetArgs(ARGS)
 	if err != nil {
 		t.Errorf("Error: %v", err)
 	}
-	args = url.Values{}
-	aud.ToArgs(args)
-	if args["platform"][0] != "1" || args["platform"][1] != "2" || args["platform"][2] != "30" || args["platform"][3] != "31" || args["platform"][4] != "32" {
-		t.Errorf("platform: %v", args["platform"])
+	if ARGS.Get("os") != "6" {
+		t.Errorf("os: %v", ARGS["os"])
+	}
+	if ARGS.Get("oversion") != "6" {
+		t.Errorf("oversion: %v", ARGS["oversion"])
+	}
+	if ARGS.Get("device") != "6" {
+		t.Errorf("device: %v", ARGS["device"])
+	}
+	if ARGS.Get("platform") != "3221225478" {
+		t.Errorf("platform: %v", ARGS["platform"])
 	}
 }
 
 func TestUaAudienceTmpls(t *testing.T) {
-	ARGS := url.Values{}
-	ARGS.Add("os", "1")
-	ARGS.Add("os", "2")
-	ARGS.Add("oversion", "1")
-	ARGS.Add("oversion", "2")
-	ARGS.Add("platform", "1")
-	ARGS.Add("platform", "2")
-	ARGS.Add("platform", "30")
-	ARGS.Add("platform", "31")
-	ARGS.Add("platform", "32")
-	ARGS.Add("platform", "33")
-	ARGS.Add("platform", "34")
-	ARGS.Add("device", "1")
-	ARGS.Add("device", "2")
-	aud, err := UaAudienceFromArgs(ARGS)
-	if err != nil {
-		t.Errorf("Error: %v", err)
-	}
+	aud := newUaAudience([]uint32{1, 2}, []uint32{1, 2}, []uint32{1, 2, 30, 31, 32, 33, 34}, []uint32{1, 2})
 	tmpl := aud.Tmpls()
 	for k, v := range tmpl["platform"] {
 		switch k {
@@ -116,7 +85,10 @@ func TestUaAudienceReset(t *testing.T) {
 	ARGS.Add("device", "1")
 	ARGS.Add("device", "2")
 
-	ResetArgs(ARGS)
+	err := UAResetArgs(ARGS)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if ARGS["os"][0] != "6" ||
 		ARGS["oversion"][0] != "6" ||
 		ARGS["device"][0] != "6" ||
@@ -127,24 +99,8 @@ func TestUaAudienceReset(t *testing.T) {
 }
 
 func TestUaAudienceMatch(t *testing.T) {
-	ARGS := url.Values{}
-	ARGS.Add("os", "1")
-	ARGS.Add("os", "2")
-	ARGS.Add("oversion", "1")
-	ARGS.Add("oversion", "2")
-	ARGS.Add("platform", "1")
-	ARGS.Add("platform", "2")
-	ARGS.Add("platform", "30")
-	ARGS.Add("platform", "31")
-	ARGS.Add("platform", "32")
-	ARGS.Add("platform", "33")
-	ARGS.Add("platform", "34")
-	ARGS.Add("device", "1")
-	ARGS.Add("device", "2")
-	aud, err := UaAudienceFromArgs(ARGS)
-	if err != nil {
-		t.Errorf("Error: %v", err)
-	}
+	aud := newUaAudience([]uint32{1, 2}, []uint32{1, 2}, []uint32{1, 2, 30, 31, 32, 33, 34}, []uint32{1, 2})
+
 	ua := &PzUa{OS: DeviceOS(1), OVersion: DeviceOSV(1), Platform: DeviceMake(1), Device: DeviceType(1)}
 	if !aud.Has(ua) {
 		t.Errorf("Match: %v", ua)

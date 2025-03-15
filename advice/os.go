@@ -40,7 +40,7 @@ const (
 func (self DeviceOS) String() string {
 	switch self {
 	case OSUnknown:
-		return "Unknown"
+		return "All"
 	case OSAndroid:
 		return "Android"
 	case OSAppleTV:

@@ -8,6 +8,7 @@ import (
 
 	"github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
+	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/maxmind"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
@@ -22,8 +23,7 @@ type Attribute struct {
 	*demo.Demo
 	*maxmind.Geo
 	*advice.PzUa
-	*DH
-	Langs     WLangs
+	*dh.DH
 	White     []string
 	Black     []string
 	PubLevel  []string
@@ -53,8 +53,6 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		}
 	}
 
-	attr.Langs = getLangs(bidRequest)
-
 	attr.White = bidRequest.ACat
 	attr.Black = bidRequest.BCat
 	if site := bidRequest.Site; site != nil {
@@ -68,7 +66,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 	}
 
 	if user := bidRequest.User; user != nil {
-		attr.Demo = demo.NewDemo(user.Gender, int(user.Yob))
+		attr.Demo = demo.NewDemo(user.Gender, uint32(user.Yob), getLangs(bidRequest))
 	}
 
 	attr.Geo, err = getGeo(ctx, ipSearch, device)
@@ -76,7 +74,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		return nil, err
 	}
 
-	attr.DH = NewDH(when, int(attr.Geo.Location.UTCOffset))
+	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
 
 	attr.PzUa = getUA(device)
 
@@ -111,7 +109,7 @@ func getIFA(device *openrtb2.Device) (string, error) {
 }
 
 // getLangs returns the WLangs object from the bid request and device.
-func getLangs(bidRequest *openrtb2.BidRequest) WLangs {
+func getLangs(bidRequest *openrtb2.BidRequest) []string {
 	var langs []string
 	if bidRequest.WLang != nil {
 		langs = bidRequest.WLang
@@ -122,11 +120,9 @@ func getLangs(bidRequest *openrtb2.BidRequest) WLangs {
 		if bidRequest.Device.LangB != "" {
 			langs = append(langs, bidRequest.Device.LangB)
 		}
-	} else {
-		return 0
 	}
 
-	return NewWLangs(langs)
+	return langs
 }
 
 // getGeo returns the Geo object from the device.

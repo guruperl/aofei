@@ -3,7 +3,6 @@ package genelet
 import (
 	"database/sql"
 	"net/url"
-	// "github.com/golang/glog"
 )
 
 type Filter struct {

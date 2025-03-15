@@ -6,8 +6,9 @@ import (
 	"net/url"
 	"strconv"
 
-	uadevice "github.com/genelet/winter/advice"
+	"github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
+	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/summer"
 )
 
@@ -31,7 +32,9 @@ func (self *Filter) Preset() error {
 	}
 
 	if action == "insert" || action == "update" {
-		uadevice.ResetArgs(ARGS)
+		advice.UAResetArgs(ARGS)
+		demo.DemoResetArgs(ARGS)
+		dh.DHResetArgs(ARGS)
 	}
 
 	return nil
@@ -157,87 +160,20 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 				|             2 |              2 |     3263 |        1103 | state    |         NULL |
 				+---------------+----------------+----------+-------------+----------+--------------+
 		*/
-		ref := make(map[string]map[int]bool)
-		var utcoffsetFound bool
-		var utcoffset int
-		hours := make(map[int]bool)
-		days := make(map[int]bool)
-		uaAud := new(uadevice.UaAudience)
+		dhAud := new(dh.DHAudience)
+		demAud := new(demo.DemoAudience)
+		uaAud := new(advice.UaAudience)
 		for _, item := range lists {
 			attrname := item["attrname"].(string)
-			if _, ok := ref[attrname]; !ok {
-				ref[attrname] = make(map[int]bool)
-			}
-			valueID := int(item["value_id"].(int64))
-			switch attrname {
-			case "utcoffset":
-				utcoffsetFound = true
-				utcoffset = int(int32(uint32(item["value_id"].(int64))))
-			case "fullhour":
-				hours[valueID] = true
-			case "weekday":
-				days[valueID] = true
-			case "isp", "state", "city", "dma":
-			case "os":
-				uaAud.UaOSs = uint32(valueID)
-			case "oversion":
-				uaAud.UaOVersions = uint32(valueID)
-			case "platform":
-				uaAud.UaPlatforms = uint32(valueID)
-			case "browser":
-				uaAud.UaBrowsers = uint32(valueID)
-			case "device":
-				uaAud.UaDevices = uint32(valueID)
-			default:
-				ref[attrname][valueID] = true
-			}
+			valueID := uint32(int(item["value_id"].(int64)))
+			dhAud.DBFillDhAudience(attrname, valueID)
+			demAud.DBFillDemoAudience(attrname, valueID)
+			uaAud.DBFillUaAudience(attrname, valueID)
 		}
 
-		utcoffsets := make(map[int][]interface{})
-		for i := -11; i < 13; i++ {
-			str := strconv.Itoa(i)
-			selected := false
-			if utcoffsetFound && i == utcoffset {
-				selected = true
-			}
-			utcoffsets[i] = []interface{}{str, selected}
-		}
-		other["utcoffset"] = utcoffsets
-
-		fullhours := make(map[int][]interface{})
-		for i := 0; i < 24; i++ {
-			str := strconv.Itoa(i)
-			selected := hours[i]
-			fullhours[i] = []interface{}{str, selected}
-		}
-		other["fullhour"] = fullhours
-
-		weekdays := make(map[int][]interface{})
-		WEEK := map[int]string{0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat"}
-		for i, name := range WEEK {
-			selected := days[i]
-			weekdays[i] = []interface{}{name, selected}
-		}
-		other["weekday"] = weekdays
-		other["weekdayChinese"] = summer.Translate(other["weekday"])
-
-		other["pzua"] = uaAud.Tmpls()
-		other["pzuaChinese"] = summer.Translate(other["pzua"])
-		other["pzAttrs"] = uadevice.UaAttrs()
-		other["pzAttrsChinese"] = summer.Translate(other["pzAttrs"])
-
-		demos := make(map[string]map[int][]interface{})
-		for attrname, val := range demo.DemoNames() {
-			item := make(map[int][]interface{})
-			for valueID, name := range val {
-				item[int(valueID)] = []interface{}{name, ref[attrname][int(valueID)]}
-			}
-			demos[attrname] = item
-		}
-		other["demo"] = demos
-		other["demoChinese"] = summer.Translate(other["demo"])
-		other["dAttrs"] = demo.DemoAttrs()
-		other["dAttrsChinese"] = summer.Translate(other["dAttrs"])
+		other["dtChinese"] = summer.Translate(dhAud.Tmpls())
+		other["pzuaChinese"] = summer.Translate(uaAud.Tmpls())
+		other["demoChinese"] = summer.Translate(demAud.Tmpls())
 	} else if who == "adv" && action == "insert" {
 		ARGS.Set("table", "adv_item")
 		ARGS.Set("idname", "item_id")

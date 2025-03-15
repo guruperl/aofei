@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/summer"
 )
 
@@ -69,7 +68,7 @@ func (self *Model) InsertBelong(extra ...url.Values) error {
 	sql := `INSERT INTO ch_belong (entitytype_id, entity_id, channel_id) VALUES `
 	n := 0
 	for _, id := range ARGS["belong_ids"] {
-		if pzutil.IsDigit(id) {
+		if summer.IsDigit(id) {
 			n++
 			sql += "(" + ARGS.Get("entitytype_id") + "," + ARGS.Get("entity_id") + "," + id + "),"
 		}
@@ -89,7 +88,7 @@ func (self *Model) InsertAc(extra ...url.Values) error {
 	sql := `INSERT INTO ch_ac (entitytype_id, entity_id, channel_id) VALUES `
 	n := 0
 	for _, id := range ARGS["ac_ids"] {
-		if pzutil.IsDigit(id) {
+		if summer.IsDigit(id) {
 			n++
 			sql += "(" + ARGS.Get("entitytype_id") + "," + ARGS.Get("entity_id") + "," + id + "),"
 		}

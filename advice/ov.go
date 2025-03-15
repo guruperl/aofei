@@ -26,6 +26,17 @@ const (
 	OVersion18
 	OVersion19
 	OVersion20
+	Oversion21
+	Oversion22
+	Oversion23
+	Oversion24
+	Oversion25
+	Oversion26
+	Oversion27
+	Oversion28
+	Oversion29
+	Oversion30
+	Oversion31
 )
 
 func (self DeviceOSV) String() string {
@@ -70,8 +81,31 @@ func (self DeviceOSV) String() string {
 		return "19"
 	case OVersion20:
 		return "20"
+	case Oversion21:
+		return "21"
+	case Oversion22:
+		return "22"
+	case Oversion23:
+		return "23"
+	case Oversion24:
+		return "24"
+	case Oversion25:
+		return "25"
+	case Oversion26:
+		return "26"
+	case Oversion27:
+		return "27"
+	case Oversion28:
+		return "28"
+	case Oversion29:
+		return "29"
+	case Oversion30:
+		return "30"
+	case Oversion31:
+		return "31"
+	default:
 	}
-	return "Unknown"
+	return "All"
 }
 
 func ParseOVersion(full string) DeviceOSV {
@@ -117,6 +151,29 @@ func ParseOVersion(full string) DeviceOSV {
 		return OVersion19
 	case "20":
 		return OVersion20
+	case "21":
+		return Oversion21
+	case "22":
+		return Oversion22
+	case "23":
+		return Oversion23
+	case "24":
+		return Oversion24
+	case "25":
+		return Oversion25
+	case "26":
+		return Oversion26
+	case "27":
+		return Oversion27
+	case "28":
+		return Oversion28
+	case "29":
+		return Oversion29
+	case "30":
+		return Oversion30
+	case "31":
+		return Oversion31
+	default:
 	}
 	return OVersionUnknown
 }

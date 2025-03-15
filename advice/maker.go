@@ -155,7 +155,7 @@ func (self DeviceMake) String() string {
 	case MakerBLACKBERRY:
 		return "BLACKBERRY"
 	default:
-		return "UNKNOWN"
+		return "All"
 	}
 }
 

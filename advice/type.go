@@ -35,7 +35,7 @@ func (self DeviceType) String() string {
 	case TypeTablet:
 		return "Tablet"
 	}
-	return "Unknown"
+	return "All"
 }
 
 func DeviceTypeType(dt adcom1.DeviceType) DeviceType {

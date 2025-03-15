@@ -13,79 +13,124 @@ type UaAudience struct {
 	UaDevices   uint32
 }
 
-func UaAudienceFromArgs(ARGS url.Values) (*UaAudience, error) {
-	pars := make(map[string][]int)
+func newUaAudience(oss []uint32, ovs []uint32, platforms []uint32, devices []uint32) *UaAudience {
+	aud := new(UaAudience)
+	for _, os := range oss {
+		aud.UaOSs += (1 << os)
+	}
+	for _, ov := range ovs {
+		aud.UaOVersions += (1 << ov)
+	}
+	for _, platform := range platforms {
+		if platform >= 32 {
+			aud.UaBrowsers += (1 << (platform - 32))
+		} else {
+			aud.UaPlatforms += (1 << platform)
+		}
+	}
+	for _, device := range devices {
+		aud.UaDevices += (1 << device)
+	}
+	return aud
+}
+
+// hasOS returns true if the UaAudience has the given OS.
+func (self *UaAudience) hasOS(os DeviceOS, display ...bool) bool {
+	if (display == nil || !display[0]) && self.UaOSs == 0 {
+		return true
+	}
+	if os == OSUnknown {
+		return false
+	}
+	return self.UaOSs&(1<<uint32(os)) > 0
+}
+
+// hasOV returns true if the UaAudience has the given OS version.
+func (self *UaAudience) hasOV(ov DeviceOSV, display ...bool) bool {
+	if (display == nil || !display[0]) && self.UaOVersions == 0 {
+		return true
+	}
+	if ov == OVersionUnknown {
+		return false
+	}
+	return self.UaOVersions&(1<<uint32(ov)) > 0
+}
+
+// hasPlatform returns true if the UaAudience has the given platform.
+func (self *UaAudience) hasPlatform(platform DeviceMake, display ...bool) bool {
+	if uint32(platform) >= 32 {
+		if (display == nil || !display[0]) && self.UaBrowsers == 0 {
+			return true
+		}
+		return self.UaBrowsers&(1<<uint32(platform-32)) > 0
+	}
+	if (display == nil || !display[0]) && self.UaPlatforms == 0 {
+		return true
+	}
+	if platform == MakerUnknown {
+		return false
+	}
+	return self.UaPlatforms&(1<<uint32(platform)) > 0
+}
+
+// hasDevice returns true if the UaAudience has the given device.
+func (self *UaAudience) hasDevice(device DeviceType, display ...bool) bool {
+	if (display == nil || !display[0]) && self.UaDevices == 0 {
+		return true
+	}
+	if device == TypeUnknown {
+		return false
+	}
+	return self.UaDevices&(1<<uint32(device)) > 0
+}
+
+// Has returns true if the UaAudience has the given user agent.
+func (self *UaAudience) Has(ua *PzUa) bool {
+	// this logic is not supposed to happen, but just in case
+	if self == nil {
+		return true
+	}
+	if ua == nil {
+		return false
+	}
+
+	if !self.hasOS(ua.OS) {
+		return false
+	}
+	if !self.hasOV(ua.OVersion) {
+		return false
+	}
+	if !self.hasDevice(ua.Device) {
+		return false
+	}
+	if !self.hasPlatform(ua.Platform) {
+		return false
+	}
+
+	return true
+}
+
+// UAResetArgs resets the ARGS to the values in the UaAudience, ready to be inserted or updated in the database.
+func UAResetArgs(ARGS url.Values) error {
+	pars := make(map[string][]uint32)
 	for _, item := range []string{"os", "oversion", "platform", "device"} {
 		if values, ok := ARGS[item]; ok {
 			for _, value := range values {
 				if value != "" {
 					v, err := strconv.ParseInt(value, 10, 32)
 					if err != nil {
-						return nil, err
+						return err
 					}
-					pars[item] = append(pars[item], int(v))
+					pars[item] = append(pars[item], uint32(v))
 				}
 			}
 		}
 	}
-
-	aud := new(UaAudience)
-	for _, os := range pars["os"] {
-		aud.UaOSs += (1 << uint(os))
-	}
-	for _, ov := range pars["oversion"] {
-		aud.UaOVersions += (1 << uint(ov))
-	}
-	for _, maker := range pars["platform"] {
-		if maker >= 32 {
-			aud.UaBrowsers += (1 << uint(maker-32))
-		} else {
-			aud.UaPlatforms += (1 << uint(maker))
-		}
-	}
-	for _, dt := range pars["device"] {
-		aud.UaDevices += (1 << uint(dt))
-	}
-
-	return aud, nil
-}
-
-func (self *UaAudience) ToArgs(ARGS url.Values) {
-	if self.UaOSs != 0 {
-		ARGS.Del("os")
-		for _, item := range uint32OSs(self.UaOSs) {
-			ARGS.Add("os", strconv.FormatUint(uint64(item), 10))
-		}
-	}
-	if self.UaOVersions != 0 {
-		ARGS.Del("oversion")
-		for _, item := range uint32OVersions(self.UaOVersions) {
-			ARGS.Add("oversion", strconv.FormatUint(uint64(item), 10))
-		}
-	}
-	if self.UaPlatforms != 0 || self.UaBrowsers != 0 {
-		ARGS.Del("platform")
-		for _, item := range uint32Platforms(self.UaPlatforms, self.UaBrowsers) {
-			ARGS.Add("platform", strconv.FormatUint(uint64(item), 10))
-		}
-	}
-	if self.UaDevices != 0 {
-		ARGS.Del("device")
-		for _, item := range uint32Devices(self.UaDevices) {
-			ARGS.Add("device", strconv.FormatUint(uint64(item), 10))
-		}
-	}
-}
-
-// ResetArgs resets the ARGS to the values in the UaAudience to be inserted or updated to the database.
-func ResetArgs(ARGS url.Values) error {
-	aud, err := UaAudienceFromArgs(ARGS)
-	if err != nil {
-		return err
-	}
-	if aud == nil {
+	if len(pars) == 0 {
 		return nil
 	}
+
+	aud := newUaAudience(pars["os"], pars["oversion"], pars["platform"], pars["device"])
 
 	ARGS.Del("os")
 	ARGS.Del("oversion")
@@ -93,129 +138,46 @@ func ResetArgs(ARGS url.Values) error {
 	ARGS.Del("browser")
 	ARGS.Del("device")
 	if aud.UaOSs != 0 {
-		ARGS.Set("os", strconv.FormatUint(uint64(aud.UaOSs), 10))
+		ARGS.Set("os", strconv.FormatInt(int64(aud.UaOSs), 10))
 	}
 	if aud.UaOVersions != 0 {
-		ARGS.Set("oversion", strconv.FormatUint(uint64(aud.UaOVersions), 10))
+		ARGS.Set("oversion", strconv.FormatInt(int64(aud.UaOVersions), 10))
 	}
 	if aud.UaPlatforms != 0 {
-		ARGS.Set("platform", strconv.FormatUint(uint64(aud.UaPlatforms), 10))
+		ARGS.Set("platform", strconv.FormatInt(int64(aud.UaPlatforms), 10))
 	}
 	if aud.UaBrowsers != 0 {
-		ARGS.Set("browser", strconv.FormatUint(uint64(aud.UaBrowsers), 10))
+		ARGS.Set("browser", strconv.FormatInt(int64(aud.UaBrowsers), 10))
 	}
 	if aud.UaDevices != 0 {
-		ARGS.Set("device", strconv.FormatUint(uint64(aud.UaDevices), 10))
+		ARGS.Set("device", strconv.FormatInt(int64(aud.UaDevices), 10))
 	}
 	return nil
 }
 
+// Tmpls returns the UaAudience in a map of attribute name to valueID, ready to use on web page.
 func (self *UaAudience) Tmpls() map[string]map[int][]interface{} {
 	pzuas := make(map[string]map[int][]interface{})
-	ref := make(map[string]map[int]bool)
-	if self.UaOSs != 0 {
-		ref["os"] = make(map[int]bool)
-		for _, item := range uint32OSs(self.UaOSs) {
-			ref["os"][int(item)] = true
-		}
-	}
-	if self.UaOVersions != 0 {
-		ref["oversion"] = make(map[int]bool)
-		for _, item := range uint32OVersions(self.UaOVersions) {
-			ref["oversion"][int(item)] = true
-		}
-	}
-	if self.UaPlatforms != 0 || self.UaBrowsers != 0 {
-		ref["platform"] = make(map[int]bool)
-		for _, item := range uint32Platforms(self.UaPlatforms, self.UaBrowsers) {
-			ref["platform"][int(item)] = true
-		}
-	}
-	if self.UaDevices != 0 {
-		ref["device"] = make(map[int]bool)
-		for _, item := range uint32Devices(self.UaDevices) {
-			ref["device"][int(item)] = true
-		}
-	}
 	for attrname, val := range uaNames() {
 		item := make(map[int][]interface{})
 		for valueID, name := range val {
-			item[int(valueID)] = []interface{}{name, ref[attrname][int(valueID)]}
+			switch attrname {
+			case "os":
+				item[int(valueID)] = []interface{}{name, self.hasOS(DeviceOS(valueID), true)}
+			case "oversion":
+				item[int(valueID)] = []interface{}{name, self.hasOV(DeviceOSV(valueID), true)}
+			case "platform":
+				item[int(valueID)] = []interface{}{name, self.hasPlatform(DeviceMake(valueID), true)}
+			case "device":
+				item[int(valueID)] = []interface{}{name, self.hasDevice(DeviceType(valueID), true)}
+			}
 		}
 		pzuas[attrname] = item
 	}
 	return pzuas
 }
 
-func uint32OSs(x uint32) []DeviceOS {
-	var os []DeviceOS
-	for i := range 32 {
-		if x&(1<<uint(i)) > 0 {
-			os = append(os, DeviceOS(i))
-		}
-	}
-	return os
-}
-
-func uint32OVersions(x uint32) []DeviceOSV {
-	var ovs []DeviceOSV
-	for i := range 32 {
-		if x&(1<<uint(i)) > 0 {
-			ovs = append(ovs, DeviceOSV(i))
-		}
-	}
-	return ovs
-}
-
-func uint32Platforms(x, y uint32) []DeviceMake {
-	var makers []DeviceMake
-	for i := range 32 {
-		if x&(1<<uint(i)) > 0 {
-			makers = append(makers, DeviceMake(i))
-		}
-	}
-	for i := range 32 {
-		if y&(1<<uint(i)) > 0 {
-			makers = append(makers, DeviceMake(i+32))
-		}
-	}
-	return makers
-}
-
-func uint32Devices(x uint32) []DeviceType {
-	var dts []DeviceType
-	for i := range 32 {
-		if x&(1<<uint(i)) > 0 {
-			dts = append(dts, DeviceType(i))
-		}
-	}
-	return dts
-}
-
-func (self *UaAudience) Has(ua *PzUa) bool {
-	// in case a ua component is unknown, or, the audience component is not set, it is a match!
-	if self.UaOSs != 0 && (ua == nil || ua.OS == OSUnknown || (self.UaOSs&(1<<uint32(ua.OS))) == 0) {
-		return false
-	}
-	if self.UaOVersions != 0 && (ua == nil || ua.OVersion == OVersionUnknown || (self.UaOVersions&(1<<uint32(ua.OVersion))) == 0) {
-		return false
-	}
-	if self.UaDevices != 0 && (ua == nil || ua.Device == TypeUnknown || (self.UaDevices&(1<<uint32(ua.Device))) == 0) {
-		return false
-	}
-	if self.UaPlatforms != 0 || self.UaBrowsers != 0 {
-		if ua == nil || ua.Platform == MakerUnknown {
-			return false
-		} else if uint32(ua.Platform) >= 32 && (self.UaBrowsers&(1<<uint32(ua.Platform-32))) == 0 {
-			return false
-		} else if uint32(ua.Platform) < 32 && (self.UaPlatforms&(1<<uint32(ua.Platform))) == 0 {
-			return false
-		}
-	}
-
-	return true
-}
-
+// DBFillUaAudience fills the UaAudience with the given attribute name and valueID, derived from the database.
 func (self *UaAudience) DBFillUaAudience(attrname string, valueID uint32) int {
 	switch attrname {
 	case "os":

@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/summer"
 )
 
@@ -100,7 +99,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 	}
 
 	hash := make(map[string]string)
-	for attrname, attrnameID := range pzutil.AttrValue {
+	for attrname, attrnameID := range summer.AttrValue {
 		if _, ok := ARGS[attrname]; ok {
 			if ARGS.Get(attrname) == "" {
 				continue
@@ -114,7 +113,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 			continue
 		}
 		id := parts[len(parts)-1]
-		if pzutil.IsDigit(id) {
+		if summer.IsDigit(id) {
 			hash[k] = id
 		}
 	}
@@ -129,7 +128,7 @@ func (self *Model) Insert(extra ...url.Values) error {
 		targetnameID := strconv.FormatInt(self.LastID, 10)
 		total := 0
 		for _, id := range ARGS[attrname] {
-			if pzutil.IsDigit(id) {
+			if summer.IsDigit(id) {
 				d, _ := strconv.Atoi(id)
 				id = strconv.FormatInt(int64(uint32(d)), 10)
 				data += `(` + targetnameID + `, ` + id + `),`
