@@ -2,47 +2,74 @@
 package match
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/gob"
 	"strconv"
 
+	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/maxmind"
-	"github.com/genelet/winter/pzutil"
 
 	"github.com/mediocregopher/radix/v4"
 )
 
 type Audience struct {
 	*dh.DHAudience
-	*CategoryAudience
+	*acl.ACLAudience
 	*maxmind.GeoAudience
 	*demo.DemoAudience
 	*advice.UaAudience
 }
 
-func (self *Audience) Pack() ([]byte, error) {
-	return pzutil.PackObject(self)
+func (self *Audience) Has(attr *Attribute) bool {
+	d := attr.Demo
+	g := attr.Geo
+	u := attr.PzUa
+	dh := attr.DH
+	a := attr.ACL
+
+	if self.GeoAudience != nil && !self.GeoAudience.Has(g) {
+		return false
+	}
+	if self.DemoAudience != nil && !self.DemoAudience.Has(d) {
+		return false
+	}
+	if self.UaAudience != nil && !self.UaAudience.Has(u) {
+		return false
+	}
+	if self.DHAudience != nil && !self.DHAudience.Has(dh) {
+		return false
+	}
+	if self.ACLAudience != nil && !self.ACLAudience.Has(a) {
+		return false
+	}
+
+	return true
 }
 
+// Pack serializes the audience into a byte slice.
+func (self *Audience) Pack() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := gob.NewEncoder(buf).Encode(self)
+	return buf.Bytes(), err
+}
+
+// UnpackAudience deserializes the audience from a byte slice.
 func UnpackAudience(data []byte) (*Audience, error) {
 	audience := new(Audience)
-	err := pzutil.UnpackObject(data, audience)
+	buf := bytes.NewReader(data)
+	err := gob.NewDecoder(buf).Decode(audience)
 	return audience, err
 }
 
 func DBGetAudience(db *sql.DB, itemID uint32) (*Audience, error) {
-	var output *Audience
-	cat, err := DBGetCategoryAudience(db, itemID)
+	a, err := acl.DBGetACLAudience(db, itemID)
 	if err != nil {
 		return nil, err
-	}
-	if cat != nil {
-		output = &Audience{
-			CategoryAudience: cat,
-		}
 	}
 
 	rows, err := db.Query(`
@@ -81,134 +108,32 @@ WHERE tn.item_id=?`, itemID)
 	}
 	rows.Close()
 
-	rows, err = db.Query(`
-SELECT c.channel_name
-FROM ch_belong b
-INNER JOIN def_channel c USING channel_id
-INNER JOIN adv_item i ON (b.entitytype_id=41 AND b.entity_id=i.campaign_id)
-WHERE i.item_id=?`, itemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var owns []string
-	for rows.Next() {
-		var channelName string
-		err = rows.Scan(&channelName)
-		if err != nil {
-			return nil, err
-		}
-		owns = append(owns, channelName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
-
-	var channelOrder string
-	err = db.QueryRow(`
-SELECT channel_order
-FROM adv_item
-WHERE item_id=?`, itemID).Scan(&channelOrder)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+	if a == nil && idh == 0 && igeo == 0 && idemo == 0 && iua == 0 {
+		return nil, nil
 	}
 
-	rows, err = db.Query(`
-SELECT c.channel_name
-FROM ch_ac a
-INNER JOIN def_channel c USING channel_id
-INNER JOIN adv_item i ON (a.entitytype_id=42 AND a.entity_id=i.item_id)
-WHERE i.item_id=?`, itemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var cats []string
-	for rows.Next() {
-		var channelName string
-		err = rows.Scan(&channelName)
-		if err != nil {
-			return nil, err
-		}
-		cats = append(cats, channelName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
-
-	if output == nil {
-		if idh == 0 && igeo == 0 && idemo == 0 && iua == 0 {
-			return nil, nil
-		} else {
-			output = new(Audience)
-		}
-	}
-
-	if idh > 0 {
-		output.DHAudience = dhA
-	}
-	if igeo > 0 {
-		output.GeoAudience = geoA
-	}
-	if idemo > 0 {
-		output.DemoAudience = demoA
-	}
-	if iua > 0 {
-		output.UaAudience = uaA
-	}
-
-	return output, nil
+	return &Audience{DHAudience: dhA, GeoAudience: geoA, DemoAudience: demoA, UaAudience: uaA, ACLAudience: a}, nil
 }
 
-// ToRedis inserts audience data into Redis.
-func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uint32, data []byte) error {
+const (
+	HashNameAudience = "audience"
+)
+
+// ToRedis inserts audience into Redis.
+func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uint32) error {
 	bs, err := self.Pack()
-	if err != nil {
-		return err
+	if err == nil {
+		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameAudience, strconv.FormatUint(uint64(itemID), 10), string(bs)))
 	}
-	return conn.Do(ctx, radix.Cmd(nil, "SET", "audience:"+strconv.FormatUint(uint64(itemID), 10), string(bs)))
+	return err
 }
 
-// FromRedis retrieves audience data from Redis.
-func FromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*Audience, error) {
+// AudieceFromRedis retrieves audience data from Redis.
+func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*Audience, error) {
 	var bs []byte
-	err := conn.Do(ctx, radix.Cmd(&bs, "GET", "audience:"+strconv.FormatUint(uint64(itemID), 10)))
+	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", HashNameAudience, strconv.FormatUint(uint64(itemID), 10)))
 	if err != nil {
 		return nil, err
 	}
 	return UnpackAudience(bs)
-}
-
-func (self *Audience) Has(attr *Attribute) bool {
-	d := attr.Demo
-	g := attr.Geo
-	u := attr.PzUa
-	dh := attr.DH
-	white := attr.White
-	black := attr.Black
-	pub := attr.PubLevel
-	site := attr.SiteLevel
-	page := attr.PageLevel
-
-	if self.GeoAudience != nil && !self.GeoAudience.Has(g) {
-		return false
-	}
-	if self.DemoAudience != nil && !self.DemoAudience.Has(d) {
-		return false
-	}
-	if self.UaAudience != nil && !self.UaAudience.Has(u) {
-		return false
-	}
-	if self.DHAudience != nil && !self.DHAudience.Has(dh) {
-		return false
-	}
-	if self.CategoryAudience != nil && !self.CategoryAudience.Has(white, black, pub, site, page) {
-		return false
-	}
-
-	return true
 }

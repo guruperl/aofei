@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
@@ -12,8 +13,6 @@ import (
 
 const (
 	FCAPStartYear = 2025
-	FCAPImp       = 1
-	FCAPCli       = 2
 )
 
 // Fcap is frequecy cap class
@@ -77,73 +76,74 @@ type BothCap struct {
 	Cli Fcap
 }
 
-func (self BothCap) Refresh(ctx context.Context, conn radix.Client, when time.Time, pid string, item *Item, act int) error {
+// Pack packs the BothCap into bytes
+func (self BothCap) Pack() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, self)
+	return buf.Bytes(), err
+}
+
+// UnpackBothCap unpacks the BothCap from bytes
+func UnpackBothCap(data []byte) (BothCap, error) {
+	buf := bytes.NewReader(data)
+	bothcap := BothCap{}
+	err := binary.Read(buf, binary.LittleEndian, &bothcap)
+	return bothcap, err
+}
+
+func HashNameBothCap(pid string) string {
+	return fmt.Sprintf("bothcap:%s", pid)
+}
+
+func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcaps map[uint32]BothCap) error {
+	var arr []string
+	for itemID, bothcap := range bothcaps {
+		data, err := bothcap.Pack()
+		if err != nil {
+			return err
+		}
+		arr = append(arr, fmt.Sprintf("%d", itemID), string(data))
+	}
+	return conn.Do(ctx, radix.FlatCmd(nil, "HMSET", HashNameBothCap(pid), arr))
+}
+
+func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, slotIDs []string) (map[uint32]BothCap, error) {
+	var data map[string]string
+	err := conn.Do(ctx, radix.FlatCmd(&data, "HMGET", HashNameBothCap(pid), slotIDs))
+	if err != nil {
+		return nil, err
+	}
+	bothcaps := make(map[uint32]BothCap)
+	for str, sdata := range data {
+		slotID, err := strconv.ParseUint(str, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		if sdata == "" {
+			continue
+		}
+		bothcap, err := UnpackBothCap([]byte(sdata))
+		if err != nil {
+			return nil, err
+		}
+		bothcaps[uint32(slotID)] = bothcap
+	}
+	return bothcaps, nil
+}
+
+func (self BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {
 	imp := self.Imp
 	cli := self.Cli
-	if act&FCAPImp == 1 {
-		if !item.Cap.ValidPeriodImp(when, imp) {
+	if isImp {
+		if !block.Cap.ValidPeriodImp(when, imp) {
 			imp = CreateFcap(when)
 		}
 		imp.Refresh(when)
 	}
-	if act&FCAPCli == 1 {
-		if !item.Cap.ValidPeriodImp(when, imp) {
+	if isCli {
+		if !block.Cap.ValidPeriodImp(when, imp) {
 			cli = CreateFcap(when)
 		}
 		cli.Refresh(when)
 	}
-
-	buf := new(bytes.Buffer)
-	object := BothCap{Imp: imp, Cli: cli}
-	err := binary.Write(buf, binary.LittleEndian, object)
-	if err != nil {
-		return err
-	}
-	return conn.Do(ctx, radix.Cmd(nil, "HSET", "fcap", fmt.Sprintf("%s:%d", pid, item.ItemID), string(buf.Bytes())))
-}
-
-func NewSFcaps(ctx context.Context, conn radix.Client, pid string, itemIDs []uint32) (map[uint32]BothCap, error) {
-	names := []string{"fcap"}
-	for _, itemID := range itemIDs {
-		names = append(names, fmt.Sprintf("%s:%d", pid, itemID))
-	}
-	sdata := make([][]byte, len(itemIDs))
-	err := conn.Do(ctx, radix.Cmd(&sdata, "HMGET", names...))
-	if err != nil {
-		return nil, err
-	}
-	sfcaps := make(map[uint32]BothCap)
-	i := 0
-	for _, data := range sdata {
-		if len(data) < 1 {
-			i++
-			continue
-		}
-		buf := bytes.NewReader(data)
-		sfcap := BothCap{}
-		err := binary.Read(buf, binary.LittleEndian, &sfcap)
-		if err != nil {
-			return nil, err
-		}
-		sfcaps[itemIDs[i]] = sfcap
-		i++
-	}
-	return sfcaps, nil
-}
-
-// GetCapped reports which campaigns are denied giving targeting caps requriment from advertisers,
-func GetCapped(when time.Time, sfcaps map[uint32]BothCap, caps map[uint32]Cap) map[uint32]bool {
-	denies := make(map[uint32]bool)
-	for cid, thisCap := range caps {
-		sfcap, ok := sfcaps[cid]
-		if !ok {
-			continue
-		}
-		if thisCap.CanServeImp(when, sfcap.Imp) &&
-			thisCap.CanServeCli(when, sfcap.Cli) {
-			continue
-		}
-		denies[cid] = true
-	}
-	return denies
 }

@@ -186,7 +186,7 @@ func (self *Win) unitLedger(siteID uint32, isClick bool, pass *passing) {
 	}
 
 	if isClick {
-		price := -1.0 * self.Price
+		price := -1.0 * self.Cost
 		lpubs[slotID][0] = lpubs[slotID][0].(float32) + price
 		lpubs[slotID][2] = lpubs[slotID][2].(uint32) + 1
 		ladvs[itemID][0] = ladvs[itemID][0].(float32) + price
@@ -196,7 +196,7 @@ func (self *Win) unitLedger(siteID uint32, isClick bool, pass *passing) {
 		t[0] = t[0].(float32) + price
 		t[2] = t[2].(uint32) + 1
 	} else {
-		price := 0.001 * self.Price
+		price := 0.001 * self.Cost
 		lpubs[slotID][0] = lpubs[slotID][0].(float32) + price
 		lpubs[slotID][1] = lpubs[slotID][1].(uint32) + 1
 		ladvs[itemID][0] = ladvs[itemID][0].(float32) + price

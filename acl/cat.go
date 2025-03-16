@@ -1,6 +1,4 @@
-package match
-
-import "database/sql"
+package acl
 
 type CAT uint16
 
@@ -1191,6 +1189,7 @@ var String2CAT = map[string]CAT{
 	"IAB26_4":  IAB26_4,
 }
 
+/*
 type CATS [13]uint32
 
 // NewCATSFromList creates a new CATS from a list of CATs, arranged by 13 uint32 values to cover all the categories.
@@ -1250,7 +1249,7 @@ func (self CATS) BlackContain(cats CATS) bool {
 }
 
 type CategoryAudience struct {
-	Owns   CATS
+	Categories   CATS
 	Order  uint32
 	Others CATS
 }
@@ -1259,12 +1258,12 @@ type CategoryAudience struct {
 func (self *CategoryAudience) Has(white, black, pub, site, page []string) bool {
 	if len(white) > 0 {
 		c := NewCATSFromStrings(white)
-		if !c.WhiteContain(self.Owns) {
+		if !c.WhiteContain(self.Categories) {
 			return false
 		}
 	} else if len(black) > 0 {
 		c := NewCATSFromStrings(black)
-		if !self.Owns.BlackContain(c) {
+		if !self.Categories.BlackContain(c) {
 			return false
 		}
 	}
@@ -1281,82 +1280,4 @@ func (self *CategoryAudience) Has(white, black, pub, site, page []string) bool {
 
 	return true
 }
-
-func DBGetCategoryAudience(db *sql.DB, itemID uint32) (*CategoryAudience, error) {
-	rows, err := db.Query(`
-SELECT c.channel_name
-FROM ch_belong b
-INNER JOIN def_channel c USING channel_id
-INNER JOIN adv_item i ON (b.entitytype_id=41 AND b.entity_id=i.campaign_id)
-WHERE i.item_id=?`, itemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var owns []string
-	for rows.Next() {
-		var channelName string
-		err = rows.Scan(&channelName)
-		if err != nil {
-			return nil, err
-		}
-		owns = append(owns, channelName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
-
-	var channelOrder string
-	err = db.QueryRow(`
-SELECT channel_order
-FROM adv_item
-WHERE item_id=?`, itemID).Scan(&channelOrder)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-
-	rows, err = db.Query(`
-SELECT c.channel_name
-FROM ch_ac a
-INNER JOIN def_channel c USING channel_id
-INNER JOIN adv_item i ON (a.entitytype_id=42 AND a.entity_id=i.item_id)
-WHERE i.item_id=?`, itemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var cats []string
-	for rows.Next() {
-		var channelName string
-		err = rows.Scan(&channelName)
-		if err != nil {
-			return nil, err
-		}
-		cats = append(cats, channelName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
-
-	if len(owns) == 0 && len(cats) == 0 {
-		return nil, nil
-	}
-
-	output := new(CategoryAudience)
-	if len(owns) > 0 {
-		output.Owns = NewCATSFromStrings(owns)
-	}
-	if len(cats) > 0 {
-		output.Order = uint32(0)
-		if channelOrder == "White" {
-			output.Order = uint32(1)
-		}
-		output.Others = NewCATSFromStrings(cats)
-	}
-
-	return output, nil
-}
+*/

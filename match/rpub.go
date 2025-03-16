@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 
+	"github.com/genelet/winter/acl"
+
 	openrtb2 "github.com/prebid/openrtb/v20/openrtb2"
 )
 
@@ -46,31 +48,12 @@ type RPub struct {
 }
 
 // getRPub returns the RPub object from the bid request.
-func getRPub(bidRequest *openrtb2.BidRequest) RPub {
-	pubStr := PUBDefault
-	siteStr := SITEDefault
-	slotStr := SLOTDefault
-	if site := bidRequest.Site; site != nil {
-		if site.Publisher != nil && site.Publisher.ID != "" {
-			pubStr = site.Publisher.ID
-		}
-		if site.ID != "" {
-			siteStr = site.ID
-		}
-		if site.Page != "" {
-			slotStr = site.Page
-		}
-	} else if app := bidRequest.App; app != nil {
-		if app.Publisher != nil && app.Publisher.ID != "" {
-			pubStr = app.Publisher.ID
-		}
-		if app.ID != "" {
-			siteStr = app.ID
-		}
-	}
-	if len(bidRequest.Imp) > 0 && bidRequest.Imp[0].TagID != "" {
-		slotStr = bidRequest.Imp[0].TagID
-	}
+func getRPub(bidRequest *openrtb2.BidRequest, a *acl.ACL) RPub {
+	pubStr := a.PubStr
+	siteStr := a.SiteStr
+	slotStr := a.SlotStr
+
+	rpub := RPub{}
 
 	if _, ok := PubMap[pubStr]; !ok {
 		pubStr = PUBDefault
@@ -82,7 +65,6 @@ func getRPub(bidRequest *openrtb2.BidRequest) RPub {
 		slotStr = SLOTDefault
 	}
 
-	var rpub RPub
 	if id, ok := PubMap[pubStr]; ok {
 		rpub.PubID = id
 		if id, ok := SiteMap[pubStr][siteStr]; ok {

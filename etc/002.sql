@@ -1,3 +1,8 @@
+ALTER TABLE pub
+	ADD `domain` VARCHAR(255) AFTER lastname;
+ALTER TABLE adv
+	ADD `domain` VARCHAR(255) AFTER lastname;
+
 ALTER TABLE adv_campaign
 	ADD `startx` datetime DEFAULT NULL AFTER foreign_id, 
 	ADD `endx` datetime DEFAULT NULL AFTER startx, 

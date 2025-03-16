@@ -49,46 +49,6 @@ func (self *GeoAudience) Has(geo *Geo) bool {
 	return true
 }
 
-/*
-	func GeoAudienceFromArgs(ARGS url.Values) *GeoAudience {
-		g := func(_ url.Values, name string, which *[]uint32) {
-			values := ARGS[name]
-			if len(values) > 0 {
-				for _, value := range values {
-					v, err := strconv.ParseUint(value, 10, 32)
-					if err == nil && v > 0 {
-						*which = append(*which, uint32(v))
-					}
-				}
-			}
-		}
-
-		aud := new(GeoAudience)
-
-		g(ARGS, "state", &aud.GeoStates)
-		g(ARGS, "dma", &aud.GeoDmas)
-		g(ARGS, "city", &aud.GeoCitys)
-		g(ARGS, "isp", &aud.GeoIsps)
-
-		return aud
-	}
-
-	func (self *GeoAudience) ToArgs(ARGS url.Values) {
-		g := func(args url.Values, name string, values []uint32) {
-			if len(values) > 0 {
-				for _, value := range values {
-					args.Add(name, strconv.FormatUint(uint64(value), 10))
-				}
-			}
-		}
-
-		g(ARGS, "state", self.GeoStates)
-		g(ARGS, "dma", self.GeoDmas)
-		g(ARGS, "city", self.GeoCitys)
-		g(ARGS, "isp", self.GeoIsps)
-	}
-*/
-
 func (self *GeoAudience) DBFillGeoAudience(attrname string, valueID uint32) int {
 	switch attrname {
 	case "country":

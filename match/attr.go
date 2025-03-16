@@ -3,9 +3,11 @@ package match
 import (
 	"context"
 	"crypto/md5"
+	"encoding/json"
 	"io"
 	"time"
 
+	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/advice"
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dh"
@@ -15,6 +17,8 @@ import (
 
 type Attribute struct {
 	RPub
+	AT      int64
+	Tmax    int64
 	IsApp   bool
 	IsVideo bool
 	When    time.Time
@@ -24,11 +28,7 @@ type Attribute struct {
 	*maxmind.Geo
 	*advice.PzUa
 	*dh.DH
-	White     []string
-	Black     []string
-	PubLevel  []string
-	SiteLevel []string
-	PageLevel []string
+	*acl.ACL
 }
 
 // NewAttribute creates a new Attribute from a bid request.
@@ -38,7 +38,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		return nil, nil
 	}
 
-	attr := &Attribute{When: when}
+	attr := &Attribute{When: when, IsVideo: bidRequest.Imp[0].Video != nil}
 
 	var err error
 	attr.IFA, err = getIFA(device)
@@ -53,34 +53,103 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		}
 	}
 
-	attr.White = bidRequest.ACat
-	attr.Black = bidRequest.BCat
-	if site := bidRequest.Site; site != nil {
-		attr.PubLevel = site.Cat
-		attr.SiteLevel = site.SectionCat
-		attr.PageLevel = site.PageCat
-	} else if app := bidRequest.App; app != nil {
-		attr.PubLevel = app.Cat
-		attr.SiteLevel = app.SectionCat
-		attr.PageLevel = app.PageCat
-	}
-
-	if user := bidRequest.User; user != nil {
+	user := bidRequest.User
+	if user != nil {
 		attr.Demo = demo.NewDemo(user.Gender, uint32(user.Yob), getLangs(bidRequest))
-	}
-
-	attr.Geo, err = getGeo(ctx, ipSearch, device)
-	if err != nil {
-		return nil, err
+	} else {
+		attr.Demo = demo.NewDemo("", 0, getLangs(bidRequest))
 	}
 
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
-
 	attr.PzUa = getUA(device)
+	attr.ACL = getACL(bidRequest)
+	attr.RPub = getRPub(bidRequest, attr.ACL)
+	attr.Geo, err = getGeo(ctx, ipSearch, device)
 
-	attr.RPub = getRPub(bidRequest)
+	return attr, err
+}
 
-	return attr, nil
+// getACL returns the acl object from the bid request.
+func getACL(bidRequest *openrtb2.BidRequest) *acl.ACL {
+	pubStr := PUBDefault
+	siteStr := SITEDefault
+	slotStr := SLOTDefault
+
+	a := &acl.ACL{
+		BAdv:  bidRequest.BAdv,
+		BApp:  bidRequest.BApp,
+		White: bidRequest.ACat,
+		Black: bidRequest.BCat,
+	}
+
+	if bidRequest.Ext == nil {
+		hash := make(map[string]interface{})
+		if err := json.Unmarshal(bidRequest.Ext, &hash); err == nil {
+			if domain, ok := hash["request_domain"].(string); ok {
+				slotStr = domain
+			}
+		}
+	}
+	if site := bidRequest.Site; site != nil {
+		if site.Publisher != nil && site.Publisher.ID != "" {
+			pubStr = site.Publisher.ID
+		}
+		if site.ID != "" {
+			siteStr = site.ID
+		}
+		if siteStr == "" && site.Domain != "" {
+			siteStr = site.Domain
+		}
+		if slotStr == "" && site.Page != "" {
+			slotStr = site.Page
+		}
+
+		var categories []string
+		if site.Cat != nil {
+			categories = append(categories, site.Cat...)
+		}
+		if site.SectionCat != nil {
+			categories = append(categories, site.SectionCat...)
+		}
+		if site.PageCat != nil {
+			categories = append(categories, site.PageCat...)
+		}
+		a.Categories = categories
+	} else if app := bidRequest.App; app != nil {
+		if app.Publisher != nil && app.Publisher.ID != "" {
+			pubStr = app.Publisher.ID
+		}
+		if pubStr == "" && app.Bundle != "" {
+			pubStr = app.Bundle
+		}
+		if app.ID != "" {
+			siteStr = app.ID
+		}
+		if siteStr == "" && app.Domain != "" {
+			siteStr = app.Domain
+		}
+
+		var categories []string
+		if app.Cat != nil {
+			categories = append(categories, app.Cat...)
+		}
+		if app.SectionCat != nil {
+			categories = append(categories, app.SectionCat...)
+		}
+		if app.PageCat != nil {
+			categories = append(categories, app.PageCat...)
+		}
+		a.Categories = categories
+	}
+	if slotStr == "" && len(bidRequest.Imp) > 0 && bidRequest.Imp[0].TagID != "" {
+		slotStr = bidRequest.Imp[0].TagID
+	}
+
+	a.PubStr = pubStr
+	a.SiteStr = siteStr
+	a.SlotStr = slotStr
+
+	return a
 }
 
 // getIFA returns the IFA from the device.
