@@ -128,7 +128,7 @@ func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uin
 	return err
 }
 
-// AudieceFromRedis retrieves audience data from Redis.
+// AudienceFromRedis retrieves audience data from Redis.
 func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*Audience, error) {
 	var bs []byte
 	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", HashNameAudience, strconv.FormatUint(uint64(itemID), 10)))
@@ -136,4 +136,41 @@ func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*
 		return nil, err
 	}
 	return UnpackAudience(bs)
+}
+
+type Audiences []*Audience
+
+// AudiencesFromRedis retrieves multiple audience data from Redis.
+func AudiencesFromRedis(ctx context.Context, conn radix.Client, itemIDs []string) (Audiences, error) {
+	var bs [][]byte
+	arr := append([]string{HashNameAudience}, itemIDs...)
+	err := conn.Do(ctx, radix.Cmd(&bs, "HMGET", arr...))
+	if err != nil {
+		return nil, err
+	}
+
+	audiences := make([]*Audience, len(itemIDs))
+	for i, b := range bs {
+		if b == nil {
+			continue
+		}
+		audience, err := UnpackAudience(b)
+		if err != nil {
+			return nil, err
+		}
+		audiences[i] = audience
+	}
+	return audiences, nil
+}
+
+func (self Audiences) Match(attr *Attribute) []bool {
+	matches := make([]bool, len(self))
+	for i, a := range self {
+		if a != nil {
+			matches[i] = a.Has(attr)
+		} else {
+			matches[i] = true
+		}
+	}
+	return matches
 }

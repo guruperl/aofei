@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"time"
 
@@ -170,6 +171,25 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 	return blocks, bothcaps, expired, denied, nil
 }
 
+func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, attr *Attribute) (RAdvs, Audiences, error) {
+	audiences, err := AudiencesFromRedis(ctx, conn, self.GetItemIDs())
+	if err != nil {
+		return nil, nil, err
+	}
+	bools := audiences.Match(attr)
+
+	var blocks RAdvs
+	var trueAudiences []*Audience
+	for i, block := range self {
+		if bools[i] {
+			blocks = append(blocks, block)
+			trueAudiences = append(trueAudiences, audiences[i])
+			continue
+		}
+	}
+	return blocks, trueAudiences, nil
+}
+
 func (self RAdv) GetItemWeight(bidFloor float64, bidFoorCur string) (float32, bool) {
 	var cpm float32
 	switch self.CostType {
@@ -196,5 +216,25 @@ func (self RAdvs) PickIndex(bidFloor float64, bidFoorCur string) int {
 			weights = append(weights, 0.0)
 		}
 	}
-	return SelectOne(weights)
+	return selectOne(weights)
+}
+
+func selectOne(weights []float32) int {
+	total := float32(0.0)
+	n := len(weights)
+	for i := 0; i < n; i++ {
+		total += weights[i]
+	}
+	for i := 0; i < n; i++ {
+		weights[i] /= total
+	}
+	randp := rand.Float32()
+	sump := float32(0.0)
+	for i := 0; i < n; i++ {
+		sump += weights[i]
+		if sump > randp {
+			return i
+		}
+	}
+	return -1
 }

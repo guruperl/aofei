@@ -17,8 +17,7 @@ import (
 
 type Attribute struct {
 	RPub
-	AT      int64
-	Tmax    int64
+	*NativeType
 	IsApp   bool
 	IsVideo bool
 	When    time.Time
@@ -64,6 +63,14 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 	attr.PzUa = getUA(device)
 	attr.ACL = getACL(bidRequest)
 	attr.RPub = getRPub(bidRequest, attr.ACL)
+	sizeID, native, err := getSizeIDNative(bidRequest)
+	if err != nil {
+		return nil, err
+	}
+	attr.RPub.SizeID = sizeID
+	if native != nil {
+		attr.NativeType = native
+	}
 	attr.Geo, err = getGeo(ctx, ipSearch, device)
 
 	return attr, err
@@ -227,24 +234,20 @@ func getGeo(ctx context.Context, ipSearch *maxmind.IPSearch, device *openrtb2.De
 			if err != nil {
 				return nil, err
 			}
-			if pzg == nil {
-				pzg = &mm.Geo
-			} else {
-				if pzg.CountryID == 0 {
-					pzg.CountryID = mm.Geo.CountryID
-				}
-				if pzg.StateID == 0 {
-					pzg.StateID = mm.Geo.StateID
-				}
-				if pzg.CityID == 0 {
-					pzg.CityID = mm.Geo.CityID
-				}
-				if pzg.DmaID == 0 {
-					pzg.DmaID = mm.Geo.DmaID
-				}
-				if pzg.Location.UTCOffset == 0 {
-					pzg.Location.UTCOffset = mm.Geo.Location.UTCOffset
-				}
+			if pzg.CountryID == 0 {
+				pzg.CountryID = mm.Geo.CountryID
+			}
+			if pzg.StateID == 0 {
+				pzg.StateID = mm.Geo.StateID
+			}
+			if pzg.CityID == 0 {
+				pzg.CityID = mm.Geo.CityID
+			}
+			if pzg.DmaID == 0 {
+				pzg.DmaID = mm.Geo.DmaID
+			}
+			if pzg.Location.UTCOffset == 0 {
+				pzg.Location.UTCOffset = mm.Geo.Location.UTCOffset
 			}
 		}
 	}
@@ -270,21 +273,17 @@ func getUA(device *openrtb2.Device) *advice.PzUa {
 
 	if device.UA != "" && (pzua == nil || pzua.OS == 0 || pzua.OVersion == 0 || pzua.Platform == 0 || pzua.Device == 0) {
 		mm := advice.GetPzUa(device.UA)
-		if pzua == nil {
-			pzua = mm
-		} else {
-			if pzua.OS == 0 {
-				pzua.OS = mm.OS
-			}
-			if pzua.OVersion == 0 {
-				pzua.OVersion = mm.OVersion
-			}
-			if pzua.Platform == 0 {
-				pzua.Platform = mm.Platform
-			}
-			if pzua.Device == 0 {
-				pzua.Device = mm.Device
-			}
+		if pzua.OS == 0 {
+			pzua.OS = mm.OS
+		}
+		if pzua.OVersion == 0 {
+			pzua.OVersion = mm.OVersion
+		}
+		if pzua.Platform == 0 {
+			pzua.Platform = mm.Platform
+		}
+		if pzua.Device == 0 {
+			pzua.Device = mm.Device
 		}
 	}
 	return pzua

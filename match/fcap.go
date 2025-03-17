@@ -21,9 +21,9 @@ const (
 // Last is the minutes passed since the last time
 type Fcap struct {
 	Total    uint8  `json:"total"`
-	StartYM  uint8  `json:"ym"`
-	StartDHM uint16 `json:"dhm"`
-	Last     uint16 `json:"ls"`
+	StartYM  uint8  `json:"start_ym"`
+	StartDHM uint16 `json:"start_dhm"`
+	Last     uint16 `json:"last"`
 }
 
 // CreateFcap creates a new Fcap instance from time
@@ -44,10 +44,9 @@ func CreateFcap(when time.Time) Fcap {
 }
 
 // Refresh adds one more count and update the last access time
-func (self Fcap) Refresh(when time.Time) {
+func (self *Fcap) Refresh(when time.Time) {
 	self.Total += 1
 	self.Last = uint16(when.Sub(self.GetStart()) / time.Minute)
-	return
 }
 
 // GetStart gets starting time in time
