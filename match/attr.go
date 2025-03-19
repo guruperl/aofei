@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 type Attribute struct {
 	RPub
-	*NativeType
+	*NativeFormat
 	IsApp   bool
 	IsVideo bool
 	When    time.Time
@@ -31,7 +32,7 @@ type Attribute struct {
 }
 
 // NewAttribute creates a new Attribute from a bid request.
-func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, when time.Time) (*Attribute, error) {
+func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, when time.Time, pubStr string) (*Attribute, error) {
 	device := bidRequest.Device
 	if device == nil {
 		return nil, nil
@@ -61,24 +62,38 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
 	attr.PzUa = getUA(device)
-	attr.ACL = getACL(bidRequest)
+	attr.ACL = getACL(bidRequest, pubStr)
 	attr.RPub = getRPub(bidRequest, attr.ACL)
-	sizeID, native, err := getSizeIDNative(bidRequest)
+	sizeID, nativeFormat, err := getSizeIDNative(bidRequest)
 	if err != nil {
 		return nil, err
 	}
 	attr.RPub.SizeID = sizeID
-	if native != nil {
-		attr.NativeType = native
+	if nativeFormat != nil {
+		attr.NativeFormat = nativeFormat
 	}
 	attr.Geo, err = getGeo(ctx, ipSearch, device)
 
 	return attr, err
 }
 
+func MD5Hex(s string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(s)))
+}
+
 // getACL returns the acl object from the bid request.
-func getACL(bidRequest *openrtb2.BidRequest) *acl.ACL {
-	pubStr := PUBDefault
+func getACL(bidRequest *openrtb2.BidRequest, pubStr string) *acl.ACL {
+	if pubStr == "" && bidRequest.Ext != nil {
+		hash := make(map[string]interface{})
+		if err := json.Unmarshal(bidRequest.Ext, &hash); err == nil {
+			if domain, ok := hash["request_domain"].(string); ok {
+				pubStr = domain
+			}
+		}
+	}
+	if pubStr == "" {
+		pubStr = PUBDefault
+	}
 	siteStr := SITEDefault
 	slotStr := SLOTDefault
 
@@ -89,29 +104,19 @@ func getACL(bidRequest *openrtb2.BidRequest) *acl.ACL {
 		Black: bidRequest.BCat,
 	}
 
-	if bidRequest.Ext == nil {
-		hash := make(map[string]interface{})
-		if err := json.Unmarshal(bidRequest.Ext, &hash); err == nil {
-			if domain, ok := hash["request_domain"].(string); ok {
-				slotStr = domain
-			}
-		}
-	}
+	var categories []string
 	if site := bidRequest.Site; site != nil {
-		if site.Publisher != nil && site.Publisher.ID != "" {
+		if pubStr == PUBDefault && (site.Publisher != nil && site.Publisher.ID != "") {
 			pubStr = site.Publisher.ID
 		}
-		if site.ID != "" {
+		if site.Domain != "" {
+			siteStr = site.Domain
+		} else if site.ID != "" {
 			siteStr = site.ID
 		}
-		if siteStr == "" && site.Domain != "" {
-			siteStr = site.Domain
+		if site.Page != "" {
+			slotStr = MD5Hex(site.Page)
 		}
-		if slotStr == "" && site.Page != "" {
-			slotStr = site.Page
-		}
-
-		var categories []string
 		if site.Cat != nil {
 			categories = append(categories, site.Cat...)
 		}
@@ -121,22 +126,17 @@ func getACL(bidRequest *openrtb2.BidRequest) *acl.ACL {
 		if site.PageCat != nil {
 			categories = append(categories, site.PageCat...)
 		}
-		a.Categories = categories
 	} else if app := bidRequest.App; app != nil {
-		if app.Publisher != nil && app.Publisher.ID != "" {
+		if pubStr == PUBDefault && (app.Publisher != nil && app.Publisher.ID != "") {
 			pubStr = app.Publisher.ID
 		}
-		if pubStr == "" && app.Bundle != "" {
-			pubStr = app.Bundle
-		}
-		if app.ID != "" {
+		if app.Bundle != "" {
+			siteStr = app.Bundle
+		} else if app.Domain != "" {
+			siteStr = app.Domain
+		} else if app.ID != "" {
 			siteStr = app.ID
 		}
-		if siteStr == "" && app.Domain != "" {
-			siteStr = app.Domain
-		}
-
-		var categories []string
 		if app.Cat != nil {
 			categories = append(categories, app.Cat...)
 		}
@@ -146,15 +146,15 @@ func getACL(bidRequest *openrtb2.BidRequest) *acl.ACL {
 		if app.PageCat != nil {
 			categories = append(categories, app.PageCat...)
 		}
-		a.Categories = categories
 	}
-	if slotStr == "" && len(bidRequest.Imp) > 0 && bidRequest.Imp[0].TagID != "" {
+	if slotStr == SLOTDefault && bidRequest.Imp[0].TagID != "" {
 		slotStr = bidRequest.Imp[0].TagID
 	}
 
 	a.PubStr = pubStr
 	a.SiteStr = siteStr
 	a.SlotStr = slotStr
+	a.Categories = categories
 
 	return a
 }

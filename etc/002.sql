@@ -8,7 +8,7 @@ ALTER TABLE adv_campaign
 	ADD `endx` datetime DEFAULT NULL AFTER startx, 
 	ADD `target_type` enum("App","Web") DEFAULT NULL AFTER endx, 
 	ADD `description` TEXT DEFAULT NULL AFTER target_type,
-	ADD `extlink` TEXT DEFAULT NULL AFTER description;
+	ADD `iurl` TEXT DEFAULT NULL AFTER description;
 
 ALTER TABLE adv_item
 	DROP COLUMN size_id;
@@ -19,6 +19,7 @@ ALTER TABLE adv_creative
 
 ALTER TABLE pub_site
 	ADD `site_type` enum("App","Web") DEFAULT NULL AFTER site_url, 
+	ADD `foreign_id` VARCHAR(255) DEFAULT NULL AFTER site_url, 
 	ADD `description` TEXT DEFAULT NULL AFTER site_type;
 
 

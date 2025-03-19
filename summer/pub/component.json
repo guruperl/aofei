@@ -30,10 +30,10 @@
     ]
   },
 
-  "insert_pars" : ["passwd","pub_id","email","firstname","lastname","address_id","active","created","access_order"],
-  "update_pars" : [         "pub_id","email","firstname","lastname","address_id","active",          "access_order"],
-  "topics_pars" : [         "pub_id","email","firstname","lastname","address_id","active","created","access_order"],
-  "edit_pars" :   [         "pub_id","email","firstname","lastname","address_id","active","created","access_order"],
+  "insert_pars" : ["passwd","pub_id","email","domain","firstname","lastname","address_id","active","created","access_order"],
+  "update_pars" : [         "pub_id","email","domain","firstname","lastname","address_id","active",          "access_order"],
+  "topics_pars" : [         "pub_id","email","domain","firstname","lastname","address_id","active","created","access_order"],
+  "edit_pars" :   [         "pub_id","email","domain","firstname","lastname","address_id","active","created","access_order"],
 
   "current_table" : "pub",
   "current_key"   : "pub_id",

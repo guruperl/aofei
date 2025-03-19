@@ -3,6 +3,7 @@ package match
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"strconv"
@@ -82,12 +83,30 @@ func (self BothCap) Pack() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+// PackString packs the BothCap into RawURL string
+func (self BothCap) PackString() (string, error) {
+	data, err := self.Pack()
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(data), nil
+}
+
 // UnpackBothCap unpacks the BothCap from bytes
 func UnpackBothCap(data []byte) (BothCap, error) {
 	buf := bytes.NewReader(data)
 	bothcap := BothCap{}
 	err := binary.Read(buf, binary.LittleEndian, &bothcap)
 	return bothcap, err
+}
+
+// UnpackBothCapString unpacks the BothCap from RawURL string
+func UnpackBothCapString(text string) (BothCap, error) {
+	data, err := base64.RawURLEncoding.DecodeString(text)
+	if err != nil {
+		return BothCap{}, err
+	}
+	return UnpackBothCap(data)
 }
 
 func HashNameBothCap(pid string) string {
@@ -106,9 +125,10 @@ func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcap
 	return conn.Do(ctx, radix.FlatCmd(nil, "HMSET", HashNameBothCap(pid), arr))
 }
 
-func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, slotIDs []string) (map[uint32]BothCap, error) {
+// BothCapsFromRedis retrieves bothcaps from Redis.
+func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, itemIDs []string) (map[uint32]BothCap, error) {
 	var data map[string]string
-	err := conn.Do(ctx, radix.FlatCmd(&data, "HMGET", HashNameBothCap(pid), slotIDs))
+	err := conn.Do(ctx, radix.FlatCmd(&data, "HMGET", HashNameBothCap(pid), itemIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +148,12 @@ func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, slotI
 		bothcaps[uint32(slotID)] = bothcap
 	}
 	return bothcaps, nil
+}
+
+// BothCapsCleanupExpired removes expired bothcaps from Redis.
+func BothCapsCleanupExpired(ctx context.Context, conn radix.Client, pid string, itemIDs []string) error {
+	arr := append([]string{HashNameBothCap(pid)}, itemIDs...)
+	return conn.Do(ctx, radix.Cmd(nil, "HDEL", arr...))
 }
 
 func (self BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {

@@ -7,7 +7,6 @@ import (
 )
 
 type ACLAudience struct {
-	// this should be the domain name of the advertiser
 	AdvStr string
 	// this should be the foriegn id of the campaign
 	AppStr string
@@ -121,7 +120,7 @@ func (self *ACLAudience) Has(a *ACL) bool {
 
 // DBGetACLAudience retrieves category audience from the database.
 func DBGetACLAudience(db *sql.DB, itemID uint32) (*ACLAudience, error) {
-	output := new(ACLAudience)
+	aud := new(ACLAudience)
 
 	var aOrder, cOrder string
 	var advID, campaignID uint32
@@ -130,7 +129,7 @@ SELECT a.domain, c.foreign_id, a.adv_id, a.access_order, c.campaign_id, c.access
 FROM adv_item i
 INNER JOIN adv_campaign c USING (campaign_id)
 INNER JOIN adv a USING (adv_id)
-WHERE i.item_id=?`, itemID).Scan(&output.AdvStr, &output.AppStr, &advID, &campaignID, &aOrder, &cOrder)
+WHERE i.item_id=?`, itemID).Scan(&aud.AdvStr, &aud.AppStr, &advID, &campaignID, &aOrder, &cOrder)
 	if err != nil {
 		return nil, err
 	}
@@ -158,15 +157,15 @@ OR (entitytype_id=41 AND entity_id=? AND c.access_order != "Inherit")`, advID, c
 		}
 		if (entityType == 4 && aOrder == "White") || (entityType == 41 && cOrder == "White") {
 			if otherType == 3 && pubDomain.Valid {
-				output.WPub = append(output.WPub, pubDomain.String)
+				aud.WPub = append(aud.WPub, pubDomain.String)
 			} else if otherType == 31 && siteURL.Valid {
-				output.WApp = append(output.WApp, siteURL.String)
+				aud.WApp = append(aud.WApp, siteURL.String)
 			}
 		} else if (entityType == 4 && aOrder == "Black") || (entityType == 41 && cOrder == "Black") {
 			if otherType == 3 && pubDomain.Valid {
-				output.BPub = append(output.BPub, pubDomain.String)
+				aud.BPub = append(aud.BPub, pubDomain.String)
 			} else if otherType == 31 && siteURL.Valid {
-				output.BApp = append(output.BApp, siteURL.String)
+				aud.BApp = append(aud.BApp, siteURL.String)
 			}
 		}
 	}
@@ -192,7 +191,7 @@ WHERE i.item_id=?`, itemID)
 		if err != nil {
 			return nil, err
 		}
-		output.Categories = append(output.Categories, channelName)
+		aud.Categories = append(aud.Categories, channelName)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -235,11 +234,11 @@ WHERE i.item_id=?`, itemID)
 
 	if cats != nil {
 		if channelOrder == "White" {
-			output.White = cats
+			aud.White = cats
 		} else {
-			output.Black = cats
+			aud.Black = cats
 		}
 	}
 
-	return output, nil
+	return aud, nil
 }

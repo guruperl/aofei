@@ -13,7 +13,7 @@ func SizeID1To2(sizeID uint32) (uint16, uint16) {
 }
 
 // getSizeID returns the size ID from the bid request for banner, video, and native ads.
-func getSizeIDNative(bidRequest *openrtb2.BidRequest) (uint32, *NativeType, error) {
+func getSizeIDNative(bidRequest *openrtb2.BidRequest) (uint32, *NativeFormat, error) {
 	if banner := bidRequest.Imp[0].Banner; banner != nil {
 		if banner.W != nil && banner.H != nil {
 			return SizeID2To1(uint16(*banner.W), uint16(*banner.H)), nil, nil
@@ -25,7 +25,7 @@ func getSizeIDNative(bidRequest *openrtb2.BidRequest) (uint32, *NativeType, erro
 		}
 	}
 	if native := bidRequest.Imp[0].Native; native != nil {
-		nt, err := NewNativeType(native)
+		nt, err := NewNativeFormat(native)
 		if err != nil {
 			return 0, nil, err
 		}

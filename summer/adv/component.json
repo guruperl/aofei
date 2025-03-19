@@ -27,10 +27,10 @@
     ]
   },
 
-  "insert_pars" : ["adv_id","email","passwd","address_id","firstname","lastname","address_id","created","active","access_order"],
-  "update_pars" : ["adv_id","address_id","firstname","lastname","address_id","active","access_order"],
-  "topics_pars" : ["adv_id","address_id","firstname","lastname","balance","address_id","created","active","access_order"],
-  "edit_pars"   : ["adv_id","address_id","firstname","lastname","balance","address_id","created","active","access_order"],
+  "insert_pars" : ["adv_id","domain","email","passwd","address_id","firstname","lastname","address_id","created","active","access_order"],
+  "update_pars" : ["adv_id","domain","address_id","firstname","lastname","address_id","active","access_order"],
+  "topics_pars" : ["adv_id","domain","address_id","firstname","lastname","balance","address_id","created","active","access_order"],
+  "edit_pars"   : ["adv_id","domain","address_id","firstname","lastname","balance","address_id","created","active","access_order"],
 
   "current_table" : "adv",
   "current_key" : "adv_id",

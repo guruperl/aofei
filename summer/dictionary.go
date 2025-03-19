@@ -1,13 +1,13 @@
 package summer
 
 import (
-	"github.com/genelet/winter/match"
+	"github.com/genelet/winter/acl"
 )
 
 func Dictionary(word string) string {
 	hash := make(map[string]string)
-	for k, v := range match.String2CAT {
-		hash[k] = match.CAT2String[v]
+	for k, v := range acl.String2CAT {
+		hash[k] = acl.CAT2String[v]
 	}
 
 	var ref = map[string]string{

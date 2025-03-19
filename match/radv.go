@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"math/rand"
@@ -13,16 +14,42 @@ import (
 	"github.com/mediocregopher/radix/v4"
 )
 
-// RAdv is the block of the slot.
-type RAdv struct {
+type Demand struct {
 	AdvID      uint32
 	CampaignID uint32
 	ItemID     uint32
 	CreativeID uint32
-	Weight     float32
-	CostType   uint8
-	Cost       float32
+}
+
+// RAdv is the block of the slot.
+type RAdv struct {
+	Demand
+	Weight   float32
+	CostType uint8
+	Cost     float32
 	Cap
+}
+
+// PackString serializes the audience into a RawURL string
+func (self Demand) PackString() (string, error) {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.LittleEndian, self)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf.Bytes()), nil
+}
+
+// UnpackDemandString deserializes the audience from a RawURL string
+func UnpackDemandString(text string) (Demand, error) {
+	var demand Demand
+	data, err := base64.RawURLEncoding.DecodeString(text)
+	if err != nil {
+		return demand, err
+	}
+	buf := bytes.NewReader(data)
+	err = binary.Read(buf, binary.LittleEndian, &demand)
+	return demand, err
 }
 
 type RAdvs []RAdv
@@ -140,35 +167,40 @@ func (self RAdvs) GetItemIDs() []string {
 	return ids
 }
 
-func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time.Time, pid string) (RAdvs, map[uint32]BothCap, []string, []uint32, error) {
-	slotIDs := self.GetItemIDs()
-	bothcaps, err := BothCapsFromRedis(ctx, conn, pid, slotIDs)
+func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time.Time, pid string) (RAdvs, map[uint32]BothCap, error) {
+	itemIDs := self.GetItemIDs()
+	bothcaps, err := BothCapsFromRedis(ctx, conn, pid, itemIDs)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	if len(bothcaps) == 0 {
-		return self, nil, nil, nil, nil
+		return self, nil, nil
 	}
 
 	var blocks []RAdv
 	var expired []string
-	var denied []uint32
+	//var denied []uint32
 	for _, block := range self {
 		bothcap, ok := bothcaps[block.ItemID]
 		if !ok {
 			blocks = append(blocks, block)
 			continue
 		}
+		if !block.Cap.ValidPeriodImp(when, bothcap.Imp) { // cap expired so start over again
+			expired = append(expired, fmt.Sprintf("%d", block.ItemID))
+			blocks = append(blocks, block)
+			continue
+		}
 		if block.Cap.CanServe(when, bothcap) {
 			blocks = append(blocks, block)
-		} else {
-			denied = append(denied, block.ItemID)
-		}
-		if !block.Cap.ValidPeriodImp(when, bothcap.Imp) {
-			expired = append(expired, fmt.Sprintf("%d", block.ItemID))
+			//} else {
+			//	denied = append(denied, block.ItemID)
 		}
 	}
-	return blocks, bothcaps, expired, denied, nil
+	if len(expired) > 0 {
+		err = BothCapsCleanupExpired(ctx, conn, pid, expired)
+	}
+	return blocks, bothcaps, nil
 }
 
 func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, attr *Attribute) (RAdvs, Audiences, error) {
