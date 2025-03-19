@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"os"
 
+	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/genelet"
-	"github.com/genelet/winter/holiday"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
-	control, err := holiday.NewController(context.Background(), "../conf/aofei.json")
+	control, err := dsp.NewController(context.Background(), "../conf/aofei.json")
 	if err != nil {
 		panic(err)
 	}

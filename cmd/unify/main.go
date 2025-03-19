@@ -9,8 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/genelet/winter/holiday"
-	"github.com/genelet/winter/pzutil"
+	"github.com/genelet/winter/dsp"
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/genelet/winter/genelet"
@@ -57,14 +56,15 @@ func init() {
 
 func main() {
 	ctx := context.Background()
-	sc, err := holiday.NewController(ctx, sConf)
+	sc, err := dsp.NewController(ctx, sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.Handle(pzutil.SSPHandler, sc)
-	http.Handle(pzutil.BIDHandler, sc)
-	http.Handle(pzutil.CLK, sc)
-	http.Handle(pzutil.WIN, sc)
+	http.Handle("/bid", sc)
+	http.Handle("/win", sc)
+	http.Handle("/loss", sc)
+	http.Handle("/clk", sc)
+	http.Handle("/imp", sc)
 
 	gc, err := getGenelet(gConf)
 	if err != nil {
@@ -72,7 +72,6 @@ func main() {
 	}
 	gc.DB = sc.DB
 	gc.Storage["Redis"] = sc.Redis
-	gc.Storage["dspconfig"] = sc.C
 	if gc.C.ServerPort == "" {
 		gc.C.ServerPort = sc.C.ServerPort
 	}

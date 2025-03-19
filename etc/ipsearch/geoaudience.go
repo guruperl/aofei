@@ -1,11 +1,8 @@
 package ipsearch
 
 import (
-	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/genelet/winter/pzutil"
 )
 
 type GeoAudience struct {
@@ -16,60 +13,69 @@ type GeoAudience struct {
 }
 
 func (self *GeoAudience) MatchGeo(geo Geo) bool {
-	if !pzutil.GrepUint32(self.GeoStates, uint32(geo.StateID)) {
+	grep := func(vs []uint32, t uint32) bool {
+		for _, v := range vs {
+			if v == t {
+				return true
+			}
+		}
 		return false
 	}
-	if !pzutil.GrepUint32(self.GeoDmas, uint32(geo.DmaID)) {
+	if !grep(self.GeoStates, uint32(geo.StateID)) {
 		return false
 	}
-	if !pzutil.GrepUint32(self.GeoCitys, uint32(geo.CityID)) {
+	if !grep(self.GeoDmas, uint32(geo.DmaID)) {
 		return false
 	}
-	if !pzutil.GrepUint32(self.GeoIsps, uint32(geo.IspID)) {
+	if !grep(self.GeoCitys, uint32(geo.CityID)) {
+		return false
+	}
+	if !grep(self.GeoIsps, uint32(geo.IspID)) {
 		return false
 	}
 
 	return true
 }
 
-func GeoAudienceFromArgs(ARGS url.Values) *GeoAudience {
-	g := func(_ url.Values, name string, which *[]uint32) {
-		values := ARGS[name]
-		if len(values) > 0 {
-			for _, value := range values {
-				v, err := strconv.ParseUint(value, 10, 32)
-				if err == nil && v > 0 {
-					*which = append(*which, uint32(v))
+/*
+	func GeoAudienceFromArgs(ARGS url.Values) *GeoAudience {
+		g := func(_ url.Values, name string, which *[]uint32) {
+			values := ARGS[name]
+			if len(values) > 0 {
+				for _, value := range values {
+					v, err := strconv.ParseUint(value, 10, 32)
+					if err == nil && v > 0 {
+						*which = append(*which, uint32(v))
+					}
 				}
 			}
 		}
+
+		aud := new(GeoAudience)
+
+		g(ARGS, "state", &aud.GeoStates)
+		g(ARGS, "dma", &aud.GeoDmas)
+		g(ARGS, "city", &aud.GeoCitys)
+		g(ARGS, "isp", &aud.GeoIsps)
+
+		return aud
 	}
 
-	aud := new(GeoAudience)
-
-	g(ARGS, "state", &aud.GeoStates)
-	g(ARGS, "dma", &aud.GeoDmas)
-	g(ARGS, "city", &aud.GeoCitys)
-	g(ARGS, "isp", &aud.GeoIsps)
-
-	return aud
-}
-
-func (self *GeoAudience) ToArgs(ARGS url.Values) {
-	g := func(args url.Values, name string, values []uint32) {
-		if len(values) > 0 {
-			for _, value := range values {
-				args.Add(name, strconv.FormatUint(uint64(value), 10))
+	func (self *GeoAudience) ToArgs(ARGS url.Values) {
+		g := func(args url.Values, name string, values []uint32) {
+			if len(values) > 0 {
+				for _, value := range values {
+					args.Add(name, strconv.FormatUint(uint64(value), 10))
+				}
 			}
 		}
+
+		g(ARGS, "state", self.GeoStates)
+		g(ARGS, "dma", self.GeoDmas)
+		g(ARGS, "city", self.GeoCitys)
+		g(ARGS, "isp", self.GeoIsps)
 	}
-
-	g(ARGS, "state", self.GeoStates)
-	g(ARGS, "dma", self.GeoDmas)
-	g(ARGS, "city", self.GeoCitys)
-	g(ARGS, "isp", self.GeoIsps)
-}
-
+*/
 func (self *GeoAudience) dbFillGeoAudience(attrname string, valueID uint32) {
 	switch attrname {
 	case "state":

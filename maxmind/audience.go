@@ -1,7 +1,6 @@
 package maxmind
 
 import (
-	"github.com/genelet/winter/pzutil"
 	"github.com/prebid/openrtb/v20/adcom1"
 )
 
@@ -18,31 +17,39 @@ type GeoAudience struct {
 }
 
 func (self *GeoAudience) Has(geo *Geo) bool {
-	if self.GeoCountries != nil && (geo == nil || geo.CountryID == 0 || !pzutil.GrepUint32(self.GeoCountries, uint32(geo.CountryID))) {
+	grep := func(vs []uint32, t uint32) bool {
+		for _, v := range vs {
+			if v == t {
+				return true
+			}
+		}
 		return false
 	}
-	if self.GeoStates != nil && (geo == nil || geo.StateID == 0 || !pzutil.GrepUint32(self.GeoStates, uint32(geo.StateID))) {
+	if self.GeoCountries != nil && (geo == nil || geo.CountryID == 0 || !grep(self.GeoCountries, uint32(geo.CountryID))) {
 		return false
 	}
-	if self.GeoDmas != nil && (geo == nil || geo.DmaID == 0 || !pzutil.GrepUint32(self.GeoDmas, uint32(geo.DmaID))) {
+	if self.GeoStates != nil && (geo == nil || geo.StateID == 0 || !grep(self.GeoStates, uint32(geo.StateID))) {
 		return false
 	}
-	if self.GeoCitys != nil && (geo == nil || geo.CityID == 0 || !pzutil.GrepUint32(self.GeoCitys, uint32(geo.CityID))) {
+	if self.GeoDmas != nil && (geo == nil || geo.DmaID == 0 || !grep(self.GeoDmas, uint32(geo.DmaID))) {
 		return false
 	}
-	if self.GeoIsps != nil && (geo == nil || geo.IspID == 0 || !pzutil.GrepUint32(self.GeoIsps, uint32(geo.IspID))) {
+	if self.GeoCitys != nil && (geo == nil || geo.CityID == 0 || !grep(self.GeoCitys, uint32(geo.CityID))) {
 		return false
 	}
-	if self.GeoZipcodes != nil && (geo == nil || geo.ZipID == 0 || !pzutil.GrepUint32(self.GeoZipcodes, uint32(geo.ZipID))) {
+	if self.GeoIsps != nil && (geo == nil || geo.IspID == 0 || !grep(self.GeoIsps, uint32(geo.IspID))) {
 		return false
 	}
-	if self.GeoLons != nil && (geo == nil || geo.Lon == 0 || !pzutil.GrepUint32(self.GeoLons, uint32(geo.Lon))) {
+	if self.GeoZipcodes != nil && (geo == nil || geo.ZipID == 0 || !grep(self.GeoZipcodes, uint32(geo.ZipID))) {
 		return false
 	}
-	if self.GeoLats != nil && (geo == nil || geo.Lat == 0 || !pzutil.GrepUint32(self.GeoLats, uint32(geo.Lat))) {
+	if self.GeoLons != nil && (geo == nil || geo.Lon == 0 || !grep(self.GeoLons, uint32(geo.Lon))) {
 		return false
 	}
-	if self.ConnectionTypes != nil && (geo == nil || geo.ConnectionType == adcom1.ConnectionUnknown || !pzutil.GrepUint32(self.ConnectionTypes, uint32(geo.ConnectionType))) {
+	if self.GeoLats != nil && (geo == nil || geo.Lat == 0 || !grep(self.GeoLats, uint32(geo.Lat))) {
+		return false
+	}
+	if self.ConnectionTypes != nil && (geo == nil || geo.ConnectionType == adcom1.ConnectionUnknown || !grep(self.ConnectionTypes, uint32(geo.ConnectionType))) {
 		return false
 	}
 
