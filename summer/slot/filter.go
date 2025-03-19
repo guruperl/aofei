@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/genelet/winter/match"
-	"github.com/genelet/winter/pzutil"
 	"github.com/genelet/winter/summer"
 )
 
@@ -116,9 +115,8 @@ func (self *Filter) After(model *Model) error {
 		summer.TranslateOne(item["chac_topics"], "channel_name", "channel_name_g")
 	} else if action == "topics" {
 		summer.TranslateOne(lists, "qa_device", "qa_device_g")
-		c := model.Storage["Ssp"].(*pzutil.Config)
-		ARGS.Set("serverUrl", c.ServerURL)
-		ARGS.Set("serverScript", c.ServerURL+c.Handle["ssp"])
+		ARGS.Set("serverUrl", "/")
+		ARGS.Set("serverScript", "/bid")
 		pubID, err := strconv.ParseUint(ARGS.Get("pub_id"), 10, 32)
 		if err != nil {
 			return err
@@ -127,14 +125,14 @@ func (self *Filter) After(model *Model) error {
 		if err != nil {
 			return err
 		}
-		ARGS.Set("site_str", pzutil.PackTwo(uint32(pubID), uint32(siteID)))
+		ARGS.Set("site_str", summer.PackTwo(uint32(pubID), uint32(siteID)))
 		for _, item := range lists {
 			slotID := uint32(item["slot_id"].(int64))
 			sizeID := uint32(item["size_id"].(int64))
 			summer.SetWH(item)
-			item["slot_str"] = pzutil.PackTwo(slotID, sizeID)
+			item["slot_str"] = summer.PackTwo(slotID, sizeID)
 			var err error
-			item["code"], err = match.RPub{PubID: uint32(pubID), SiteID: uint32(siteID), SlotID: slotID, SizeID: sizeID}.Pack1()
+			item["code"], err = match.RPub{PubID: uint32(pubID), SiteID: uint32(siteID), SlotID: slotID, SizeID: sizeID}.PackString()
 			if err != nil {
 				return err
 			}

@@ -6,17 +6,12 @@ import (
 	"os"
 
 	"github.com/genelet/winter/genelet"
-	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/ssp"
+	"github.com/genelet/winter/holiday"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {
-	c, err := pzutil.NewConfig("../conf/aofei.json")
-	if err != nil {
-		panic(err)
-	}
-	control, err := ssp.NewController(context.Background(), c)
+	control, err := holiday.NewController(context.Background(), "../conf/aofei.json")
 	if err != nil {
 		panic(err)
 	}

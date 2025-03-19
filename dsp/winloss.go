@@ -1,4 +1,4 @@
-package holiday
+package dsp
 
 import (
 	"context"
@@ -12,39 +12,15 @@ import (
 	"github.com/mediocregopher/radix/v4"
 )
 
-type Status struct {
-	Win      bool
-	Tracking bool
-	Click    bool
-}
+type Status uint8
 
-// NewStatus reports the status of the win, tracking, and click.
-func NewStatus(win, tracking, click bool) Status {
-	return Status{win, tracking, click}
-}
-
-// Pack serializes the status into an int8 integer.
-func (self Status) Pack() int8 {
-	var status int8
-	if self.Win {
-		status |= 1
-	}
-	if self.Tracking {
-		status |= 2
-	}
-	if self.Click {
-		status |= 4
-	}
-	return status
-}
-
-// UnpackStatus deserializes the status from an int8 integer.
-func UnpackStatus(status int8) Status {
-	win := status&1 != 0
-	tracking := status&2 != 0
-	click := status&4 != 0
-	return NewStatus(win, tracking, click)
-}
+const (
+	StatusBid Status = 1 << iota
+	StatusWin
+	StatusLoss
+	StatusTrackImp
+	StatusTrackClk
+)
 
 // WinLoss is a win/loss notification received after bidding.
 // ${AUCTION_ID} ID of the bid request; from BidRequest.id attribute.
@@ -54,22 +30,34 @@ func UnpackStatus(status int8) Status {
 // ${AUCTION_AD_ID} ID of the ad markup the bidder wishes to serve; from bid.adid attribute.
 type WinLoss struct {
 	Current      time.Time `json:"current,omitempty"`
-	Status       int8      `json:"status,omitempty"`
+	Status       `json:"status,omitempty"`
 	match.RPub   `json:"rpub,omitempty"`
 	match.RAdv   `json:"radv,omitempty"`
-	BothCap      match.BothCap `json:"bothcap,omitempty"`
+	BothCap      match.BothCap `json:"-,omitempty"`
 	AuctionID    string        `json:"auction_id,omitempty"`
 	AuctionBidID string        `json:"auction_bid_id,omitempty"`
 	AuctionImpID string        `json:"auction_imp_id,omitempty"`
 }
 
-func (self *Controller) serveStatus(ctx context.Context, win, tracking, click bool, current time.Time, args url.Values) error {
-	var err error
-	status := NewStatus(win, tracking, click)
+// NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.
+func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv, bothcap match.BothCap, auctionID, auctionBidID, auctionImpID string) *WinLoss {
+	return &WinLoss{
+		Current:      current,
+		Status:       how,
+		RPub:         rpub,
+		RAdv:         radv,
+		BothCap:      bothcap,
+		AuctionID:    auctionID,
+		AuctionBidID: auctionBidID,
+		AuctionImpID: auctionImpID,
+	}
+}
 
+func (self *Controller) serveStatus(ctx context.Context, status Status, current time.Time, args url.Values) error {
+	var err error
 	wl := &WinLoss{
 		Current:      current,
-		Status:       status.Pack(),
+		Status:       status,
 		AuctionID:    args.Get("auction_id"),
 		AuctionBidID: args.Get("auction_bid_id"),
 		AuctionImpID: args.Get("auction_imp_id"),
@@ -99,17 +87,20 @@ func (self *Controller) serveStatus(ctx context.Context, win, tracking, click bo
 		wl.RAdv.CostType = 1
 	}
 
-	var found bool
-	if u := args.Get("cap"); u != "" {
+	switch status {
+	case StatusTrackClk, StatusTrackImp:
+		u := args.Get("cap")
+		v := args.Get("bothcap")
+		if u == "" && v == "" {
+			break
+		}
+
 		cap, err := match.UnpackCapString(u)
 		if err != nil {
 			return err
 		}
-		found = true
 		wl.RAdv.Cap = cap
-	}
 
-	if v := args.Get("bothcap"); v != "" && found {
 		both, err := match.UnpackBothCapString(v)
 		if err != nil {
 			return err
@@ -120,7 +111,7 @@ func (self *Controller) serveStatus(ctx context.Context, win, tracking, click bo
 			return err
 		}
 
-		both.Refresh(current, wl.RAdv, !status.Win && status.Tracking && !status.Click, !status.Win && status.Tracking && status.Click)
+		both.Refresh(current, wl.RAdv, status == StatusTrackImp, status == StatusTrackClk)
 		bs, err := both.Pack()
 		if err != nil {
 			return err
@@ -129,6 +120,7 @@ func (self *Controller) serveStatus(ctx context.Context, win, tracking, click bo
 		if err != nil {
 			return err
 		}
+	default:
 	}
 
 	bs, err := json.Marshal(wl)
@@ -139,20 +131,30 @@ func (self *Controller) serveStatus(ctx context.Context, win, tracking, click bo
 }
 
 // GetURLString returns the URL query string of the win/loss notification.
-func (self *WinLoss) GetURLString() string {
+func (self *WinLoss) GetURLString(tracking ...bool) string {
+	status := self.Status
 	args := url.Values{}
-	args.Set("auction_id", self.AuctionID)
-	args.Set("auction_bid_id", self.AuctionBidID)
-	args.Set("auction_imp_id", self.AuctionImpID)
+	if status == StatusTrackClk || status == StatusTrackImp || (len(tracking) > 0 && tracking[0]) {
+		args.Set("auction_id", self.AuctionID)
+		args.Set("auction_bid_id", self.AuctionBidID)
+		args.Set("auction_imp_id", self.AuctionImpID)
+		args.Set("auction_price", fmt.Sprintf("%f", self.Cost))
+		args.Set("auction_currency", "USD")
+		cap, _ := self.RAdv.Cap.PackString()
+		args.Set("cap", cap)
+		bothcap, _ := self.BothCap.PackString()
+		args.Set("bothcap", bothcap)
+	} else {
+		args.Set("auction_id", `${AUCTION_ID}`)
+		args.Set("auction_bid_id", `${AUCTION_BID_ID}`)
+		args.Set("auction_imp_id", `${AUCTION_IMP_ID}`)
+		args.Set("auction_price", `${AUCTION_PRICE}`)
+		args.Set("auction_currency", `${AUCTION_CURRENCY}`)
+	}
 	demand, _ := self.Demand.PackString()
 	args.Set("demand", demand)
 	supply, _ := self.RPub.PackString()
 	args.Set("supply", supply)
-	args.Set("auction_price", fmt.Sprintf("%f", self.Cost))
-	args.Set("auction_currency", "USD")
-	cap, _ := self.RAdv.Cap.PackString()
-	args.Set("cap", cap)
-	bothcap, _ := self.BothCap.PackString()
-	args.Set("bothcap", bothcap)
+
 	return args.Encode()
 }

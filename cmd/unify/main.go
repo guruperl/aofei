@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/genelet/winter/holiday"
 	"github.com/genelet/winter/pzutil"
-	"github.com/genelet/winter/ssp"
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/genelet/winter/genelet"
@@ -57,7 +57,7 @@ func init() {
 
 func main() {
 	ctx := context.Background()
-	sc, err := getSsp(ctx, sConf)
+	sc, err := holiday.NewController(ctx, sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func main() {
 	}
 	gc.DB = sc.DB
 	gc.Storage["Redis"] = sc.Redis
-	gc.Storage["Ssp"] = sc.C
+	gc.Storage["dspconfig"] = sc.C
 	if gc.C.ServerPort == "" {
 		gc.C.ServerPort = sc.C.ServerPort
 	}
@@ -115,12 +115,4 @@ func getGenelet(fn string) (*genelet.Controller, error) {
 	}
 
 	return &genelet.Controller{C: c, Models: models, Filters: filters, Storage: storage}, nil
-}
-
-func getSsp(ctx context.Context, fn string) (*ssp.Controller, error) {
-	c, err := pzutil.NewConfig(fn)
-	if err != nil {
-		return nil, err
-	}
-	return ssp.NewController(ctx, c)
 }

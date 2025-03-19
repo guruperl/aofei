@@ -15,19 +15,19 @@ import (
 )
 
 type Demand struct {
-	AdvID      uint32
-	CampaignID uint32
-	ItemID     uint32
-	CreativeID uint32
+	AdvID      uint32 `json:"adv_id,omitempty"`
+	CampaignID uint32 `json:"campaign_id,omitempty"`
+	ItemID     uint32 `json:"item_id,omitempty"`
+	CreativeID uint32 `json:"creative_id,omitempty"`
 }
 
 // RAdv is the block of the slot.
 type RAdv struct {
-	Demand
-	Weight   float32
-	CostType uint8
-	Cost     float32
-	Cap
+	Demand   `json:"demand,omitempty"`
+	Weight   float32 `json:"weight,omitempty"`
+	CostType uint8   `json:"cost_type,omitempty"`
+	Cost     float32 `json:"cost,omitempty"`
+	Cap      `json:"-,omitempty"`
 }
 
 // PackString serializes the audience into a RawURL string

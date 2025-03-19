@@ -2,10 +2,36 @@ package summer
 
 import (
 	"bytes"
+	"encoding/base32"
+	"encoding/binary"
 	"encoding/gob"
 	"os"
 	"reflect"
 )
+
+func PackTwo(x, y uint32) string {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, x)
+	binary.Write(buf, binary.LittleEndian, y)
+
+	//return base64.RawStdEncoding.EncodeToString(buf.Bytes())
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(buf.Bytes())
+}
+
+func UnpackTwo(text string) (uint32, uint32, error) {
+	data, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(text)
+	if err != nil {
+		return 0, 0, err
+	}
+	x := make([]uint32, 2)
+	buf := bytes.NewReader([]byte(data))
+	err = binary.Read(buf, binary.LittleEndian, &x)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return x[0], x[1], nil
+}
 
 func IsDigit(s string) bool {
 	for _, r := range s {

@@ -27,9 +27,9 @@ type Fcap struct {
 	Last     uint16 `json:"last"`
 }
 
-// CreateFcap creates a new Fcap instance from time
+// NewFcap creates a new Fcap instance from time
 // DO NOT exceeds 45 days!
-func CreateFcap(when time.Time) Fcap {
+func NewFcap(when time.Time) Fcap {
 	years := when.Year() - FCAPStartYear
 	months := int(when.Month())
 	days := when.Day()
@@ -161,13 +161,13 @@ func (self BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) 
 	cli := self.Cli
 	if isImp {
 		if !block.Cap.ValidPeriodImp(when, imp) {
-			imp = CreateFcap(when)
+			imp = NewFcap(when)
 		}
 		imp.Refresh(when)
 	}
 	if isCli {
 		if !block.Cap.ValidPeriodImp(when, imp) {
-			cli = CreateFcap(when)
+			cli = NewFcap(when)
 		}
 		cli.Refresh(when)
 	}

@@ -1,5 +1,6 @@
 package match
 
+/*
 import (
 	"bytes"
 	"database/sql"
@@ -54,15 +55,6 @@ func (self *Record) Pack() ([]byte, error) {
 	}
 	return buf.Bytes(), nil
 }
-
-/*
-func (self *Record)Sendlog(nc *nats.Conn, subj string) error {
-	data, err := self.Pack()
-	if err != nil { return err }
-    nc.Publish(subj, data)
-    return nil
-}
-*/
 
 func UnpackRecordIO(buf io.Reader) (*Record, error) {
 	imp := Imp{}
@@ -374,7 +366,7 @@ func SetRecordFromFile(db *sql.DB, sep int, fn string) error {
 
 	return nil
 }
-
+*/
 /*
 func NewRecord(imp Imp, rpub RPub, radv RAdv) *Record {
 	return &Record{imp, rpub, radv}

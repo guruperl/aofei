@@ -1,7 +1,6 @@
 package summer
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -9,8 +8,7 @@ import (
 	"time"
 
 	"github.com/genelet/winter/genelet"
-	"github.com/genelet/winter/pzutil"
-	"github.com/mediocregopher/radix/v4"
+	"github.com/genelet/winter/match"
 )
 
 type Filter struct {
@@ -134,13 +132,13 @@ func SetSizeID(args url.Values) error {
 	if w > 65535 || h > 65535 {
 		return fmt.Errorf("w or h are over 65535")
 	}
-	args.Set("size_id", fmt.Sprintf("%d", pzutil.GetSizeID(uint16(w), uint16(h))))
+	args.Set("size_id", fmt.Sprintf("%d", match.SizeID2To1(uint16(w), uint16(h))))
 	return nil
 }
 
 func SetWH(item map[string]interface{}) {
 	sizeid := item["size_id"].(int64)
-	item["w"], item["h"] = pzutil.GetSizes(uint32(sizeid))
+	item["w"], item["h"] = match.SizeID1To2(uint32(sizeid))
 }
 
 func (self *Filter) Preset() error {
@@ -158,7 +156,7 @@ func (self *Filter) Preset() error {
 			if k[len(k)-1:] == "_id" {
 				isDigit := true
 				for _, val := range v {
-					if !pzutil.IsDigit(val) {
+					if !IsDigit(val) {
 						isDigit = false
 					}
 				}
@@ -257,36 +255,33 @@ func (self *Filter) After(model *Model) error {
 		other["itemAttrs"] = GetItemAttrs()
 		other["itemAttrsChinese"] = Translate(other["itemAttrs"])
 	}
-
-	var err error
-	if (obj == "site" && (action == "delete" || action == "update")) ||
-		(obj == "chac" && ARGS.Get("entitytype_id") == "31" && action == "update") {
-		siteid := ARGS.Get("site_id")
-		if siteid == "" && ARGS.Get("entitytype_id") == "31" {
-			siteid = ARGS.Get("entity_id")
-		}
-		conn := (model.Storage)["Redis"].(radix.Client)
-		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		err = conn.Do(context.Background(), radix.Cmd(nil, "DEL", c.SITE+":"+siteid))
-	} else if obj == "slot" && (action == "delete" || action == "update") {
-		slotid := ARGS.Get("slot_id")
-		if err = model.DoSQL("DELETE FROM pub_weight WHERE slot_id=?", slotid); err == nil {
+	/*
+		var err error
+		if (obj == "site" && (action == "delete" || action == "update")) ||
+			(obj == "chac" && ARGS.Get("entitytype_id") == "31" && action == "update") {
+			siteid := ARGS.Get("site_id")
+			if siteid == "" && ARGS.Get("entitytype_id") == "31" {
+				siteid = ARGS.Get("entity_id")
+			}
+		} else if obj == "slot" && (action == "delete" || action == "update") {
+			slotid := ARGS.Get("slot_id")
+			if err = model.DoSQL("DELETE FROM pub_weight WHERE slot_id=?", slotid); err == nil {
+				conn := (model.Storage)["Redis"].(radix.Client)
+				c := (model.Storage)["dspconfig"].(*dsp.Config)
+				err = conn.Do(context.Background(), radix.Cmd(nil, "DEL", c.SLOT+":"+slotid))
+			}
+		} else if (obj == "targetname" && (action == "delete" || action == "insert")) ||
+			(obj == "item" && (action == "delete" || action == "update")) {
+			itemid := ARGS.Get("item_id")
 			conn := (model.Storage)["Redis"].(radix.Client)
-			c := (model.Storage)["Ssp"].(*pzutil.Config)
-			err = conn.Do(context.Background(), radix.Cmd(nil, "DEL", c.SLOT+":"+slotid))
+			c := (model.Storage)["dspconfig"].(*dsp.Config)
+			err = conn.Do(context.Background(), radix.Cmd(nil, "HDEL", c.AUDIENCE, itemid))
+		} else if (obj == "item" || obj == "creative") && (action == "delete" || action == "update") {
+			itemid := ARGS.Get("item_id")
+			p := (model.Storage)["Redis"].(radix.Client)
+			c := (model.Storage)["dspconfig"].(*dsp.Config)
+			err = p.Do(context.Background(), radix.Cmd(nil, "HDEL", c.ITEM, itemid))
 		}
-	} else if (obj == "targetname" && (action == "delete" || action == "insert")) ||
-		(obj == "item" && (action == "delete" || action == "update")) {
-		itemid := ARGS.Get("item_id")
-		conn := (model.Storage)["Redis"].(radix.Client)
-		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		err = conn.Do(context.Background(), radix.Cmd(nil, "HDEL", c.AUDIENCE, itemid))
-	} else if (obj == "item" || obj == "creative") && (action == "delete" || action == "update") {
-		itemid := ARGS.Get("item_id")
-		p := (model.Storage)["Redis"].(radix.Client)
-		c := (model.Storage)["Ssp"].(*pzutil.Config)
-		err = p.Do(context.Background(), radix.Cmd(nil, "HDEL", c.ITEM, itemid))
-	}
-
-	return err
+	*/
+	return nil
 }
