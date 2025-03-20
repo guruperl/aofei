@@ -62,6 +62,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) {
 	if _, err := nc.Subscribe(SUBJECTAttribute, func(m *nats.Msg) {
 		defer wg.Done()
 		self.FHAttribute.Write(m.Data)
+		self.FHAttribute.Write([]byte("\n"))
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -70,6 +71,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) {
 	if _, err := nc.Subscribe(SUBJECTWinLoss, func(m *nats.Msg) {
 		defer wg.Done()
 		self.FHWinLoss.Write(m.Data)
+		self.FHWinLoss.Write([]byte("\n"))
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -78,6 +80,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) {
 	if _, err := nc.Subscribe(SUBJECTRequest, func(m *nats.Msg) {
 		defer wg.Done()
 		self.FHRequest.Write(m.Data)
+		self.FHRequest.Write([]byte("\n"))
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -86,6 +89,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) {
 	if _, err := nc.Subscribe(SUBJECTResponse, func(m *nats.Msg) {
 		defer wg.Done()
 		self.FHResponse.Write(m.Data)
+		self.FHResponse.Write([]byte("\n"))
 	}); err != nil {
 		log.Fatal(err)
 	}
