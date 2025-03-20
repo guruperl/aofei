@@ -7,8 +7,6 @@ import (
 	"database/sql"
 	"net/url"
 	"strings"
-
-	"github.com/golang/glog"
 )
 
 type Procedure struct {
@@ -51,10 +49,6 @@ func (self *Procedure) Run_sql(call_name string, in_vals []interface{}) error {
 		err = dbi.DoProc(self.Out_hash, outPars, call_name, in_vals...)
 	}
 	if err != nil {
-		glog.Infof("%v\n", outPars)
-		glog.Infof("%v\n", call_name)
-		glog.Infof("%v\n", in_vals)
-		glog.Infof("%v\n", err)
 		return Err(1036, err.Error())
 	}
 

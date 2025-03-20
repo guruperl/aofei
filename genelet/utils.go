@@ -1,7 +1,6 @@
 package genelet
 
 import (
-	//    "github.com/golang/glog"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha1"

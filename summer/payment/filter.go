@@ -4,7 +4,6 @@ import (
 	"net/url"
 
 	"github.com/genelet/winter/summer"
-	// "github.com/golang/glog"
 )
 
 type Filter struct {

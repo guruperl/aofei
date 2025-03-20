@@ -1,7 +1,6 @@
 package genelet
 
 import (
-	//	"github.com/golang/glog"
 	"fmt"
 	"net/url"
 	"strconv"

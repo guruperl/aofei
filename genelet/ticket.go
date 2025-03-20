@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	int_cipher "github.com/delongw/go-int-cipher"
-	// "github.com/golang/glog"
 )
 
 type Ticket struct {

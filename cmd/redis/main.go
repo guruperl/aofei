@@ -53,4 +53,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Printf("structured radvs, audiences, and creatives to Redis cache")
 }

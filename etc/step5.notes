@@ -1,4 +1,6 @@
+go to cmd's maxmind, rpub, and redis to run one-time static mappings and caches
+go to cmd's nats, to run nats receiver, as a service
+go to cmd/unify, to compile and run it as web + dsp bidder
+
 $ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < sample.sql
-$ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < more.sql
-$ go run *.go weight
 $ go run *.go ledger

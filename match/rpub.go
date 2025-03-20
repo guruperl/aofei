@@ -10,12 +10,9 @@ import (
 )
 
 const (
-	PUBDefault    = "default"
-	SITEDefault   = "default"
-	SLOTDefault   = "default"
-	PUBDefaultID  = uint32(1)
-	SITEDefaultID = uint32(2)
-	SLOTDefaultID = uint32(6)
+	PUBDefault  = "default"
+	SITEDefault = "default"
+	SLOTDefault = "default"
 )
 
 type RPub struct {
@@ -51,45 +48,30 @@ func UnpackRPubString(text string) (RPub, error) {
 }
 
 type RPubMap struct {
-	PubMap  map[string]uint32                       `json:"pub_map,omitempty"`
-	SiteMap map[uint32]map[string]uint32            `json:"site_map,omitempty"`
-	SlotMap map[uint32]map[uint32]map[string]uint32 `json:"slot_map,omitempty"`
-}
-
-// DefaultRPubMap returns the default RPubMap with preconfigured mappings
-// for publishers, sites, and slots. It initializes the map with default
-// values for PUBDefault, SITEDefault, and SLOTDefault.
-func DefaultRPubMap() *RPubMap {
-	return &RPubMap{
-		PubMap: map[string]uint32{
-			PUBDefault: PUBDefaultID,
-		},
-		SiteMap: map[uint32]map[string]uint32{
-			PUBDefaultID: {
-				SITEDefault: SITEDefaultID,
-			},
-		},
-		SlotMap: map[uint32]map[uint32]map[string]uint32{
-			PUBDefaultID: {
-				SITEDefaultID: {
-					SLOTDefault: SLOTDefaultID,
-				},
-			},
-		},
-	}
+	PUBDefaultID uint32                                  `json:"pub_default_id,omitempty"`
+	SITEWebID    uint32                                  `json:"site_web_id,omitempty"`
+	SITEAppID    uint32                                  `json:"site_app_id,omitempty"`
+	SLOTWebID    uint32                                  `json:"slot_web_id,omitempty"`
+	SLOTAppID    uint32                                  `json:"slot_app_id,omitempty"`
+	PubMap       map[string]uint32                       `json:"pub_map,omitempty"`
+	SiteMap      map[uint32]map[string]uint32            `json:"site_map,omitempty"`
+	SlotMap      map[uint32]map[uint32]map[string]uint32 `json:"slot_map,omitempty"`
 }
 
 // GetRPub returns the RPub object from the bid request.
-func (self *RPubMap) GetRPub(a *acl.ACL) RPub {
+func (self *RPubMap) GetRPub(a *acl.ACL, isApp bool) RPub {
 	var pubID, siteID, slotID uint32
 	var ok bool
 	pubID, ok = self.PubMap[a.PubStr]
 	if !ok {
-		pubID = PUBDefaultID
+		pubID = self.PUBDefaultID
 	}
 	if self.SiteMap[pubID] == nil {
-		pubID = PUBDefaultID
-		siteID = SITEDefaultID
+		pubID = self.PUBDefaultID
+		siteID = self.SITEWebID
+		if isApp {
+			siteID = self.SITEAppID
+		}
 	} else {
 		siteID, ok = self.SiteMap[pubID][a.SiteStr]
 		if !ok {
@@ -97,9 +79,13 @@ func (self *RPubMap) GetRPub(a *acl.ACL) RPub {
 		}
 	}
 	if self.SlotMap[pubID] == nil || self.SlotMap[pubID][siteID] == nil {
-		pubID = PUBDefaultID
-		siteID = SITEDefaultID
-		slotID = SLOTDefaultID
+		pubID = self.PUBDefaultID
+		siteID = self.SITEWebID
+		slotID = self.SLOTWebID
+		if isApp {
+			siteID = self.SITEAppID
+			slotID = self.SLOTAppID
+		}
 	} else {
 		slotID, ok = self.SlotMap[pubID][siteID][a.SlotStr]
 		if !ok {
@@ -116,9 +102,9 @@ func (self *RPubMap) GetRPub(a *acl.ACL) RPub {
 
 // DBGetRPubMap returns the RPubMap object from the database.
 func DBGetRPubMap(db *sql.DB) (*RPubMap, error) {
-	rpubMap := DefaultRPubMap()
+	rpubMap := new(RPubMap)
 	rows, err := db.Query(`
-SELECT p.pub_id, s.site_id, t.slot_id, domain, foreign_id, slot_name
+SELECT p.pub_id, s.site_type, s.site_id, t.slot_id, domain, foreign_id, slot_name
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)
 INNER JOIN pub p USING (pub_id)`)
@@ -129,7 +115,8 @@ INNER JOIN pub p USING (pub_id)`)
 	for rows.Next() {
 		var pubID, siteID, slotID uint32
 		var pubStr, siteStr, slotStr string
-		err = rows.Scan(&pubID, &siteID, &slotID, &pubStr, &siteStr, &slotStr)
+		var siteType sql.NullString
+		err = rows.Scan(&pubID, &siteType, &siteID, &slotID, &pubStr, &siteStr, &slotStr)
 		if err != nil {
 			return nil, err
 		}
@@ -154,6 +141,22 @@ INNER JOIN pub p USING (pub_id)`)
 			rpubMap.SlotMap[pubID][siteID] = make(map[string]uint32)
 		}
 		rpubMap.SlotMap[pubID][siteID][slotStr] = slotID
+		if pubStr == PUBDefault {
+			rpubMap.PUBDefaultID = pubID
+			if siteStr == SITEDefault {
+				if siteType.Valid && siteType.String == "App" {
+					rpubMap.SITEAppID = siteID
+					if slotStr == SLOTDefault {
+						rpubMap.SLOTAppID = slotID
+					}
+				} else {
+					rpubMap.SITEWebID = siteID
+					if slotStr == SLOTDefault {
+						rpubMap.SLOTWebID = slotID
+					}
+				}
+			}
+		}
 	}
 	return rpubMap, rows.Err()
 }

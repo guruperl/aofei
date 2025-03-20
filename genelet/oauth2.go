@@ -4,11 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
-
-	"github.com/golang/glog"
 )
 
 type Oauth2 struct {
@@ -84,7 +82,6 @@ func (self *Oauth2) Authenticate(login, password string) error {
 		defaults["state"] = fmt.Sprintf("%d", Unix_timestamp())
 	}
 	cbk := self.Callback_address()
-	glog.Infof("First set: %s - %s - %s\n", login, password, self.Uri)
 	if login == "" {
 		if password != "" {
 			return Err(400)
@@ -106,7 +103,6 @@ func (self *Oauth2) Authenticate(login, password string) error {
 	if defaults["grant_type"] != "" {
 		form.Set("grant_type", defaults["grant_type"])
 	}
-	glog.Infof("get access token use form: %#v\n", form)
 
 	var res *http.Response
 	var err error
@@ -118,12 +114,12 @@ func (self *Oauth2) Authenticate(login, password string) error {
 	if err != nil {
 		return err
 	}
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	if err != nil {
 		return err
 	}
-	glog.Infof("returned body is: %s\n", body)
+
 	if res.StatusCode != 200 {
 		return Err(res.StatusCode)
 	}
@@ -143,8 +139,8 @@ func (self *Oauth2) Authenticate(login, password string) error {
 			return err
 		}
 	}
-	if access_token, ok := back["access_token"]; ok {
-		self.AccessToken = access_token.(string)
+	if accessToken, ok := back["access_token"]; ok {
+		self.AccessToken = accessToken.(string)
 	} else {
 		return Err(1401)
 	}
@@ -157,7 +153,6 @@ func (self *Oauth2) Authenticate(login, password string) error {
 			}
 			form.Set(k, Interface2String(v))
 		}
-		glog.Infof("get endpoint use form: %#v\n", form)
 		h := make(map[string]string)
 		if self.Provider == "salesforce" {
 			endpoint = form.Get("id")
@@ -179,12 +174,11 @@ func (self *Oauth2) Authenticate(login, password string) error {
 	for k, v := range defaults {
 		back[k] = v
 	}
-	glog.Infof("final hash sent to fill provider: %#v\n", back)
 
 	return self.Fill_provider(back)
 }
 
-func (self *Oauth2) oauth2_request(method string, uri string, form url.Values, h map[string]string) ([]byte, error) {
+func (self *Oauth2) oauth2Request(method string, uri string, form url.Values, h map[string]string) ([]byte, error) {
 	if self.DefaultPars["grant_type"] == "authorization_code" {
 		h["Authorization"] = "Bearer " + self.AccessToken
 		return Do(method, uri, nil, h)
@@ -194,7 +188,7 @@ func (self *Oauth2) oauth2_request(method string, uri string, form url.Values, h
 }
 
 func (self *Oauth2) Oauth2_api(method string, uri string, form url.Values, h map[string]string) (map[string]interface{}, error) {
-	body, err := self.oauth2_request(method, uri, form, h)
+	body, err := self.oauth2Request(method, uri, form, h)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +197,7 @@ func (self *Oauth2) Oauth2_api(method string, uri string, form url.Values, h map
 }
 
 func (self *Oauth2) Oauth2_apis(method string, uri string, form url.Values, h map[string]string) ([]map[string]interface{}, error) {
-	body, err := self.oauth2_request(method, uri, form, h)
+	body, err := self.oauth2Request(method, uri, form, h)
 	if err != nil {
 		return nil, err
 	}

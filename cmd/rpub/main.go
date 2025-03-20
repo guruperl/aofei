@@ -36,6 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer sc.Close()
 
 	rpubmap, err := match.DBGetRPubMap(sc.DB)
 	if err != nil {

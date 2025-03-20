@@ -8,30 +8,24 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/golang/glog"
 )
 
-func Oauth1_sign(method string, uri string, hash map[string]string, items []string, combined []string, form url.Values) string {
+func Oauth1Sign(method string, uri string, hash map[string]string, items []string, combined []string, form url.Values) string {
 	tmps := make([]string, len(items))
-	for i, v := range items {
-		tmps[i] = v
-	}
-	if form != nil {
-		for k := range form {
-			tmps = append(tmps, k)
-		}
+	copy(tmps, items)
+	for k := range form {
+		tmps = append(tmps, k)
 	}
 	sort.Strings(tmps)
-	x_items := make([]string, len(tmps))
+	xItems := make([]string, len(tmps))
 	for i, v := range tmps {
 		x := hash[v]
 		if x == "" && form != nil {
 			x = form.Get(v)
 		}
-		x_items[i] = v + "%3D" + url.QueryEscape(x)
+		xItems[i] = v + "%3D" + url.QueryEscape(x)
 	}
-	str := method + "&" + url.QueryEscape(uri) + "&" + strings.Join(x_items, "%26")
+	str := method + "&" + url.QueryEscape(uri) + "&" + strings.Join(xItems, "%26")
 	key := combined[0] + "&"
 	if len(combined) > 1 {
 		key += combined[1]
@@ -40,34 +34,29 @@ func Oauth1_sign(method string, uri string, hash map[string]string, items []stri
 	return url.QueryEscape(Digest64(key, str))
 }
 
-func Oauth1_request(method string, uri string, hash map[string]string, items []string, combined []string, x_li_format string, form url.Values) ([]byte, error) {
-	oauth_signature := Oauth1_sign(method, uri, hash, items, combined, form)
+func Oauth1Request(method string, uri string, hash map[string]string, items []string, combined []string, x_li_format string, form url.Values) ([]byte, error) {
+	oauthSignature := Oauth1Sign(method, uri, hash, items, combined, form)
 
-	x_items := make([]string, len(items))
+	xItems := make([]string, len(items))
 	for i, key := range items {
-		x_items[i] = key + "=\"" + hash[key] + "\""
+		xItems[i] = key + "=\"" + hash[key] + "\""
 	}
 	h := make(map[string]string)
-	h["Authorization"] = "OAuth oauth_signature=\"" + oauth_signature + "\", " + strings.Join(x_items, ", ")
+	h["Authorization"] = "OAuth oauth_signature=\"" + oauthSignature + "\", " + strings.Join(xItems, ", ")
 	if x_li_format != "" {
 		h["x-li-format"] = x_li_format
 	}
 
-	glog.Infof("%s\n", uri)
-	glog.Infof("%v\n", h)
 	return Do(method, uri, form, h)
 }
 
 func get_body(method string, uri string, hash map[string]string, items []string, combined []string) (map[string]interface{}, error) {
-	for _, v := range []string{"oauth_consumer_key", "oauth_nonce", "oauth_signature_method", "oauth_timestamp", "oauth_version"} {
-		items = append(items, v)
-	}
-	body, err := Oauth1_request(method, uri, hash, items, combined, "", nil)
+	items = append(items, []string{"oauth_consumer_key", "oauth_nonce", "oauth_signature_method", "oauth_timestamp", "oauth_version"}...)
+	body, err := Oauth1Request(method, uri, hash, items, combined, "", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	glog.Infof("%s\n", string(body))
 	back := make(map[string]interface{})
 	a := strings.Split(string(body), "&")
 	for _, v := range a {
@@ -131,7 +120,6 @@ func (self *Oauth1) Authenticate(login, password string) error {
 	if login == "" {
 		self.Combined = []string{hash["oauth_consumer_secret"]}
 		back, err := get_body("GET", hash["oauth_request_token"], hash, []string{"oauth_callback"}, self.Combined)
-		glog.Infof("%v\n", back)
 		if err != nil {
 			return err
 		}
@@ -144,15 +132,15 @@ func (self *Oauth1) Authenticate(login, password string) error {
 
 	hash["oauth_token"] = login
 	hash["oauth_verifier"] = password
-	oauth_token_secret, err := self.R.Cookie(self.Provider)
+	oauthTokenSecret, err := self.R.Cookie(self.Provider)
 	if err != nil {
 		return err
 	}
-	if oauth_token_secret == nil {
+	if oauthTokenSecret == nil {
 		return Err(404)
 	}
 
-	hash["oauth_token_secret"] = oauth_token_secret.Value
+	hash["oauth_token_secret"] = oauthTokenSecret.Value
 	hash["oauth_token_secret"] = DecodeScoder(hash["oauth_token_secret"], role.Coding)
 	self.Combined = []string{hash["oauth_consumer_secret"], hash["oauth_token_secret"]}
 	back, err := get_body("GET", hash["oauth_access_token"], hash, []string{"oauth_token", "oauth_verifier"}, self.Combined)
@@ -179,24 +167,23 @@ func (self *Oauth1) Authenticate(login, password string) error {
 	for k, v := range hash {
 		back[k] = v
 	}
-	glog.Infof("%#v\n", back)
 
 	// oauth_token oauth_token_secret user_id screen_name x_auth_expires
 	// oauth_consumer_key oauth_consumer_secre already
 	return self.Fill_provider(back)
 }
 
-func (self *Oauth1) oauth1_request(method string, uri string, form url.Values) ([]byte, error) {
+func (self *Oauth1) oauth1Request(method string, uri string, form url.Values) ([]byte, error) {
 	hash := self.DefaultPars
 	now := int32(time.Now().Unix())
 	hash["oauth_timestamp"] = fmt.Sprintf("%d", now)
 	hash["oauth_nonce"] = fmt.Sprintf("%x%8x", os.Getpid(), now)
 	items := []string{"oauth_consumer_key", "oauth_nonce", "oauth_signature_method", "oauth_token", "oauth_timestamp", "oauth_version"}
-	return Oauth1_request(method, uri, hash, items, self.Combined, "json", form)
+	return Oauth1Request(method, uri, hash, items, self.Combined, "json", form)
 }
 
 func (self *Oauth1) Oauth1_api(method string, uri string, form url.Values) (map[string]interface{}, error) {
-	body, err := self.oauth1_request(method, uri, form)
+	body, err := self.oauth1Request(method, uri, form)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +192,7 @@ func (self *Oauth1) Oauth1_api(method string, uri string, form url.Values) (map[
 }
 
 func (self *Oauth1) Oauth1_apis(method string, uri string, form url.Values) ([]map[string]interface{}, error) {
-	body, err := self.oauth1_request(method, uri, form)
+	body, err := self.oauth1Request(method, uri, form)
 	if err != nil {
 		return nil, err
 	}

@@ -38,7 +38,7 @@ func main() {
 	}
 
 	db := sc.DB
-	defer db.Close()
+	defer sc.Close()
 
 	rows, err := db.QueryContext(ctx, `
 SELECT country_id, alpha3 FROM def_country`)
@@ -92,6 +92,7 @@ FROM def_state`)
 		StateMap:   StateMap,
 	}
 
+	log.Printf("Writing country and state maps to %s", sc.C.Ips)
 	fh, err := os.Create(sc.C.Ips)
 	if err != nil {
 		log.Fatal(err)

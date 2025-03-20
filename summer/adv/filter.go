@@ -1,7 +1,6 @@
 package adv
 
 import (
-	//"github.com/golang/glog"
 	"crypto/sha1"
 	"encoding/hex"
 	"net/url"

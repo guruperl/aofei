@@ -6,8 +6,6 @@ import (
 	"net/mail"
 	"net/smtp"
 	"strings"
-
-	"github.com/golang/glog"
 )
 
 type Smtpssl struct {
@@ -46,7 +44,6 @@ func (self *Smtpssl) Send(headers map[string]string, content string) error {
 		message += k + ": " + v + "\r\n"
 	}
 	message += "\r\n" + content
-	glog.Infof("%s", message)
 
 	host, _, _ := net.SplitHostPort(self.Address)
 	auth := smtp.PlainAuth("", self.Username, self.Password, host)

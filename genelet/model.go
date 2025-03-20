@@ -1,7 +1,6 @@
 package genelet
 
 import (
-	//"github.com/golang/glog"
 	"database/sql"
 	"math"
 	"math/rand"
@@ -9,8 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/golang/glog"
 )
 
 type Model struct {
@@ -385,7 +382,6 @@ func (self *Model) Existing(table string, field string, val interface{}) error {
 	hash := make(map[string]interface{})
 	err := self.GetSQL(hash, "SELECT "+field+" FROM "+table+" WHERE "+field+"=? LIMIT 1", val)
 	if err != nil {
-		glog.Infof("err: %v\n", err)
 		return err
 	}
 	if hash[field] != nil {
@@ -417,7 +413,6 @@ func (self *Model) Randomid(table string, field string, m ...interface{}) error 
 		if err != nil {
 			continue
 		}
-		glog.Infof("Setup field %s => %s: ", field, strconv.Itoa(val))
 		self.ARGS.Set(field, strconv.Itoa(val))
 		return nil
 	}
