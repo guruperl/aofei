@@ -66,6 +66,47 @@ func UnpackAudience(data []byte) (*Audience, error) {
 	return audience, err
 }
 
+// DBGetAudiencesToRedis retrieves audiences from the database and inserts them into Redis.
+func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+	rows, err := db.Query(`
+SELECT item_id
+FROM adv_item
+INNER JOIN adv_campaign USING (campaign_id)
+INNER JOIN adv USING (adv_id)
+WHERE adv_item.active="Yes"
+AND adv_campaign.active="Yes" 
+AND adv.active="Yes"`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var itemIDs []uint32
+	for rows.Next() {
+		var itemID uint32
+		err = rows.Scan(&itemID)
+		if err != nil {
+			return err
+		}
+		itemIDs = append(itemIDs, itemID)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+
+	for _, itemID := range itemIDs {
+		aud, err := DBGetAudience(db, itemID)
+		if err == nil {
+			err = aud.ToRedis(ctx, conn, itemID)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func DBGetAudience(db *sql.DB, itemID uint32) (*Audience, error) {
 	a, err := acl.DBGetACLAudience(db, itemID)
 	if err != nil {

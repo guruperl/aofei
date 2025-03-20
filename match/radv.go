@@ -70,12 +70,26 @@ func UnpackRAdvs(data []byte) (RAdvs, error) {
 	return blocks, err
 }
 
-// DBGetRAdvs builds slots' block map, according to what = 'App' or 'Web'
-func DBGetRAdvs(ctx context.Context, db *sql.DB, conn radix.Client, what string) (map[uint32]RAdvs, error) {
+// DBGetRAdvsToRedis retrieves RAdvs from the database and inserts them into Redis.
+func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, what string) error {
+	hash, err := dbGetRAdvs(ctx, db, what)
+	if err != nil {
+		return err
+	}
+	for slotID, radvs := range hash {
+		if err = radvs.ToRedis(ctx, conn, what, slotID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// dbGetRAdvs builds slots' block map, according to what = 'App' or 'Web'
+func dbGetRAdvs(ctx context.Context, db *sql.DB, what string) (map[uint32]RAdvs, error) {
 	hash := make(map[uint32]RAdvs)
 	rows, err := db.QueryContext(ctx, `
 SELECT slot_id, creative_id, weight, item_id, campaign_id, adv_id, cost_type, cost, cpm_fc, cpm_length, cpm_throttle, cpc_fc, cpc_length
-FROM ViewRedis`+what)
+FROM impleRedis`+what)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +214,7 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 	if len(expired) > 0 {
 		err = BothCapsCleanupExpired(ctx, conn, pid, expired)
 	}
-	return blocks, bothcaps, nil
+	return blocks, bothcaps, err
 }
 
 func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, attr *Attribute) (RAdvs, Audiences, error) {

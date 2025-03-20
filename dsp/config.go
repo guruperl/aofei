@@ -15,25 +15,20 @@ type Red struct {
 	Size    int
 }
 
-type PSA struct {
-	W       uint16
-	H       uint16
-	Display string
-	Click   string
-	Price   float32
-}
-
 type Config struct {
-	DocumentRoot string            `json:"document_root"`
-	ServerURL    string            `json:"server_url"`
-	ServerPort   string            `json:"server_port"`
-	Handlers     map[string]string `json:"handlers"`
-	HhLock       string            `json:"hhlock,omitempty"`
-	Ips          string            `json:"ipsearch,omitempty"`
-	Redis        *Red              `json:"redis,omitempty"`
-	NatsURL      string            `json:"nats_url,omitempty"`
-	ConnectArray []string          `json:"connect_array,omitempty"`
-	PSAs         map[uint32]*PSA   `json:"sizes"`
+	DocumentRoot string   `json:"document_root"`
+	ServerURL    string   `json:"server_url"`
+	ServerPort   string   `json:"server_port"`
+	HhLock       string   `json:"hhlock,omitempty"`
+	Ips          string   `json:"ips,omitempty"`
+	Redis        *Red     `json:"redis,omitempty"`
+	NatsURL      string   `json:"nats_url,omitempty"`
+	ConnectArray []string `json:"connect_array,omitempty"`
+	RPubMap      string   `json:"rpub_map,omitempty"`
+	LogRequest   string   `json:"log_request,omitempty"`
+	LogResponse  string   `json:"log_response,omitempty"`
+	LogAttribute string   `json:"log_attribute,omitempty"`
+	LogWinLoss   string   `json:"log_winloss,omitempty"`
 }
 
 func NewConfig(filename string) (*Config, error) {
@@ -94,11 +89,6 @@ func NewConfig(filename string) (*Config, error) {
 
 	if parsed.NatsURL == "" {
 		parsed.NatsURL = "nats://localhost:4222"
-	}
-
-	if parsed.Handlers == nil {
-		parsed.Handlers = map[string]string{
-			"api": "/api", "ssp": "/ssp", "click": "/click", "static": "/static"}
 	}
 
 	return parsed, nil

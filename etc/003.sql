@@ -3,7 +3,7 @@ DROP VIEW IF EXISTS ViewRedisWeb;
 DROP VIEW IF EXISTS ViewRedisApp;
 
 CREATE VIEW ViewRedisApp AS
-SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+SELECT a.adv_id, c.campaign_id, t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)
 INNER JOIN pub      p USING (pub_id)
@@ -30,7 +30,7 @@ AND s.site_type = 'App' AND c.target_type = 'App'
 
 UNION
 
-SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+SELECT a.adv_id, c.campaign_id, t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)
 INNER JOIN pub      p USING (pub_id)
@@ -56,7 +56,7 @@ AND (  i.endx >= NOW() OR (  i.endx IS NULL))
 AND s.site_type = 'App' AND c.target_type = 'App';
 
 CREATE VIEW ViewRedisWeb AS
-SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+SELECT a.adv_id, c.campaign_id, t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)
 INNER JOIN pub      p USING (pub_id)
@@ -79,11 +79,11 @@ AND (
 )
 AND (i.startx <= NOW() OR (i.startx IS NULL))
 AND (  i.endx >= NOW() OR (  i.endx IS NULL))
-AND s.site_type = 'App' AND c.target_type = 'App'
+AND s.site_type = 'Web' AND c.target_type = 'Web'
 
 UNION
 
-SELECT t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
+SELECT a.adv_id, c.campaign_id, t.slot_id, v.creative_id, v.weight, i.item_id, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)
 INNER JOIN pub      p USING (pub_id)

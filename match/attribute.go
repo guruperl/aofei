@@ -32,7 +32,7 @@ type Attribute struct {
 }
 
 // NewAttribute creates a new Attribute from a bid request.
-func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, when time.Time, pubStr string) (*Attribute, error) {
+func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, rpubMap *RPubMap, when time.Time, pubStr string) (*Attribute, error) {
 	device := bidRequest.Device
 	if device == nil {
 		return nil, nil
@@ -63,7 +63,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
 	attr.PzUa = getUA(device)
 	attr.ACL = getACL(bidRequest, pubStr)
-	attr.RPub = getRPub(bidRequest, attr.ACL)
+	attr.RPub = rpubMap.GetRPub(attr.ACL)
 	sizeID, nativeFormat, err := getSizeIDNative(bidRequest)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func getGeo(ctx context.Context, ipSearch *maxmind.IPSearch, device *openrtb2.De
 			pzg.DmaID = maxmind.MetroMap[geo.Metro]
 		}
 
-		if device.IP != "" && (pzg == nil || pzg.CountryID == 0 || pzg.StateID == 0) {
+		if device.IP != "" && (pzg.CountryID == 0 || pzg.StateID == 0) {
 			mm, err := ipSearch.CreatePzGeo(device.IP)
 			if err != nil {
 				return nil, err
@@ -271,7 +271,7 @@ func getUA(device *openrtb2.Device) *advice.PzUa {
 		pzua.OVersion = advice.ParseOVersion(device.OSV)
 	}
 
-	if device.UA != "" && (pzua == nil || pzua.OS == 0 || pzua.OVersion == 0 || pzua.Platform == 0 || pzua.Device == 0) {
+	if device.UA != "" && (pzua.OS == 0 || pzua.OVersion == 0 || pzua.Platform == 0 || pzua.Device == 0) {
 		mm := advice.GetPzUa(device.UA)
 		if pzua.OS == 0 {
 			pzua.OS = mm.OS

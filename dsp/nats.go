@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	SUBJECTRequest          = "request"
-	SUBJECTResponse         = "response"
-	SUBJECTAttribute        = "attribute"
-	SUBJECTAttributeWinLoss = "winloss"
+	SUBJECTRequest   = "request"
+	SUBJECTResponse  = "response"
+	SUBJECTAttribute = "attribute"
+	SUBJECTWinLoss   = "winloss"
 )
 
 type AttributePlus struct {
@@ -23,10 +23,10 @@ type AttributePlus struct {
 }
 
 type FileWriters struct {
-	FHRequest          io.Writer
-	FHResponse         io.Writer
-	FHAttribute        io.Writer
-	FHAttributeWinLoss io.Writer
+	FHRequest   io.Writer
+	FHResponse  io.Writer
+	FHAttribute io.Writer
+	FHWinLoss   io.Writer
 }
 
 // NewFileWriters creates a new FileWriters with the given file names.
@@ -49,7 +49,7 @@ func NewFileWriters(request, response, attribute, winloss string) (*FileWriters,
 	if fw.FHAttribute, err = newFileWriter(attribute); err != nil {
 		return nil, err
 	}
-	if fw.FHAttributeWinLoss, err = newFileWriter(winloss); err != nil {
+	if fw.FHWinLoss, err = newFileWriter(winloss); err != nil {
 		return nil, err
 	}
 	return fw, nil
@@ -67,9 +67,9 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) {
 	}
 
 	wg.Add(1)
-	if _, err := nc.Subscribe(SUBJECTAttributeWinLoss, func(m *nats.Msg) {
+	if _, err := nc.Subscribe(SUBJECTWinLoss, func(m *nats.Msg) {
 		defer wg.Done()
-		self.FHAttributeWinLoss.Write(m.Data)
+		self.FHWinLoss.Write(m.Data)
 	}); err != nil {
 		log.Fatal(err)
 	}

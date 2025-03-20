@@ -129,7 +129,7 @@ SELECT a.domain, c.foreign_id, a.adv_id, a.access_order, c.campaign_id, c.access
 FROM adv_item i
 INNER JOIN adv_campaign c USING (campaign_id)
 INNER JOIN adv a USING (adv_id)
-WHERE i.item_id=?`, itemID).Scan(&aud.AdvStr, &aud.AppStr, &advID, &campaignID, &aOrder, &cOrder)
+WHERE i.item_id=?`, itemID).Scan(&aud.AdvStr, &aud.AppStr, &advID, &aOrder, &campaignID, &cOrder)
 	if err != nil {
 		return nil, err
 	}

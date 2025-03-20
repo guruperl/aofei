@@ -2,12 +2,11 @@ package match
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
 
 	"github.com/genelet/winter/acl"
-
-	openrtb2 "github.com/prebid/openrtb/v20/openrtb2"
 )
 
 const (
@@ -18,27 +17,6 @@ const (
 	SITEDefaultID = uint32(1)
 	SLOTDefaultID = uint32(1)
 )
-
-// PubMap is a map of publisher name to ID
-var PubMap map[string]uint32 = map[string]uint32{
-	PUBDefault: PUBDefaultID,
-}
-
-// SiteMap is a map of site name to ID
-var SiteMap map[uint32]map[string]uint32 = map[uint32]map[string]uint32{
-	PUBDefaultID: {
-		SITEDefault: SITEDefaultID,
-	},
-}
-
-// SlotMap is a map of slot name to ID
-var SlotMap map[uint32]map[uint32]map[string]uint32 = map[uint32]map[uint32]map[string]uint32{
-	PUBDefaultID: {
-		SITEDefaultID: {
-			SLOTDefault: SLOTDefaultID,
-		},
-	},
-}
 
 type RPub struct {
 	PubID  uint32
@@ -72,31 +50,60 @@ func UnpackRPubString(text string) (RPub, error) {
 	return rp, nil
 }
 
-// getRPub returns the RPub object from the bid request.
-func getRPub(bidRequest *openrtb2.BidRequest, a *acl.ACL) RPub {
+type RPubMap struct {
+	PubMap  map[string]uint32                       `json:"pub_map,omitempty"`
+	SiteMap map[uint32]map[string]uint32            `json:"site_map,omitempty"`
+	SlotMap map[uint32]map[uint32]map[string]uint32 `json:"slot_map,omitempty"`
+}
+
+// DefaultRPubMap returns the default RPubMap with preconfigured mappings
+// for publishers, sites, and slots. It initializes the map with default
+// values for PUBDefault, SITEDefault, and SLOTDefault.
+func DefaultRPubMap() *RPubMap {
+	return &RPubMap{
+		PubMap: map[string]uint32{
+			PUBDefault: PUBDefaultID,
+		},
+		SiteMap: map[uint32]map[string]uint32{
+			PUBDefaultID: {
+				SITEDefault: SITEDefaultID,
+			},
+		},
+		SlotMap: map[uint32]map[uint32]map[string]uint32{
+			PUBDefaultID: {
+				SITEDefaultID: {
+					SLOTDefault: SLOTDefaultID,
+				},
+			},
+		},
+	}
+}
+
+// GetRPub returns the RPub object from the bid request.
+func (self *RPubMap) GetRPub(a *acl.ACL) RPub {
 	var pubID, siteID, slotID uint32
 	var ok bool
-	pubID, ok = PubMap[a.PubStr]
+	pubID, ok = self.PubMap[a.PubStr]
 	if !ok {
 		pubID = PUBDefaultID
 	}
-	if SiteMap[pubID] == nil {
+	if self.SiteMap[pubID] == nil {
 		pubID = PUBDefaultID
 		siteID = SITEDefaultID
 	} else {
-		siteID, ok = SiteMap[pubID][a.SiteStr]
+		siteID, ok = self.SiteMap[pubID][a.SiteStr]
 		if !ok {
-			siteID = SiteMap[pubID][SITEDefault]
+			siteID = self.SiteMap[pubID][SITEDefault]
 		}
 	}
-	if SlotMap[pubID] == nil || SlotMap[pubID][siteID] == nil {
+	if self.SlotMap[pubID] == nil || self.SlotMap[pubID][siteID] == nil {
 		pubID = PUBDefaultID
 		siteID = SITEDefaultID
 		slotID = SLOTDefaultID
 	} else {
-		slotID, ok = SlotMap[pubID][siteID][a.SlotStr]
+		slotID, ok = self.SlotMap[pubID][siteID][a.SlotStr]
 		if !ok {
-			slotID = SlotMap[pubID][siteID][SLOTDefault]
+			slotID = self.SlotMap[pubID][siteID][SLOTDefault]
 		}
 	}
 
@@ -105,4 +112,48 @@ func getRPub(bidRequest *openrtb2.BidRequest, a *acl.ACL) RPub {
 		SiteID: siteID,
 		SlotID: slotID,
 	}
+}
+
+// DBGetRPubMap returns the RPubMap object from the database.
+func DBGetRPubMap(db *sql.DB) (*RPubMap, error) {
+	rpubMap := DefaultRPubMap()
+	rows, err := db.Query(`
+SELECT p.pub_id, s.site_id, t.slot_id, domain, foreign_id, slot_name
+FROM pub_slot t
+INNER JOIN pub_site s USING (site_id)
+INNER JOIN pub p USING (pub_id)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pubID, siteID, slotID uint32
+		var pubStr, siteStr, slotStr string
+		err = rows.Scan(&pubID, &siteID, &slotID, &pubStr, &siteStr, &slotStr)
+		if err != nil {
+			return nil, err
+		}
+		if rpubMap.PubMap == nil {
+			rpubMap.PubMap = make(map[string]uint32)
+		}
+		rpubMap.PubMap[pubStr] = pubID
+		if rpubMap.SiteMap == nil {
+			rpubMap.SiteMap = make(map[uint32]map[string]uint32)
+		}
+		if rpubMap.SiteMap[pubID] == nil {
+			rpubMap.SiteMap[pubID] = make(map[string]uint32)
+		}
+		rpubMap.SiteMap[pubID][siteStr] = siteID
+		if rpubMap.SlotMap == nil {
+			rpubMap.SlotMap = make(map[uint32]map[uint32]map[string]uint32)
+		}
+		if rpubMap.SlotMap[pubID] == nil {
+			rpubMap.SlotMap[pubID] = make(map[uint32]map[string]uint32)
+		}
+		if rpubMap.SlotMap[pubID][siteID] == nil {
+			rpubMap.SlotMap[pubID][siteID] = make(map[string]uint32)
+		}
+		rpubMap.SlotMap[pubID][siteID][slotStr] = slotID
+	}
+	return rpubMap, rows.Err()
 }

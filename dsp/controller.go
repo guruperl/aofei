@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,11 +21,12 @@ import (
 )
 
 type Controller struct {
-	C     *Config
-	Ips   *maxmind.IPSearch
-	Redis radix.Client
-	DB    *sql.DB
-	Nc    *nats.Conn
+	C       *Config
+	Ips     *maxmind.IPSearch
+	Redis   radix.Client
+	DB      *sql.DB
+	Nc      *nats.Conn
+	RPubMap *match.RPubMap
 }
 
 func NewController(ctx context.Context, filename string) (*Controller, error) {
@@ -61,7 +63,28 @@ func NewController(ctx context.Context, filename string) (*Controller, error) {
 		return nil, err
 	}
 
-	return &Controller{C: c, Ips: ips, Redis: redis, DB: db, Nc: nc}, err
+	rpubMap := match.DefaultRPubMap()
+	if c.RPubMap == "" {
+		bs, err := os.ReadFile(c.RPubMap)
+		if err != nil {
+			return nil, err
+		}
+		if bs != nil {
+			err = json.Unmarshal(bs, &rpubMap)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return &Controller{C: c, Ips: ips, Redis: redis, DB: db, Nc: nc, RPubMap: rpubMap}, err
+}
+
+// Close closes the Controller.
+func (self *Controller) Close() {
+	self.Redis.Close()
+	self.DB.Close()
+	self.Nc.Close()
 }
 
 func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +147,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attr, err := match.NewAttribute(ctx, self.Ips, bid, current, pubStr)
+	attr, err := match.NewAttribute(ctx, self.Ips, bid, self.RPubMap, current, pubStr)
 	if err != nil {
 		w.WriteHeader(204)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
@@ -155,6 +178,11 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
+	if err != nil {
+		w.WriteHeader(204)
+		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if len(radvs) == 0 {
 		w.WriteHeader(204)
 		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
@@ -215,8 +243,6 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 	}
-
-	return
 }
 
 // bidSeatBid returns the SeatBid for the bid response.

@@ -1,3 +1,4 @@
+// Package dsp implements a demand-side platform.
 package dsp
 
 import (
@@ -127,7 +128,7 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	if err != nil {
 		return err
 	}
-	return self.Nc.Publish(SUBJECTAttributeWinLoss, bs)
+	return self.Nc.Publish(SUBJECTWinLoss, bs)
 }
 
 // GetURLString returns the URL query string of the win/loss notification.
