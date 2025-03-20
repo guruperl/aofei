@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
-	"strconv"
+	"fmt"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -37,13 +37,51 @@ func UnpackCreative(data []byte) (*Creative, error) {
 	return audience, err
 }
 
+// DBGetCreativesToRedis retrieves all creatives from the database and inserts them into Redis.
+func DBGetCreativesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+	rows, err := db.Query(`
+SELECT r.creative_id, c.iurl, i.item_click, r.creative_name, r.content
+FROM adv_creative r
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+WHERE r.active="Yes"`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var creativeID uint32
+		var iurl, landing, content sql.NullString
+		cre := new(Creative)
+		err = rows.Scan(&creativeID, &iurl, &landing, &cre.CreativeName, &content)
+		if err != nil {
+			return err
+		}
+		if iurl.Valid {
+			cre.IURL = iurl.String
+		}
+		if landing.Valid {
+			cre.Landing = landing.String
+		}
+		if content.Valid {
+			cre.CreativeContent = content.String
+		}
+		if err = cre.ToRedis(ctx, conn, creativeID); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 // DBGetCreative retrieves category audience from the database.
 func DBGetCreative(db *sql.DB, creativeID uint32) (*Creative, error) {
 	cre := new(Creative)
 	err := db.QueryRow(`
-SELECT c.iurl, i.item.click, r.creative_name, r.creative_content
+SELECT c.iurl, i.item_click, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
 WHERE r.creative_id=?`, creativeID).Scan(&cre.IURL, &cre.Landing, &cre.CreativeName, &cre.CreativeContent)
 
 	return cre, err
@@ -59,13 +97,13 @@ func (self *Creative) ToRedis(ctx context.Context, conn radix.Client, creativeID
 	if err != nil {
 		return err
 	}
-	return conn.Do(ctx, radix.FlatCmd(nil, "HSET", HashNameCreative, creativeID, string(data)))
+	return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameCreative, fmt.Sprintf("%d", creativeID), string(data)))
 }
 
 // CreativeFromRedis retrieves audience data from Redis.
 func CreativeFromRedis(ctx context.Context, conn radix.Client, creativeID uint32) (*Creative, error) {
 	var bs []byte
-	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", HashNameCreative, strconv.FormatUint(uint64(creativeID), 10)))
+	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", HashNameCreative, fmt.Sprintf("%d", creativeID)))
 	if err != nil {
 		return nil, err
 	}

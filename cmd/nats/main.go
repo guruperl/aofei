@@ -1,4 +1,4 @@
-// go run summer.go --log_dir="../../logs/"
+// this receives 4 logs from web server. It should run as a service, after the nats server is up.
 package main
 
 import (

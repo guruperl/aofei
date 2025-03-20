@@ -14,8 +14,8 @@ const (
 	SITEDefault   = "default"
 	SLOTDefault   = "default"
 	PUBDefaultID  = uint32(1)
-	SITEDefaultID = uint32(1)
-	SLOTDefaultID = uint32(1)
+	SITEDefaultID = uint32(2)
+	SLOTDefaultID = uint32(6)
 )
 
 type RPub struct {

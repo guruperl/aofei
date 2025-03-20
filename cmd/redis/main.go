@@ -1,4 +1,4 @@
-// go run summer.go --log_dir="../../logs/"
+// this pushs database to Redis cache every 15 minutes or so
 package main
 
 import (
@@ -45,6 +45,11 @@ func main() {
 	}
 
 	err = match.DBGetAudiencesToRedis(ctx, sc.Redis, sc.DB)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = match.DBGetCreativesToRedis(ctx, sc.Redis, sc.DB)
 	if err != nil {
 		log.Fatal(err)
 	}

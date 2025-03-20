@@ -114,7 +114,7 @@ func HashNameBothCap(pid string) string {
 }
 
 func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcaps map[uint32]BothCap) error {
-	var arr []string
+	arr := []string{HashNameBothCap(pid)}
 	for itemID, bothcap := range bothcaps {
 		data, err := bothcap.Pack()
 		if err != nil {
@@ -122,30 +122,34 @@ func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcap
 		}
 		arr = append(arr, fmt.Sprintf("%d", itemID), string(data))
 	}
-	return conn.Do(ctx, radix.FlatCmd(nil, "HMSET", HashNameBothCap(pid), arr))
+	return conn.Do(ctx, radix.Cmd(nil, "HMSET", arr...))
 }
 
 // BothCapsFromRedis retrieves bothcaps from Redis.
 func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, itemIDs []string) (map[uint32]BothCap, error) {
-	var data map[string]string
-	err := conn.Do(ctx, radix.FlatCmd(&data, "HMGET", HashNameBothCap(pid), itemIDs))
+	data := make([]string, len(itemIDs))
+	arr := append([]string{HashNameBothCap(pid)}, itemIDs...)
+	err := conn.Do(ctx, radix.Cmd(&data, "HMGET", arr...))
 	if err != nil {
 		return nil, err
 	}
 	bothcaps := make(map[uint32]BothCap)
-	for str, sdata := range data {
-		slotID, err := strconv.ParseUint(str, 10, 32)
+	for i, sdata := range data {
+		if len(sdata) == 0 {
+			continue
+		}
+		slotID, err := strconv.Atoi(itemIDs[i])
 		if err != nil {
 			return nil, err
-		}
-		if sdata == "" {
-			continue
 		}
 		bothcap, err := UnpackBothCap([]byte(sdata))
 		if err != nil {
 			return nil, err
 		}
 		bothcaps[uint32(slotID)] = bothcap
+	}
+	if len(bothcaps) == 0 {
+		return nil, nil
 	}
 	return bothcaps, nil
 }

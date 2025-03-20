@@ -1,4 +1,5 @@
-// go run summer.go --log_dir="../../logs/"
+// this runs daily, after the data of adxes and publishers are inserted or updated.
+// the generated RPubMap is put on disk, and the web server has to restart to read it.
 package main
 
 import (

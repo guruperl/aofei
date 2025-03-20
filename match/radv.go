@@ -21,7 +21,7 @@ type Demand struct {
 	CreativeID uint32 `json:"creative_id,omitempty"`
 }
 
-// RAdv is the block of the slot.
+// RAdv is the block of the slot. it is 33 bytes long.
 type RAdv struct {
 	Demand   `json:"demand,omitempty"`
 	Weight   float32 `json:"weight,omitempty"`
@@ -63,7 +63,7 @@ func (self RAdvs) Pack() ([]byte, error) {
 
 // UnpackRAdvs unpacks the weights from binary.
 func UnpackRAdvs(data []byte) (RAdvs, error) {
-	n := len(data) / 32
+	n := len(data) / 33
 	blocks := make([]RAdv, n)
 	buf := bytes.NewReader(data)
 	err := binary.Read(buf, binary.LittleEndian, &blocks)
@@ -89,7 +89,7 @@ func dbGetRAdvs(ctx context.Context, db *sql.DB, what string) (map[uint32]RAdvs,
 	hash := make(map[uint32]RAdvs)
 	rows, err := db.QueryContext(ctx, `
 SELECT slot_id, creative_id, weight, item_id, campaign_id, adv_id, cost_type, cost, cpm_fc, cpm_length, cpm_throttle, cpc_fc, cpc_length
-FROM impleRedis`+what)
+FROM ViewRedis`+what)
 	if err != nil {
 		return nil, err
 	}

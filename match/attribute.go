@@ -60,6 +60,11 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		attr.Demo = demo.NewDemo("", 0, getLangs(bidRequest))
 	}
 
+	attr.Geo, err = getGeo(ctx, ipSearch, device)
+	if err != nil {
+		return nil, err
+	}
+
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
 	attr.PzUa = getUA(device)
 	attr.ACL = getACL(bidRequest, pubStr)
@@ -72,9 +77,8 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 	if nativeFormat != nil {
 		attr.NativeFormat = nativeFormat
 	}
-	attr.Geo, err = getGeo(ctx, ipSearch, device)
 
-	return attr, err
+	return attr, nil
 }
 
 func MD5Hex(s string) string {
@@ -202,7 +206,7 @@ func getLangs(bidRequest *openrtb2.BidRequest) []string {
 }
 
 // getGeo returns the Geo object from the device.
-func getGeo(ctx context.Context, ipSearch *maxmind.IPSearch, device *openrtb2.Device) (*maxmind.Geo, error) {
+func getGeo(_ context.Context, ipSearch *maxmind.IPSearch, device *openrtb2.Device) (*maxmind.Geo, error) {
 	pzg := new(maxmind.Geo)
 	if device.ConnectionType != nil {
 		pzg.ConnectionType = *device.ConnectionType
@@ -220,9 +224,9 @@ func getGeo(ctx context.Context, ipSearch *maxmind.IPSearch, device *openrtb2.De
 			pzg.Location.UTCOffset = geo.UTCOffset
 		}
 		if geo.Country != "" {
-			pzg.CountryID = maxmind.CountryMap[geo.Country]
+			pzg.CountryID = ipSearch.CountryMap[geo.Country]
 			if geo.Region != "" {
-				pzg.StateID = maxmind.StateMap[pzg.CountryID][geo.Region]
+				pzg.StateID = ipSearch.StateMap[pzg.CountryID][geo.Region]
 			}
 		}
 		if geo.Metro != "" {

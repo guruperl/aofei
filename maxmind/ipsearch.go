@@ -2,25 +2,38 @@
 package maxmind
 
 import (
+	"encoding/json"
 	"net"
+	"os"
 
 	"github.com/IncSW/geoip2"
 )
 
 type IPSearch struct {
-	filename string
-	Reader   *geoip2.CityReader
+	CityFile   string                       `json:"city_file"`
+	Reader     *geoip2.CityReader           `json:"-"`
+	CountryMap map[string]uint32            `json:"country_map,omitempty"`
+	StateMap   map[uint32]map[string]uint32 `json:"state_map,omitempty"`
 }
 
 func LoadIPData(fn string) (*IPSearch, error) {
-	reader, err := geoip2.NewCityReaderFromFile(fn)
+	bs, err := os.ReadFile(fn)
 	if err != nil {
 		return nil, err
 	}
-	return &IPSearch{
-		filename: fn,
-		Reader:   reader,
-	}, nil
+	ipSearch := &IPSearch{}
+	err = json.Unmarshal(bs, ipSearch)
+	if err != nil {
+		return nil, err
+	}
+
+	reader, err := geoip2.NewCityReaderFromFile(ipSearch.CityFile)
+	if err != nil {
+		return nil, err
+	}
+	ipSearch.Reader = reader
+
+	return ipSearch, nil
 }
 
 func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
@@ -48,7 +61,7 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 	}
 	if r.Subdivisions != nil {
 		pzg.State = r.Subdivisions[0].ISOCode
-		g.StateID = StateMap[g.CountryID][r.Subdivisions[0].ISOCode]
+		g.StateID = self.StateMap[g.CountryID][r.Subdivisions[0].ISOCode]
 	}
 	if r.City.Names != nil {
 		city, ok := r.City.Names["zh-CN"]

@@ -1,4 +1,5 @@
 // go run summer.go --log_dir="../../logs/"
+// this is the web server for the summer and aofei projects
 package main
 
 import (
@@ -60,7 +61,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.Handle("/bid", sc)
+	http.Handle("POST /bid/{domain}", sc)
 	http.Handle("/win", sc)
 	http.Handle("/loss", sc)
 	http.Handle("/clk", sc)

@@ -34,14 +34,14 @@ type WinLoss struct {
 	Status       `json:"status,omitempty"`
 	match.RPub   `json:"rpub,omitempty"`
 	match.RAdv   `json:"radv,omitempty"`
-	BothCap      match.BothCap `json:"-,omitempty"`
-	AuctionID    string        `json:"auction_id,omitempty"`
-	AuctionBidID string        `json:"auction_bid_id,omitempty"`
-	AuctionImpID string        `json:"auction_imp_id,omitempty"`
+	BothCap      *match.BothCap `json:"-,omitempty"`
+	AuctionID    string         `json:"auction_id,omitempty"`
+	AuctionBidID string         `json:"auction_bid_id,omitempty"`
+	AuctionImpID string         `json:"auction_imp_id,omitempty"`
 }
 
 // NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.
-func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv, bothcap match.BothCap, auctionID, auctionBidID, auctionImpID string) *WinLoss {
+func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv, bothcap *match.BothCap, auctionID, auctionBidID, auctionImpID string) *WinLoss {
 	return &WinLoss{
 		Current:      current,
 		Status:       how,
@@ -143,8 +143,10 @@ func (self *WinLoss) GetURLString(tracking ...bool) string {
 		args.Set("auction_currency", "USD")
 		cap, _ := self.RAdv.Cap.PackString()
 		args.Set("cap", cap)
-		bothcap, _ := self.BothCap.PackString()
-		args.Set("bothcap", bothcap)
+		if self.BothCap != nil {
+			bothcap, _ := self.BothCap.PackString()
+			args.Set("bothcap", bothcap)
+		}
 	} else {
 		args.Set("auction_id", `${AUCTION_ID}`)
 		args.Set("auction_bid_id", `${AUCTION_BID_ID}`)

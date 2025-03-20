@@ -29,13 +29,16 @@ type Controller struct {
 	RPubMap *match.RPubMap
 }
 
-func NewController(ctx context.Context, filename string) (*Controller, error) {
+func NewController(ctx context.Context, filename string, ignoreIps ...bool) (*Controller, error) {
 	c, err := NewConfig(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	ips, err := maxmind.LoadIPData(c.Ips)
+	var ips *maxmind.IPSearch
+	if len(ignoreIps) == 0 || !ignoreIps[0] {
+		ips, err = maxmind.LoadIPData(c.Ips)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -101,15 +104,20 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
+		glog.Info("0.1: GET")
 		switch r.URL.Path {
 		case "/clk":
+			glog.Info("0.2: /clk")
 			err = self.serveStatus(ctx, StatusTrackClk, current, r.URL.Query())
 		case "/imp":
+			glog.Info("0.3: /imp")
 			err = self.serveStatus(ctx, StatusTrackImp, current, r.URL.Query())
 		case "/win":
+			glog.Info("0.4: /win")
 			ok = true
 			err = self.serveStatus(ctx, StatusWin, current, r.URL.Query())
 		case "/loss":
+			glog.Info("0.5: /loss")
 			ok = true
 			err = self.serveStatus(ctx, StatusLoss, current, r.URL.Query())
 		default:
@@ -117,13 +125,14 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "POST":
-		pubStr, ok = strings.CutPrefix(r.URL.Path, "/bid")
-		if !ok || (len(pubStr) >= 1 && pubStr[0:1] != "/") {
+		glog.Info("0.6: POST")
+		str, found := strings.CutPrefix(r.URL.Path, "/bid")
+		if !found || (len(str) >= 1 && str[0:1] != "/") {
 			glog.Errorf("%s: %d", "Not found", http.StatusNotFound)
 			return
 		}
-		if len(pubStr) >= 1 {
-			pubStr = pubStr[1:]
+		if len(str) >= 1 {
+			pubStr = str[1:]
 		}
 		bidStr, err = io.ReadAll(r.Body)
 		if err == nil {
@@ -147,6 +156,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	glog.Info("1: bid")
 	attr, err := match.NewAttribute(ctx, self.Ips, bid, self.RPubMap, current, pubStr)
 	if err != nil {
 		w.WriteHeader(204)
@@ -154,6 +164,9 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	width, height := match.SizeID1To2(attr.SizeID)
+
+	glog.Infof("2: width %d, height %d", width, height)
+	glog.Infof("3: rpub %#v", attr.RPub)
 
 	what := "Web"
 	if attr.IsApp {
@@ -165,18 +178,30 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if len(monitors) == 0 {
+		w.WriteHeader(204)
+		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
+		return
+	}
 
 	userID := attr.UserID
 	if userID == "" {
 		userID = attr.IFA
 	}
+	glog.Infof("4: userID %s => %d", userID, len(monitors))
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
 		w.WriteHeader(204)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if len(candidates) == 0 {
+		w.WriteHeader(204)
+		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
+		return
+	}
 
+	glog.Info("5: candidates")
 	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
 	if err != nil {
 		w.WriteHeader(204)
@@ -189,6 +214,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	glog.Infof("6: radvs audieces %d, %d", len(radvs), len(audiences))
 	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
 	if index < 0 {
 		w.WriteHeader(204)
@@ -196,18 +222,27 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	glog.Infof("7: index %d", index)
 	one := radvs[index]
-	bothcap := bothcaps[one.ItemID]
+	var bothcap *match.BothCap
+	if bothcaps != nil {
+		if b, ok := bothcaps[one.ItemID]; ok {
+			bothcap = &b
+		}
+	}
+
 	bidID := match.NewBid(current, userID).BidID()
 	winloss := NewWinLoss(current, StatusBid, attr.RPub, one, bothcap, bid.ID, bidID, bid.Imp[0].ID)
 
-	rspnsBid, err := self.bidSeatBid(ctx, bid, one, audiences[one.ItemID], winloss, attr, width, height)
+	glog.Info("8: winloss")
+	rspnsBid, err := self.bidSeatBid(ctx, bid, one, audiences[index], winloss, attr, width, height)
 	if err != nil {
 		w.WriteHeader(204)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	glog.Info("9: rspnsBid")
 	response := &openrtb2.BidResponse{
 		ID:    bid.ID,
 		BidID: bidID,
@@ -229,6 +264,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(rspnStr)
 
+	glog.Info("10: response")
 	if err = self.Nc.Publish(SUBJECTRequest, bidStr); err == nil {
 		if err = self.Nc.Publish(SUBJECTResponse, rspnStr); err == nil {
 			if bidStr, err = json.Marshal(AttributePlus{

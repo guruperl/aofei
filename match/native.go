@@ -86,6 +86,9 @@ func (self *Native) AdM(trackers ...string) (string, error) {
 	if len(trackers) > 0 {
 		self.ImpTrackers = []string{trackers[0]}
 		if len(trackers) > 1 {
+			if self.Link == nil {
+				self.Link = &LinkAsset{}
+			}
 			self.Link.Clicktrackers = trackers[1:]
 		}
 	}
