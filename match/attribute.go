@@ -38,7 +38,11 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		return nil, nil
 	}
 
-	attr := &Attribute{When: when, IsVideo: bidRequest.Imp[0].Video != nil}
+	attr := &Attribute{
+		When:    when,
+		IsVideo: bidRequest.Imp[0].Video != nil,
+		IsApp:   bidRequest.App != nil,
+	}
 
 	var err error
 	attr.IFA, err = getIFA(device)
@@ -68,7 +72,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
 	attr.PzUa = getUA(device)
 	attr.ACL = getACL(bidRequest, pubStr)
-	attr.RPub = rpubMap.GetRPub(attr.ACL, bidRequest.App != nil)
+	attr.RPub = rpubMap.GetRPub(attr.ACL, attr.IsApp)
 	sizeID, nativeFormat, err := getSizeIDNative(bidRequest)
 	if err != nil {
 		return nil, err
