@@ -67,7 +67,7 @@ func NewController(ctx context.Context, filename string, ignoreIps ...bool) (*Co
 	}
 
 	rpubMap := new(match.RPubMap)
-	if c.RPubMap == "" {
+	if c.RPubMap != "" {
 		bs, err := os.ReadFile(c.RPubMap)
 		if err != nil {
 			return nil, err
