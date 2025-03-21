@@ -33,12 +33,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer sc.Close()
+	nc := sc.Nc
+	defer nc.Close()
 
 	filewriters, err := dsp.NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	filewriters.ReceiveLogs(sc.Nc)
+	log.Printf("Listening on [%s]", nc.ConnectedUrl())
+	err = filewriters.ReceiveLogs(nc)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

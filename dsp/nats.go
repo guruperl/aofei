@@ -4,7 +4,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
 
 	"github.com/genelet/winter/match"
 	"github.com/nats-io/nats.go"
@@ -55,44 +54,45 @@ func NewFileWriters(request, response, attribute, winloss string) (*FileWriters,
 	return fw, nil
 }
 
-func (self *FileWriters) ReceiveLogs(nc *nats.Conn) {
-	wg := sync.WaitGroup{}
+func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
+	successchan := make(chan bool)
+	errchan := make(chan error)
 
-	wg.Add(1)
-	if _, err := nc.Subscribe(SUBJECTAttribute, func(m *nats.Msg) {
-		defer wg.Done()
-		self.FHAttribute.Write(m.Data)
-		self.FHAttribute.Write([]byte("\n"))
-	}); err != nil {
-		log.Fatal(err)
+	_, err := nc.Subscribe("*", func(m *nats.Msg) {
+		var err error
+		switch m.Subject {
+		case SUBJECTRequest:
+			if _, err = self.FHRequest.Write(m.Data); err == nil {
+				_, err = self.FHRequest.Write([]byte("\n"))
+			}
+		case SUBJECTResponse:
+			if _, err = self.FHResponse.Write(m.Data); err == nil {
+				_, err = self.FHResponse.Write([]byte("\n"))
+			}
+		case SUBJECTAttribute:
+			if _, err = self.FHAttribute.Write(m.Data); err == nil {
+				_, err = self.FHAttribute.Write([]byte("\n"))
+			}
+		case SUBJECTWinLoss:
+			if _, err = self.FHWinLoss.Write(m.Data); err == nil {
+				_, err = self.FHWinLoss.Write([]byte("\n"))
+			}
+		default:
+		}
+		if err != nil {
+			errchan <- err
+		}
+		successchan <- true
+	})
+	if err != nil {
+		return err
 	}
 
-	wg.Add(1)
-	if _, err := nc.Subscribe(SUBJECTWinLoss, func(m *nats.Msg) {
-		defer wg.Done()
-		self.FHWinLoss.Write(m.Data)
-		self.FHWinLoss.Write([]byte("\n"))
-	}); err != nil {
-		log.Fatal(err)
+	for {
+		select {
+		case <-successchan:
+		case errs := <-errchan:
+			log.Println(errs)
+		}
 	}
-
-	wg.Add(1)
-	if _, err := nc.Subscribe(SUBJECTRequest, func(m *nats.Msg) {
-		defer wg.Done()
-		self.FHRequest.Write(m.Data)
-		self.FHRequest.Write([]byte("\n"))
-	}); err != nil {
-		log.Fatal(err)
-	}
-
-	wg.Add(1)
-	if _, err := nc.Subscribe(SUBJECTResponse, func(m *nats.Msg) {
-		defer wg.Done()
-		self.FHResponse.Write(m.Data)
-		self.FHResponse.Write([]byte("\n"))
-	}); err != nil {
-		log.Fatal(err)
-	}
-
-	wg.Wait()
 }
