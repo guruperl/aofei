@@ -3,6 +3,8 @@ package genelet
 import (
 	"database/sql"
 	"net/url"
+
+	"go.uber.org/zap"
 )
 
 type Filter struct {
@@ -12,11 +14,14 @@ type Filter struct {
 	Actions   map[string]map[string][]string
 	Fks       map[string][]string
 	OTHER     *map[string]interface{}
+
+	Logger *zap.Logger
 }
 
-func (self *Filter) Initialize(comp *Component) {
+func (self *Filter) Initialize(comp *Component, logger *zap.Logger) {
 	self.Actions = comp.Actions
 	self.Fks = comp.Fks
+	self.Logger = logger
 }
 
 func (self *Filter) SetAll(base Base, action string, component string, other *map[string]interface{}) {

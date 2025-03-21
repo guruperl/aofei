@@ -11,9 +11,9 @@ import (
 	"os"
 
 	"github.com/genelet/winter/dsp"
-	_ "github.com/go-sql-driver/mysql"
-
 	"github.com/genelet/winter/genelet"
+	_ "github.com/go-sql-driver/mysql"
+	"go.uber.org/zap"
 
 	"github.com/genelet/winter/summer/ac"
 	"github.com/genelet/winter/summer/address"
@@ -41,7 +41,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: summer --g=web_config --s=ssp_config -stderrthreshold=[INFO|WARN|FATAL] -log_dir=[string]\n")
+	fmt.Fprintf(os.Stderr, "usage: summer --g=web_config --s=ssp_config\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -57,17 +57,26 @@ func init() {
 
 func main() {
 	ctx := context.Background()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logger.Sync()
+
 	sc, err := dsp.NewController(ctx, sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
+	sc.Logger = logger
+	defer sc.Close()
+
 	http.Handle("POST /bid/{domain}", sc)
 	http.Handle("/win", sc)
 	http.Handle("/loss", sc)
 	http.Handle("/clk", sc)
 	http.Handle("/imp", sc)
 
-	gc, err := getGenelet(gConf)
+	gc, err := getGenelet(gConf, logger)
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +99,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+gc.C.ServerPort, nil))
 }
 
-func getGenelet(fn string) (*genelet.Controller, error) {
+func getGenelet(fn string, logger *zap.Logger) (*genelet.Controller, error) {
 	models := map[string]interface{}{
 		"agent": new(agent.Model), "manage": new(manage.Model), "payment": new(payment.Model), "alipay": new(alipay.Model), "wechat": new(wechat.Model), "cheque": new(cheque.Model), "cc": new(cc.Model), "ac": new(ac.Model), "address": new(address.Model), "adv": new(adv.Model), "attrname": new(attrname.Model), "campaign": new(campaign.Model), "chac": new(chac.Model), "channel": new(channel.Model), "balance": new(balance.Model), "ledger": new(ledger.Model), "creative": new(creative.Model), "item": new(item.Model), "pub": new(pub.Model), "site": new(site.Model), "slot": new(slot.Model), "targetname": new(targetname.Model), "weight": new(weight.Model),
 	}
@@ -109,10 +118,16 @@ func getGenelet(fn string) (*genelet.Controller, error) {
 	}
 	for k := range models {
 		comp := genelet.NewComponent(c.ProjectRoot + "/summer/" + k + "/component.json")
-		genelet.Invoke0(models[k], "Initialize", comp)
-		genelet.Invoke0(storage[k], "Initialize", comp)
-		genelet.Invoke0(filters[k], "Initialize", comp)
+		genelet.Invoke0(models[k], "Initialize", comp, logger)
+		genelet.Invoke0(storage[k], "Initialize", comp, logger)
+		genelet.Invoke0(filters[k], "Initialize", comp, logger)
 	}
 
-	return &genelet.Controller{C: c, Models: models, Filters: filters, Storage: storage}, nil
+	return &genelet.Controller{
+		C:       c,
+		Models:  models,
+		Filters: filters,
+		Storage: storage,
+		Logger:  logger,
+	}, nil
 }

@@ -16,7 +16,7 @@ import (
 
 	int_cipher "github.com/delongw/go-int-cipher"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/golang/glog"
+	"go.uber.org/zap"
 )
 
 type Controller struct {
@@ -25,6 +25,7 @@ type Controller struct {
 	Models  map[string]interface{}
 	Filters map[string]interface{}
 	Storage map[string]interface{}
+	Logger  *zap.Logger
 }
 
 func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
@@ -41,9 +42,10 @@ func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
 func (self *Controller) loginPage(base *Base) {
 	c := self.C
 	uri := base.R.Form.Get(c.GoURIName)
+	glog := self.Logger.Sugar()
 
 	provider := base.R.Form.Get(c.ProviderName)
-	glog.Infof("(%d) %s %s\n", os.Getpid(), "provider? ", provider)
+	glog.Infof("provider %s", provider)
 	if provider == "" {
 		provider = base.GetProvider()
 		if provider == "" {
@@ -57,16 +59,16 @@ func (self *Controller) loginPage(base *Base) {
 	var err error
 	if Grep(c.Oauth2s, provider) {
 		ticket := NewOauth2(*base, db, uri, provider)
-		glog.Infof("(%d) %s %s\n", os.Getpid(), "oauth2 uses: ", provider)
+		glog.Infof("%s %s", "oauth2 uses: ", provider)
 		err = ticket.Handler_login()
 		uri = ticket.Uri // use the same vriable for the targeting uri
 	} else if Grep(c.Oauth1s, provider) {
 		ticket := NewOauth1(*base, db, uri, provider)
-		glog.Infof("(%d) %s %s\n", os.Getpid(), "oauth1 uses: ", provider)
+		glog.Infof("%s %s", "oauth1 uses: ", provider)
 		err = ticket.Handler_login()
 		uri = ticket.Uri // use the same vriable for the targeting uri
 	} else {
-		glog.Infof("(%d) %s %s\n", os.Getpid(), "login uses: ", provider)
+		glog.Infof("%s %s", "login uses: ", provider)
 		ticket := NewProcedure(*base, db, uri, provider)
 		err = ticket.Handler()
 		uri = ticket.Uri // use the same vriable for the targeting uri
@@ -79,7 +81,7 @@ func (self *Controller) loginPage(base *Base) {
 		return
 	}
 
-	glog.Infof("(%d) %s %#v\n", os.Getpid(), "ticket returns error: ", err)
+	glog.Infof("%s %#v", "ticket error: ", err)
 	gerr := err.(Gerror)
 	if gerr.Code < 1000 {
 		base.SendStatusPage(gerr.Code, gerr.Errstr)
@@ -106,14 +108,15 @@ func (self *Controller) loginPage(base *Base) {
 	}
 }
 
-func checkForm(r *http.Request, dir string) error {
+func (self *Controller) checkForm(r *http.Request, dir string) error {
+	glog := self.Logger.Sugar()
 	reader, err := r.MultipartReader()
 	if reader != nil && err != nil {
 		return err
 	}
 
 	if reader == nil {
-		glog.Infof("(%d) %s\n", os.Getpid(), "No multipart")
+		glog.Infof("No multipart")
 
 		err = r.ParseForm()
 		if err != nil {
@@ -158,7 +161,7 @@ func checkForm(r *http.Request, dir string) error {
 			}
 		}
 	} else {
-		glog.Infof("(%d) %s\n", os.Getpid(), "multipart/uploading found...")
+		glog.Infof("multipart/uploading found")
 		r.Form = make(url.Values)
 		form := r.Form
 		for {
@@ -193,6 +196,7 @@ func checkForm(r *http.Request, dir string) error {
 }
 
 func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	glog := self.Logger.Sugar()
 	c := self.C
 	length := len(c.Script)
 
@@ -213,12 +217,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !strings.HasPrefix(r.URL.Path, c.Script+"/") {
-		glog.Infof("(%d) %s %s, [static]\n\n", os.Getpid(), r.Method, r.URL.Path)
+		glog.Infof("%s %s, [static]", r.Method, r.URL.Path)
 		self.staticPage(w, r)
 		return
 	}
 
-	glog.Infof("(%d) %s %s, %v\n", os.Getpid(), r.Method, r.URL.Path, r.URL.Query())
+	glog.Infof("%s %s, %v", r.Method, r.URL.Path, r.URL.Query())
 	var methodFound bool
 	for k := range c.DefaultActions {
 		if k == r.Method {
@@ -235,14 +239,14 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(pathInfo) == 4 {
 		r.Header.Add("X-Forwarded-ID", pathInfo[3])
 	} else if len(pathInfo) != 3 {
-		glog.Infof("(%d) %s\n", os.Getpid(), "not genelet url")
+		glog.Infof("not genelet url")
 		http.Error(w, "Bad Request", 400)
 		return
 	}
 
 	chartag, ok := c.Chartags[pathInfo[1]]
 	if !ok {
-		glog.Infof("(%d) %s\n", os.Getpid(), "check chartag")
+		glog.Infof("check chartag")
 		http.Error(w, "Bad Request", 400)
 		return
 	}
@@ -251,35 +255,33 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	gate := NewGate(*base)
 	obj := pathInfo[2]
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "parse form")
-	err := checkForm(r, c.UploadDir)
+	glog.Infof("parse form")
+	err := self.checkForm(r, c.UploadDir)
 	if err != nil {
 		http.Error(w, "Bad Request: "+err.Error(), 400)
 		return
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "if role "+base.RoleValue+", is defined or public")
 	_, ok = c.Roles[base.RoleValue]
 	if !ok && (gate.RoleValue != c.Pubrole) {
 		http.NotFound(w, r)
 		return
 	}
 
-	glog.Infof("(%d) %s %s\n", os.Getpid(), "object is", obj)
 	if obj == c.LoginName || Grep(c.Oauth2s, obj) || Grep(c.Oauth1s, obj) {
-		glog.Infof("(%d) %s %s\n", os.Getpid(), "start login for", obj)
+		glog.Infof("loging for %s", obj)
 		if obj != c.LoginName {
 			r.Form.Set(c.ProviderName, obj)
 		}
 		self.loginPage(base)
-		glog.Infof("(%d) %s\n\n", os.Getpid(), "end login ...")
+		glog.Infof("end login")
 		return
 	} else if obj == c.LogoutName {
-		glog.Infof("(%d) %s\n", os.Getpid(), "start logout")
+		glog.Infof("start logout")
 		err = gate.HandleLogout()
 		if err != nil {
 			gate.SendStatusPage(err.(Gerror).Code, err.(Gerror).Errstr)
-			glog.Infof("(%d) %s\n\n", os.Getpid(), "end logout ...")
+			glog.Infof("end logout")
 		}
 		return
 	}
@@ -287,13 +289,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if gate.RoleValue != c.Pubrole {
 		err = gate.Forbid()
 		if err != nil {
-			glog.Infof("(%d) forbidden ... %d : %s\n\n", os.Getpid(), err.(Gerror).Code, err.(Gerror).Errstr)
+			glog.Infof("forbidden %v", err)
 			gate.SendStatusPage(err.(Gerror).Code, err.(Gerror).Errstr)
 			return
 		}
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "starting genelet handler ...")
 	err = self.Handle(obj, *base, r.Method)
 	if err != nil {
 		switch g := err.(type) {
@@ -309,7 +310,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			err = Gerror{1000, err.Error()}
 		}
-		glog.Infof("(%d) error found: %#v\n", os.Getpid(), err)
+		glog.Infof("error: %v", err)
 
 		tmplfile := c.Template + "/" + base.RoleValue + "/error." + base.ChartagValue
 		T0, er := template.ParseFiles(tmplfile)
@@ -327,7 +328,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			base.SendPage(buffer.String())
 		}
 	}
-	glog.Infof("(%d) %s\n\n", os.Getpid(), "genelet handler ended.")
+	glog.Infof("handler ended.")
 }
 
 func addJSON(c int8, msg string) string {
@@ -338,6 +339,7 @@ func addJSON(c int8, msg string) string {
 }
 
 func (self *Controller) Handle(obj string, base Base, method string) error {
+	glog := self.Logger.Sugar()
 	model, ok := self.Models[obj]
 	if !ok {
 		return Err(404)
@@ -358,7 +360,6 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
-	glog.Infof("(%d) %s\n", os.Getpid(), "set defaults")
 	Invoke0(model, "SetDefaults", ARGS, &lists, &other, self.Storage)
 
 	action := ARGS.Get(c.ActionName)
@@ -371,7 +372,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	if r.Header.Get("X-Forwarded-ID") != "" {
 		ARGS.Set("_gid_url", r.Header.Get("X-Forwarded-ID"))
 	}
-	glog.Infof("(%d) %s\n", os.Getpid(), "get action: "+action)
+	glog.Infof("action: %s", action)
 	Invoke0(filter, "SetAll", base, action, obj, &other)
 	ret := Invoke(filter, "GetAll")
 	if ret[0].Interface() == nil {
@@ -392,7 +393,6 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	role, ok := c.Roles[base.RoleValue]
 	var isAdmin bool
 	if ok {
-		glog.Infof("(%d) %s\n", os.Getpid(), "parsing role's ARGS")
 		ARGS.Set("_gid_name", role.Id_name)
 		ARGS.Set("_gtype_id", strconv.Itoa(role.Type_id))
 		if role.Is_admin {
@@ -425,27 +425,27 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		}
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "role access control")
+	glog.Infof("access control")
 	if !isAdmin && !Grep(actionHash["groups"], who) {
 		return Err(401)
 	}
 
 	extra := make(url.Values)
 	if !isAdmin && ok {
-		glog.Infof("(%d) %s\n", os.Getpid(), "check fk")
+		glog.Infof("check fk")
 		err := self.assignFK(who, fk, ARGS, extra)
 		if err != nil {
 			return err
 		}
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "preset")
+	glog.Infof("preset")
 	err := Invoke(filter, "Preset")[0].Interface()
 	if err != nil {
 		return err.(error)
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "validation")
+	glog.Infof("validation")
 	validate, ok := actionHash["validate"]
 	if ok {
 		for _, field := range validate {
@@ -461,7 +461,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	}
 
 	nextextra := make(url.Values)
-	glog.Infof("(%d) %s\n", os.Getpid(), "before")
+	glog.Infof("before")
 	err = Invoke(filter, "Before", model, extra, nextextra)[0].Interface()
 	if err != nil {
 		return err.(error)
@@ -469,26 +469,26 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 
 	if !ok && !Grep(options, "no_method") {
 		x := strings.ToUpper(action[:1]) + action[1:]
-		glog.Infof("(%d) %s\n", os.Getpid(), "call model")
+		glog.Infof("call model")
 		err := Invoke(model, x, extra, nextextra)[0].Interface()
 		if err != nil {
 			return err.(error)
 		}
-		glog.Infof("(%d) %s\n", os.Getpid(), "call model OK")
+		glog.Infof("call model OK")
 	}
 
 	if !isAdmin && len(lists) > 0 {
-		glog.Infof("(%d) %s\n", os.Getpid(), "fk tobe")
+		glog.Infof("fk tobe")
 		self.assignFKTobe(who, fk, ARGS, lists)
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "after")
+	glog.Infof("after")
 	err = Invoke(filter, "After", model)[0].Interface()
 	if err != nil {
 		return err.(error)
 	}
 
-	glog.Infof("(%d) %s\n", os.Getpid(), "call blocks")
+	glog.Infof("call blocks")
 	err = c.Sendmail(lists, ARGS, other)
 	if err != nil {
 		return err.(error)
@@ -497,7 +497,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	tmpl := &Tmpl{ARGS: ARGS, Lists: lists, Other: other, Success: true}
 	chartag := c.Chartags[tag]
 	if chartag.Case > 0 {
-		glog.Infof("(%d) %s\n", os.Getpid(), "generate json")
+		glog.Infof("generate json")
 		if ARGS.Get(role.Id_name) != "" && role.Id_cipher {
 			ARGS.Set(role.Id_name, ARGS.Get("_gid_cipher"))
 		}
@@ -514,7 +514,7 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		return nil
 	}
 
-	glog.Infof("(%d) call template\n", os.Getpid())
+	glog.Infof("call template")
 	other["Component"] = obj
 	other["Tag"] = tag
 	other["Role"] = who
@@ -527,10 +527,10 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	var er error
 	if T0, er = T0.ParseFiles(tmplfile); er == nil {
 		if T0, er = T0.ParseGlob(globfiles); er == nil {
-			glog.Infof("(%d) %s\n", os.Getpid(), "generate page")
+			glog.Infof("generate page")
 			var output string
 			if output, er = tmpl.Get_page(T0); er == nil {
-				glog.Infof("(%d) %s\n", os.Getpid(), "sending page")
+				glog.Infof("sending page")
 				base.SendPage(output)
 			}
 		}

@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 	"github.com/prebid/openrtb/v20/openrtb2"
+	"go.uber.org/zap"
 
 	"github.com/genelet/winter/match"
 	"github.com/genelet/winter/maxmind"
@@ -27,6 +27,7 @@ type Controller struct {
 	DB      *sql.DB
 	Nc      *nats.Conn
 	RPubMap *match.RPubMap
+	Logger  *zap.Logger
 }
 
 func NewController(ctx context.Context, filename string, ignoreIps ...bool) (*Controller, error) {
@@ -80,7 +81,14 @@ func NewController(ctx context.Context, filename string, ignoreIps ...bool) (*Co
 		}
 	}
 
-	return &Controller{C: c, Ips: ips, Redis: redis, DB: db, Nc: nc, RPubMap: rpubMap}, err
+	return &Controller{
+		C:       c,
+		Ips:     ips,
+		Redis:   redis,
+		DB:      db,
+		Nc:      nc,
+		RPubMap: rpubMap,
+	}, err
 }
 
 // Close closes the Controller.
@@ -91,6 +99,7 @@ func (self *Controller) Close() {
 }
 
 func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	glog := self.Logger.Sugar()
 	glog.Info("0: initial")
 
 	var bidStr []byte

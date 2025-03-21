@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 type Model struct {
@@ -42,9 +44,13 @@ type Model struct {
 	TopicsHashpars map[string]string `json:"topics_hashpars"`
 
 	TotalForce int `json:"total_force"`
+
+	Logger *zap.Logger
 }
 
-func (self *Model) Initialize(comp *Component) {
+func (self *Model) Initialize(comp *Component, logger *zap.Logger) {
+	self.Logger = logger
+
 	self.SORTBY = comp.Sortby
 	self.SORTREVERSE = comp.Sortreverse
 	self.PAGENO = comp.Pageno
