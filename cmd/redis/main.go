@@ -15,7 +15,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: redis --s=dsp_config -stderrthreshold=[INFO|WARN|FATAL] -log_dir=[string]\n")
+	fmt.Fprintf(os.Stderr, "usage: redis --s=dsp_config\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }

@@ -15,7 +15,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: adx --s=dsp_config --city=city.mmdb -stderrthreshold=[INFO|WARN|FATAL] -log_dir=[string]\n")
+	fmt.Fprintf(os.Stderr, "usage: maxmind --s=dsp_config --city=city.mmdb\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }

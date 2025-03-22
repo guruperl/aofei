@@ -17,7 +17,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: adx --s=dsp_config -stderrthreshold=[INFO|WARN|FATAL] -log_dir=[string]\n")
+	fmt.Fprintf(os.Stderr, "usage: rpub --s=dsp_config\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
