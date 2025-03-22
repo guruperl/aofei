@@ -1,5 +1,5 @@
-// this runs daily, after the data of adxes and publishers are inserted or updated.
-// the generated RPubMap is put on disk, and the web server has to restart to read it.
+// this simulates traffic to the dsp, as if it were an adx. It then sends a win or loss, 50% of each.
+// If it wins, it sends an impression tracker as well, plus the 50% chance of a click tracker.
 package main
 
 import (
