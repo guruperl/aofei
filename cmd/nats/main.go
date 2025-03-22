@@ -14,16 +14,18 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: nats --s=dsp_config -stderrthreshold=[INFO|WARN|FATAL] -log_dir=[string]\n")
+	fmt.Fprintf(os.Stderr, "usage: nats-client -s=dsp_config -interval=divider\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
 
 var sConf string
+var interval int
 
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
+	flag.IntVar(&interval, "interval", 10, "Log divider in minutes")
 	flag.Parse()
 }
 
@@ -36,7 +38,7 @@ func main() {
 	nc := sc.Nc
 	defer nc.Close()
 
-	filewriters, err := dsp.NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss)
+	filewriters, err := dsp.NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss, interval)
 	if err != nil {
 		log.Fatal(err)
 	}
