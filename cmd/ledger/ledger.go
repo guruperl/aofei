@@ -4,6 +4,13 @@ import (
 	"database/sql"
 )
 
+// InsertLedger inserts ledger data into database.
+// myDay is the date of the ledger datetime
+// slots is a map of slot_id to site_id and pub_id
+// items is a map of item_id to campaign_id and adv_id
+// imps is a map of slot_id to item_id to impressions
+// clis is a map of slot_id to item_id to clicks
+// spes is a map of slot_id to item_id to spend
 func InsertLedger(db *sql.DB, myDay string, slots, items map[int][]int, imps, clis map[int]map[int]int, spes map[int]map[int]float32) error {
 	ins_log := `INSERT INTO ledger_log (timely, created) VALUES (?, NOW())`
 	ins_pub := `INSERT INTO ledger_pub (log_id, slot_id, site_id, pub_id) VALUES (?,?,?,?)`
@@ -95,6 +102,8 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	return nil
 }
 
+// InsertDaily inserts daily data into database.
+// myDay is the date. The ledger data of that day will be aggregated into daily data.
 func InsertDaily(db *sql.DB, myDay string) error {
 	ins_log := `
 INSERT  INTO daily_log (daily, imps, clis, spend, created)

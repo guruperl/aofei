@@ -1,17 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"flag"
-	"time"
-	"math/rand"
 	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
-	"genelet"
-	"summer"
-)
+	"flag"
+	"fmt"
+	"math/rand"
+	"os"
+	"time"
 
+	"github.com/genelet/winter/genelet"
+	_ "github.com/go-sql-driver/mysql"
+)
 
 func usage() {
 	fmt.Println(`Usage: PROGRAM [-c config] [-s slotEnd] [-i itemEnd] day`)
@@ -28,7 +27,7 @@ func main() {
 		usage()
 		os.Exit(0)
 	}
-    day := args[0]
+	day := args[0]
 	fmt.Printf("config is %s\n", *config)
 
 	slotID_start := 1
@@ -39,21 +38,25 @@ func main() {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-    c := genelet.NewConfig(*config)
+	c := genelet.NewConfig(*config)
 	c.Db = []string{"mysql", "eightran_goto:12pass34@/gotest"}
-    dbh, err := sql.Open(c.Db[0], c.Db[1])
-    if err != nil { panic(err) }
-    defer dbh.Close()
+	dbh, err := sql.Open(c.Db[0], c.Db[1])
+	if err != nil {
+		panic(err)
+	}
+	defer dbh.Close()
 
 	sth_slot, err := dbh.Prepare(
-`SELECT s.site_id, t.pub_id 
+		`SELECT s.site_id, t.pub_id 
 FROM pub_slot s
 INNER JOIN pub_site t USING (site_id)
 WHERE s.slot_id=?`)
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	defer sth_slot.Close()
 	slots := make(map[int][]int)
-	for slotID:=slotID_start; slotID<=*slotID_end; slotID++ {
+	for slotID := slotID_start; slotID <= *slotID_end; slotID++ {
 		var siteID, pubID int
 		if err := sth_slot.QueryRow(slotID).Scan(&siteID, &pubID); err != nil {
 			panic(err)
@@ -61,16 +64,17 @@ WHERE s.slot_id=?`)
 		slots[slotID] = []int{siteID, pubID}
 	}
 
-
 	sth_item, err := dbh.Prepare(
-`SELECT i.campaign_id, c.adv_id 
+		`SELECT i.campaign_id, c.adv_id 
 FROM adv_item i
 INNER JOIN adv_campaign c USING (campaign_id)
 WHERE i.item_id=?`)
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	defer sth_item.Close()
 	items := make(map[int][]int)
-	for itemID:=itemID_start; itemID<=*itemID_end; itemID++ {
+	for itemID := itemID_start; itemID <= *itemID_end; itemID++ {
 		var campaignID, advID int
 		if err := sth_item.QueryRow(itemID).Scan(&campaignID, &advID); err != nil {
 			panic(err)
@@ -78,8 +82,8 @@ WHERE i.item_id=?`)
 		items[itemID] = []int{campaignID, advID}
 	}
 
-	for hour:=0; hour<24; hour++ {
-		for minute:=0; minute<60; minute+=5 {
+	for hour := 0; hour < 24; hour++ {
+		for minute := 0; minute < 60; minute += 5 {
 			imps := make(map[int]map[int]int)
 			clis := make(map[int]map[int]int)
 			spes := make(map[int]map[int]float32)
@@ -100,12 +104,16 @@ WHERE i.item_id=?`)
 			}
 
 			myDay := fmt.Sprintf("%s %d:%d:0", day, hour, minute)
-			err:=summer.InsertLedger(dbh, myDay, slots, items, imps, clis, spes)
-			if err != nil { panic(err) }
+			err := summer.InsertLedger(dbh, myDay, slots, items, imps, clis, spes)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 
-	if err := summer.InsertDaily(dbh, day); err != nil { panic(err) }
+	if err := summer.InsertDaily(dbh, day); err != nil {
+		panic(err)
+	}
 
 	os.Exit(0)
 }
