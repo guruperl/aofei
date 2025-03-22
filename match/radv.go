@@ -23,11 +23,11 @@ type Demand struct {
 
 // RAdv is the block of the slot. it is 33 bytes long.
 type RAdv struct {
-	Demand   `json:"demand,omitempty"`
+	Demand
 	Weight   float32 `json:"weight,omitempty"`
 	CostType uint8   `json:"cost_type,omitempty"`
 	Cost     float32 `json:"cost,omitempty"`
-	Cap      `json:"-,omitempty"`
+	Cap
 }
 
 // PackString serializes the audience into a RawURL string

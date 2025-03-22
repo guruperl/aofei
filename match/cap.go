@@ -9,11 +9,11 @@ import (
 
 // Cap is a struct that contains the cap information. It is of 8 bytes
 type Cap struct {
-	CapNumber   uint8  `json:"cap_number"`
-	CapPeriod   uint16 `json:"cap_period"`
-	CapThrottle uint16 `json:"cap_throttle"`
-	ClickNumber uint8  `json:"click_number"`
-	ClickPeriod uint16 `json:"click_period"`
+	CapNumber   uint8  `json:"cap_number,omitempty"`
+	CapPeriod   uint16 `json:"cap_period,omitempty"`
+	CapThrottle uint16 `json:"cap_throttle,omitempty"`
+	ClickNumber uint8  `json:"click_number,omitempty"`
+	ClickPeriod uint16 `json:"click_period,omitempty"`
 }
 
 // Pack packs the Cap to bytes

@@ -18,10 +18,12 @@ type Filter struct {
 	Logger *zap.Logger
 }
 
-func (self *Filter) Initialize(comp *Component, logger *zap.Logger) {
+func (self *Filter) Initialize(comp *Component, logger ...*zap.Logger) {
 	self.Actions = comp.Actions
 	self.Fks = comp.Fks
-	self.Logger = logger
+	if len(logger) > 0 {
+		self.Logger = logger[0]
+	}
 }
 
 func (self *Filter) SetAll(base Base, action string, component string, other *map[string]interface{}) {

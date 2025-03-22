@@ -16,10 +16,10 @@ const (
 )
 
 type RPub struct {
-	PubID  uint32
-	SiteID uint32
-	SlotID uint32
-	SizeID uint32
+	PubID  uint32 `json:"pub_id,omitempty"`
+	SiteID uint32 `json:"site_id,omitempty"`
+	SlotID uint32 `json:"slot_id,omitempty"`
+	SizeID uint32 `json:"size_id,omitempty"`
 }
 
 // PackString serializes the RPub object to a RawURL string

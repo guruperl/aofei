@@ -9,13 +9,13 @@ type ACL struct {
 	// slot name, request_domain or tagid. Not used in bw logic
 	SlotStr string `json:"slot"`
 	// black list advertisers by domain names
-	BAdv []string
+	BAdv []string `json:"badv,omitempty"`
 	// black list applications by store id, i.e. platform-specific application identifiers
-	BApp []string
+	BApp []string `json:"bapp,omitempty"`
 	// white list of content categories
-	White []string
+	White []string `json:"acat,omitempty"`
 	// black list of content categories
-	Black []string
+	Black []string `json:"bcat,omitempty"`
 	// my content categories
-	Categories []string
+	Categories []string `json:"categories,omitempty"`
 }

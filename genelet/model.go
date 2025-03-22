@@ -48,8 +48,10 @@ type Model struct {
 	Logger *zap.Logger
 }
 
-func (self *Model) Initialize(comp *Component, logger *zap.Logger) {
-	self.Logger = logger
+func (self *Model) Initialize(comp *Component, logger ...*zap.Logger) {
+	if len(logger) > 0 {
+		self.Logger = logger[0]
+	}
 
 	self.SORTBY = comp.Sortby
 	self.SORTREVERSE = comp.Sortreverse

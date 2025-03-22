@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/genelet/winter/match"
 	"github.com/nats-io/nats.go"
 )
 
@@ -15,11 +14,6 @@ const (
 	SUBJECTAttribute = "attribute"
 	SUBJECTWinLoss   = "winloss"
 )
-
-type AttributePlus struct {
-	match.Attribute
-	Adv match.RAdv
-}
 
 type FileWriters struct {
 	FHRequest   io.Writer

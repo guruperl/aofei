@@ -79,15 +79,15 @@ var YOB2String = map[YOB]string{
 }
 
 type Demo struct {
-	Gender GENDER
-	Yob    YOB
+	Gender GENDER `json:"gender,omitempty"`
+	Yob    YOB    `json:"yob,omitempty"`
 	//	Married   uint32
 	//	Income    uint32
 	//	Child     uint32
 	//	Household uint32
 	//	Ethnicity uint32
 	//	Education uint32
-	Language WLangs
+	Language WLangs `json:"language,omitempty"`
 }
 
 // NewDemo creates a new Demo

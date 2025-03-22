@@ -5,26 +5,26 @@ import (
 )
 
 type Location struct {
-	ConnectionType adcom1.ConnectionType
-	Lat            float64
-	Lon            float64
-	UTCOffset      int64
-	Type           adcom1.LocationType
-	Accuracy       int64
-	LastFix        int64
-	IPService      adcom1.IPLocationService
+	ConnectionType adcom1.ConnectionType    `json:"connection_type,omitempty"`
+	Lat            float64                  `json:"lat,omitempty"`
+	Lon            float64                  `json:"lon,omitempty"`
+	UTCOffset      int64                    `json:"utc_offset,omitempty"`
+	Type           adcom1.LocationType      `json:"type,omitempty"`
+	Accuracy       int64                    `json:"accuracy,omitempty"`
+	LastFix        int64                    `json:"last_fix,omitempty"`
+	IPService      adcom1.IPLocationService `json:"ip_service,omitempty"`
 }
 
 // Geo 33 bytes
 // 1+4+4+4+4+2+4+location (8+8?) = 39
 type Geo struct {
-	ContinentID uint8
-	CountryID   uint32
-	StateID     uint32
-	DmaID       uint32
-	CityID      uint32
-	IspID       uint16
-	ZipID       uint32
+	ContinentID uint8  `json:"-"`
+	CountryID   uint32 `json:"country_id,omitempty"`
+	StateID     uint32 `json:"state_id,omitempty"`
+	DmaID       uint32 `json:"dma_id,omitempty"`
+	CityID      uint32 `json:"city_id,omitempty"`
+	IspID       uint16 `json:"isp_id,omitempty"`
+	ZipID       uint32 `json:"zip_id,omitempty"`
 	Location
 }
 

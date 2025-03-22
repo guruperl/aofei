@@ -272,13 +272,15 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(rspnStr)
+	elapsed := time.Since(current)
 
 	glog.Info("10: response")
 	if err = self.Nc.Publish(SUBJECTRequest, bidStr); err == nil {
 		if err = self.Nc.Publish(SUBJECTResponse, rspnStr); err == nil {
 			if bidStr, err = json.Marshal(AttributePlus{
 				Attribute: *attr,
-				Adv:       one,
+				RAdv:      one,
+				Elapsed:   time.Duration(elapsed.Milliseconds()),
 			}); err == nil {
 				err = self.Nc.Publish(SUBJECTAttribute, bidStr)
 				self.Nc.Flush()
@@ -288,6 +290,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 	}
+}
+
+type AttributePlus struct {
+	match.Attribute
+	match.RAdv
+	Elapsed time.Duration `json:"elapsed"`
 }
 
 // bidSeatBid returns the SeatBid for the bid response.

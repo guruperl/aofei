@@ -6,10 +6,10 @@ import (
 )
 
 type PzUa struct {
-	OS       DeviceOS
-	OVersion DeviceOSV
-	Platform DeviceMake
-	Device   DeviceType
+	OS       DeviceOS   `json:"os,omitempty"`
+	OVersion DeviceOSV  `json:"oversion,omitempty"`
+	Platform DeviceMake `json:"platform,omitempty"`
+	Device   DeviceType `json:"device,omitempty"`
 }
 
 func GetPzUa(raw string) *PzUa {

@@ -18,16 +18,16 @@ import (
 
 type Attribute struct {
 	RPub
-	*NativeFormat
-	IsApp   bool
-	IsVideo bool
-	When    time.Time
-	IFA     string
-	UserID  string
+	*NativeFormat `json:"-"`
+	IsApp         bool      `json:"is_app"`
+	IsVideo       bool      `json:"is_video"`
+	When          time.Time `json:"when"`
+	IFA           string    `json:"ifa,omitempty"`
+	UserID        string    `json:"user_id,omitempty"`
 	*demo.Demo
 	*maxmind.Geo
 	*advice.PzUa
-	*dh.DH
+	*dh.DH `json:"-"`
 	*acl.ACL
 }
 
