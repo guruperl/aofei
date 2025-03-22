@@ -11,6 +11,7 @@ import (
 
 	"github.com/genelet/winter/match"
 	"github.com/mediocregopher/radix/v4"
+	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 type Status uint8
@@ -131,8 +132,8 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	return self.Nc.Publish(SUBJECTWinLoss, bs)
 }
 
-// GetURLString returns the URL query string of the win/loss notification.
-func (self *WinLoss) GetURLString(tracking ...bool) string {
+// PackURLString returns the URL query string of the win/loss notification.
+func (self *WinLoss) PackURLString(tracking ...bool) string {
 	status := self.Status
 	args := url.Values{}
 	if status == StatusTrackClk || status == StatusTrackImp || (len(tracking) > 0 && tracking[0]) {
@@ -160,4 +161,41 @@ func (self *WinLoss) GetURLString(tracking ...bool) string {
 	args.Set("supply", supply)
 
 	return args.Encode()
+}
+
+// UnpackURLString returns the WinLoss instance from the URL query string.
+func UnpackURLString(urlString string, bidResponse ...*openrtb2.BidResponse) (*url.URL, error) {
+	u, err := url.Parse(urlString)
+	if err != nil {
+		return nil, err
+	}
+	if len(bidResponse) == 0 {
+		u.Scheme = "http"
+		return u, nil
+	}
+
+	auctionID := bidResponse[0].ID
+	auctionBidID := bidResponse[0].BidID
+	auctionImpID := bidResponse[0].SeatBid[0].Bid[0].ImpID
+	auctionPrice := bidResponse[0].SeatBid[0].Bid[0].Price
+	auctionCurrency := bidResponse[0].Cur
+	args := u.Query()
+	for k, v := range args {
+		switch v[0] {
+		case `${AUCTION_ID}`:
+			args.Set(k, auctionID)
+		case `${AUCTION_BID_ID}`:
+			args.Set(k, auctionBidID)
+		case `${AUCTION_IMP_ID}`:
+			args.Set(k, auctionImpID)
+		case `${AUCTION_PRICE}`:
+			args.Set(k, fmt.Sprintf("%.3f", auctionPrice))
+		case `${AUCTION_CURRENCY}`:
+			args.Set(k, auctionCurrency)
+		default:
+		}
+	}
+	u.RawQuery = args.Encode()
+	u.Scheme = "http"
+	return u, nil
 }

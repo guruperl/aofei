@@ -97,7 +97,8 @@ func (self *Native) AdM(trackers ...string) (string, error) {
 	return string(bs), err
 }
 
-func requestStringToNative(bs []byte) (*Native, error) {
+// UnpackAdM returns the native from the adm string
+func UnpackAdm(bs []byte) (*Native, error) {
 	x := map[string]*Native{}
 	if err := json.Unmarshal(bs, &x); err != nil {
 		return nil, err

@@ -113,7 +113,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		glog.Info("0.1: GET")
+		glog.Infof("0.1: GET %s", r.URL.Path)
 		switch r.URL.Path {
 		case "/clk":
 			glog.Info("0.2: /clk")
@@ -149,26 +149,26 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			err = json.Unmarshal(bidStr, bid)
 		}
 	case "OPTIONS":
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	default:
 		glog.Errorf("%s: %d", "Method not supported", http.StatusMethodNotAllowed)
 		return
 	}
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusBadRequest)
 		return
 	}
 	if ok {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	glog.Info("1: bid")
 	attr, err := match.NewAttribute(ctx, self.Ips, bid, self.RPubMap, current, pubStr)
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -183,12 +183,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	monitors, err := match.RAdvsFromRedis(ctx, self.Redis, what, attr.RPub.SlotID)
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if len(monitors) == 0 {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
@@ -200,12 +200,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Infof("4: userID %s => %d", userID, len(monitors))
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if len(candidates) == 0 {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
@@ -213,12 +213,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Info("5: candidates")
 	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if len(radvs) == 0 {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
@@ -226,7 +226,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Infof("6: radvs audieces %d, %d", len(radvs), len(audiences))
 	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
 	if index < 0 {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
@@ -246,7 +246,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Info("8: winloss")
 	rspnsBid, err := self.bidSeatBid(ctx, bid, one, audiences[index], winloss, attr, width, height)
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -264,10 +264,10 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	rspnStr, err := json.Marshal(response)
 	if err != nil {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -308,8 +308,8 @@ func (self *Controller) bidSeatBid(ctx context.Context, bidRequest *openrtb2.Bid
 		ID:      NewSeatBidBid(attr.When, one.CreativeID).Pack(),
 		ImpID:   bidRequest.Imp[0].ID,
 		Price:   float64(one.Cost),
-		NURL:    self.C.ServerURL + "/win?" + winloss.GetURLString(),
-		LURL:    self.C.ServerURL + "/loss?" + winloss.GetURLString(),
+		NURL:    self.C.ServerURL + "/win?" + winloss.PackURLString(),
+		LURL:    self.C.ServerURL + "/loss?" + winloss.PackURLString(),
 		AdM:     adm,
 		AdID:    fmt.Sprintf("%d", one.CreativeID),
 		ADomain: []string{audience.AdvStr},
@@ -330,7 +330,7 @@ func (self *Controller) admFromCreative(ctx context.Context, attr *match.Attribu
 		return "", err
 	}
 
-	str := winloss.GetURLString(true)
+	str := winloss.PackURLString(true)
 	trackers := []string{
 		self.C.ServerURL + "/imp?" + str,
 		self.C.ServerURL + "/clk?" + str,

@@ -32,7 +32,7 @@ func TestRequestStringToNativeFromat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nat, err := requestStringToNative(bs)
+	nat, err := UnpackAdm(bs)
 	if err != nil {
 		t.Fatal(err)
 	}
