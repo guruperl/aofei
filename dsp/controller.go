@@ -117,9 +117,11 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/clk":
 			glog.Info("0.2: /clk")
+			ok = true
 			err = self.serveStatus(ctx, StatusTrackClk, current, r.URL.Query())
 		case "/imp":
 			glog.Info("0.3: /imp")
+			ok = true
 			err = self.serveStatus(ctx, StatusTrackImp, current, r.URL.Query())
 		case "/win":
 			glog.Info("0.4: /win")
