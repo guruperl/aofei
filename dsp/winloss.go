@@ -17,7 +17,7 @@ import (
 type Status uint8
 
 const (
-	StatusBid Status = 1 << iota
+	StatusBid Status = 0 << iota
 	StatusWin
 	StatusLoss
 	StatusTrackImp
