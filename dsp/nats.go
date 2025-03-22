@@ -1,7 +1,6 @@
 package dsp
 
 import (
-	"io"
 	"log"
 	"os"
 
@@ -16,16 +15,16 @@ const (
 )
 
 type FileWriters struct {
-	FHRequest   io.Writer
-	FHResponse  io.Writer
-	FHAttribute io.Writer
-	FHWinLoss   io.Writer
+	FHRequest   *os.File
+	FHResponse  *os.File
+	FHAttribute *os.File
+	FHWinLoss   *os.File
 }
 
 // NewFileWriters creates a new FileWriters with the given file names.
 func NewFileWriters(request, response, attribute, winloss string) (*FileWriters, error) {
-	newFileWriter := func(name string) (io.Writer, error) {
-		fh, err := os.Create(name)
+	newFileWriter := func(name string) (*os.File, error) {
+		fh, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			return nil, err
 		}
@@ -87,6 +86,11 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 		case <-successchan:
 		case errs := <-errchan:
 			log.Println(errs)
+			self.FHAttribute.Close()
+			self.FHRequest.Close()
+			self.FHResponse.Close()
+			self.FHWinLoss.Close()
+			return errs
 		}
 	}
 }
