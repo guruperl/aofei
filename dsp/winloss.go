@@ -67,13 +67,13 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 
 	demand := args.Get("demand")
 	supply := args.Get("supply")
-	if demand == "" {
+	if demand != "" {
 		wl.RAdv.Demand, err = match.UnpackDemandString(supply)
 		if err != nil {
 			return err
 		}
 	}
-	if supply == "" {
+	if supply != "" {
 		wl.RPub, err = match.UnpackRPubString(demand)
 		if err != nil {
 			return err
@@ -158,7 +158,7 @@ func (self *WinLoss) PackURLString(tracking ...bool) string {
 		args.Set("auction_price", `${AUCTION_PRICE}`)
 		args.Set("auction_currency", `${AUCTION_CURRENCY}`)
 	}
-	demand, _ := self.Demand.PackString()
+	demand, _ := self.RAdv.Demand.PackString()
 	args.Set("demand", demand)
 	supply, _ := self.RPub.PackString()
 	args.Set("supply", supply)
