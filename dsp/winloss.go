@@ -93,7 +93,7 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	case StatusTrackClk, StatusTrackImp:
 		u := args.Get("cap")
 		v := args.Get("bothcap")
-		if u == "" && v == "" {
+		if u == "" {
 			break
 		}
 
@@ -103,21 +103,24 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		}
 		wl.RAdv.Cap = cap
 
-		both, err := match.UnpackBothCapString(v)
-		if err != nil {
-			return err
-		}
-
 		bid, err := match.UnpackBidID(wl.AuctionBidID)
 		if err != nil {
 			return err
 		}
 
+		var both match.BothCap
+		if v != "" {
+			both, err = match.UnpackBothCapString(v)
+			if err != nil {
+				return err
+			}
+		}
 		both.Refresh(current, wl.RAdv, status == StatusTrackImp, status == StatusTrackClk)
 		bs, err := both.Pack()
 		if err != nil {
 			return err
 		}
+
 		err = self.Redis.Do(ctx, radix.Cmd(nil, "HSET", match.HashNameBothCap(bid.UserID), fmt.Sprintf("%d", wl.RAdv.ItemID), string(bs)))
 		if err != nil {
 			return err
