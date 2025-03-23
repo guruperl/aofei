@@ -23,8 +23,8 @@ type Ledger struct {
 	Interval   int
 	Active     time.Time
 	current    int64
-	slots      [][3]uint32
-	items      [][3]uint32
+	slots      map[uint32][2]uint32
+	creatives  map[uint32][3]uint32
 }
 
 // NewLedger creates a new Ledger with the given database and interval in minutes.
@@ -57,33 +57,34 @@ INNER JOIN pub_site s USING (site_id)`)
 		return nil, err
 	}
 	defer rows.Close()
-	var slots [][3]uint32
+	slots := make(map[uint32][2]uint32)
 	for rows.Next() {
 		var slotID, siteID, pubID uint32
 		if err := rows.Scan(&slotID, &siteID, &pubID); err != nil {
 			return nil, err
 		}
-		slots = append(slots, [3]uint32{slotID, siteID, pubID})
+		slots[slotID] = [2]uint32{siteID, pubID}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
 	rows, err = db.Query(`
-SELECT item_id, i.campaign_id, c.adv_id
-FROM adv_item i
+SELECT creative_id, i.item_id, i.campaign_id, c.adv_id
+FROM adv_creative c
+INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items [][3]uint32
+	creatives := make(map[uint32][3]uint32)
 	for rows.Next() {
-		var itemID, campaignID, advID uint32
-		if err := rows.Scan(&itemID, &campaignID, &advID); err != nil {
+		var creativeID, itemID, campaignID, advID uint32
+		if err := rows.Scan(&creativeID, &itemID, &campaignID, &advID); err != nil {
 			return nil, err
 		}
-		items = append(items, [3]uint32{itemID, campaignID, advID})
+		creatives[creativeID] = [3]uint32{itemID, campaignID, advID}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -96,12 +97,12 @@ INNER JOIN adv_campaign c USING (campaign_id)`)
 		Active:     active,
 		current:    current,
 		slots:      slots,
-		items:      items,
+		creatives:  creatives,
 	}, nil
 }
 
 // Statistics returns the statistics of the winloss file of the specific timestamp.
-func (self *Ledger) Statistics() (map[uint32]map[uint32]int, map[uint32]map[uint32]int, map[uint32]map[uint32]float32, error) {
+func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, map[uint32]map[uint32]int, map[uint32]map[uint32]int, map[uint32]map[uint32]float32, error) {
 	imps := make(map[uint32]map[uint32]int)
 	clis := make(map[uint32]map[uint32]int)
 	spes := make(map[uint32]map[uint32]float32)
@@ -109,64 +110,70 @@ func (self *Ledger) Statistics() (map[uint32]map[uint32]int, map[uint32]map[uint
 	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.current)
 	fh, err := os.Open(name)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	defer fh.Close()
+
+	slots := make(map[uint32][2]uint32)
+	creatives := make(map[uint32][3]uint32)
 
 	scanner := bufio.NewScanner(fh)
 	for scanner.Scan() {
 		var wl dsp.WinLoss
 		if err := json.Unmarshal(scanner.Bytes(), &wl); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, nil, nil, err
 		}
 		slotID := wl.RPub.SlotID
-		itemID := wl.RAdv.ItemID
+		slots[slotID] = self.slots[slotID]
+		creativeID := wl.RAdv.ItemID
+		creatives[creativeID] = self.creatives[creativeID]
 		switch wl.Status {
 		case dsp.StatusTrackImp:
 			if imps[slotID] == nil {
 				imps[slotID] = make(map[uint32]int)
 			}
-			imps[slotID][itemID] += 1
+			imps[slotID][creativeID] += 1
 			if spes[slotID] == nil {
 				spes[slotID] = make(map[uint32]float32)
 			}
-			spes[slotID][itemID] += wl.RAdv.Cost
+			spes[slotID][creativeID] += wl.RAdv.Cost
 		case dsp.StatusTrackClk:
 			if clis[slotID] == nil {
 				clis[slotID] = make(map[uint32]int)
 			}
-			clis[slotID][itemID] += 1
+			clis[slotID][creativeID] += 1
 		default:
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
-	return imps, clis, spes, nil
+
+	return slots, creatives, imps, clis, spes, nil
 }
 
 // StatisticsToLedger calculates the statistics of the winloss file of the specific timestamp
 // and inserts them into the ledger database.
 func (self *Ledger) StatisticsToLedger() error {
-	imps, clis, spes, err := self.Statistics()
+	slots, creatives, imps, clis, spes, err := self.Statistics()
 	if err != nil {
 		return err
 	}
 	myDay := self.Active.Format("2006-01-02 15:04:05")
-	return insertLedger(self.DB, myDay, self.slots, self.items, imps, clis, spes)
+	return insertLedger(self.DB, myDay, slots, creatives, imps, clis, spes)
 }
 
 // insertLedger inserts ledger data into database.
 // myDay is the date of the ledger datetime
 // slots is a map of slot_id to site_id and pub_id
-// items is a map of item_id to campaign_id and adv_id
-// imps is a map of slot_id to item_id to impressions
-// clis is a map of slot_id to item_id to clicks
-// spes is a map of slot_id to item_id to spend
-func insertLedger(db *sql.DB, myDay string, slots, items [][3]uint32, imps, clis map[uint32]map[uint32]int, spes map[uint32]map[uint32]float32) error {
+// creatives is a map of creative_id to item_id, campaign_id and adv_id
+// imps is a map of slot_id to creative_id to impressions
+// clis is a map of slot_id to creative_id to clicks
+// spes is a map of slot_id to creative_id to spend
+func insertLedger(db *sql.DB, myDay string, slots map[uint32][2]uint32, creatives map[uint32][3]uint32, imps, clis map[uint32]map[uint32]int, spes map[uint32]map[uint32]float32) error {
 	insLog := `INSERT INTO ledger_log (timely, created) VALUES (?, NOW())`
 	insPub := `INSERT INTO ledger_pub (log_id, slot_id, site_id, pub_id) VALUES (?,?,?,?)`
-	insAdv := `INSERT INTO ledger_adv (log_id, item_id, campaign_id, adv_id) VALUES (?,?,?,?)`
+	insAdv := `INSERT INTO ledger_adv (log_id, creative_id, item_id, campaign_id, adv_id) VALUES (?,?,?,?,?)`
 	insPubAdv := `INSERT INTO ledger_pub_adv (lp_id, la_id, imps, clis, spend) VALUES (?,?,?,?,?)`
 	updPub := `UPDATE ledger_pub lp
 INNER JOIN (
@@ -202,9 +209,9 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		return err
 	}
 
-	for _, ids := range slots {
+	for slotID, ids := range slots {
 		var lpID int64
-		if res, err = db.Exec(insPub, logID, ids[0], ids[1], ids[2]); err != nil {
+		if res, err = db.Exec(insPub, logID, slotID, ids[0], ids[1]); err != nil {
 			return err
 		}
 		if lpID, err = res.LastInsertId(); err != nil {
@@ -213,9 +220,9 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		lpIds[ids[0]] = lpID
 	}
 
-	for _, ids := range items {
+	for creativeID, ids := range creatives {
 		var laID int64
-		if res, err = db.Exec(insAdv, logID, ids[0], ids[1], ids[2]); err != nil {
+		if res, err = db.Exec(insAdv, logID, creativeID, ids[0], ids[1]); err != nil {
 			return err
 		}
 		if laID, err = res.LastInsertId(); err != nil {
@@ -228,10 +235,10 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	cs := 0
 	ss := float32(0)
 	for slotID, lpID := range lpIds {
-		for itemID, laID := range laIds {
-			i := imps[slotID][itemID]
-			c := clis[slotID][itemID]
-			s := spes[slotID][itemID]
+		for creativeID, laID := range laIds {
+			i := imps[slotID][creativeID]
+			c := clis[slotID][creativeID]
+			s := spes[slotID][creativeID]
 			if _, err = db.Exec(insPubAdv, lpID, laID, i, c, s); err != nil {
 				return err
 			}
@@ -288,29 +295,29 @@ FROM (
 ) tmp
 INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 	insAdv := `
-INSERT INTO daily_adv (log_id, item_id, campaign_id, adv_id, imps, clis, spend)
-SELECT dl.log_id, tmp.item_id, tmp.campaign_id, tmp.adv_id, tmp.tmp.imps, tmp.clis, tmp.spend
+INSERT INTO daily_adv (log_id, creative_id, item_id, campaign_id, adv_id, imps, clis, spend)
+SELECT dl.log_id, tmp.creative_id, tmp.item_id, tmp.campaign_id, tmp.adv_id, tmp.tmp.imps, tmp.clis, tmp.spend
 FROM (
-	SELECT ANY_VALUE(DATE(timely)) AS daily, item_id, ANY_VALUE(campaign_id) AS campaign_id, ANY_VALUE(adv_id) AS adv_id, SUM(a.imps) AS imps, SUM(a.clis) AS clis, SUM(a.spend) AS spend
+	SELECT ANY_VALUE(DATE(timely)) AS daily, creative_id, ANY(item_id) AS item_id, ANY_VALUE(campaign_id) AS campaign_id, ANY_VALUE(adv_id) AS adv_id, SUM(a.imps) AS imps, SUM(a.clis) AS clis, SUM(a.spend) AS spend
 	FROM ledger_adv a
 	INNER JOIN ledger_log l USING (log_id)
-	WHERE DATE(timely)=? GROUP BY item_id
+	WHERE DATE(timely)=? GROUP BY creative_id
 ) tmp
 INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 	insPubAdv := `
 INSERT INTO daily_pub_adv (lp_id, la_id, imps, clis, spend)
 SELECT dp.lp_id, da.la_id, tmp.imps, tmp.clis, tmp.spend
 FROM (
-	SELECT DATE(timely) AS daily, slot_id, item_id, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, SUM(pa.spend) AS spend
+	SELECT DATE(timely) AS daily, slot_id, creative_id, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, SUM(pa.spend) AS spend
 	FROM ledger_pub_adv pa
 	INNER JOIN ledger_pub p USING (lp_id)
 	INNER JOIN ledger_adv a USING (la_id)
 	INNER JOIN ledger_log l ON (p.log_id=l.log_id)
-	WHERE DATE(timely)=? GROUP BY daily, p.slot_id, a.item_id
+	WHERE DATE(timely)=? GROUP BY daily, p.slot_id, a.creative_id
 ) tmp
 INNER JOIN daily_pub dp ON (tmp.slot_id=dp.slot_id)
 INNER JOIN daily_log ldp ON (dp.log_id=ldp.log_id)
-INNER JOIN daily_adv da ON (tmp.item_id=da.item_id)
+INNER JOIN daily_adv da ON (tmp.creative_id=da.creative_id)
 INNER JOIN daily_log lda ON (da.log_id=lda.log_id)
 WHERE ldp.daily=? AND lda.daily=?`
 

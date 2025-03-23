@@ -33,6 +33,7 @@ create table ledger_pub (
 create table ledger_adv (
 	la_id int unsigned auto_increment not null,
 	log_id int unsigned not null,
+	creative_id int unsigned not null,
 	item_id int unsigned not null,
 	campaign_id int unsigned not null,
 	adv_id int unsigned not null,
@@ -82,6 +83,7 @@ create table daily_pub (
 create table daily_adv (
 	la_id int unsigned auto_increment not null,
 	log_id int unsigned not null,
+	creative_id int unsigned not null,
 	item_id int unsigned not null,
 	campaign_id int unsigned not null,
 	adv_id int unsigned not null,

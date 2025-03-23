@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/genelet/winter/dsp"
 	_ "github.com/go-sql-driver/mysql"
@@ -45,8 +46,10 @@ func main() {
 	if daily {
 		if stamp == "" {
 			err = InsertDaily(db)
+			log.Printf("Daily ledger of %s done", time.Now().AddDate(0, 0, -1).Format("2006-01-02"))
 		} else {
 			err = InsertDaily(db, stamp)
+			log.Printf("Daily ledger of %s done", stamp)
 		}
 	} else {
 		var ledger *Ledger
@@ -58,6 +61,7 @@ func main() {
 		}
 		if err == nil && ledger != nil {
 			err = ledger.StatisticsToLedger()
+			log.Printf("Ledger %d at %d minutes done", ledger.current, ledger.Interval)
 		}
 	}
 
