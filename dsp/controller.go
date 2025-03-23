@@ -20,6 +20,13 @@ import (
 	"github.com/genelet/winter/maxmind"
 )
 
+const (
+	SUBJECTRequest   = "request"
+	SUBJECTResponse  = "response"
+	SUBJECTAttribute = "attribute"
+	SUBJECTWinLoss   = "winloss"
+)
+
 type Controller struct {
 	C       *Config
 	Ips     *maxmind.IPSearch

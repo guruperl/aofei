@@ -38,7 +38,7 @@ func main() {
 	nc := sc.Nc
 	defer nc.Close()
 
-	filewriters, err := dsp.NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss, interval)
+	filewriters, err := NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss, interval)
 	if err != nil {
 		log.Fatal(err)
 	}

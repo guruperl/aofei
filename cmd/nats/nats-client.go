@@ -1,21 +1,17 @@
-package dsp
+package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	"github.com/genelet/winter/dsp"
 	"github.com/nats-io/nats.go"
 )
 
-const (
-	SUBJECTRequest   = "request"
-	SUBJECTResponse  = "response"
-	SUBJECTAttribute = "attribute"
-	SUBJECTWinLoss   = "winloss"
-)
-
+// FileWriters is a struct that contains the file handlers for writing logs
+// Note that we are using *os.File instead of io.Writer because we need to
+// close the file handlers in case of log rotation or in error.
 type FileWriters struct {
 	existing                              int
 	request, response, attribute, winloss string // directory names
@@ -85,9 +81,9 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 		}
 		var err error
 		switch m.Subject {
-		case SUBJECTRequest:
+		case dsp.SUBJECTRequest:
 			if self.FHRequest == nil {
-				self.FHRequest, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.request, SUBJECTRequest, current))
+				self.FHRequest, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.request, dsp.SUBJECTRequest, current))
 				if err != nil {
 					break
 				}
@@ -95,9 +91,9 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 			if _, err = self.FHRequest.Write(m.Data); err == nil {
 				_, err = self.FHRequest.Write([]byte("\n"))
 			}
-		case SUBJECTResponse:
+		case dsp.SUBJECTResponse:
 			if self.FHResponse == nil {
-				self.FHResponse, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.response, SUBJECTResponse, current))
+				self.FHResponse, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.response, dsp.SUBJECTResponse, current))
 				if err != nil {
 					break
 				}
@@ -105,9 +101,9 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 			if _, err = self.FHResponse.Write(m.Data); err == nil {
 				_, err = self.FHResponse.Write([]byte("\n"))
 			}
-		case SUBJECTAttribute:
+		case dsp.SUBJECTAttribute:
 			if self.FHAttribute == nil {
-				self.FHAttribute, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.attribute, SUBJECTAttribute, current))
+				self.FHAttribute, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.attribute, dsp.SUBJECTAttribute, current))
 				if err != nil {
 					break
 				}
@@ -115,9 +111,9 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 			if _, err = self.FHAttribute.Write(m.Data); err == nil {
 				_, err = self.FHAttribute.Write([]byte("\n"))
 			}
-		case SUBJECTWinLoss:
+		case dsp.SUBJECTWinLoss:
 			if self.FHWinLoss == nil {
-				self.FHWinLoss, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.winloss, SUBJECTWinLoss, current))
+				self.FHWinLoss, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.winloss, dsp.SUBJECTWinLoss, current))
 				if err != nil {
 					break
 				}
@@ -140,7 +136,6 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 		select {
 		case <-successchan:
 		case errs := <-errchan:
-			log.Println(errs)
 			if self.FHAttribute != nil {
 				self.FHAttribute.Close()
 			}
