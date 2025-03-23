@@ -1,6 +1,7 @@
 match/tmp.bin
 cmd/unify/unify
 cmd/nats/nats-client
+cmd/ledger/ledger
 etc/GeoLite2-City.mmdb
 conf/aofei.json
 conf/summer.json
