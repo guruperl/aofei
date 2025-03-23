@@ -71,7 +71,7 @@ INNER JOIN pub_site s USING (site_id)`)
 
 	rows, err = db.Query(`
 SELECT creative_id, i.item_id, i.campaign_id, c.adv_id
-FROM adv_creative c
+FROM adv_creative t
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)`)
 	if err != nil {
@@ -124,9 +124,8 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 			return nil, nil, nil, nil, nil, err
 		}
 		slotID := wl.RPub.SlotID
-		slots[slotID] = self.slots[slotID]
 		creativeID := wl.RAdv.ItemID
-		creatives[creativeID] = self.creatives[creativeID]
+		var found bool
 		switch wl.Status {
 		case dsp.StatusTrackImp:
 			if imps[slotID] == nil {
@@ -137,12 +136,18 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 				spes[slotID] = make(map[uint32]float32)
 			}
 			spes[slotID][creativeID] += wl.RAdv.Cost
+			found = true
 		case dsp.StatusTrackClk:
 			if clis[slotID] == nil {
 				clis[slotID] = make(map[uint32]int)
 			}
 			clis[slotID][creativeID] += 1
+			found = true
 		default:
+		}
+		if found {
+			slots[slotID] = self.slots[slotID]
+			creatives[creativeID] = self.creatives[creativeID]
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -217,18 +222,18 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		if lpID, err = res.LastInsertId(); err != nil {
 			return err
 		}
-		lpIds[ids[0]] = lpID
+		lpIds[slotID] = lpID
 	}
 
 	for creativeID, ids := range creatives {
 		var laID int64
-		if res, err = db.Exec(insAdv, logID, creativeID, ids[0], ids[1]); err != nil {
+		if res, err = db.Exec(insAdv, logID, creativeID, ids[0], ids[1], ids[2]); err != nil {
 			return err
 		}
 		if laID, err = res.LastInsertId(); err != nil {
 			return err
 		}
-		laIds[ids[0]] = laID
+		laIds[creativeID] = laID
 	}
 
 	is := 0
@@ -236,9 +241,12 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	ss := float32(0)
 	for slotID, lpID := range lpIds {
 		for creativeID, laID := range laIds {
-			i := imps[slotID][creativeID]
-			c := clis[slotID][creativeID]
-			s := spes[slotID][creativeID]
+			i, ok1 := imps[slotID][creativeID]
+			c, ok2 := clis[slotID][creativeID]
+			s, ok3 := spes[slotID][creativeID]
+			if !ok1 && !ok2 && !ok3 {
+				continue
+			}
 			if _, err = db.Exec(insPubAdv, lpID, laID, i, c, s); err != nil {
 				return err
 			}

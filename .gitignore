@@ -2,6 +2,7 @@ match/tmp.bin
 cmd/unify/unify
 cmd/nats/nats-client
 cmd/ledger/ledger
+cmd/redis/redis-cache
 cmd/winloss/winloss
 etc/GeoLite2-City.mmdb
 conf/aofei.json
