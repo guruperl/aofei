@@ -18,7 +18,7 @@ const (
 
 type FileWriters struct {
 	existing                              int
-	request, response, attribute, winloss string
+	request, response, attribute, winloss string // directory names
 	Interval                              int
 	FHRequest                             *os.File
 	FHResponse                            *os.File
@@ -38,7 +38,7 @@ func newFileWriter(name string) (*os.File, error) {
 	return fh, nil
 }
 
-// NewFileWriters creates a new FileWriters with the given file names, and intervals in minutes
+// NewFileWriters creates a new FileWriters with the given directory names, and intervals in minutes
 func NewFileWriters(request, response, attribute, winloss string, interval int) (*FileWriters, error) {
 	existing := getCurrent(interval)
 	if err := os.MkdirAll(request, os.ModePerm); err != nil {
@@ -57,6 +57,7 @@ func NewFileWriters(request, response, attribute, winloss string, interval int) 
 	return fw, nil
 }
 
+// ReceiveLogs receives logs from nats server and writes them to files
 func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 	successchan := make(chan bool)
 	errchan := make(chan error)
@@ -86,7 +87,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 		switch m.Subject {
 		case SUBJECTRequest:
 			if self.FHRequest == nil {
-				self.FHRequest, err = newFileWriter(fmt.Sprintf("%s/%d", self.request, current))
+				self.FHRequest, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.request, SUBJECTRequest, current))
 				if err != nil {
 					break
 				}
@@ -96,7 +97,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 			}
 		case SUBJECTResponse:
 			if self.FHResponse == nil {
-				self.FHResponse, err = newFileWriter(fmt.Sprintf("%s/%d", self.response, current))
+				self.FHResponse, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.response, SUBJECTResponse, current))
 				if err != nil {
 					break
 				}
@@ -106,7 +107,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 			}
 		case SUBJECTAttribute:
 			if self.FHAttribute == nil {
-				self.FHAttribute, err = newFileWriter(fmt.Sprintf("%s/%d", self.attribute, current))
+				self.FHAttribute, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.attribute, SUBJECTAttribute, current))
 				if err != nil {
 					break
 				}
@@ -116,7 +117,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 			}
 		case SUBJECTWinLoss:
 			if self.FHWinLoss == nil {
-				self.FHWinLoss, err = newFileWriter(fmt.Sprintf("%s/%d", self.winloss, current))
+				self.FHWinLoss, err = newFileWriter(fmt.Sprintf("%s/%s.%d", self.winloss, SUBJECTWinLoss, current))
 				if err != nil {
 					break
 				}
