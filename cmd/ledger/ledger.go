@@ -306,7 +306,7 @@ INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 INSERT INTO daily_adv (log_id, creative_id, item_id, campaign_id, adv_id, imps, clis, spend)
 SELECT dl.log_id, tmp.creative_id, tmp.item_id, tmp.campaign_id, tmp.adv_id, tmp.tmp.imps, tmp.clis, tmp.spend
 FROM (
-	SELECT ANY_VALUE(DATE(timely)) AS daily, creative_id, ANY(item_id) AS item_id, ANY_VALUE(campaign_id) AS campaign_id, ANY_VALUE(adv_id) AS adv_id, SUM(a.imps) AS imps, SUM(a.clis) AS clis, SUM(a.spend) AS spend
+	SELECT ANY_VALUE(DATE(timely)) AS daily, creative_id, ANY_VALUE(item_id) AS item_id, ANY_VALUE(campaign_id) AS campaign_id, ANY_VALUE(adv_id) AS adv_id, SUM(a.imps) AS imps, SUM(a.clis) AS clis, SUM(a.spend) AS spend
 	FROM ledger_adv a
 	INNER JOIN ledger_log l USING (log_id)
 	WHERE DATE(timely)=? GROUP BY creative_id
