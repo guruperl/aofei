@@ -36,12 +36,14 @@ func main() {
 	}
 	defer sc.Close()
 
-	err = match.DBGetRAdvsToRedis(ctx, sc.Redis, sc.DB, "App")
-	if err == nil {
-		err = match.DBGetRAdvsToRedis(ctx, sc.Redis, sc.DB, "Web")
-	}
-	if err != nil {
-		log.Fatal(err)
+	for _, sizeID2 := range [][2]uint16{
+		{64, 64},
+		{100, 100},
+	} {
+		err = match.DBGetRAdvsToRedis(ctx, sc.Redis, sc.DB, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	err = match.DBGetAudiencesToRedis(ctx, sc.Redis, sc.DB)

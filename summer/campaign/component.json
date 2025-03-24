@@ -25,10 +25,10 @@
     ]
   },
 
-  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active","created","total_balance_id","daily_balance_id"],
-  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active"],
-  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active","created","total_balance_id","daily_balance_id"],
-  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","extlink","active","created","total_balance_id","daily_balance_id"],
+  "insert_pars" :  [               "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","target_type","iurl","active","created","total_balance_id","daily_balance_id"],
+  "update_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","target_type","iurl","active"],
+  "topics_pars" :  ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","target_type","iurl","active","created","total_balance_id","daily_balance_id"],
+  "edit_pars" :    ["campaign_id", "adv_id","campaign_name","foreign_id","access_order","startx","endx","description","target_type","iurl","active","created","total_balance_id","daily_balance_id"],
 
   "current_table" : "adv_campaign",
   "current_key" :  "campaign_id",

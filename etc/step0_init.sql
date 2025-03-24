@@ -878,6 +878,7 @@ DROP TABLE IF EXISTS `daily_adv`;
 CREATE TABLE `daily_adv` (
   `la_id` int unsigned NOT NULL AUTO_INCREMENT,
   `log_id` int unsigned NOT NULL,
+  `creative_id` int unsigned NOT NULL,
   `item_id` int unsigned NOT NULL,
   `campaign_id` int unsigned NOT NULL,
   `adv_id` int unsigned NOT NULL,
@@ -1327,6 +1328,7 @@ DROP TABLE IF EXISTS `ledger_adv`;
 CREATE TABLE `ledger_adv` (
   `la_id` int unsigned NOT NULL AUTO_INCREMENT,
   `log_id` int unsigned NOT NULL,
+  `creative_id` int unsigned NOT NULL,
   `item_id` int unsigned NOT NULL,
   `campaign_id` int unsigned NOT NULL,
   `adv_id` int unsigned NOT NULL,
@@ -1806,7 +1808,6 @@ CREATE TABLE `pub_slot` (
   `slot_id` int unsigned NOT NULL AUTO_INCREMENT,
   `site_id` int unsigned DEFAULT '0',
   `slot_name` varchar(255) NOT NULL,
-  `size_id` int unsigned NOT NULL,
   `bidfloor` float DEFAULT '0',
 
   `qa_slot` int unsigned DEFAULT '0',
@@ -1822,7 +1823,6 @@ CREATE TABLE `pub_slot` (
   `active` enum('Yes','No','New') DEFAULT 'Yes',
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`slot_id`),
-  KEY `size_id` (`size_id`),
   KEY `site_id` (`site_id`),
   CONSTRAINT `pub_slot_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `pub_site` (`site_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;

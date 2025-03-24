@@ -71,36 +71,77 @@ func UnpackRAdvs(data []byte) (RAdvs, error) {
 }
 
 // DBGetRAdvsToRedis retrieves RAdvs from the database and inserts them into Redis.
-func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, what string) error {
-	hash, err := dbGetRAdvs(ctx, db, what)
+func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, sizeID uint32) error {
+	hash, err := dbGetRAdvs(ctx, db, sizeID)
 	if err != nil {
 		return err
 	}
 	for slotID, radvs := range hash {
-		if err = radvs.ToRedis(ctx, conn, what, slotID); err != nil {
+		if err = radvs.ToRedis(ctx, conn, slotID, sizeID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// dbGetRAdvs builds slots' block map, according to what = 'App' or 'Web'
-func dbGetRAdvs(ctx context.Context, db *sql.DB, what string) (map[uint32]RAdvs, error) {
+// dbGetRAdvs builds slots' block map, according to size
+func dbGetRAdvs(ctx context.Context, db *sql.DB, siteID uint32) (map[uint32]RAdvs, error) {
 	hash := make(map[uint32]RAdvs)
 	rows, err := db.QueryContext(ctx, `
-SELECT slot_id, creative_id, weight, item_id, campaign_id, adv_id, cost_type, cost, cpm_fc, cpm_length, cpm_throttle, cpc_fc, cpc_length
-FROM ViewRedis`+what)
+SELECT t.slot_id
+FROM pub_slot t
+INNER JOIN pub_site s USING (site_id)
+INNER JOIN pub      p USING (pub_id)
+WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
+	for rows.Next() {
+		var slotID uint32
+		err = rows.Scan(&slotID)
+		if err != nil {
+			return nil, err
+		}
+		hash[slotID], err = RAdvsFromDatabase(ctx, db, slotID, siteID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return hash, rows.Err()
+}
+
+func HashNameRAdvs(sizeID uint32) string {
+	return fmt.Sprintf("slot:%d", sizeID)
+}
+
+// ToRedis inserts RAdvs into Redis.
+func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint32) error {
+	key := strconv.FormatUint(uint64(slotID), 10)
+	data, err := self.Pack()
+	if err == nil {
+		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameRAdvs(sizeID), key, string(data)))
+	}
+	return err
+}
+
+// RAdvsFromDatabase builds RAdvs from the database.
+func RAdvsFromDatabase(ctx context.Context, db *sql.DB, slotID, sizeID uint32) (RAdvs, error) {
+	rows, err := db.QueryContext(ctx, `
+CALL proc_slot(?, ?)`, slotID, sizeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var blocks RAdvs
 	for rows.Next() {
 		w := RAdv{}
-		var slotID uint32
 		var costType sql.NullString
 		var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
 		var cost sql.NullFloat64
-		err = rows.Scan(&slotID, &w.CreativeID, &w.Weight, &w.ItemID, &w.CampaignID, &w.AdvID, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
+		err = rows.Scan(&w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
 		if err != nil {
 			return nil, err
 		}
@@ -135,31 +176,16 @@ FROM ViewRedis`+what)
 			default:
 			}
 		}
-		hash[slotID] = append(hash[slotID], w)
+		blocks = append(blocks, w)
 	}
-
-	return hash, rows.Err()
-}
-
-func HashNameRAdvs(what string) string {
-	return "slot" + what
-}
-
-// ToRedis inserts RAdvs into Redis.
-func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, what string, slotID uint32) error {
-	key := strconv.FormatUint(uint64(slotID), 10)
-	data, err := self.Pack()
-	if err == nil {
-		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameRAdvs(what), key, string(data)))
-	}
-	return err
+	return blocks, rows.Err()
 }
 
 // RAdvsFromRedis builds RAdvs from redis.
-func RAdvsFromRedis(ctx context.Context, conn radix.Client, what string, slotID uint32) (RAdvs, error) {
+func RAdvsFromRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint32) (RAdvs, error) {
 	key := strconv.FormatUint(uint64(slotID), 10)
 	var data []byte
-	err := conn.Do(ctx, radix.Cmd(&data, "HGET", HashNameRAdvs(what), key))
+	err := conn.Do(ctx, radix.Cmd(&data, "HGET", HashNameRAdvs(sizeID), key))
 	if err != nil {
 		return nil, err
 	}

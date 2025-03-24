@@ -186,11 +186,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Infof("2: width %d, height %d", width, height)
 	glog.Infof("3: rpub %#v", attr.RPub)
 
-	what := "Web"
-	if attr.IsApp {
-		what = "App"
-	}
-	monitors, err := match.RAdvsFromRedis(ctx, self.Redis, what, attr.RPub.SlotID)
+	monitors, err := match.RAdvsFromRedis(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
