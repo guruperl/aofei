@@ -174,6 +174,17 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// note that we embed rpubmap in the controller after restart, but also dynamically update it for each request.
+	var bs []byte
+	if err = self.Redis.Do(ctx, radix.Cmd(&bs, "GET", self.C.RPubMap)); err == nil && len(bs) > 0 {
+		self.RPubMap, err = match.UnpackRPubMap(bs)
+	}
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	glog.Info("1: bid")
 	attr, err := match.NewAttribute(ctx, self.Ips, bid, self.RPubMap, current, pubStr)
 	if err != nil {

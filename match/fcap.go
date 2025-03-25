@@ -76,6 +76,14 @@ type BothCap struct {
 	Cli Fcap
 }
 
+// NewBothCap creates a new BothCap instance
+func NewBothCap(when time.Time) BothCap {
+	return BothCap{
+		Imp: NewFcap(when),
+		Cli: NewFcap(when),
+	}
+}
+
 // Pack packs the BothCap into bytes
 func (self BothCap) Pack() ([]byte, error) {
 	buf := new(bytes.Buffer)
@@ -109,8 +117,62 @@ func UnpackBothCapString(text string) (BothCap, error) {
 	return UnpackBothCap(data)
 }
 
+func (self *BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {
+	imp := self.Imp
+	cli := self.Cli
+	if isImp {
+		if !block.Cap.ValidPeriodImp(when, imp) {
+			imp = NewFcap(when)
+		}
+		imp.Refresh(when)
+	}
+	if isCli {
+		if !block.Cap.ValidPeriodImp(when, imp) {
+			cli = NewFcap(when)
+		}
+		cli.Refresh(when)
+	}
+	(*self).Imp = imp
+	(*self).Cli = cli
+}
+
 func HashNameBothCap(pid string) string {
 	return fmt.Sprintf("bothcap:%s", pid)
+}
+
+// MustRefreshBothCap reads bothcap from Redis and refreshes it. And write it back to Redis.
+func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, isImp bool, isCli bool) error {
+	if !isImp && !isCli {
+		return nil
+	}
+	var data []byte
+	key := HashNameBothCap(pid)
+	itemIDStr := fmt.Sprintf("%d", itemID)
+	err := conn.Do(ctx, radix.Cmd(&data, "HGET", key, itemIDStr))
+	if err != nil {
+		return err
+	}
+
+	var bothcap BothCap
+	if len(data) > 0 {
+		bothcap, err = UnpackBothCap(data)
+		if err != nil {
+			return err
+		}
+	} else {
+		bothcap = NewBothCap(when)
+	}
+	if isImp {
+		bothcap.Imp.Refresh(when)
+	}
+	if isCli {
+		bothcap.Cli.Refresh(when)
+	}
+
+	if data, err = bothcap.Pack(); err == nil {
+		err = conn.Do(ctx, radix.Cmd(nil, "HSET", key, itemIDStr, string(data)))
+	}
+	return err
 }
 
 func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcaps map[uint32]BothCap) error {
@@ -158,23 +220,4 @@ func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, itemI
 func BothCapsCleanupExpired(ctx context.Context, conn radix.Client, pid string, itemIDs []string) error {
 	arr := append([]string{HashNameBothCap(pid)}, itemIDs...)
 	return conn.Do(ctx, radix.Cmd(nil, "HDEL", arr...))
-}
-
-func (self *BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {
-	imp := self.Imp
-	cli := self.Cli
-	if isImp {
-		if !block.Cap.ValidPeriodImp(when, imp) {
-			imp = NewFcap(when)
-		}
-		imp.Refresh(when)
-	}
-	if isCli {
-		if !block.Cap.ValidPeriodImp(when, imp) {
-			cli = NewFcap(when)
-		}
-		cli.Refresh(when)
-	}
-	(*self).Imp = imp
-	(*self).Cli = cli
 }

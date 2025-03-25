@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type Red struct {
@@ -92,4 +93,55 @@ func NewConfig(filename string) (*Config, error) {
 	}
 
 	return parsed, nil
+}
+
+type Stamp struct {
+	CurrentMinute int64
+	LastMinute    int64
+	CurrentTimely time.Time
+	LastTimely    time.Time
+	Interval      int
+	CurrentDay    string
+	LastDay       string
+}
+
+// NewStamp creates a new Stamp with the given interval in minutes.
+func NewStamp(interval int, stamp ...int) *Stamp {
+	when := time.Now()
+	current := when.Unix() / int64(interval*60)
+	lastMinute := current - 1
+	if len(stamp) > 0 {
+		lastMinute = int64(stamp[0])
+	}
+	currentTimely := time.Unix(current*int64(interval*60), 0)
+	lastTimely := time.Unix(lastMinute*int64(interval*60), 0)
+	return &Stamp{current, lastMinute, currentTimely, lastTimely, interval, when.Format("2006-01-02"), when.AddDate(0, 0, -1).Format("2006-01-02")}
+}
+
+// NewLogfileName creates a new file name with the given logname and timestamp.
+func (self *Config) NewLogfileName(name string, stamp *Stamp, uptonow ...bool) string {
+	if len(uptonow) > 0 && uptonow[0] {
+		switch name {
+		case SUBJECTWinLoss:
+			return fmt.Sprintf(self.LogWinLoss+"/winloss.%d", stamp.CurrentMinute)
+		case SUBJECTAttribute:
+			return fmt.Sprintf(self.LogAttribute+"/attribute.%d", stamp.CurrentMinute)
+		case SUBJECTRequest:
+			return fmt.Sprintf(self.LogRequest+"/request.%d", stamp.CurrentMinute)
+		case SUBJECTResponse:
+			return fmt.Sprintf(self.LogResponse+"/response.%d", stamp.CurrentMinute)
+		}
+	} else {
+		switch name {
+		case SUBJECTWinLoss:
+			return fmt.Sprintf(self.LogWinLoss+"/winloss.%d", stamp.LastMinute)
+		case SUBJECTAttribute:
+			return fmt.Sprintf(self.LogAttribute+"/attribute.%d", stamp.LastMinute)
+		case SUBJECTRequest:
+			return fmt.Sprintf(self.LogRequest+"/request.%d", stamp.LastMinute)
+		case SUBJECTResponse:
+			return fmt.Sprintf(self.LogResponse+"/response.%d", stamp.LastMinute)
+		}
+	}
+	return ""
 }

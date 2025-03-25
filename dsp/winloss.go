@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/genelet/winter/match"
-	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
@@ -55,6 +54,7 @@ func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv,
 	}
 }
 
+// serverStatus sends the win, loss, impression and click trackers, refresh cap, and notify the NATS server.
 func (self *Controller) serveStatus(ctx context.Context, status Status, current time.Time, args url.Values) error {
 	var err error
 	wl := &WinLoss{
@@ -92,36 +92,15 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	switch status {
 	case StatusTrackClk, StatusTrackImp:
 		u := args.Get("cap")
-		v := args.Get("bothcap")
 		if u == "" {
 			break
 		}
-
-		cap, err := match.UnpackCapString(u)
-		if err != nil {
-			return err
-		}
-		wl.RAdv.Cap = cap
-
-		bid, err := match.UnpackBidID(wl.AuctionBidID)
-		if err != nil {
-			return err
-		}
-
-		var both match.BothCap
-		if v != "" {
-			both, err = match.UnpackBothCapString(v)
-			if err != nil {
-				return err
+		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
+			var bid match.Bid
+			if bid, err = match.UnpackBidID(wl.AuctionBidID); err == nil {
+				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, status == StatusTrackImp, status == StatusTrackClk)
 			}
 		}
-		both.Refresh(current, wl.RAdv, status == StatusTrackImp, status == StatusTrackClk)
-		bs, err := both.Pack()
-		if err != nil {
-			return err
-		}
-
-		err = self.Redis.Do(ctx, radix.Cmd(nil, "HSET", match.HashNameBothCap(bid.UserID), fmt.Sprintf("%d", wl.RAdv.ItemID), string(bs)))
 		if err != nil {
 			return err
 		}
@@ -145,11 +124,9 @@ func (self *WinLoss) PackURLString(tracking ...bool) string {
 		args.Set("auction_imp_id", self.AuctionImpID)
 		args.Set("auction_price", fmt.Sprintf("%f", self.Cost))
 		args.Set("auction_currency", "USD")
-		cap, _ := self.RAdv.Cap.PackString()
-		args.Set("cap", cap)
-		if self.BothCap != nil {
-			bothcap, _ := self.BothCap.PackString()
-			args.Set("bothcap", bothcap)
+		if self.RAdv.Cap.CapNumber > 0 || self.RAdv.Cap.ClickNumber > 0 {
+			cap, _ := self.RAdv.Cap.PackString()
+			args.Set("cap", cap)
 		}
 	} else {
 		args.Set("auction_id", `${AUCTION_ID}`)
