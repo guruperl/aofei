@@ -228,17 +228,20 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 		}
 		if !block.Cap.ValidPeriodImp(when, bothcap.Imp) { // cap expired so start over again
 			expired = append(expired, fmt.Sprintf("%d", block.ItemID))
+			delete(bothcaps, block.ItemID)
 			blocks = append(blocks, block)
 			continue
 		}
-		if block.Cap.CanServe(when, bothcap) {
+		if block.Cap.CanServe(when, bothcap) { //do we need denied list?
 			blocks = append(blocks, block)
-			//} else {
-			//	denied = append(denied, block.ItemID)
 		}
 	}
 	if len(expired) > 0 {
 		err = BothCapsCleanupExpired(ctx, conn, pid, expired)
+	}
+
+	if len(blocks) == 0 {
+		return blocks, nil, nil
 	}
 	return blocks, bothcaps, err
 }

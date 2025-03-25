@@ -14,10 +14,17 @@ type Model struct {
 }
 
 func (self *Model) Topics(extra ...url.Values) error {
-	//ARGS := self.ARGS
-	entity_id := self.ProperValue("entity_id", extra[0])
-	table := self.ProperValue("table", extra[0])
-	idname := self.ProperValue("idname", extra[0])
+	ARGS := self.ARGS
+	entityID := ARGS.Get("entity_id")
+	table := ARGS.Get("table")
+	idname := ARGS.Get("idname")
+	if entityID == "" || table == "" || idname == "" {
+		if extra != nil {
+			entityID = self.ProperValue("entityID", extra[0])
+			table = self.ProperValue("table", extra[0])
+			idname = self.ProperValue("idname", extra[0])
+		}
+	}
 
 	return self.SelectSQL(self.LISTS,
 		`SELECT "total_balance_id" AS which, b.balance_id, limit_spend, limit_imp, limit_cli, current_spend, current_imp, current_cli
@@ -28,13 +35,13 @@ UNION
 SELECT "daily_balance_id" AS which, b.balance_id, limit_spend, limit_imp, limit_cli, current_spend, current_imp, current_cli
 FROM adv_balance b
 INNER JOIN `+table+` c ON (b.balance_id=c.daily_balance_id)
-WHERE c.`+idname+`=?`, entity_id, entity_id)
+WHERE c.`+idname+`=?`, entityID, entityID)
 }
 
 func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
 	which := ARGS.Get("which")
-	entity_id := ARGS.Get("entity_id")
+	entityID := ARGS.Get("entity_id")
 	table := ARGS.Get("table")
 	idname := ARGS.Get("idname")
 
@@ -44,5 +51,5 @@ func (self *Model) Insert(extra ...url.Values) error {
 	}
 
 	return self.DoSQL(
-		`UPDATE `+table+` SET `+which+`=? WHERE `+idname+`=?`, self.LastID, entity_id)
+		`UPDATE `+table+` SET `+which+`=? WHERE `+idname+`=?`, self.LastID, entityID)
 }

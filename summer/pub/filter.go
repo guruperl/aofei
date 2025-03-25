@@ -62,6 +62,12 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 		if err := model.Randomid("pub", "pub_id", 0, 16777216, 10); err != nil {
 			return err
 		}
+	} else if who == "web" && action == "update" {
+		model.CurrentTable = "adv_balance"
+		if err := self.BalanceBefore(&model.Model); err != nil {
+			return err
+		}
+		model.CurrentTable = "pub"
 	}
 
 	return nil

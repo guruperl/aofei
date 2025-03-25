@@ -12,6 +12,14 @@ type Model struct {
 	summer.Model
 }
 
+func (self *Model) getItemID(extra ...url.Values) string {
+	itemID := self.ARGS.Get("item_id")
+	if itemID == "" {
+		itemID = self.ProperValue("item_id", extra[0])
+	}
+	return itemID
+}
+
 func (self *Model) TopicsDmas(extra ...url.Values) error {
 	return self.SelectSQL(self.LISTS,
 		`SELECT t.city_id, t.city_name, d.dma_id, d.metro_code, tmp.value_id
@@ -26,7 +34,7 @@ LEFT JOIN (
 	INNER JOIN adv_attrname an USING (attrname_id)
 	WHERE tn.item_id=? AND an.attrname='dma'
 ) tmp ON (d.dma_id=tmp.value_id)
-WHERE c.active="Yes"`, self.ProperValue("item_id", extra[0]))
+WHERE c.active="Yes"`, self.getItemID(extra...))
 }
 
 func (self *Model) TopicsCities(extra ...url.Values) error {
@@ -42,7 +50,7 @@ LEFT JOIN (
 	INNER JOIN adv_attrname an USING (attrname_id)
 	WHERE tn.item_id=? AND an.attrname='city'
 ) tmp ON (t.city_id=tmp.value_id)
-WHERE c.active="Yes"`, self.ProperValue("item_id", extra[0]))
+WHERE c.active="Yes"`, self.getItemID(extra...))
 }
 
 func (self *Model) TopicsStates(extra ...url.Values) error {
@@ -57,7 +65,7 @@ LEFT JOIN (
 	INNER JOIN adv_attrname an USING (attrname_id)
 	WHERE tn.item_id=? AND an.attrname='state'
 ) tmp ON (s.state_id=tmp.value_id)
-WHERE c.active="Yes"`, self.ProperValue("item_id", extra[0]))
+WHERE c.active="Yes"`, self.getItemID(extra...))
 }
 
 func (self *Model) TopicsIsps(extra ...url.Values) error {
@@ -71,7 +79,7 @@ LEFT JOIN (
 	INNER JOIN adv_attrname an USING (attrname_id)
 	WHERE tn.item_id=? AND an.attrname='isp'
 ) tmp ON (s.isp_id=tmp.value_id)
-WHERE s.counts>=100 and isp_name!=''`, self.ProperValue("item_id", extra[0]))
+WHERE s.counts>=100 and isp_name!=''`, self.getItemID(extra...))
 }
 
 func (self *Model) TopicsCustom(extra ...url.Values) error {
@@ -83,13 +91,12 @@ LEFT JOIN adv_targetname tn
 	ON (an.attrname_id=tn.attrname_id AND tn.item_id=?)
 LEFT JOIN adv_targetvalue ta 
 	ON (tn.targetname_id=ta.targetname_id AND av.attrvalue_id=ta.value_id)
-WHERE an.adv_id=? AND an.attrname_id>=10000`,
-		self.ProperValue("item_id", extra[0]), self.ARGS.Get("adv_id"))
+WHERE an.adv_id=? AND an.attrname_id>=10000`, self.getItemID(extra...), self.ARGS.Get("adv_id"))
 }
 
 func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
-	itemID := ARGS.Get("item_id")
+	itemID := self.getItemID(extra...)
 
 	data := ``
 	err := self.DoSQL(

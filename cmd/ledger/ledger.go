@@ -266,7 +266,16 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		return err
 	}
 
-	return nil
+	_, err = db.Exec(`
+UPDATE adv_balance b
+INNER JOIN (
+	SELECT total_balance_id, imps, clis, spend
+	FROM ledger_pub l
+	INNER JOIN pub p USING (pub_id)
+	WHERE l.log_id=?
+) tmp ON (b.balance_id=tmp.total_balance_id)
+SET b.current_imps=tmp.imps, b.current_clis=tmp.clis, b.current_spend=tmp.spend`, logID)
+	return err
 }
 
 // InsertDaily aggregates daily data of the previous day, or the given day into daily ledger.
@@ -342,5 +351,15 @@ WHERE ldp.daily=? AND lda.daily=?`
 		return err
 	}
 
-	return nil
+	_, err = db.Exec(`
+UPDATE adv_balance b
+INNER JOIN (
+	SELECT daily_balance_id, l.imps, l.clis, l.spend
+	FROM daily_pub l
+	INNER JOIN pub p USING (pub_id)
+	INNER JOIN daily_log dl USING (log_id)
+	WHERE dl.daily=?
+) tmp ON (b.balance_id=tmp.daily_balance_id)
+SET b.daily_imps=tmp.imps, b.daily_clis=tmp.clis, b.daily_spend=tmp.spend`, myDay)
+	return err
 }

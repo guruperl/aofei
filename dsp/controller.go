@@ -139,14 +139,14 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ok = true
 			err = self.serveStatus(ctx, StatusLoss, current, r.URL.Query())
 		default:
-			glog.Errorf("%s: %d", "Not found", http.StatusNotFound)
+			glog.Infof("%s: %d", "Not found", http.StatusNotFound)
 			return
 		}
 	case "POST":
 		glog.Info("0.6: POST")
 		str, found := strings.CutPrefix(r.URL.Path, "/bid")
 		if !found || (len(str) >= 1 && str[0:1] != "/") {
-			glog.Errorf("%s: %d", "Not found", http.StatusNotFound)
+			glog.Infof("%s: %d", "Not found", http.StatusNotFound)
 			return
 		}
 		if len(str) >= 1 {
@@ -161,12 +161,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	default:
-		glog.Errorf("%s: %d", "Method not supported", http.StatusMethodNotAllowed)
+		glog.Infof("%s: %d", "Method not supported", http.StatusMethodNotAllowed)
 		return
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusBadRequest)
+		glog.Infof("%s: %d", err.Error(), http.StatusBadRequest)
 		return
 	}
 	if ok {
@@ -178,7 +178,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	attr, err := match.NewAttribute(ctx, self.Ips, bid, self.RPubMap, current, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	width, height := match.SizeID1To2(attr.SizeID)
@@ -189,12 +189,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	monitors, err := match.RAdvsFromRedis(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if len(monitors) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
 
@@ -202,37 +202,37 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		userID = attr.IFA
 	}
-	glog.Infof("4: userID %s => %d", userID, len(monitors))
+	glog.Infof("4: userID %s => total # %d", userID, len(monitors))
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if len(candidates) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
 
-	glog.Info("5: candidates")
+	glog.Infof("5: total # after cap %d", len(candidates))
 	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if len(radvs) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
 
-	glog.Infof("6: radvs audieces %d, %d", len(radvs), len(audiences))
+	glog.Infof("6: radvs # %d, audieces # %d", len(radvs), len(audiences))
 	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
 	if index < 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
 		return
 	}
 
@@ -252,7 +252,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rspnsBid, err := self.bidSeatBid(ctx, bid, one, audiences[index], winloss, attr, width, height)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -273,7 +273,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rspnStr, err := json.Marshal(response)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Write(rspnStr)
@@ -293,7 +293,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		glog.Errorf("%s: %d", err.Error(), http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 	}
 }
 

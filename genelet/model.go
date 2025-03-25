@@ -44,13 +44,11 @@ type Model struct {
 	TopicsHashpars map[string]string `json:"topics_hashpars"`
 
 	TotalForce int `json:"total_force"`
-
-	Logger *zap.Logger
 }
 
 func (self *Model) Initialize(comp *Component, logger ...*zap.Logger) {
 	if len(logger) > 0 {
-		self.Logger = logger[0]
+		self.Crud.DBI.Logger = logger[0]
 	}
 
 	self.SORTBY = comp.Sortby

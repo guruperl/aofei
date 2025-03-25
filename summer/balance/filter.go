@@ -1,3 +1,4 @@
+// Package balance works for traffic management of pub too, where total balance is for the interval of 10 or 15 minutes.
 package balance
 
 import (
@@ -13,12 +14,14 @@ type Filter struct {
 
 func (self *Filter) GetAll() (map[string][]string, []string) {
 	ARGS := self.R.Form
-	entitytype_id := ARGS.Get("entitytype_id")
-	if entitytype_id == "41" {
+	switch ARGS.Get("entitytype_id") {
+	case "41":
 		self.Fks = map[string][]string{"adv": {"campaign_id", "campaign_md5"}}
-	} else if entitytype_id == "42" {
+	case "42":
 		self.Fks = map[string][]string{"adv": {"item_id", "item_md5"}}
-	} else {
+	case "3":
+		self.Fks = map[string][]string{"pub": {"pub_id"}}
+	default:
 		self.Fks = map[string][]string{"pub": {"item_id", "item_md5"}}
 	}
 	return self.Filter.GetAll()
@@ -33,10 +36,10 @@ func (self *Filter) Preset() error {
 	//action := self.Action
 	//who := self.RoleValue
 
-	entitytype_id := ARGS.Get("entitytype_id")
-	idname := summer.TABLES[entitytype_id][1]
+	entitytypeID := ARGS.Get("entitytype_id")
+	idname := summer.TABLES[entitytypeID][1]
 
-	ARGS.Set("table", summer.TABLES[entitytype_id][0])
+	ARGS.Set("table", summer.TABLES[entitytypeID][0])
 	ARGS.Set("idname", idname)
 	ARGS.Set("entity_id", ARGS.Get(idname))
 
@@ -73,8 +76,7 @@ func (self *Filter) After(model *Model) error {
 
 	if action == "topics" {
 		for _, item := range lists {
-			balance_id := strconv.FormatInt(item["balance_id"].(int64), 10)
-			ARGS.Set(item["which"].(string), balance_id)
+			ARGS.Set(item["which"].(string), strconv.FormatInt(item["balance_id"].(int64), 10))
 		}
 	}
 

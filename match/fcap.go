@@ -46,8 +46,8 @@ func NewFcap(when time.Time) Fcap {
 
 // Refresh adds one more count and update the last access time
 func (self *Fcap) Refresh(when time.Time) {
-	self.Total += 1
-	self.Last = uint16(when.Sub(self.GetStart()) / time.Minute)
+	(*self).Total = self.Total + 1
+	(*self).Last = uint16(when.Sub(self.GetStart()) / time.Minute)
 }
 
 // GetStart gets starting time in time
@@ -138,7 +138,7 @@ func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, itemI
 		if len(sdata) == 0 {
 			continue
 		}
-		slotID, err := strconv.Atoi(itemIDs[i])
+		itemID, err := strconv.Atoi(itemIDs[i])
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +146,7 @@ func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, itemI
 		if err != nil {
 			return nil, err
 		}
-		bothcaps[uint32(slotID)] = bothcap
+		bothcaps[uint32(itemID)] = bothcap
 	}
 	if len(bothcaps) == 0 {
 		return nil, nil
@@ -160,7 +160,7 @@ func BothCapsCleanupExpired(ctx context.Context, conn radix.Client, pid string, 
 	return conn.Do(ctx, radix.Cmd(nil, "HDEL", arr...))
 }
 
-func (self BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {
+func (self *BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {
 	imp := self.Imp
 	cli := self.Cli
 	if isImp {
@@ -175,4 +175,6 @@ func (self BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) 
 		}
 		cli.Refresh(when)
 	}
+	(*self).Imp = imp
+	(*self).Cli = cli
 }

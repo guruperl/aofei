@@ -4,30 +4,33 @@ import (
 	"database/sql"
 	"net/url"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 type DBI struct {
 	DB       *sql.DB
 	LastID   int64
 	Affected int64
+
+	Logger *zap.Logger
 }
 
 func (self *DBI) ExecSQL(sql string) error {
 	_, err := self.DB.Exec(sql)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return err
 }
 
 func (self *DBI) DoSQL(sql string, args ...interface{}) error {
-	//glog.Infof("%s\n", sql)
-	//glog.Infof("%#v\n", args)
+	glog := self.Logger.Sugar()
+	glog.Infof("%s\n", sql)
+	glog.Infof("%#v\n", args)
 	sth, err := self.DB.Prepare(sql)
-	//defer sth.Close()
 	if err != nil {
 		return err
 	}
+	defer sth.Close()
 	result, err := sth.Exec(args...)
 	if err != nil {
 		return err
@@ -40,13 +43,14 @@ func (self *DBI) DoSQL(sql string, args ...interface{}) error {
 	if err == nil {
 		self.Affected = affected
 	}
-	sth.Close()
+
 	return nil
 }
 
 func (self *DBI) DoSQLs(sql string, args [][]interface{}) error {
-	//glog.Infof("%s\n", sql)
-	//glog.Infof("%#v\n", args)
+	glog := self.Logger.Sugar()
+	glog.Infof("%s\n", sql)
+	glog.Infof("%#v\n", args)
 	sth, err := self.DB.Prepare(sql)
 	if err != nil {
 		return err
@@ -66,6 +70,7 @@ func (self *DBI) DoSQLs(sql string, args [][]interface{}) error {
 			self.Affected = affected
 		}
 	}
+
 	return nil
 }
 
@@ -105,8 +110,9 @@ func (self *DBI) GetSQLLabel(res map[string]interface{}, sql string, selectLabel
 }
 
 func (self *DBI) SelectSQLLabel(lists *[]map[string]interface{}, sql string, selectLabels []string, args ...interface{}) error {
-	//glog.Infof("%s\n", sql)
-	//glog.Infof("%v\n", args)
+	glog := self.Logger.Sugar()
+	glog.Infof("%s\n", sql)
+	glog.Infof("%v\n", args)
 	sth, err := self.DB.Prepare(sql)
 	if err != nil {
 		return err
@@ -151,10 +157,7 @@ func (self *DBI) SelectSQLLabel(lists *[]map[string]interface{}, sql string, sel
 		}
 		*lists = append(*lists, res)
 	}
-	if err = rows.Err(); err != nil {
-		return err
-	}
-	return nil
+	return rows.Err()
 }
 
 func (self *DBI) DoProc(hash map[string]interface{}, names []string, procName string, args ...interface{}) error {

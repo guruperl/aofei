@@ -23,17 +23,25 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: winloss --s=dsp_config\n")
+	fmt.Fprintf(os.Stderr, "usage: winloss --s=dsp_config --bid=address [win|loss|imp|clk]\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
 
 var sConf string
+var address string
+var how string
 
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
+	flag.StringVar(&address, "bid", "https://www.w8m.com/bid/exchange.example.test", "bid url")
 	flag.Parse()
+	if flag.NArg() >= 1 {
+		how = flag.Arg(0)
+	} else {
+		how = "random"
+	}
 }
 
 func main() {
@@ -45,7 +53,7 @@ func main() {
 	defer sc.Close()
 
 	buf := bytes.NewBuffer(jsonBid)
-	req, err := http.NewRequest(http.MethodPost, "http://www.w8m.com/bid/exchange.example.test", buf)
+	req, err := http.NewRequest(http.MethodPost, address, buf)
 	if err != nil {
 		panic(err)
 	}
@@ -55,6 +63,13 @@ func main() {
 		panic(err)
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusNoContent {
+		log.Printf("status code: %d", res.StatusCode)
+		os.Exit(0)
+	} else if res.StatusCode != http.StatusOK {
+		panic(fmt.Errorf("status code: %d", res.StatusCode))
+	}
 
 	bidResponse := new(openrtb2.BidResponse)
 	err = json.NewDecoder(res.Body).Decode(bidResponse)
@@ -94,34 +109,49 @@ func main() {
 
 	time.Sleep(100 * time.Millisecond)
 	var rspns, impRspns, clkRspns *http.Response
-	if rand.Intn(10) < 5 {
+	switch how {
+	case "win":
 		log.Printf("win %s", nurlObject.String())
 		rspns, err = http.Get(nurlObject.String())
 		if err == nil {
 			time.Sleep(1 * time.Second)
 			log.Printf("impression %s", impObject.String())
 			impRspns, err = http.Get(impObject.String())
-			if err == nil && rand.Intn(10) < 5 {
-				log.Printf("clicking %s", clickObject.String())
-				time.Sleep(2 * time.Second)
-				clkRspns, err = http.Get(clickObject.String())
-			}
 		}
-	} else {
+	case "loss":
 		log.Printf("loss %s", lurlObject.String())
 		rspns, err = http.Get(lurlObject.String())
+	case "imp":
+		log.Printf("impression %s", impObject.String())
+		impRspns, err = http.Get(impObject.String())
+	case "clk":
+		log.Printf("clicking %s", clickObject.String())
+		clkRspns, err = http.Get(clickObject.String())
+	default:
+		if rand.Intn(10) < 5 {
+			if rspns, err = http.Get(nurlObject.String()); err == nil {
+				time.Sleep(1 * time.Second)
+				if impRspns, err = http.Get(impObject.String()); err == nil && rand.Intn(10) < 5 {
+					time.Sleep(2 * time.Second)
+					clkRspns, err = http.Get(clickObject.String())
+				}
+			}
+		} else {
+			rspns, err = http.Get(lurlObject.String())
+		}
 	}
 	if err != nil {
 		panic(err)
 	}
+
 	if rspns != nil {
-		defer rspns.Body.Close()
+		rspns.Body.Close()
 	}
 	if impRspns != nil {
-		defer impRspns.Body.Close()
+		impRspns.Body.Close()
 	}
 	if clkRspns != nil {
-		defer clkRspns.Body.Close()
+		clkRspns.Body.Close()
 	}
 }
 
@@ -132,7 +162,7 @@ var jsonBid = []byte(`
         {
             "id": "5c6e168cd0494bf8b71d7d92030bda18",
             "native": {
-                "request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":64,\"hmin\":64}}]}}",
+                "request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":100,\"hmin\":100}}]}}",
                 "ver": "1.1"
             },
             "tagid": "1004202",

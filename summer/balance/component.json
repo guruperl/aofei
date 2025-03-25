@@ -1,11 +1,11 @@
 {
   "actions" : {
-  "startnew" : {"groups":["adv"], "options":["no_db","no_method"]},
-    "insert" : {"groups":["adv"], "validate":["entitytype_id"]},
-      "edit" : {"groups":["adv"], "validate":["balance_id","entitytype_id"]},
-    "update" : {"groups":["adv"], "validate":["balance_id","entitytype_id"]},
-    "delete" : {"groups":["adv"], "validate":["balance_id","entitytype_id"]},
-    "topics" : {"groups":["adv"], "validate":["entitytype_id"]}
+  "startnew" : {"groups":["adv","pub"], "options":["no_db","no_method"]},
+    "insert" : {"groups":["adv","pub"], "validate":["entitytype_id"]},
+      "edit" : {"groups":["adv","pub"], "validate":["balance_id","entitytype_id"]},
+    "update" : {"groups":["adv","pub"], "validate":["balance_id","entitytype_id"]},
+    "delete" : {"groups":["adv","pub"], "validate":["balance_id","entitytype_id"]},
+    "topics" : {"groups":["adv","pub"], "validate":["entitytype_id"]}
   },
 
   "insert_pars"    : ["limit_spend","limit_imp","limit_cli","created"],

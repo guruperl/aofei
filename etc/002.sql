@@ -1,5 +1,9 @@
 ALTER TABLE pub
-	ADD `domain` VARCHAR(255) AFTER lastname;
+	ADD `domain` VARCHAR(255) AFTER lastname,
+	ADD `daily_balance_id` INT UNSIGNED DEFAULT NULL AFTER domain,
+	ADD `interval_balance_id` INT UNSIGNED DEFAULT NULL AFTER daily_balance_id,
+	ADD FOREIGN KEY (daily_balance_id) REFERENCES adv_balance(balance_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+	ADD FOREIGN KEY (interval_balance_id) REFERENCES adv_balance(balance_id) ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE adv
 	ADD `domain` VARCHAR(255) AFTER lastname;
 

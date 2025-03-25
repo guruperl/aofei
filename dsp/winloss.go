@@ -68,13 +68,13 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	demand := args.Get("demand")
 	supply := args.Get("supply")
 	if demand != "" {
-		wl.RAdv.Demand, err = match.UnpackDemandString(supply)
+		wl.RAdv.Demand, err = match.UnpackDemandString(demand)
 		if err != nil {
 			return err
 		}
 	}
 	if supply != "" {
-		wl.RPub, err = match.UnpackRPubString(demand)
+		wl.RPub, err = match.UnpackRPubString(supply)
 		if err != nil {
 			return err
 		}

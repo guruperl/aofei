@@ -1,8 +1,3 @@
-DROP VIEW IF EXISTS SimpleRedisWeb;
-DROP VIEW IF EXISTS SimpleRedisApp;
-DROP VIEW IF EXISTS ViewRedisApp;
-DROP VIEW IF EXISTS ViewRedisWeb;
-
 DROP PROCEDURE IF EXISTS proc_slot;
 -- proc_slot provides the list of ads for a given slot and size, taking into account
 -- the demands may have blocked or allowed supplies.
