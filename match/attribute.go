@@ -32,7 +32,7 @@ type Attribute struct {
 }
 
 // NewAttribute creates a new Attribute from a bid request.
-func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, rpubMap *RPubMap, when time.Time, pubStr string) (*Attribute, error) {
+func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, pubObj *Pub, when time.Time, pubStr string) (*Attribute, error) {
 	device := bidRequest.Device
 	if device == nil {
 		return nil, nil
@@ -72,7 +72,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
 	attr.PzUa = getUA(device)
 	attr.ACL = getACL(bidRequest, pubStr)
-	attr.RPub = rpubMap.GetRPub(attr.ACL, attr.IsApp)
+	attr.RPub = pubObj.GetRPub(attr.ACL.SiteStr, attr.ACL.SlotStr, attr.IsApp)
 	sizeID, nativeFormat, err := getSizeIDNative(bidRequest)
 	if err != nil {
 		return nil, err

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,25 +29,22 @@ const (
 )
 
 type Controller struct {
-	C       *Config
-	Ips     *maxmind.IPSearch
-	Redis   radix.Client
-	DB      *sql.DB
-	Nc      *nats.Conn
-	RPubMap *match.RPubMap
-	Logger  *zap.Logger
+	C      *Config
+	Ips    *maxmind.IPSearch
+	Redis  radix.Client
+	DB     *sql.DB
+	Nc     *nats.Conn
+	PubMap match.PubMap
+	Logger *zap.Logger
 }
 
-func NewController(ctx context.Context, filename string, ignoreIps ...bool) (*Controller, error) {
+func NewController(ctx context.Context, filename string) (*Controller, error) {
 	c, err := NewConfig(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	var ips *maxmind.IPSearch
-	if len(ignoreIps) == 0 || !ignoreIps[0] {
-		ips, err = maxmind.LoadIPData(c.Ips)
-	}
+	ips, err := maxmind.LoadIPData(c.Ips)
 	if err != nil {
 		return nil, err
 	}
@@ -74,27 +72,25 @@ func NewController(ctx context.Context, filename string, ignoreIps ...bool) (*Co
 		return nil, err
 	}
 
-	rpubMap := new(match.RPubMap)
-	if c.RPubMap != "" {
-		bs, err := os.ReadFile(c.RPubMap)
+	pubMap := make(match.PubMap)
+	bs, err := os.ReadFile(c.RPubMap)
+	if err != nil {
+		return nil, err
+	}
+	if bs != nil {
+		err = json.Unmarshal(bs, &pubMap)
 		if err != nil {
 			return nil, err
-		}
-		if bs != nil {
-			err = json.Unmarshal(bs, &rpubMap)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 
 	return &Controller{
-		C:       c,
-		Ips:     ips,
-		Redis:   redis,
-		DB:      db,
-		Nc:      nc,
-		RPubMap: rpubMap,
+		C:      c,
+		Ips:    ips,
+		Redis:  redis,
+		DB:     db,
+		Nc:     nc,
+		PubMap: pubMap,
 	}, err
 }
 
@@ -111,9 +107,9 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var bidStr []byte
 	var bid *openrtb2.BidRequest
-	var pubStr string
 	var ok bool
 	var err error
+	pubStr := match.PUBDefault
 
 	current := time.Now()
 	ctx := r.Context()
@@ -161,6 +157,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		glog.Infof("%s: %d", "Method not supported", http.StatusMethodNotAllowed)
 		return
 	}
@@ -174,11 +171,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// note that we embed rpubmap in the controller after restart, but also dynamically update it for each request.
-	var bs []byte
-	if err = self.Redis.Do(ctx, radix.Cmd(&bs, "GET", self.C.RPubMap)); err == nil && len(bs) > 0 {
-		self.RPubMap, err = match.UnpackRPubMap(bs)
-	}
+	pubObj, err := self.getPubObj(ctx, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
@@ -186,7 +179,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	glog.Info("1: bid")
-	attr, err := match.NewAttribute(ctx, self.Ips, bid, self.RPubMap, current, pubStr)
+	attr, err := match.NewAttribute(ctx, self.Ips, bid, pubObj, current, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
@@ -359,4 +352,26 @@ func (self *Controller) admFromCreative(ctx context.Context, attr *match.Attribu
 	}
 
 	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, creative.CreativeContent, width, height), nil
+}
+
+// getPubObj returns the Pub object from the PubMap.
+func (self *Controller) getPubObj(ctx context.Context, pubStr string) (*match.Pub, error) {
+	var pubObj *match.Pub
+	// note that we embed pubmap in the controller after restart, but also dynamically update it for each request.
+	var bs []byte
+	_, base := filepath.Split(self.C.RPubMap)
+	err := self.Redis.Do(ctx, radix.Cmd(&bs, "GET", base))
+	if err == nil && len(bs) > 0 {
+		pubObj, err = match.UnpackPub(bs)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if pubObj == nil {
+		pubObj = self.PubMap[pubStr]
+		if pubObj == nil {
+			pubObj = self.PubMap[match.PUBDefault]
+		}
+	}
+	return pubObj, nil
 }

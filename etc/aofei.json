@@ -5,7 +5,7 @@
 	"nats_url" : "nats://localhost:4222",
 	"redis": {"Addr":"vm0","User":"","Pass":""},
         "connect_array": ["mysql","eightran_goto:12pass34@tcp(vm0)/aofei"],
-	"rpub_map": "/srv/aofei/aofei/conf/rpubmap.json",
+	"pub_map": "/srv/aofei/aofei/conf/pubmap.json",
 	"log_request": "/srv/aofei/logs/log_request",
 	"log_response": "/srv/aofei/logs/log_response",
 	"log_attribute": "/srv/aofei/logs/log_attribute",

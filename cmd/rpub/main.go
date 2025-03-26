@@ -1,5 +1,5 @@
 // this runs daily, after the data of adxes and publishers are inserted or updated.
-// the generated RPubMap is put on disk, and the web server has to restart to read it.
+// the generated PubMap is put on disk, and the web server has to restart to read it.
 package main
 
 import (
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/match"
@@ -44,7 +45,7 @@ func main() {
 	}
 	defer sc.Close()
 
-	rpubmap, err := match.DBGetRPubMap(sc.DB)
+	pubmap, err := match.DBGetPubMap(sc.DB)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,32 +75,41 @@ func main() {
 			log.Fatal(err)
 		}
 		acl := plus.Attribute.ACL
-		_, _, _, err = rpubmap.DBAddNew(sc.DB, acl.PubStr, acl.SiteStr, acl.SlotStr)
+		siteType := "Web"
+		if plus.Attribute.IsApp {
+			siteType = "App"
+		}
+		_, _, _, err = pubmap.DBAddNew(sc.DB, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	log.Printf("new RPubMap is written to %s\n", sc.C.RPubMap)
-	bs, err := rpubmap.Pack()
-	if err == nil {
-		err = sc.Redis.Do(ctx, radix.Cmd(nil, "SET", sc.C.RPubMap, string(bs)))
+	_, base := filepath.Split(sc.C.RPubMap)
+	log.Printf("new PubMap is written to redis %s\n", base)
+	arr := []string{base}
+	for k, v := range pubmap {
+		bs, err := v.Pack()
+		if err != nil {
+			log.Fatal(err)
+		}
+		arr = append(arr, k, string(bs))
 	}
+	err = sc.Redis.Do(ctx, radix.Cmd(nil, "SET", arr...))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	/*
-		fh, err := os.OpenFile(sc.C.RPubMap, os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer fh.Close()
+	log.Printf("new PubMap is written to disk %s\n", sc.C.RPubMap)
+	jh, err := os.OpenFile(sc.C.RPubMap, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fh.Close()
 
-		bs, err := json.MarshalIndent(rpubmap, "", "  ")
-		if err != nil {
-			log.Fatal(err)
-		}
-		fh.Write(bs)
-	*/
+	bs, err := json.MarshalIndent(pubmap, "", "  ")
+	if err != nil {
+		log.Fatal(err)
+	}
+	jh.Write(bs)
 }

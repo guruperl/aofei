@@ -35,7 +35,7 @@ func init() {
 
 func main() {
 	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf, true)
+	sc, err := dsp.NewController(ctx, sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
