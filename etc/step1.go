@@ -139,6 +139,14 @@ FROM def_country`)
 	}
 	defer f.Close()
 
+	sth, err := db.PrepareContext(ctx, `
+	INSERT INTO def_state (country_id, state_code, state_name, english_name)
+	VALUES (?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer sth.Close()
+
 	ref := make(map[string]bool)
 
 	re := regexp.MustCompile(`^(\d+),([a-zA-Z]+),([a-zA-Z]+),(("[^"]+")|([^,]+)),([a-zA-Z]+),(("[^"]+")|([^,]+)),([a-zA-Z0-9]*),(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(0|1)$`)
@@ -174,9 +182,7 @@ FROM def_country`)
 			continue
 		}
 		ref[country+"-"+state] = true
-		_, err := db.ExecContext(ctx, `
-INSERT INTO def_state (country_id, state_code, state_name, english_name)
-VALUES (?,?,?,?)`, countryID, state, stateName, englishName)
+		_, err := sth.ExecContext(ctx, countryID, state, stateName, englishName)
 		if err != nil {
 			return fmt.Errorf("state %d, state_code=%s, %#v => %#v", countryID, state, arr, err)
 		}
@@ -229,6 +235,14 @@ INNER JOIN def_country c USING (country_id)`)
 	}
 	defer g.Close()
 
+	sth, err := db.PrepareContext(ctx, `
+	INSERT INTO def_city (city_id, state_id, city_name)
+	VALUES (?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer sth.Close()
+
 	re := regexp.MustCompile(`^(\d+),([a-zA-Z]+),([a-zA-Z]+),(("[^"]+")|([^,]+)),([a-zA-Z]+),(("[^"]+")|([^,]+)),([a-zA-Z0-9]*),(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(("[^"]+")|([^,]+))?,(0|1)$`)
 	scanner = bufio.NewScanner(g)
 	scanner.Scan() // skip first line
@@ -255,9 +269,7 @@ INNER JOIN def_country c USING (country_id)`)
 			fmt.Printf("wrong state: %v\n", arr)
 			continue
 		}
-		_, err := db.ExecContext(ctx, `
-INSERT INTO def_city (city_id, state_id, city_name)
-VALUES (?,?,?)`, arr[1], stateID, city)
+		_, err := sth.ExecContext(ctx, arr[1], stateID, city)
 		if err != nil {
 			return err
 		}

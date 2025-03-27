@@ -23,9 +23,11 @@ func (self *DBI) ExecSQL(sql string) error {
 }
 
 func (self *DBI) DoSQL(sql string, args ...interface{}) error {
-	glog := self.Logger.Sugar()
-	glog.Infof("%s\n", sql)
-	glog.Infof("%#v\n", args)
+	if self.Logger != nil {
+		glog := self.Logger.Sugar()
+		glog.Infof("%s\n", sql)
+		glog.Infof("%#v\n", args)
+	}
 	sth, err := self.DB.Prepare(sql)
 	if err != nil {
 		return err
@@ -48,9 +50,11 @@ func (self *DBI) DoSQL(sql string, args ...interface{}) error {
 }
 
 func (self *DBI) DoSQLs(sql string, args [][]interface{}) error {
-	glog := self.Logger.Sugar()
-	glog.Infof("%s\n", sql)
-	glog.Infof("%#v\n", args)
+	if self.Logger != nil {
+		glog := self.Logger.Sugar()
+		glog.Infof("%s\n", sql)
+		glog.Infof("%#v\n", args)
+	}
 	sth, err := self.DB.Prepare(sql)
 	if err != nil {
 		return err
@@ -110,9 +114,11 @@ func (self *DBI) GetSQLLabel(res map[string]interface{}, sql string, selectLabel
 }
 
 func (self *DBI) SelectSQLLabel(lists *[]map[string]interface{}, sql string, selectLabels []string, args ...interface{}) error {
-	glog := self.Logger.Sugar()
-	glog.Infof("%s\n", sql)
-	glog.Infof("%v\n", args)
+	if self.Logger != nil {
+		glog := self.Logger.Sugar()
+		glog.Infof("%s\n", sql)
+		glog.Infof("%v\n", args)
+	}
 	sth, err := self.DB.Prepare(sql)
 	if err != nil {
 		return err

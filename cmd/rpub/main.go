@@ -79,10 +79,11 @@ func main() {
 		if plus.Attribute.IsApp {
 			siteType = "App"
 		}
-		_, _, _, err = pubmap.DBAddNew(sc.DB, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
+		pub, err := pubmap.DBAddNew(sc.DB, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
 		if err != nil {
 			log.Fatal(err)
 		}
+		pubmap[acl.PubStr] = pub
 	}
 
 	_, base := filepath.Split(sc.C.RPubMap)

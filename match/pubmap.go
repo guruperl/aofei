@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"math/rand"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -104,7 +105,7 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 SELECT p.pub_id, foreign_id, s.site_id, t.slot_name, t.slot_id
 FROM pub p
 INNER JOIN pub_site s USING (pub_id)
-INNER JOIN pub_slot t USING (slot_id)
+INNER JOIN pub_slot t USING (site_id)	"log"
 WHERE domain = ?`, domain)
 	if err != nil {
 		return nil, err
@@ -161,10 +162,10 @@ VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 	return slotID, nil
 }
 
-func (self *Pub) addSite(db *sql.DB, siteStr string, site_type string) (uint32, error) {
+func (self *Pub) addSite(db *sql.DB, siteStr string, siteType string) (uint32, error) {
 	row, err := db.Exec(`
-INSERT INTO pub_site (pub_id, site_name, foreign_id, site_type, active, created)
-VALUES (?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, site_type)
+INSERT INTO pub_site (pub_id, site_name, foreign_id, site_url, site_type, active, created)
+VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, siteType)
 	if err != nil {
 		return 0, err
 	}
@@ -181,16 +182,13 @@ VALUES (?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, site_type)
 }
 
 func addPub(db *sql.DB, pubStr string) (*Pub, error) {
-	row, err := db.Exec(`
-INSERT INTO pub (domain, foreign_id, active, created) VALUES (?, ?, 'Yes', NOW())`, pubStr, pubStr)
+	pubID := rand.Uint32()
+	_, err := db.Exec(`
+INSERT INTO pub (pub_id, domain, email, passwd, active, created)
+VALUES (?, ?, ?, '123456789', 'Yes', NOW())`, pubID, pubStr, pubStr)
 	if err != nil {
 		return nil, err
 	}
-	id, err := row.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-	pubID := uint32(id)
 	pub := &Pub{
 		PubID: pubID,
 		Sites: make(map[string]uint32),
@@ -216,7 +214,7 @@ func DBGetPubMap(db *sql.DB) (PubMap, error) {
 SELECT domain, p.pub_id, foreign_id, s.site_id, t.slot_name, t.slot_id
 FROM pub p
 INNER JOIN pub_site s USING (pub_id)
-INNER JOIN pub_slot t USING (slot_id)
+INNER JOIN pub_slot t USING (site_id)
 WHERE p.active = 'Yes' AND s.active = 'Yes' AND t.active = 'Yes'`)
 	if err != nil {
 		return nil, err
@@ -256,7 +254,7 @@ WHERE p.active = 'Yes' AND s.active = 'Yes' AND t.active = 'Yes'`)
 }
 
 // DBAddNew adds a new RPub object to the database.
-func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr string) (*Pub, uint32, uint32, error) {
+func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr string) (*Pub, error) {
 	var pub *Pub
 	var siteID, slotID uint32
 	var ok1, ok2, ok3 bool
@@ -265,22 +263,22 @@ func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr strin
 	if ok1 {
 		siteID, ok2 = pub.Sites[siteStr]
 		if ok2 {
-			slotID, ok3 = pub.Slots[siteID][slotStr]
-			if !ok3 {
+			if _, ok3 = pub.Slots[siteID][slotStr]; !ok3 {
 				slotID, err = pub.addSlot(db, siteID, slotStr)
+				pub.Slots[siteID][slotStr] = slotID
 			}
 		} else {
 			if siteID, err = pub.addSite(db, siteStr, siteType); err == nil {
-				slotID, err = pub.addSlot(db, siteID, slotStr)
+				pub.Sites[siteStr] = siteID
+				if slotID, err = pub.addSlot(db, siteID, slotStr); err == nil {
+					pub.Slots[siteID] = make(map[string]uint32)
+					pub.Slots[siteID][slotStr] = slotID
+				}
 			}
 		}
 	} else {
-		if pub, err = addPub(db, pubStr); err == nil {
-			if siteID, err = pub.addSite(db, siteStr, siteType); err == nil {
-				slotID, err = pub.addSlot(db, siteID, slotStr)
-			}
-		}
+		pub, err = addPub(db, pubStr)
 	}
 
-	return pub, siteID, slotID, err
+	return pub, err
 }

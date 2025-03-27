@@ -1,5 +1,5 @@
 $ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < sample.sql
-$ go run *.go ledger
+$ go run *.go pub
 
 1) go to cmd's maxmind, rpub, and redis to run one-time static mappings and caches
 2) go to cmd's nats, go build -o nats-client main.go . we will run it as a user service
