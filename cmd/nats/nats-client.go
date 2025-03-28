@@ -27,7 +27,7 @@ func getCurrent(interval int) int {
 }
 
 func newFileWriter(name string) (*os.File, error) {
-	fh, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	fh, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
