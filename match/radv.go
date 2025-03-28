@@ -196,19 +196,19 @@ func RAdvsFromRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint3
 	return UnpackRAdvs(data)
 }
 
-func (self RAdvs) GetItemIDs() []string {
+func (self RAdvs) capItemIDs() []string {
 	var ids []string
 	for _, block := range self {
 		if block.Cap.CapNumber == 0 && block.Cap.ClickNumber == 0 {
 			continue
 		}
-		ids = append(ids, strconv.FormatUint(uint64(block.ItemID), 10))
+		ids = append(ids, fmt.Sprintf("%d", block.ItemID))
 	}
 	return ids
 }
 
 func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time.Time, pid string) (RAdvs, map[uint32]BothCap, error) {
-	itemIDs := self.GetItemIDs()
+	itemIDs := self.capItemIDs()
 	bothcaps, err := BothCapsFromRedis(ctx, conn, pid, itemIDs)
 	if err != nil {
 		return nil, nil, err
@@ -247,7 +247,7 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 }
 
 func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, attr *Attribute) (RAdvs, Audiences, error) {
-	audiences, err := AudiencesFromRedis(ctx, conn, self.GetItemIDs())
+	audiences, err := self.AudiencesFromRedis(ctx, conn)
 	if err != nil {
 		return nil, nil, err
 	}

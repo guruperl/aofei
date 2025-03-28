@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"fmt"
 	"strconv"
 
 	"github.com/genelet/winter/acl"
@@ -182,15 +183,18 @@ func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*
 type Audiences []*Audience
 
 // AudiencesFromRedis retrieves multiple audience data from Redis.
-func AudiencesFromRedis(ctx context.Context, conn radix.Client, itemIDs []string) (Audiences, error) {
-	data := make([]string, len(itemIDs))
-	arr := append([]string{HashNameAudience}, itemIDs...)
+func (self RAdvs) AudiencesFromRedis(ctx context.Context, conn radix.Client) (Audiences, error) {
+	arr := []string{HashNameAudience}
+	for _, radv := range self {
+		arr = append(arr, fmt.Sprintf("%d", radv.ItemID))
+	}
+	data := make([]string, len(self))
 	err := conn.Do(ctx, radix.Cmd(&data, "HMGET", arr...))
 	if err != nil {
 		return nil, err
 	}
 
-	audiences := make([]*Audience, len(itemIDs))
+	audiences := make([]*Audience, len(self))
 	for i, d := range data {
 		if len(d) == 0 {
 			continue

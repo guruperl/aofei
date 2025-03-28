@@ -224,7 +224,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		userID = attr.IFA
 	}
-	glog.Infof("4: userID %s => total # %d", userID, len(monitors))
+	glog.Infof("4: userID %s => total # %d => %#v", userID, len(monitors), monitors[0])
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)

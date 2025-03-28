@@ -59,7 +59,9 @@ func main() {
 		}
 		fn := sc.C.NewLogfileName(dsp.SUBJECTAttribute, stampObject)
 		fh, err := os.Open(fn)
-		if err != nil {
+		if err != nil && err == os.ErrNotExist {
+			goto Skip
+		} else if err != nil {
 			log.Fatal(err)
 		}
 		defer fh.Close()
@@ -70,6 +72,7 @@ func main() {
 		}
 	}
 
+Skip:
 	name := dsp.PubRedisName(sc.C.RPubMap)
 	log.Printf("new PubMap is written to redis %s\n", name)
 	arr := []string{name}

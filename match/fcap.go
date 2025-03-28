@@ -189,6 +189,10 @@ func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcap
 
 // BothCapsFromRedis retrieves bothcaps from Redis.
 func BothCapsFromRedis(ctx context.Context, conn radix.Client, pid string, itemIDs []string) (map[uint32]BothCap, error) {
+	if len(itemIDs) == 0 {
+		return nil, nil
+	}
+
 	data := make([]string, len(itemIDs))
 	arr := append([]string{HashNameBothCap(pid)}, itemIDs...)
 	err := conn.Do(ctx, radix.Cmd(&data, "HMGET", arr...))
