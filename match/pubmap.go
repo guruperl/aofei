@@ -188,8 +188,8 @@ VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, si
 func addPub(db *sql.DB, pubStr string) (*Pub, error) {
 	pubID := rand.Uint32()
 	_, err := db.Exec(`
-INSERT INTO pub (pub_id, domain, email, passwd, active, created)
-VALUES (?, ?, ?, '123456789', 'Yes', NOW())`, pubID, pubStr, pubStr)
+INSERT INTO pub (pub_id, domain, email, passwd, address_id, active, created)
+VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
 	if err != nil {
 		return nil, err
 	}

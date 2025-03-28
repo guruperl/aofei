@@ -35,7 +35,7 @@ var how string
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
-	flag.StringVar(&address, "bid", "http://www.w8m.com/bid/exchange.example.test", "bid url")
+	flag.StringVar(&address, "bid", "/bid/exchange.example.test", "bid url")
 	flag.Parse()
 	if flag.NArg() >= 1 {
 		how = flag.Arg(0)
@@ -53,7 +53,8 @@ func main() {
 	defer sc.Close()
 
 	buf := bytes.NewBuffer(jsonBid)
-	req, err := http.NewRequest(http.MethodPost, address, buf)
+	host := sc.C.ServerURL
+	req, err := http.NewRequest(http.MethodPost, host+address, buf)
 	if err != nil {
 		panic(err)
 	}

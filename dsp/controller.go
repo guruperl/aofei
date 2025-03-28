@@ -119,76 +119,58 @@ func (self *Controller) Close() {
 	}
 }
 
-func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	current := time.Now()
+	status := StatusBid
+	switch r.URL.Path {
+	case "/win":
+		status = StatusWin
+	case "/loss":
+		status = StatusLoss
+	case "/imp":
+		status = StatusTrackImp
+	case "/clk":
+		status = StatusTrackClk
+	default:
+		http.Error(w, "Invalid path", http.StatusNotFound)
+		return
+	}
+
+	if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	glog := self.Logger.Sugar()
 	glog.Info("0: initial")
-
-	var bidStr []byte
-	var bid *openrtb2.BidRequest
-	var ok bool
-	var err error
-	pubStr := match.PUBDefault
 
 	current := time.Now()
 	ctx := r.Context()
 
-	switch r.Method {
-	case "GET":
-		glog.Infof("0.1: GET %s", r.URL.Path)
-		switch r.URL.Path {
-		case "/clk":
-			glog.Info("0.2: /clk")
-			ok = true
-			err = self.serveStatus(ctx, StatusTrackClk, current, r.URL.Query())
-		case "/imp":
-			glog.Info("0.3: /imp")
-			ok = true
-			err = self.serveStatus(ctx, StatusTrackImp, current, r.URL.Query())
-		case "/win":
-			glog.Info("0.4: /win")
-			ok = true
-			err = self.serveStatus(ctx, StatusWin, current, r.URL.Query())
-		case "/loss":
-			glog.Info("0.5: /loss")
-			ok = true
-			err = self.serveStatus(ctx, StatusLoss, current, r.URL.Query())
-		default:
-			glog.Infof("%s: %d", "Not found", http.StatusNotFound)
-			return
-		}
-	case "POST":
-		glog.Info("0.6: POST")
-		str, found := strings.CutPrefix(r.URL.Path, "/bid")
-		if !found || (len(str) >= 1 && str[0:1] != "/") {
-			glog.Infof("%s: %d", "Not found", http.StatusNotFound)
-			return
-		}
-		if len(str) >= 1 {
-			pubStr = str[1:]
-		}
-		bidStr, err = io.ReadAll(r.Body)
-		if err == nil {
-			bid = &openrtb2.BidRequest{}
-			err = json.Unmarshal(bidStr, bid)
-		}
-	case "OPTIONS":
-		w.WriteHeader(http.StatusNoContent)
-		return
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		glog.Infof("%s: %d", "Method not supported", http.StatusMethodNotAllowed)
+	bidStr, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
+	r.Body.Close()
+
+	bid := &openrtb2.BidRequest{}
+	if err = json.Unmarshal(bidStr, bid); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		glog.Infof("%s: %d", err.Error(), http.StatusBadRequest)
 		return
 	}
-	if ok {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 
+	pubStr := r.PathValue("domain")
+	if pubStr == "" {
+		pubStr = match.PUBDefault
+	}
 	pubObj, err := self.getPubObj(ctx, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -216,7 +198,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(monitors) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
 		return
 	}
 
@@ -233,7 +215,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(candidates) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
 		return
 	}
 
@@ -246,7 +228,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(radvs) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
 		return
 	}
 
@@ -254,7 +236,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
 	if index < 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "No ad to show", http.StatusNoContent)
+		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
 		return
 	}
 

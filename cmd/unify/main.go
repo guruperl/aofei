@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/genelet"
@@ -70,12 +71,6 @@ func main() {
 	sc.Logger = logger
 	defer sc.Close()
 
-	http.Handle("POST /bid/{domain}", sc)
-	http.Handle("/win", sc)
-	http.Handle("/loss", sc)
-	http.Handle("/clk", sc)
-	http.Handle("/imp", sc)
-
 	gc, err := getGenelet(gConf, logger)
 	if err != nil {
 		panic(err)
@@ -94,9 +89,31 @@ func main() {
 	if gc.C.ConnectArray == nil {
 		gc.C.ConnectArray = sc.C.ConnectArray
 	}
-	http.Handle("/", gc)
 
-	log.Fatal(http.ListenAndServe(":"+gc.C.ServerPort, nil))
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /bid/{domain}", sc.ServeBid)
+	mux.HandleFunc("GET /win", sc.ServeWinLoss)
+	mux.HandleFunc("GET /loss", sc.ServeWinLoss)
+	mux.HandleFunc("GET /clk", sc.ServeWinLoss)
+	mux.HandleFunc("GET /imp", sc.ServeWinLoss)
+	mux.Handle("/", gc)
+
+	server := &http.Server{
+		Addr:           ":" + sc.C.ServerPort,
+		Handler:        mux,
+		ReadTimeout:    15 * time.Second, // 15 seconds
+		WriteTimeout:   15 * time.Second, // 15 seconds
+		MaxHeaderBytes: 1 << 20,          // 1 MB
+	}
+
+	// This is a blocking call, so it will not return until the server is stopped
+	// or an error occurs.
+	err = server.ListenAndServe()
+	if err != nil && err == http.ErrServerClosed {
+		log.Println("Server closed gracefully")
+	} else if err != nil {
+		log.Fatalf("Failed to run server: %v", err)
+	}
 }
 
 func getGenelet(fn string, logger *zap.Logger) (*genelet.Controller, error) {
