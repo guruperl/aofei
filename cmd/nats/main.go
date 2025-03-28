@@ -31,12 +31,12 @@ func init() {
 
 func main() {
 	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf)
+	sc, err := dsp.NewController(ctx, sConf, "nats")
 	if err != nil {
 		log.Fatal(err)
 	}
 	nc := sc.Nc
-	defer nc.Close()
+	defer sc.Close()
 
 	filewriters, err := NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss, interval)
 	if err != nil {

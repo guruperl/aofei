@@ -1,27 +1,89 @@
-$ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < sample.sql
+# 1) demand sample
+$ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < demand.sql
+
+# 2) generate default pubmap in database
 $ go run *.go pub
 
-1) go to cmd's maxmind, rpub, and redis to run one-time static mappings and caches
-2) go to cmd's nats, go build -o nats-client main.go . we will run it as a user service
+# 3) generate the maxmind country and region file for parsing 
+$ cd ../cmd/maxmind
+$ go run main.go -s /srv/aofei/aofei/conf/aofei
 
-~/.config/systemd/user/nats-client.service:
+# 4) generate the pubmap and demand caches in redis, plus pubmap in conf
+$ cd ../cmd/redis
+$ go build -d redis-cache
+$ ./redis-cache -s /srv/aofei/aofei/conf/aofei.json
+
+# 5) build ledger
+$ cd ../ledger
+$ go build -o ledger *.go
+
+# 6) build nats-client, and run it as systemd service
+$ cd ../nats
+$ go build -o nats-client *.go
+
+# /etc/systemd/system/nats-client.service:
 [Unit]
 Description=nats-client service
 
 [Service]
 Type=simple
 Environment=AOFEI=/srv/aofei/aofei/conf/aofei.json
-ExecStart=/srv/aofei/aofei/cmd/nats/nats-client
+StandardOutput=append:/srv/aofei/logs/nats-client.log
+StandardError=append:/srv/aofei/logs/nats-client.log
+ExecStart=/srv/aofei/aofei/cmd/nats/nats-client -interval=10
+#User=peter
+#Group=peter
 
 [Install]
-WantedBy=default.target
-
-systemctl --user enable nats-client
-systemctl --user start nats-client
+WantedBy=multi-user.target
 
 
-3) go to cmd/unify, to compile, go build -o unify main.go, and run it as web + dsp bidder
+# nats-server.service 
+[Unit]
+Description=nats-server service
+After=network-online.target
+Before=aofei.service nats-client.service
+
+[Service]
+Type=simple
+ExecStart=/srv/aofei/go/bin/nats-server
+
+[Install]
+WantedBy=multi-user.target aofei.service nats-client.service
 
 
+# 7) build the program and run it as systemd web server
+$ cd  ../unity
+$ go build -o unify *.go
 
+[Unit]
+Description=Aofei DSP service
+
+[Service]
+Type=simple
+Environment=SUMMER=/srv/aofei/aofei/conf/summer.json AOFEI=/srv/aofei/aofei/conf/aofei.json
+StandardOutput=append:/srv/aofei/logs/unify.log
+StandardError=append:/srv/aofei/logs/unify.log
+ExecStart=/srv/aofei/aofei/cmd/unify/unify
+
+[Install]
+WantedBy=multi-user.target
+
+
+# 8) simulation
+$ cd ../winloss
+$ go build -o winloss *.go
+
+# user cronjob should be set after the systemd
+
+# simulate adx request
+* * * * * cd /srv/aofei/aofei/dsp; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test
+# simulate ads reply
+* * * * * /srv/aofei/aofei/cmd/winloss/winloss -bid http://x.w8m.com/bid/exchange.example.test -s /srv/aofei/aofei/conf/aofei.json >> /srv/aofei/logs/adx.log 2>&1
+# here are the cron jobs to run redis-cache and ledger
+5,15,25,35,45,55 * * * * /srv/aofei/aofei/cmd/redis/redis-cache -s /srv/aofei/aofei/conf/aofei.json >> /srv/aofei/logs/redis.cache 2>&1
+# run ledger every 10 minutes, here 10 is the same as nats-client in systemd
+1,11,21,31,41,51 * * * * /srv/aofei/aofei/cmd/ledger/ledger -s /srv/aofei/aofei/conf/aofei.json -interval=10 >> /srv/aofei/logs/ledger.minutes 2>&1
+# run daily kedger
+18 0 * * * /srv/aofei/aofei/cmd/ledger/ledger -s /srv/aofei/aofei/conf/aofei.json -daily >> /srv/aofei/logs/ledger.daily 2>&1
 

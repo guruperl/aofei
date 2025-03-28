@@ -31,6 +31,12 @@ type Attribute struct {
 	*acl.ACL
 }
 
+type AttributePlus struct {
+	Attribute
+	RAdv
+	Elapsed time.Duration `json:"elapsed"`
+}
+
 // NewAttribute creates a new Attribute from a bid request.
 func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, pubObj *Pub, when time.Time, pubStr string) (*Attribute, error) {
 	device := bidRequest.Device
@@ -102,7 +108,10 @@ func getACL(bidRequest *openrtb2.BidRequest, pubStr string) *acl.ACL {
 	if pubStr == "" {
 		pubStr = PUBDefault
 	}
-	siteStr := SITEDefault
+	siteStr := SITEDefaultWeb
+	if bidRequest.App != nil {
+		siteStr = SITEDefaultApp
+	}
 	slotStr := SLOTDefault
 
 	a := &acl.ACL{

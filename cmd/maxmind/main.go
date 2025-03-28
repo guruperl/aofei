@@ -32,7 +32,7 @@ func init() {
 
 func main() {
 	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf)
+	sc, err := dsp.NewController(ctx, sConf, "maxmind")
 	if err != nil {
 		log.Fatal(err)
 	}

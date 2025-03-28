@@ -1,19 +1,23 @@
 package match
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"encoding/json"
+	"io"
 	"math/rand"
 
 	"github.com/mediocregopher/radix/v4"
 )
 
 const (
-	PUBDefault  = "default"
-	SITEDefault = "default"
-	SLOTDefault = "default"
+	PUBDefault     = "default"
+	SITEDefaultApp = "defaultApp"
+	SITEDefaultWeb = "defaultWeb"
+	SLOTDefault    = "default"
 )
 
 type Pub struct {
@@ -102,7 +106,7 @@ func RedisGetPub(ctx context.Context, conn radix.Client, domain string) (*Pub, e
 // DBGetPub retrieves the Pub from the database using domain
 func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	rows, err := db.Query(`
-SELECT p.pub_id, foreign_id, s.site_id, t.slot_name, t.slot_id
+SELECT p.pub_id, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id
 FROM pub p
 INNER JOIN pub_site s USING (pub_id)
 INNER JOIN pub_slot t USING (site_id)	"log"
@@ -118,8 +122,8 @@ WHERE domain = ?`, domain)
 	}
 	for rows.Next() {
 		var siteID, slotID uint32
-		var slotName, foreignID string
-		err = rows.Scan(&p.PubID, &foreignID, &siteID, &slotName, &slotID)
+		var slotName, foreignID, siteType string
+		err = rows.Scan(&p.PubID, &foreignID, &siteID, &siteType, &slotName, &slotID)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +136,7 @@ WHERE domain = ?`, domain)
 		if _, ok := p.Slots[siteID][slotName]; !ok {
 			p.Slots[siteID][slotName] = slotID
 		}
-		if foreignID == SITEDefault && slotName == SLOTDefault {
+		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
 			p.DefaultWebSiteID = siteID
 			p.DefaultWebSlotID = slotID
 		}
@@ -195,10 +199,10 @@ VALUES (?, ?, ?, '123456789', 'Yes', NOW())`, pubID, pubStr, pubStr)
 		Slots: make(map[uint32]map[string]uint32),
 	}
 
-	if pub.DefaultAppSiteID, err = pub.addSite(db, SITEDefault, "App"); err == nil {
-		if pub.DefaultWebSiteID, err = pub.addSite(db, SITEDefault, "Web"); err == nil {
+	if pub.DefaultAppSiteID, err = pub.addSite(db, SITEDefaultApp, "App"); err == nil {
+		if pub.DefaultWebSiteID, err = pub.addSite(db, SITEDefaultWeb, "Web"); err == nil {
 			if pub.DefaultAppSlotID, err = pub.addSlot(db, pub.DefaultAppSiteID, SLOTDefault); err == nil {
-				_, err = pub.addSlot(db, pub.DefaultWebSiteID, SLOTDefault)
+				pub.DefaultWebSlotID, err = pub.addSlot(db, pub.DefaultWebSiteID, SLOTDefault)
 			}
 		}
 	}
@@ -245,12 +249,43 @@ WHERE p.active = 'Yes' AND s.active = 'Yes' AND t.active = 'Yes'`)
 		if _, ok := pubMap[domain].Slots[siteID][slotName]; !ok {
 			pubMap[domain].Slots[siteID][slotName] = slotID
 		}
-		if foreignID == SITEDefault && slotName == SLOTDefault {
+		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
+			pubMap[domain].DefaultAppSiteID = siteID
+			pubMap[domain].DefaultAppSlotID = slotID
+		}
+		if foreignID == SITEDefaultWeb && slotName == SLOTDefault {
 			pubMap[domain].DefaultWebSiteID = siteID
 			pubMap[domain].DefaultWebSlotID = slotID
 		}
 	}
 	return pubMap, rows.Err()
+}
+
+// DBUpdateIO updates the PubMap from the log file
+func (self PubMap) DBUpdateIO(db *sql.DB, fh io.Reader) error {
+	scanner := bufio.NewScanner(fh)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		plus := new(AttributePlus)
+		err := json.Unmarshal([]byte(line), plus)
+		if err != nil {
+			return err
+		}
+		acl := plus.Attribute.ACL
+		siteType := "Web"
+		if plus.Attribute.IsApp {
+			siteType = "App"
+		}
+		pub, err := self.DBAddNew(db, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
+		if err != nil {
+			return err
+		}
+		self[acl.PubStr] = pub
+	}
+	return scanner.Err()
 }
 
 // DBAddNew adds a new RPub object to the database.

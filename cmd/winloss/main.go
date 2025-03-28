@@ -35,7 +35,7 @@ var how string
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
-	flag.StringVar(&address, "bid", "https://www.w8m.com/bid/exchange.example.test", "bid url")
+	flag.StringVar(&address, "bid", "http://www.w8m.com/bid/exchange.example.test", "bid url")
 	flag.Parse()
 	if flag.NArg() >= 1 {
 		how = flag.Arg(0)
@@ -46,7 +46,7 @@ func init() {
 
 func main() {
 	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf)
+	sc, err := dsp.NewController(ctx, sConf, "stop")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -162,7 +162,7 @@ var jsonBid = []byte(`
         {
             "id": "5c6e168cd0494bf8b71d7d92030bda18",
             "native": {
-                "request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":100,\"hmin\":100}}]}}",
+                "request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":64,\"hmin\":64}}]}}",
                 "ver": "1.1"
             },
             "tagid": "1004202",

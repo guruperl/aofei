@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	control, err := dsp.NewController(context.Background(), "../conf/aofei.json")
+	control, err := dsp.NewController(context.Background(), "../conf/aofei.json", "never")
 	if err != nil {
 		panic(err)
 	}
@@ -44,5 +44,5 @@ func insertDefaultPub(db *sql.DB) (*match.Pub, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pubMap.DBAddNew(db, match.PUBDefault, match.SITEDefault, "", match.SLOTDefault)
+	return pubMap.DBAddNew(db, match.PUBDefault, "", "", "")
 }

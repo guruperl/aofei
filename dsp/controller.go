@@ -38,13 +38,8 @@ type Controller struct {
 	Logger *zap.Logger
 }
 
-func NewController(ctx context.Context, filename string) (*Controller, error) {
+func NewController(ctx context.Context, filename string, offline ...string) (*Controller, error) {
 	c, err := NewConfig(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	ips, err := maxmind.LoadIPData(c.Ips)
 	if err != nil {
 		return nil, err
 	}
@@ -67,38 +62,61 @@ func NewController(ctx context.Context, filename string) (*Controller, error) {
 	if err != nil {
 		return nil, err
 	}
-	nc, err := nats.Connect(c.NatsURL)
-	if err != nil {
-		return nil, err
+
+	controller := &Controller{
+		C:     c,
+		Redis: redis,
+		DB:    db,
 	}
 
-	pubMap := make(match.PubMap)
-	bs, err := os.ReadFile(c.RPubMap)
-	if err != nil {
-		return nil, err
-	}
-	if bs != nil {
-		err = json.Unmarshal(bs, &pubMap)
+	if len(offline) == 0 || offline[0] == "nats" {
+		nc, err := nats.Connect(c.NatsURL)
 		if err != nil {
 			return nil, err
 		}
+		controller.Nc = nc
 	}
 
-	return &Controller{
-		C:      c,
-		Ips:    ips,
-		Redis:  redis,
-		DB:     db,
-		Nc:     nc,
-		PubMap: pubMap,
-	}, err
+	if len(offline) == 0 || offline[0] == "maxmind" {
+		ips, err := maxmind.LoadIPData(c.Ips)
+		if err != nil {
+			return nil, err
+		}
+		controller.Ips = ips
+	}
+
+	if len(offline) == 0 || offline[0] == "pubmap" {
+		pubMap := make(match.PubMap)
+		bs, err := os.ReadFile(c.RPubMap)
+		if err != nil {
+			return nil, err
+		}
+		if bs != nil {
+			err = json.Unmarshal(bs, &pubMap)
+			if err != nil {
+				return nil, err
+			}
+		}
+		controller.PubMap = pubMap
+	}
+
+	return controller, nil
 }
 
 // Close closes the Controller.
 func (self *Controller) Close() {
-	self.Redis.Close()
-	self.DB.Close()
-	self.Nc.Close()
+	if self.Redis != nil {
+		self.Redis.Close()
+	}
+	if self.DB != nil {
+		self.DB.Close()
+	}
+	if self.Nc != nil {
+		self.Nc.Close()
+	}
+	if self.Logger != nil {
+		self.Logger.Sync()
+	}
 }
 
 func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +304,7 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	glog.Info("10: response")
 	if err = self.Nc.Publish(SUBJECTRequest, bidStr); err == nil {
 		if err = self.Nc.Publish(SUBJECTResponse, rspnStr); err == nil {
-			if bidStr, err = json.Marshal(AttributePlus{
+			if bidStr, err = json.Marshal(match.AttributePlus{
 				Attribute: *attr,
 				RAdv:      one,
 				Elapsed:   time.Duration(elapsed.Milliseconds()),
@@ -299,12 +317,6 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
 	}
-}
-
-type AttributePlus struct {
-	match.Attribute
-	match.RAdv
-	Elapsed time.Duration `json:"elapsed"`
 }
 
 // bidSeatBid returns the SeatBid for the bid response.
@@ -354,14 +366,23 @@ func (self *Controller) admFromCreative(ctx context.Context, attr *match.Attribu
 	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, creative.CreativeContent, width, height), nil
 }
 
+// PubRedisName return the redis name for the PubMap.
+func PubRedisName(fullname string) string {
+	arr := strings.SplitN(filepath.Base(fullname), ".", -1)
+	return arr[0]
+}
+
 // getPubObj returns the Pub object from the PubMap.
 func (self *Controller) getPubObj(ctx context.Context, pubStr string) (*match.Pub, error) {
 	var pubObj *match.Pub
 	// note that we embed pubmap in the controller after restart, but also dynamically update it for each request.
 	var bs []byte
-	_, base := filepath.Split(self.C.RPubMap)
-	err := self.Redis.Do(ctx, radix.Cmd(&bs, "GET", base))
-	if err == nil && len(bs) > 0 {
+	name := PubRedisName(self.C.RPubMap)
+	err := self.Redis.Do(ctx, radix.Cmd(&bs, "MGET", name, pubStr))
+	glog := self.Logger.Sugar()
+	glog.Infof("getPubObj: %s, %s error %v bs %s", name, pubStr, err, bs)
+	if err == nil && len(bs) > 2 {
+		glog.Infof("getPubObj: bs %d", len(bs))
 		pubObj, err = match.UnpackPub(bs)
 	}
 	if err != nil {
@@ -373,5 +394,6 @@ func (self *Controller) getPubObj(ctx context.Context, pubStr string) (*match.Pu
 			pubObj = self.PubMap[match.PUBDefault]
 		}
 	}
+	glog.Infof("PubMap %#v: pubObj %#v", self.PubMap, pubObj)
 	return pubObj, nil
 }
