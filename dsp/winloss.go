@@ -96,8 +96,8 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 			break
 		}
 		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
-			var bid match.Bid
-			if bid, err = match.UnpackBidID(wl.AuctionBidID); err == nil {
+			var bid Bid
+			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
 				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, status == StatusTrackImp, status == StatusTrackClk)
 			}
 		}

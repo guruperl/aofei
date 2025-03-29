@@ -1,4 +1,4 @@
-package match
+package acl
 
 import (
 	"bytes"
@@ -8,13 +8,6 @@ import (
 	"math/rand"
 
 	"github.com/mediocregopher/radix/v4"
-)
-
-const (
-	PUBDefault     = "default"
-	SITEDefaultApp = "defaultApp"
-	SITEDefaultWeb = "defaultWeb"
-	SLOTDefault    = "defaultSlot"
 )
 
 type Pub struct {
@@ -44,20 +37,14 @@ func UnpackPub(data []byte) (*Pub, error) {
 	return &p, err
 }
 
-// GetRPub returns the Pub object from the bid request.
-func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) RPub {
-	defaultRPub := func() RPub {
+// GetRPub returns three IDs from the bid request.
+// This is the main purpose of the Pub object.
+func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) (uint32, uint32, uint32) {
+	defaultRPub := func() (uint32, uint32, uint32) {
 		if isApp {
-			return RPub{
-				PubID:  self.PubID,
-				SiteID: self.DefaultAppSiteID,
-				SlotID: self.DefaultAppSlotID,
-			}
-		}
-		return RPub{
-			PubID:  self.PubID,
-			SiteID: self.DefaultWebSiteID,
-			SlotID: self.DefaultWebSlotID,
+			return self.PubID, self.DefaultAppSiteID, self.DefaultAppSlotID
+		} else {
+			return self.PubID, self.DefaultWebSiteID, self.DefaultWebSlotID
 		}
 	}
 
@@ -74,11 +61,7 @@ func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) RPub {
 		return defaultRPub()
 	}
 
-	return RPub{
-		PubID:  self.PubID,
-		SiteID: siteID,
-		SlotID: slotID,
-	}
+	return self.PubID, siteID, slotID
 }
 
 // ToRedis put Pub to redis

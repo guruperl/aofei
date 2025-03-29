@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/match"
 
@@ -46,7 +48,7 @@ func main() {
 	}
 	defer sc.Close()
 
-	name := dsp.PubRedisName(sc.C.RPubMap)
+	name := acl.PubRedisName(sc.C.RPubMap)
 	if read {
 		if err := redisRead(ctx, sc, name); err != nil {
 			log.Fatal(err)
@@ -54,7 +56,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	pubmap, err := match.DBGetPubMap(sc.DB)
+	pubmap, err := acl.DBGetPubMap(sc.DB)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,12 +77,32 @@ func main() {
 		}
 		defer fh.Close()
 
-		err = pubmap.DBUpdateIO(sc.DB, fh)
-		if err != nil {
+		scanner := bufio.NewScanner(fh)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
+			plus := new(match.AttributePlus)
+			err := json.Unmarshal([]byte(line), plus)
+			if err != nil {
+				log.Fatal(err)
+			}
+			acl := plus.Attribute.ACL
+			siteType := "Web"
+			if plus.Attribute.IsApp {
+				siteType = "App"
+			}
+			pub, err := pubmap.DBAddNew(sc.DB, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
+			if err != nil {
+				log.Fatal(err)
+			}
+			pubmap[acl.PubStr] = pub
+		}
+		if err = scanner.Err(); err != nil {
 			log.Fatal(err)
 		}
 	}
-
 Skip:
 
 	log.Printf("new PubMap is written to file %s\n", sc.C.RPubMap)
@@ -102,7 +124,7 @@ Skip:
 
 func redisRead(ctx context.Context, sc *dsp.Controller, name string) error {
 	log.Printf("reading PubMap from redis %s\n", name)
-	pubmap, err := match.PubMapFromRedis(ctx, sc.Redis, name)
+	pubmap, err := acl.PubMapFromRedis(ctx, sc.Redis, name)
 	if err != nil {
 		return err
 	}
@@ -139,7 +161,7 @@ func redisRead(ctx context.Context, sc *dsp.Controller, name string) error {
 	return nil
 }
 
-func writeToRedis(ctx context.Context, sc *dsp.Controller, pubmap match.PubMap, name string) error {
+func writeToRedis(ctx context.Context, sc *dsp.Controller, pubmap acl.PubMap, name string) error {
 	log.Printf("new PubMap is written to redis %s\n", name)
 	err := pubmap.ToRedis(ctx, sc.Redis, name)
 	if err != nil {

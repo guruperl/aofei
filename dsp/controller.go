@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
@@ -17,6 +15,7 @@ import (
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"go.uber.org/zap"
 
+	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/match"
 	"github.com/genelet/winter/maxmind"
 )
@@ -34,7 +33,7 @@ type Controller struct {
 	Redis  radix.Client
 	DB     *sql.DB
 	Nc     *nats.Conn
-	PubMap match.PubMap
+	PubMap acl.PubMap
 	Logger *zap.Logger
 }
 
@@ -86,7 +85,7 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 	}
 
 	if len(offline) == 0 || offline[0] == "pubmap" {
-		pubMap := make(match.PubMap)
+		pubMap := make(acl.PubMap)
 		bs, err := os.ReadFile(c.RPubMap)
 		if err != nil {
 			return nil, err
@@ -169,9 +168,9 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	pubStr := r.PathValue("domain")
 	if pubStr == "" {
-		pubStr = match.PUBDefault
+		pubStr = acl.PUBDefault
 	}
-	pubObj, err := self.getPubObj(ctx, pubStr)
+	pubObj, err := self.PubMap.PubFromRedis(ctx, self.Redis, self.C.RPubMap, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
@@ -248,7 +247,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	bidID := match.NewBid(current, userID).BidID()
+	bidID := NewBid(current, userID).BidID()
 	winloss := NewWinLoss(current, StatusBid, attr.RPub, one, bothcap, bid.ID, bidID, bid.Imp[0].ID)
 
 	glog.Info("8: winloss")
@@ -345,36 +344,4 @@ func (self *Controller) admFromCreative(ctx context.Context, attr *match.Attribu
 	}
 
 	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, creative.CreativeContent, width, height), nil
-}
-
-// PubRedisName return the redis name for the PubMap.
-func PubRedisName(fullname string) string {
-	arr := strings.SplitN(filepath.Base(fullname), ".", -1)
-	return arr[0]
-}
-
-// getPubObj returns the Pub object from the PubMap.
-func (self *Controller) getPubObj(ctx context.Context, pubStr string) (*match.Pub, error) {
-	var pubObj *match.Pub
-	// note that we embed pubmap in the controller after restart, but also dynamically update it for each request.
-	var bs []byte
-	name := PubRedisName(self.C.RPubMap)
-	err := self.Redis.Do(ctx, radix.Cmd(&bs, "MGET", name, pubStr))
-	glog := self.Logger.Sugar()
-	glog.Infof("getPubObj: %s, %s error %v bs %s", name, pubStr, err, bs)
-	if err == nil && len(bs) > 2 {
-		glog.Infof("getPubObj: bs %d", len(bs))
-		pubObj, err = match.UnpackPub(bs)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if pubObj == nil {
-		pubObj = self.PubMap[pubStr]
-		if pubObj == nil {
-			pubObj = self.PubMap[match.PUBDefault]
-		}
-	}
-	glog.Infof("PubMap %#v: pubObj %#v", self.PubMap, pubObj)
-	return pubObj, nil
 }

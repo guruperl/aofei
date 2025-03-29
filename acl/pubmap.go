@@ -1,11 +1,10 @@
-package match
+package acl
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
-	"encoding/json"
-	"io"
+	"path/filepath"
+	"strings"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -101,33 +100,6 @@ WHERE p.active = 'Yes' AND s.active = 'Yes' AND t.active = 'Yes'`)
 	return pubMap, rows.Err()
 }
 
-// DBUpdateIO updates the PubMap from the log file
-func (self PubMap) DBUpdateIO(db *sql.DB, fh io.Reader) error {
-	scanner := bufio.NewScanner(fh)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-		plus := new(AttributePlus)
-		err := json.Unmarshal([]byte(line), plus)
-		if err != nil {
-			return err
-		}
-		acl := plus.Attribute.ACL
-		siteType := "Web"
-		if plus.Attribute.IsApp {
-			siteType = "App"
-		}
-		pub, err := self.DBAddNew(db, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
-		if err != nil {
-			return err
-		}
-		self[acl.PubStr] = pub
-	}
-	return scanner.Err()
-}
-
 // DBAddNew adds a new RPub object to the database.
 func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr string) (*Pub, error) {
 	var pub *Pub
@@ -156,4 +128,32 @@ func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr strin
 	}
 
 	return pub, err
+}
+
+// PubRedisName return the redis name for the PubMap.
+func PubRedisName(fullname string) string {
+	arr := strings.SplitN(filepath.Base(fullname), ".", -1)
+	return arr[0]
+}
+
+// PubFromRedis returns the Pub object pub string.
+// This is the main purpose of PubMap, used in Controller.
+func (self PubMap) PubFromRedis(ctx context.Context, conn radix.Client, fullname, pubStr string) (*Pub, error) {
+	var pubObj *Pub
+	var bs []byte
+	name := PubRedisName(fullname)
+	err := conn.Do(ctx, radix.Cmd(&bs, "MGET", name, pubStr))
+	if err == nil && len(bs) > 2 {
+		pubObj, err = UnpackPub(bs)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if pubObj == nil {
+		pubObj = self[pubStr]
+		if pubObj == nil {
+			pubObj = self[PUBDefault]
+		}
+	}
+	return pubObj, nil
 }

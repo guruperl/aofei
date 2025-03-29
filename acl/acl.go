@@ -1,6 +1,13 @@
 // Package acl provides functionality for handling acl and category operations.
 package acl
 
+const (
+	PUBDefault     = "default"
+	SITEDefaultApp = "defaultApp"
+	SITEDefaultWeb = "defaultWeb"
+	SLOTDefault    = "defaultSlot"
+)
+
 type ACL struct {
 	// publisher name, publish.id for web, bundle for app
 	PubStr string `json:"bundle"`

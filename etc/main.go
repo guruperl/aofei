@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"os"
 
+	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/match"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -39,10 +39,10 @@ func main() {
 	}
 }
 
-func insertDefaultPub(db *sql.DB) (*match.Pub, error) {
-	pubMap, err := match.DBGetPubMap(db)
+func insertDefaultPub(db *sql.DB) (*acl.Pub, error) {
+	pubMap, err := acl.DBGetPubMap(db)
 	if err != nil {
 		return nil, err
 	}
-	return pubMap.DBAddNew(db, match.PUBDefault, "", "", "")
+	return pubMap.DBAddNew(db, acl.PUBDefault, "", "", "")
 }
