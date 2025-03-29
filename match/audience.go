@@ -182,7 +182,7 @@ func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*
 
 type Audiences []*Audience
 
-// AudiencesFromRedis retrieves multiple audience data from Redis.
+// AudiencesFromRedis retrieves multiple audience data from Redis for specified RAdvs
 func (self RAdvs) AudiencesFromRedis(ctx context.Context, conn radix.Client) (Audiences, error) {
 	arr := []string{HashNameAudience}
 	for _, radv := range self {
@@ -208,6 +208,38 @@ func (self RAdvs) AudiencesFromRedis(ctx context.Context, conn radix.Client) (Au
 	return audiences, nil
 }
 
+// AudiencesFromRedis retrieves all multiple audience data by itemID from Redis
+func AudiencesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]Audiences, error) {
+	var arr []string
+	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", HashNameAudience))
+	if err != nil {
+		return nil, err
+	}
+	if len(arr) == 0 {
+		return nil, nil // No audiences found in Redis
+	}
+	if len(arr)%2 != 0 {
+		return nil, sql.ErrNoRows // Invalid format
+	}
+
+	// Decode each key-value pair into the Audiences map
+	audiences := make(map[uint32]Audiences)
+	for i := 0; i < len(arr); i += 2 {
+		itemID, err := strconv.ParseUint(arr[i], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		data := []byte(arr[i+1])
+		audience, err := UnpackAudience(data)
+		if err != nil {
+			return nil, err
+		}
+		audiences[uint32(itemID)] = append(audiences[uint32(itemID)], audience)
+	}
+	return audiences, nil
+}
+
+// Match checks if the audiences match the given attribute and returns a slice of booleans.
 func (self Audiences) Match(attr *Attribute) []bool {
 	matches := make([]bool, len(self))
 	for i := range self {

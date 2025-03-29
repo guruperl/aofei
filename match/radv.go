@@ -181,8 +181,8 @@ CALL proc_slot(?, ?)`, slotID, sizeID)
 	return blocks, rows.Err()
 }
 
-// RAdvsFromRedis builds RAdvs from redis.
-func RAdvsFromRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint32) (RAdvs, error) {
+// RAdvsFromRedisBySizeIDSlotID builds RAdvs from redis.
+func RAdvsFromRedisBySizeIDSlotID(ctx context.Context, conn radix.Client, slotID, sizeID uint32) (RAdvs, error) {
 	key := strconv.FormatUint(uint64(slotID), 10)
 	var data []byte
 	err := conn.Do(ctx, radix.Cmd(&data, "HGET", HashNameRAdvs(sizeID), key))
@@ -194,6 +194,37 @@ func RAdvsFromRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint3
 	}
 
 	return UnpackRAdvs(data)
+}
+
+// RAdvsFromRedisBySizeID builds RAdvs from redis by sizeID.
+func RAdvsFromRedisBySizeID(ctx context.Context, conn radix.Client, sizeID uint32) (map[uint32]RAdvs, error) {
+	key := HashNameRAdvs(sizeID)
+	var arr []string
+	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", key))
+	if err != nil {
+		return nil, err
+	}
+	if len(arr) == 0 {
+		return nil, nil // No RAdvs found in Redis
+	}
+	if len(arr)%2 != 0 {
+		return nil, sql.ErrNoRows // Invalid format
+	}
+	// Decode each key-value pair into the RAdvs map
+	hash := make(map[uint32]RAdvs)
+	for i := 0; i < len(arr); i += 2 {
+		slotID, err := strconv.ParseUint(arr[i], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		data := []byte(arr[i+1])
+		radvs, err := UnpackRAdvs(data)
+		if err != nil {
+			return nil, err
+		}
+		hash[uint32(slotID)] = radvs
+	}
+	return hash, nil
 }
 
 func (self RAdvs) capItemIDs() []string {

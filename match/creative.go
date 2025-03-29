@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"fmt"
+	"strconv"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -108,4 +109,34 @@ func CreativeFromRedis(ctx context.Context, conn radix.Client, creativeID uint32
 		return nil, err
 	}
 	return UnpackCreative(bs)
+}
+
+// CreativesFromRedis retrieves all creatives from Redis.
+func CreativesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]*Creative, error) {
+	var arr []string
+	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", HashNameCreative))
+	if err != nil {
+		return nil, err
+	}
+	if len(arr) == 0 {
+		return nil, nil // No creatives found in Redis
+	}
+	if len(arr)%2 != 0 {
+		return nil, sql.ErrNoRows // Invalid format
+	}
+	creatives := make(map[uint32]*Creative)
+	for i := 0; i < len(arr); i += 2 {
+		creativeID := arr[i]
+		data := []byte(arr[i+1])
+		cre, err := UnpackCreative(data)
+		if err != nil {
+			return nil, err
+		}
+		id, err := strconv.ParseUint(creativeID, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		creatives[uint32(id)] = cre
+	}
+	return creatives, nil
 }

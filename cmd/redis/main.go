@@ -12,13 +12,12 @@ import (
 
 	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/match"
-	"github.com/mediocregopher/radix/v4"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: redis-cache -s=dsp_config -update -interval=divider -stamp=stamp\n")
+	fmt.Fprintf(os.Stderr, "usage: redis-cache -s=dsp_config -read -update -interval=divider -stamp=stamp\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -27,11 +26,13 @@ var sConf string
 var interval int
 var stamp int
 var update bool
+var read bool
 
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
 	flag.BoolVar(&update, "update", false, "update pubmap with new attribute log, using interval or timestamp")
+	flag.BoolVar(&read, "read", false, "read caches from redis")
 	flag.IntVar(&interval, "interval", 10, "divider in minutes")
 	flag.IntVar(&stamp, "timestamp", 0, "7-digit fixed timestamp in minutes")
 	flag.Parse()
@@ -44,6 +45,14 @@ func main() {
 		log.Fatal(err)
 	}
 	defer sc.Close()
+
+	name := dsp.PubRedisName(sc.C.RPubMap)
+	if read {
+		if err := redisRead(ctx, sc, name); err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
+	}
 
 	pubmap, err := match.DBGetPubMap(sc.DB)
 	if err != nil {
@@ -73,20 +82,6 @@ func main() {
 	}
 
 Skip:
-	name := dsp.PubRedisName(sc.C.RPubMap)
-	log.Printf("new PubMap is written to redis %s\n", name)
-	arr := []string{name}
-	for k, v := range pubmap {
-		bs, err := v.Pack()
-		if err != nil {
-			log.Fatal(err)
-		}
-		arr = append(arr, k, string(bs))
-	}
-	err = sc.Redis.Do(ctx, radix.Cmd(nil, "HMSET", arr...))
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	log.Printf("new PubMap is written to file %s\n", sc.C.RPubMap)
 	jh, err := os.OpenFile(sc.C.RPubMap, os.O_CREATE|os.O_WRONLY, 0644)
@@ -100,6 +95,57 @@ Skip:
 	}
 	jh.Write(bs)
 
+	if err = writeToRedis(ctx, sc, pubmap, name); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func redisRead(ctx context.Context, sc *dsp.Controller, name string) error {
+	log.Printf("reading PubMap from redis %s\n", name)
+	pubmap, err := match.PubMapFromRedis(ctx, sc.Redis, name)
+	if err != nil {
+		return err
+	}
+	bs, err := json.MarshalIndent(pubmap, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", bs)
+
+	for _, sizeID2 := range [][2]uint16{
+		{64, 64},
+		{100, 100},
+	} {
+		hash, err := match.RAdvsFromRedisBySizeID(ctx, sc.Redis, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+		if err != nil {
+			return err
+		}
+		bs, err = json.MarshalIndent(hash, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("RAdvs for sizeID %d x %d: %s\n", sizeID2[0], sizeID2[1], bs)
+	}
+
+	audiences, err := match.AudiencesFromRedis(ctx, sc.Redis)
+	if err != nil {
+		return err
+	}
+	bs, err = json.MarshalIndent(audiences, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Audiences: %s\n", bs)
+	return nil
+}
+
+func writeToRedis(ctx context.Context, sc *dsp.Controller, pubmap match.PubMap, name string) error {
+	log.Printf("new PubMap is written to redis %s\n", name)
+	err := pubmap.ToRedis(ctx, sc.Redis, name)
+	if err != nil {
+		return err
+	}
+
 	// the following are for demand-side cache, which could be run separately
 
 	log.Printf("Retrieve RAdvs from DB and write to redis")
@@ -109,19 +155,21 @@ Skip:
 	} {
 		err = match.DBGetRAdvsToRedis(ctx, sc.Redis, sc.DB, match.SizeID2To1(sizeID2[0], sizeID2[1]))
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 
 	log.Printf("Retrieve Audiences from DB and write to redis")
 	err = match.DBGetAudiencesToRedis(ctx, sc.Redis, sc.DB)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	log.Printf("Retrieve Creatives from DB and write to redis")
 	err = match.DBGetCreativesToRedis(ctx, sc.Redis, sc.DB)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
+	return nil
 }

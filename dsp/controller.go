@@ -187,10 +187,9 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 	width, height := match.SizeID1To2(attr.SizeID)
 
-	glog.Infof("2: width %d, height %d", width, height)
-	glog.Infof("3: rpub %#v", attr.RPub)
+	glog.Infof("2: width %d, height %d, rpub %v", width, height, attr.RPub)
 
-	monitors, err := match.RAdvsFromRedis(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
+	monitors, err := match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
