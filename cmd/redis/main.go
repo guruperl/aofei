@@ -106,7 +106,7 @@ func main() {
 Skip:
 
 	log.Printf("new PubMap is written to file %s\n", sc.C.RPubMap)
-	jh, err := os.OpenFile(sc.C.RPubMap, os.O_CREATE|os.O_WRONLY, 0644)
+	jh, err := os.OpenFile(sc.C.RPubMap, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}

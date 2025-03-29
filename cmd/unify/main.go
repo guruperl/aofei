@@ -73,7 +73,7 @@ func main() {
 
 	gc, err := getGenelet(gConf, logger)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	gc.DB = sc.DB
 	gc.Storage["Redis"] = sc.Redis
