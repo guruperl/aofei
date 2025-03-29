@@ -4,23 +4,23 @@ $ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < demand.sql
 # 2) generate default pubmap in database
 $ go run *.go pub
 
-# 3) generate the maxmind country and region file for parsing 
-$ cd ../cmd/maxmind
-$ go run main.go -s /srv/aofei/aofei/conf/aofei
+# 3) generate executables
+go install github.com/genelet/winter/cmd/ledger
+go install github.com/genelet/winter/cmd/maxmind
+go install github.com/genelet/winter/cmd/nats-client
+go install github.com/genelet/winter/cmd/redis-cache
+go install github.com/genelet/winter/cmd/unify
+go install github.com/genelet/winter/cmd/winloss
 
-# 4) generate the pubmap and demand caches in redis, plus pubmap in conf
-$ cd ../redis
-$ go build -o redis-cache *go
-$ ./redis-cache -s /srv/aofei/aofei/conf/aofei.json
+# 4) generate the maxmind country and region file for parsing 
+$ export AOFEI=/srv/aofei/aofei/conf/aofei.json
+$ maxmind
 
-# 5) build ledger
-$ cd ../ledger
-$ go build -o ledger *.go
+# 5) generate the pubmap and demand caches in redis, plus pubmap in conf
+$ redis-cache
 
-# 6) build nats-client, and run it as systemd service
-$ cd ../nats
-$ go build -o nats-client *.go
 
+# 6) build systemd service of nats-cliet
 # /etc/systemd/system/nats-client.service:
 [Unit]
 Description=nats-client service
@@ -37,8 +37,7 @@ ExecStart=/srv/aofei/aofei/cmd/nats/nats-client -interval=10
 [Install]
 WantedBy=multi-user.target
 
-
-# nats-server.service 
+# FYI, nats-server.service 
 [Unit]
 Description=nats-server service
 After=network-online.target
@@ -52,9 +51,7 @@ ExecStart=/srv/aofei/go/bin/nats-server
 WantedBy=multi-user.target aofei.service nats-client.service
 
 
-# 7) build the program and run it as systemd web server
-$ cd  ../unity
-$ go build -o unify *.go
+# 7) run the unify program as systemd web server
 
 [Unit]
 Description=Aofei DSP service
@@ -70,20 +67,16 @@ ExecStart=/srv/aofei/aofei/cmd/unify/unify
 WantedBy=multi-user.target
 
 
-# 8) simulation
-$ cd ../winloss
-$ go build -o winloss *.go
-
-# user cronjob should be set after the systemd
+# 8) edit cronjob to run simulations and 10 minute jobs
 
 # simulate adx request
 * * * * * cd /srv/aofei/aofei/etc/samples; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test
 # simulate ads reply
-* * * * * /srv/aofei/aofei/cmd/winloss/winloss -bid /bid/exchange.example.test -s /srv/aofei/aofei/conf/aofei.json >> /srv/aofei/logs/adx.log 2>&1
+* * * * * winloss -bid /bid/exchange.example.test >> /srv/aofei/logs/adx.log 2>&1
 # here are the cron jobs to run redis-cache and ledger
-5,15,25,35,45,55 * * * * /srv/aofei/aofei/cmd/redis/redis-cache -s /srv/aofei/aofei/conf/aofei.json >> /srv/aofei/logs/redis.cache 2>&1
+5,15,25,35,45,55 * * * * redis-cache -update -interval=10 >> /srv/aofei/logs/redis.cache 2>&1
 # run ledger every 10 minutes, here 10 is the same as nats-client in systemd
-1,11,21,31,41,51 * * * * /srv/aofei/aofei/cmd/ledger/ledger -s /srv/aofei/aofei/conf/aofei.json -interval=10 >> /srv/aofei/logs/ledger.minutes 2>&1
+1,11,21,31,41,51 * * * * ledger -interval=10 >> /srv/aofei/logs/ledger.minutes 2>&1
 # run daily kedger
-18 0 * * * /srv/aofei/aofei/cmd/ledger/ledger -s /srv/aofei/aofei/conf/aofei.json -daily >> /srv/aofei/logs/ledger.daily 2>&1
+18 0 * * * ledger -daily >> /srv/aofei/logs/ledger.daily 2>&1
 
