@@ -1,3 +1,4 @@
+conf/rpubmap.json
 match/tmp.bin
 cmd/unify/unify
 cmd/nats/nats-client
