@@ -274,7 +274,7 @@ INNER JOIN (
 	INNER JOIN pub p USING (pub_id)
 	WHERE l.log_id=?
 ) tmp ON (b.balance_id=tmp.total_balance_id)
-SET b.current_imps=tmp.imps, b.current_clis=tmp.clis, b.current_spend=tmp.spend`, logID)
+SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, logID)
 	return err
 }
 
@@ -360,6 +360,6 @@ INNER JOIN (
 	INNER JOIN daily_log dl USING (log_id)
 	WHERE dl.daily=?
 ) tmp ON (b.balance_id=tmp.daily_balance_id)
-SET b.daily_imps=tmp.imps, b.daily_clis=tmp.clis, b.daily_spend=tmp.spend`, myDay)
+SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, myDay)
 	return err
 }

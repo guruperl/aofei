@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/genelet/winter/dsp"
@@ -53,7 +54,7 @@ func main() {
 	defer sc.Close()
 
 	buf := bytes.NewBuffer(jsonBid)
-	host := sc.C.ServerURL
+	host := strings.Replace(sc.C.ServerURL, "https", "http", 1)
 	req, err := http.NewRequest(http.MethodPost, host+address, buf)
 	if err != nil {
 		panic(err)
