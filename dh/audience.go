@@ -59,9 +59,6 @@ func (self *DHAudience) Has(dh *DH) bool {
 	if self == nil {
 		return true
 	}
-	if dh == nil {
-		return false
-	}
 
 	fullday, fullhour, weekday := dh.dhw(uint8(self.UTCOffset))
 	if !self.hasDay(uint8(fullday)) {

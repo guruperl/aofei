@@ -180,7 +180,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		userID = attr.IFA
 	}
-	glog.Infof("4: total # for slot and size: %d", attr.RPub.SlotID, attr.SizeID, len(monitors))
+	glog.Infof("4: total # for slot %d and size %d: %d", attr.RPub.SlotID, attr.SizeID, len(monitors))
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)

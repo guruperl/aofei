@@ -56,6 +56,9 @@ func (self *DemoAudience) hasLanguage(lang LANGUAGE, display ...bool) bool {
 
 // hasLanguages returns true if one of the languages is in the DemoAudience set.
 func (self *DemoAudience) hasLanguages(langs WLangs) bool {
+	if self.Languages == 0 {
+		return true
+	}
 	if langs == 0 {
 		return false
 	}
@@ -72,9 +75,7 @@ func (self *DemoAudience) Has(dmo *Demo) bool {
 	if self == nil {
 		return true
 	}
-	if dmo == nil {
-		return false
-	}
+
 	if !self.hasGender(dmo.Gender) {
 		return false
 	}

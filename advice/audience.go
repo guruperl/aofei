@@ -90,9 +90,6 @@ func (self *UaAudience) Has(ua *PzUa) bool {
 	if self == nil {
 		return true
 	}
-	if ua == nil {
-		return false
-	}
 
 	if !self.hasOS(ua.OS) {
 		return false
