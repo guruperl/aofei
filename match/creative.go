@@ -17,6 +17,7 @@ type Creative struct {
 	// creative content
 	CreativeContent string
 	// click landing, here for retrieve from Redis only
+	SizeID  uint32
 	Landing string
 	// campaign quality check
 	IURL string
@@ -41,7 +42,7 @@ func UnpackCreative(data []byte) (*Creative, error) {
 // DBGetCreativesToRedis retrieves all creatives from the database and inserts them into Redis.
 func DBGetCreativesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
 	rows, err := db.Query(`
-SELECT r.creative_id, c.iurl, i.item_click, r.creative_name, r.content
+SELECT r.creative_id, r.size_id, c.iurl, i.item_click, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
@@ -55,7 +56,7 @@ WHERE r.active="Yes"`)
 		var creativeID uint32
 		var iurl, landing, content sql.NullString
 		cre := new(Creative)
-		err = rows.Scan(&creativeID, &iurl, &landing, &cre.CreativeName, &content)
+		err = rows.Scan(&creativeID, &cre.SizeID, &iurl, &landing, &cre.CreativeName, &content)
 		if err != nil {
 			return err
 		}
@@ -79,11 +80,11 @@ WHERE r.active="Yes"`)
 func DBGetCreative(db *sql.DB, creativeID uint32) (*Creative, error) {
 	cre := new(Creative)
 	err := db.QueryRow(`
-SELECT c.iurl, i.item_click, r.creative_name, r.content
+SELECT c.iurl, i.item_click, r.size_id, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
-WHERE r.creative_id=?`, creativeID).Scan(&cre.IURL, &cre.Landing, &cre.CreativeName, &cre.CreativeContent)
+WHERE r.creative_id=?`, creativeID).Scan(&cre.IURL, &cre.Landing, &cre.SizeID, &cre.CreativeName, &cre.CreativeContent)
 
 	return cre, err
 }
@@ -139,4 +140,15 @@ func CreativesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]*Cre
 		creatives[uint32(id)] = cre
 	}
 	return creatives, nil
+}
+
+func (self *Creative) AdM(attr *Attribute, trackers ...string) (string, error) {
+	w, h := SizeID1To2(self.SizeID)
+	if attr.NativeFormat != nil || attr.IsApp {
+		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(trackers...)
+	} else if attr.IsVideo {
+		return DefaultVideoNative(self.CreativeContent).AdM(trackers...)
+	}
+
+	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, self.CreativeContent, w, h), nil
 }

@@ -2,11 +2,8 @@
 package dsp
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/genelet/winter/match"
@@ -38,10 +35,11 @@ type WinLoss struct {
 	AuctionID    string         `json:"auction_id,omitempty"`
 	AuctionBidID string         `json:"auction_bid_id,omitempty"`
 	AuctionImpID string         `json:"auction_imp_id,omitempty"`
+	serverURL    string
 }
 
 // NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.
-func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv, bothcap *match.BothCap, auctionID, auctionBidID, auctionImpID string) *WinLoss {
+func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv, bothcap *match.BothCap, auctionID, auctionBidID, auctionImpID, serverURL string) *WinLoss {
 	return &WinLoss{
 		Current:      current,
 		Status:       how,
@@ -51,67 +49,28 @@ func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv,
 		AuctionID:    auctionID,
 		AuctionBidID: auctionBidID,
 		AuctionImpID: auctionImpID,
+		serverURL:    serverURL,
 	}
 }
 
-// serverStatus sends the win, loss, impression and click trackers, refresh cap, and notify the NATS server.
-func (self *Controller) serveStatus(ctx context.Context, status Status, current time.Time, args url.Values) error {
-	var err error
-	wl := &WinLoss{
-		Current:      current,
-		Status:       status,
-		AuctionID:    args.Get("auction_id"),
-		AuctionBidID: args.Get("auction_bid_id"),
-		AuctionImpID: args.Get("auction_imp_id"),
-	}
+// NURL returns the notification URL for the win/loss notification.
+func (self *WinLoss) NURL() string {
+	return self.serverURL + "/win?" + self.PackURLString()
+}
 
-	demand := args.Get("demand")
-	supply := args.Get("supply")
-	if demand != "" {
-		wl.RAdv.Demand, err = match.UnpackDemandString(demand)
-		if err != nil {
-			return err
-		}
-	}
-	if supply != "" {
-		wl.RPub, err = match.UnpackRPubString(supply)
-		if err != nil {
-			return err
-		}
-	}
+// LURL returns the loss URL for the win/loss notification.
+func (self *WinLoss) LURL() string {
+	return self.serverURL + "/loss?" + self.PackURLString()
+}
 
-	price, err := strconv.ParseFloat(args.Get("auction_price"), 64)
-	if err != nil {
-		return err
-	}
-	wl.RAdv.Cost = float32(price)
-	if v := args.Get("auction_currency"); v == "USD" {
-		wl.RAdv.CostType = 1
-	}
+// ImpURL returns the impression URL for the win/loss notification.
+func (self *WinLoss) ImpURL() string {
+	return self.serverURL + "/imp?" + self.PackURLString(true)
+}
 
-	switch status {
-	case StatusTrackClk, StatusTrackImp:
-		u := args.Get("cap")
-		if u == "" {
-			break
-		}
-		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
-			var bid Bid
-			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
-				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, status == StatusTrackImp, status == StatusTrackClk)
-			}
-		}
-		if err != nil {
-			return err
-		}
-	default:
-	}
-
-	bs, err := json.Marshal(wl)
-	if err != nil {
-		return err
-	}
-	return self.Nc.Publish(SUBJECTWinLoss, bs)
+// ClkURL returns the click URL for the win/loss notification.
+func (self *WinLoss) ClkURL() string {
+	return self.serverURL + "/clk?" + self.PackURLString(true)
 }
 
 // PackURLString returns the URL query string of the win/loss notification.

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
@@ -118,6 +120,197 @@ func (self *Controller) Close() {
 	}
 }
 
+func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
+	glog := self.Logger.Sugar()
+	glog.Info("0: initial")
+
+	current := time.Now()
+	ctx := r.Context()
+
+	bidStr, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		glog.Infof("%v", err)
+		return
+	}
+	r.Body.Close()
+
+	bid := &openrtb2.BidRequest{}
+	if err = json.Unmarshal(bidStr, bid); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		glog.Infof("%v", err)
+		return
+	}
+
+	pubStr := r.PathValue("domain")
+	if pubStr == "" {
+		pubStr = acl.PUBDefault
+	}
+	pubObj, err := self.PubMap.PubFromRedis(ctx, self.Redis, self.C.RPubMap, pubStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+
+	glog.Info("1: bid")
+	attr, err := match.NewAttribute(ctx, self.Ips, bid, pubObj, current, pubStr)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+	width, height := match.SizeID1To2(attr.SizeID)
+
+	glog.Infof("2: width %d, height %d, rpub %v", width, height, attr.RPub)
+
+	monitors, err := match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+	if len(monitors) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
+		return
+	}
+
+	userID := attr.UserID
+	if userID == "" {
+		userID = attr.IFA
+	}
+	glog.Infof("4: total # for slot and size: %d", attr.RPub.SlotID, attr.SizeID, len(monitors))
+	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+	if len(candidates) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("no ad after fcap for user %s", userID)
+		return
+	}
+
+	glog.Infof("5: total # after fcap %d", len(candidates))
+	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+	if len(radvs) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("no ad after matching audience")
+		return
+	}
+
+	glog.Infof("6: radvs # %d and audieces # %d", len(radvs), len(audiences))
+	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
+	if index < 0 {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("no ad to match for bid floor %f %s", bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
+		return
+	}
+
+	glog.Infof("7: index %d", index)
+	one := radvs[index]
+	var bothcap *match.BothCap
+	if bothcaps != nil {
+		if b, ok := bothcaps[one.ItemID]; ok {
+			bothcap = &b
+		}
+	}
+	creative, err := match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+
+	bidID := NewBid(current, userID).BidID()
+	impID := bid.Imp[0].ID
+	winloss := NewWinLoss(current, StatusBid, attr.RPub, one, bothcap, bid.ID, bidID, impID, self.C.ServerURL)
+
+	glog.Info("8: BidSeat Bid")
+	rspnsBid, err := bidSeatBid(creative, one, audiences[index], winloss, attr, impID)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+
+	glog.Info("9: rspnsBid")
+	response := &openrtb2.BidResponse{
+		ID:    bid.ID,
+		BidID: bidID,
+		Cur:   "USD",
+		SeatBid: []openrtb2.SeatBid{{
+			Seat:  fmt.Sprintf("%d", one.CampaignID),
+			Group: 0,
+			Bid:   []openrtb2.Bid{rspnsBid},
+		}},
+	}
+
+	rspnStr, err := json.Marshal(response)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+
+	glog.Info("10: response")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(rspnStr)
+
+	glog.Info("11: publish to nats")
+	elapsed := time.Since(current)
+	if err = self.Nc.Publish(SUBJECTRequest, bidStr); err == nil {
+		if err = self.Nc.Publish(SUBJECTResponse, rspnStr); err == nil {
+			if bidStr, err = json.Marshal(match.AttributePlus{
+				Attribute: *attr,
+				RAdv:      one,
+				Elapsed:   time.Duration(elapsed.Milliseconds()),
+			}); err == nil {
+				err = self.Nc.Publish(SUBJECTAttribute, bidStr)
+				self.Nc.Flush()
+			}
+		}
+	}
+	if err != nil {
+		glog.Infof("nats error: %v", err)
+	}
+}
+
+// bidSeatBid returns the SeatBid for the bid response.
+func bidSeatBid(creative *match.Creative, one match.RAdv, audience *match.Audience, winloss *WinLoss, attr *match.Attribute, impID string) (openrtb2.Bid, error) {
+	adm, err := creative.AdM(attr, winloss.ImpURL(), winloss.ClkURL())
+	if err != nil {
+		return openrtb2.Bid{}, err
+	}
+	w, h := match.SizeID1To2(creative.SizeID)
+	rspnsBid := openrtb2.Bid{
+		ID:      NewSeatBidBid(attr.When, one.CreativeID).Pack(),
+		ImpID:   impID,
+		Price:   float64(one.Cost),
+		NURL:    winloss.NURL(),
+		LURL:    winloss.LURL(),
+		AdM:     adm,
+		AdID:    fmt.Sprintf("%d", one.CreativeID),
+		ADomain: []string{audience.AdvStr},
+		Bundle:  audience.AppStr,
+		CID:     fmt.Sprintf("%d", one.CampaignID),
+		CrID:    fmt.Sprintf("%d", one.CreativeID),
+		Cat:     audience.Categories,
+		W:       int64(w),
+		H:       int64(h),
+	}
+
+	return rspnsBid, nil
+}
+
 func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	current := time.Now()
@@ -137,211 +330,69 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
-	glog := self.Logger.Sugar()
-	glog.Info("0: initial")
-
-	current := time.Now()
-	ctx := r.Context()
-
-	bidStr, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	r.Body.Close()
-
-	bid := &openrtb2.BidRequest{}
-	if err = json.Unmarshal(bidStr, bid); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		glog.Infof("%s: %d", err.Error(), http.StatusBadRequest)
-		return
+// serverStatus sends the win, loss, impression and click trackers, refresh cap, and notify the NATS server.
+func (self *Controller) serveStatus(ctx context.Context, status Status, current time.Time, args url.Values) error {
+	var err error
+	wl := &WinLoss{
+		Current:      current,
+		Status:       status,
+		AuctionID:    args.Get("auction_id"),
+		AuctionBidID: args.Get("auction_bid_id"),
+		AuctionImpID: args.Get("auction_imp_id"),
 	}
 
-	pubStr := r.PathValue("domain")
-	if pubStr == "" {
-		pubStr = acl.PUBDefault
+	demand := args.Get("demand")
+	supply := args.Get("supply")
+	if demand != "" {
+		wl.RAdv.Demand, err = match.UnpackDemandString(demand)
+		if err != nil {
+			return err
+		}
 	}
-	pubObj, err := self.PubMap.PubFromRedis(ctx, self.Redis, self.C.RPubMap, pubStr)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	glog.Info("1: bid")
-	attr, err := match.NewAttribute(ctx, self.Ips, bid, pubObj, current, pubStr)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	width, height := match.SizeID1To2(attr.SizeID)
-
-	glog.Infof("2: width %d, height %d, rpub %v", width, height, attr.RPub)
-
-	monitors, err := match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(monitors) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
-		return
-	}
-
-	userID := attr.UserID
-	if userID == "" {
-		userID = attr.IFA
-	}
-	glog.Infof("4: userID %s => total # %d => %#v", userID, len(monitors), monitors[0])
-	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(candidates) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
-		return
-	}
-
-	glog.Infof("5: total # after cap %d", len(candidates))
-	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(radvs) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
-		return
-	}
-
-	glog.Infof("6: radvs # %d, audieces # %d", len(radvs), len(audiences))
-	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
-	if index < 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", "no ad", http.StatusNoContent)
-		return
-	}
-
-	glog.Infof("7: index %d", index)
-	one := radvs[index]
-	var bothcap *match.BothCap
-	if bothcaps != nil {
-		if b, ok := bothcaps[one.ItemID]; ok {
-			bothcap = &b
+	if supply != "" {
+		wl.RPub, err = match.UnpackRPubString(supply)
+		if err != nil {
+			return err
 		}
 	}
 
-	bidID := NewBid(current, userID).BidID()
-	winloss := NewWinLoss(current, StatusBid, attr.RPub, one, bothcap, bid.ID, bidID, bid.Imp[0].ID)
-
-	glog.Info("8: winloss")
-	rspnsBid, err := self.bidSeatBid(ctx, bid, one, audiences[index], winloss, attr, width, height)
+	price, err := strconv.ParseFloat(args.Get("auction_price"), 64)
 	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
+		return err
+	}
+	wl.RAdv.Cost = float32(price)
+	if v := args.Get("auction_currency"); v == "USD" {
+		wl.RAdv.CostType = 1
 	}
 
-	glog.Info("9: rspnsBid")
-	response := &openrtb2.BidResponse{
-		ID:    bid.ID,
-		BidID: bidID,
-		Cur:   "USD",
-		SeatBid: []openrtb2.SeatBid{{
-			Seat:  fmt.Sprintf("%d", one.CampaignID),
-			Group: 0,
-			Bid:   []openrtb2.Bid{rspnsBid},
-		}},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	rspnStr, err := json.Marshal(response)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(rspnStr)
-	elapsed := time.Since(current)
-
-	glog.Info("10: response")
-	if err = self.Nc.Publish(SUBJECTRequest, bidStr); err == nil {
-		if err = self.Nc.Publish(SUBJECTResponse, rspnStr); err == nil {
-			if bidStr, err = json.Marshal(match.AttributePlus{
-				Attribute: *attr,
-				RAdv:      one,
-				Elapsed:   time.Duration(elapsed.Milliseconds()),
-			}); err == nil {
-				err = self.Nc.Publish(SUBJECTAttribute, bidStr)
-				self.Nc.Flush()
+	switch status {
+	case StatusTrackClk, StatusTrackImp:
+		u := args.Get("cap")
+		if u == "" {
+			break
+		}
+		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
+			var bid Bid
+			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
+				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, status == StatusTrackImp, status == StatusTrackClk)
 			}
 		}
+		if err != nil {
+			return err
+		}
+	default:
 	}
+
+	bs, err := json.Marshal(wl)
 	if err != nil {
-		glog.Infof("%s: %d", err.Error(), http.StatusInternalServerError)
+		return err
 	}
-}
-
-// bidSeatBid returns the SeatBid for the bid response.
-func (self *Controller) bidSeatBid(ctx context.Context, bidRequest *openrtb2.BidRequest, one match.RAdv, audience *match.Audience, winloss *WinLoss, attr *match.Attribute, width, height uint16) (openrtb2.Bid, error) {
-	adm, err := self.admFromCreative(ctx, attr, winloss, one.CreativeID, width, height)
-	if err != nil {
-		return openrtb2.Bid{}, err
-	}
-	rspnsBid := openrtb2.Bid{
-		ID:      NewSeatBidBid(attr.When, one.CreativeID).Pack(),
-		ImpID:   bidRequest.Imp[0].ID,
-		Price:   float64(one.Cost),
-		NURL:    self.C.ServerURL + "/win?" + winloss.PackURLString(),
-		LURL:    self.C.ServerURL + "/loss?" + winloss.PackURLString(),
-		AdM:     adm,
-		AdID:    fmt.Sprintf("%d", one.CreativeID),
-		ADomain: []string{audience.AdvStr},
-		Bundle:  audience.AppStr,
-		CID:     fmt.Sprintf("%d", one.CampaignID),
-		CrID:    fmt.Sprintf("%d", one.CreativeID),
-		Cat:     audience.Categories,
-		W:       int64(width),
-		H:       int64(height),
-	}
-
-	return rspnsBid, nil
-}
-
-func (self *Controller) admFromCreative(ctx context.Context, attr *match.Attribute, winloss *WinLoss, creativeID uint32, width, height uint16) (string, error) {
-	creative, err := match.CreativeFromRedis(ctx, self.Redis, creativeID)
-	if err != nil {
-		return "", err
-	}
-
-	str := winloss.PackURLString(true)
-	trackers := []string{
-		self.C.ServerURL + "/imp?" + str,
-		self.C.ServerURL + "/clk?" + str,
-	}
-
-	if attr.NativeFormat != nil || attr.IsApp {
-		return match.DefaultImgNative(creative.CreativeContent, creative.CreativeName, width, height).AdM(trackers...)
-	} else if attr.IsVideo {
-		return match.DefaultVideoNative(creative.CreativeContent).AdM(trackers...)
-	}
-
-	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, creative.CreativeContent, width, height), nil
+	return self.Nc.Publish(SUBJECTWinLoss, bs)
 }
