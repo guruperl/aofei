@@ -242,13 +242,12 @@ func AudiencesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]Audi
 // Match checks if the audiences match the given attribute and returns a slice of booleans.
 func (self Audiences) Match(attr *Attribute) []bool {
 	matches := make([]bool, len(self))
-	for i := range self {
-		//for i, a := range self {
-		//		if a != nil {
-		//			matches[i] = a.Has(attr)
-		//		} else {
-		matches[i] = true
-		//		}
+	for i, a := range self {
+		if a != nil {
+			matches[i] = a.Has(attr)
+		} else {
+			matches[i] = true
+		}
 	}
 	return matches
 }
