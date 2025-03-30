@@ -15,6 +15,7 @@ import (
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/maxmind"
+	"github.com/nats-io/nats.go"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -65,6 +66,11 @@ func (self *Audience) Pack() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+// PackIO packs the audience into an IO writer.
+func (self *Audience) PackIO(w *bytes.Buffer) error {
+	return gob.NewEncoder(w).Encode(self)
+}
+
 // UnpackAudience deserializes the audience from a byte slice.
 func UnpackAudience(data []byte) (*Audience, error) {
 	audience := new(Audience)
@@ -73,18 +79,25 @@ func UnpackAudience(data []byte) (*Audience, error) {
 	return audience, err
 }
 
-// DBGetAudiencesToRedis retrieves audiences from the database and inserts them into Redis.
-func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+// UnpackAudienceIO deserializes the audience from an IO reader.
+func UnpackAudienceIO(r *bytes.Reader) (*Audience, error) {
+	audience := new(Audience)
+	err := gob.NewDecoder(r).Decode(audience)
+	return audience, err
+}
+
+// getItemIDs retrieves item IDs from the database for active audiences.
+func getItemIDs(db *sql.DB) ([]uint32, error) {
 	rows, err := db.Query(`
-SELECT item_id
-FROM adv_item
-INNER JOIN adv_campaign USING (campaign_id)
-INNER JOIN adv USING (adv_id)
-WHERE adv_item.active="Yes"
-AND adv_campaign.active="Yes" 
-AND adv.active="Yes"`)
+	SELECT item_id
+	FROM adv_item
+	INNER JOIN adv_campaign USING (campaign_id)
+	INNER JOIN adv USING (adv_id)
+	WHERE adv_item.active="Yes"
+	AND adv_campaign.active="Yes" 
+	AND adv.active="Yes"`)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -93,19 +106,47 @@ AND adv.active="Yes"`)
 		var itemID uint32
 		err = rows.Scan(&itemID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		itemIDs = append(itemIDs, itemID)
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	rows.Close()
+	return itemIDs, nil
+}
+
+// DBGetAudiencesToRedis retrieves audiences from the database and inserts them into Redis.
+func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+	itemIDs, err := getItemIDs(db)
+	if err != nil {
+		return fmt.Errorf("failed to get item IDs: %w", err)
+	}
 
 	for _, itemID := range itemIDs {
 		aud, err := DBGetAudience(db, itemID)
 		if err == nil {
 			err = aud.ToRedis(ctx, conn, itemID)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DBGetAudiencesToSpread retrieves audiences from the database and publishes them to nats.
+func DBGetAudiencesToSpread(conn *nats.Conn, db *sql.DB) error {
+	itemIDs, err := getItemIDs(db)
+	if err != nil {
+		return fmt.Errorf("failed to get item IDs: %w", err)
+	}
+
+	for _, itemID := range itemIDs {
+		aud, err := DBGetAudience(db, itemID)
+		if err == nil {
+			err = aud.ToSpread(conn, itemID)
 		}
 		if err != nil {
 			return err
@@ -174,6 +215,16 @@ func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uin
 		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameAudience, strconv.FormatUint(uint64(itemID), 10), string(bs)))
 	}
 	return err
+}
+
+// ToSpread publishes the audience to NATS.
+func (self *Audience) ToSpread(conn *nats.Conn, itemID uint32) error {
+	subject := fmt.Sprintf("%s:%d", HashNameAudience, itemID)
+	bs, err := self.Pack()
+	if err != nil {
+		return err
+	}
+	return conn.Publish(subject, bs)
 }
 
 // AudienceFromRedis retrieves audience data from Redis.

@@ -7,11 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
+	"github.com/nats-io/nats.go"
 )
 
 type Demand struct {
@@ -40,6 +43,11 @@ func (self Demand) PackString() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf.Bytes()), nil
 }
 
+// PackIO packs the Demand object into an IO writer.
+func (self Demand) PackIO(w *bytes.Buffer) error {
+	return binary.Write(w, binary.LittleEndian, self)
+}
+
 // UnpackDemandString deserializes the audience from a RawURL string
 func UnpackDemandString(text string) (Demand, error) {
 	var demand Demand
@@ -52,6 +60,13 @@ func UnpackDemandString(text string) (Demand, error) {
 	return demand, err
 }
 
+// UnpackDemandIO decodes a byte slice from an IO reader into a Demand object.
+func UnpackDemandIO(r *bytes.Reader) (Demand, error) {
+	var demand Demand
+	err := binary.Read(r, binary.LittleEndian, &demand)
+	return demand, err
+}
+
 type RAdvs []RAdv
 
 // Pack packs the creatives to binary.
@@ -59,6 +74,11 @@ func (self RAdvs) Pack() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, self)
 	return buf.Bytes(), err
+}
+
+// PackIO packs the RAdvs to an IO writer.
+func (self RAdvs) PackIO(w *bytes.Buffer) error {
+	return binary.Write(w, binary.LittleEndian, self)
 }
 
 // UnpackRAdvs unpacks the weights from binary.
@@ -70,6 +90,17 @@ func UnpackRAdvs(data []byte) (RAdvs, error) {
 	return blocks, err
 }
 
+// UnpackRAdvsIO unpacks the RAdvs from an IO reader.
+func UnpackRAdvsIO(r io.Reader) (RAdvs, error) {
+	// Create a bytes.Reader to read from the io.Reader
+	var buf bytes.Buffer
+	_, err := io.Copy(&buf, r)
+	if err != nil {
+		return nil, err // Error reading from the io.Reader
+	}
+	return UnpackRAdvs(buf.Bytes())
+}
+
 // DBGetRAdvsToRedis retrieves RAdvs from the database and inserts them into Redis.
 func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, sizeID uint32) error {
 	hash, err := dbGetRAdvs(ctx, db, sizeID)
@@ -78,6 +109,20 @@ func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, sizeI
 	}
 	for slotID, radvs := range hash {
 		if err = radvs.ToRedis(ctx, conn, slotID, sizeID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DBGetRAdvsToSpread retrieves RAdvs from the database and publishes them to nats.
+func DBGetRAdvsToSpread(ctx context.Context, conn *nats.Conn, db *sql.DB, sizeID uint32) error {
+	hash, err := dbGetRAdvs(ctx, db, sizeID)
+	if err != nil {
+		return err
+	}
+	for slotID, radvs := range hash {
+		if err = radvs.ToSpread(conn, slotID, sizeID); err != nil {
 			return err
 		}
 	}
@@ -124,6 +169,16 @@ func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, slotID, sizeID
 		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameRAdvs(sizeID), key, string(data)))
 	}
 	return err
+}
+
+// ToSpread publishes the RAdvs to nats
+func (self RAdvs) ToSpread(conn *nats.Conn, slotID, sizeID uint32) error {
+	data, err := self.Pack()
+	if err != nil {
+		return err
+	}
+	subject := fmt.Sprintf("%s:%d", HashNameRAdvs(sizeID), slotID)
+	return conn.Publish(subject, data)
 }
 
 // RAdvsFromDatabase builds RAdvs from the database.
@@ -196,6 +251,19 @@ func RAdvsFromRedisBySizeIDSlotID(ctx context.Context, conn radix.Client, slotID
 	return UnpackRAdvs(data)
 }
 
+// RAdvsFromIOBySizeIDSlotID builds RAdvs from redis.
+func RAdvsFromIOBySizeIDSlotID(top string, slotID, sizeID uint32) (RAdvs, error) {
+	r, err := os.OpenFile(fmt.Sprintf("%s/%s/%d", top, HashNameRAdvs(sizeID), slotID), os.O_RDONLY, 0644)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No file found
+		}
+		return nil, err // Error opening file
+	}
+	defer r.Close()
+	return UnpackRAdvsIO(r)
+}
+
 // RAdvsFromRedisBySizeID builds RAdvs from redis by sizeID.
 func RAdvsFromRedisBySizeID(ctx context.Context, conn radix.Client, sizeID uint32) (map[uint32]RAdvs, error) {
 	key := HashNameRAdvs(sizeID)
@@ -225,6 +293,48 @@ func RAdvsFromRedisBySizeID(ctx context.Context, conn radix.Client, sizeID uint3
 		hash[uint32(slotID)] = radvs
 	}
 	return hash, nil
+}
+
+// RAdvsFromIOBySizeID builds RAdvs from redis by sizeID.
+func RAdvsFromIOBySizeID(top string, sizeID uint32) (map[uint32]RAdvs, error) {
+	key := HashNameRAdvs(sizeID)
+	// Open the directory containing the files
+	dir := fmt.Sprintf("%s/%s", top, key)
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No files found
+		}
+		return nil, err // Error reading directory
+	}
+	// Initialize a map to store the RAdvs
+	hash := make(map[uint32]RAdvs)
+	// Iterate over the files in the directory
+	for _, file := range files {
+		if file.IsDir() {
+			continue // Skip directories
+		}
+		name := file.Name()
+		// Parse the slotID from the file name
+		slotID, err := strconv.ParseUint(name, 10, 32)
+		if err != nil {
+			continue // Skip files with invalid names
+		}
+		// Open the file for reading
+		radvs, err := RAdvsFromIOBySizeIDSlotID(top, uint32(slotID), sizeID)
+		if err != nil {
+			return nil, err // Error unpacking RAdvs
+		}
+		if radvs == nil {
+			continue // Skip files that returned nil RAdvs
+		}
+		// Store the RAdvs in the hash map using the slotID as the key
+		hash[uint32(slotID)] = radvs
+	}
+	if len(hash) == 0 {
+		return nil, nil // No RAdvs found in the directory
+	}
+	return hash, nil // Return the populated hash map
 }
 
 func (self RAdvs) capItemIDs() []string {

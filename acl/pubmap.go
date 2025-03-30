@@ -3,10 +3,12 @@ package acl
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/mediocregopher/radix/v4"
+	"github.com/nats-io/nats.go"
 )
 
 type PubMap map[string]*Pub
@@ -22,6 +24,17 @@ func (self PubMap) ToRedis(ctx context.Context, conn radix.Client, name string) 
 		arr = append(arr, k, string(bs))
 	}
 	return conn.Do(ctx, radix.Cmd(nil, "HMSET", arr...))
+}
+
+// ToSpread encodes the PubMap to a byte slice and publish it to nats
+func (self PubMap) ToSpread(conn *nats.Conn, channel string) error {
+	for k, v := range self {
+		err := v.ToSpread(conn, channel, k)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PubMapFromRedis retrieves the PubMap from Redis and decodes it from a byte slice
@@ -48,6 +61,35 @@ func PubMapFromRedis(ctx context.Context, conn radix.Client, name string) (PubMa
 		}
 		pubmap[pubStr] = pub
 	}
+	return pubmap, nil
+}
+
+// PubMapFromIO retrieves the PubMap from IO
+func PubMapFromIO(top, channel string) (PubMap, error) {
+	files, err := os.ReadDir(top + "/" + channel)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No files found
+		}
+		return nil, err // Error reading directory
+	}
+
+	pubmap := make(PubMap)
+	for _, file := range files {
+		if file.IsDir() {
+			continue // Skip directories
+		}
+		name := file.Name()
+		pub, err := PubFromIO(top, channel, name)
+		if err != nil {
+			return nil, err // Error unpacking Pub
+		}
+		if pub == nil {
+			continue // Skip nil Pub objects
+		}
+		pubmap[name] = pub
+	}
+
 	return pubmap, nil
 }
 
@@ -136,7 +178,7 @@ func PubRedisName(fullname string) string {
 	return arr[0]
 }
 
-// PubFromRedis returns the Pub object pub string.
+// PubFromRedis returns the Pub object by pub string.
 // This is the main purpose of PubMap, used in Controller.
 func (self PubMap) PubFromRedis(ctx context.Context, conn radix.Client, fullname, pubStr string) (*Pub, error) {
 	var pubObj *Pub
@@ -156,4 +198,19 @@ func (self PubMap) PubFromRedis(ctx context.Context, conn radix.Client, fullname
 		}
 	}
 	return pubObj, nil
+}
+
+// PubFromIO returns the Pub object by pub string.
+// This is the main purpose of PubMap, used in Controller.
+func PubFromIO(top, channel, pubStr string) (*Pub, error) {
+	fullname := top + "/" + channel + "/" + pubStr
+	f, err := os.Open(fullname)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil // No file found
+		}
+		return nil, err // Error opening file
+	}
+	defer f.Close()
+	return UnpackPubIO(f)
 }
