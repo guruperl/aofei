@@ -2,12 +2,9 @@ package acl
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/gob"
 	"math/rand"
-
-	"github.com/mediocregopher/radix/v4"
 )
 
 type Pub struct {
@@ -62,25 +59,6 @@ func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) (uint32, uint32, u
 	}
 
 	return self.PubID, siteID, slotID
-}
-
-// ToRedis put Pub to redis
-func (self *Pub) ToRedis(ctx context.Context, conn radix.Client, domain string) error {
-	bs, err := self.Pack()
-	if err != nil {
-		return err
-	}
-	return conn.Do(ctx, radix.Cmd(nil, "HSET", "pub", domain, string(bs)))
-}
-
-// RedisGetPub retrieves Pub from redis
-func RedisGetPub(ctx context.Context, conn radix.Client, domain string) (*Pub, error) {
-	var bs []byte
-	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", "pub", domain))
-	if err != nil {
-		return nil, err
-	}
-	return UnpackPub(bs)
 }
 
 // DBGetPub retrieves the Pub from the database using domain
