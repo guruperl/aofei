@@ -48,9 +48,15 @@ func main() {
 	}
 	defer sc.Close()
 
-	name := acl.PubRedisName(sc.C.RPubMap)
+	//top:= sc.C.Spread
+	//err = os.MkdirAll(top, 0755)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+
 	if read {
-		if err := redisRead(ctx, sc, name); err != nil {
+		//if err := spreadRead(ctx, sc, top); err != nil {
+		if err := redisRead(ctx, sc); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
@@ -104,27 +110,15 @@ func main() {
 		}
 	}
 Skip:
-
-	log.Printf("new PubMap is written to file %s\n", sc.C.RPubMap)
-	jh, err := os.OpenFile(sc.C.RPubMap, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer jh.Close()
-	bs, err := json.MarshalIndent(pubmap, "", "  ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	jh.Write(bs)
-
-	if err = writeToRedis(ctx, sc, pubmap, name); err != nil {
+	//if err = writeToSpread(ctx, sc, pubmap); err != nil {
+	if err = writeToRedis(ctx, sc, pubmap); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func redisRead(ctx context.Context, sc *dsp.Controller, name string) error {
-	log.Printf("reading PubMap from redis %s\n", name)
-	pubmap, err := acl.PubMapFromRedis(ctx, sc.Redis, name)
+func redisRead(ctx context.Context, sc *dsp.Controller) error {
+	log.Printf("reading PubMap from redis\n")
+	pubmap, err := acl.PubMapFromRedis(ctx, sc.Redis)
 	if err != nil {
 		return err
 	}
@@ -149,7 +143,7 @@ func redisRead(ctx context.Context, sc *dsp.Controller, name string) error {
 		fmt.Printf("RAdvs for sizeID %d x %d: %s\n", sizeID2[0], sizeID2[1], bs)
 	}
 
-	audiences, err := match.AudiencesFromRedis(ctx, sc.Redis)
+	audiences, err := match.AudienceMapFromRedis(ctx, sc.Redis)
 	if err != nil {
 		return err
 	}
@@ -158,12 +152,22 @@ func redisRead(ctx context.Context, sc *dsp.Controller, name string) error {
 		return err
 	}
 	fmt.Printf("Audiences: %s\n", bs)
+
+	creatives, err := match.CreativeMapFromRedis(ctx, sc.Redis)
+	if err != nil {
+		return err
+	}
+	bs, err = json.MarshalIndent(creatives, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Creatives: %s\n", bs)
 	return nil
 }
 
-func writeToRedis(ctx context.Context, sc *dsp.Controller, pubmap acl.PubMap, name string) error {
-	log.Printf("new PubMap is written to redis %s\n", name)
-	err := pubmap.ToRedis(ctx, sc.Redis, name)
+func writeToRedis(ctx context.Context, sc *dsp.Controller, pubmap acl.PubMap) error {
+	log.Printf("new PubMap is written to redis\n")
+	err := pubmap.ToRedis(ctx, sc.Redis)
 	if err != nil {
 		return err
 	}
@@ -188,7 +192,92 @@ func writeToRedis(ctx context.Context, sc *dsp.Controller, pubmap acl.PubMap, na
 	}
 
 	log.Printf("Retrieve Creatives from DB and write to redis")
-	err = match.DBGetCreativesToRedis(ctx, sc.Redis, sc.DB)
+	err = match.DBGetCreativesToRedisSpread(ctx, sc.Redis, sc.DB)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func spreadRead(ctx context.Context, sc *dsp.Controller, top string) error {
+	log.Printf("reading PubMap from redis\n")
+	pubmap, err := acl.PubMapFromIO(top)
+	if err != nil {
+		return err
+	}
+	bs, err := json.MarshalIndent(pubmap, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", bs)
+
+	for _, sizeID2 := range [][2]uint16{
+		{64, 64},
+		{100, 100},
+	} {
+		hash, err := match.RAdvsFromIOBySizeID(top, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+		if err != nil {
+			return err
+		}
+		bs, err = json.MarshalIndent(hash, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Printf("RAdvs for sizeID %d x %d: %s\n", sizeID2[0], sizeID2[1], bs)
+	}
+
+	audiences, err := match.AudienceMapFromRedis(ctx, sc.Redis)
+	if err != nil {
+		return err
+	}
+	bs, err = json.MarshalIndent(audiences, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Audiences: %s\n", bs)
+
+	creatives, err := match.CreativeMapFromIO(top)
+	if err != nil {
+		return err
+	}
+	bs, err = json.MarshalIndent(creatives, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Creatives: %s\n", bs)
+
+	return nil
+}
+
+func writeToSpread(ctx context.Context, sc *dsp.Controller, pubmap acl.PubMap) error {
+	log.Printf("new PubMap is written to redis\n")
+	err := pubmap.ToSpread(sc.Nc)
+	if err != nil {
+		return err
+	}
+
+	// the following are for demand-side cache, which could be run separately
+
+	log.Printf("Retrieve RAdvs from DB and write to nats")
+	for _, sizeID2 := range [][2]uint16{
+		{64, 64},
+		{100, 100},
+	} {
+		err = match.DBGetRAdvsToSpread(ctx, sc.Nc, sc.DB, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Printf("Retrieve Audiences from DB and write to nats")
+	err = match.DBGetAudiencesToSpread(sc.Nc, sc.DB)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Retrieve Creatives from DB and write to redis")
+	err = match.DBGetCreativesToRedisSpread(ctx, sc.Nc, sc.DB)
 	if err != nil {
 		return err
 	}

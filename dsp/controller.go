@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"time"
 
@@ -35,7 +34,6 @@ type Controller struct {
 	Redis  radix.Client
 	DB     *sql.DB
 	Nc     *nats.Conn
-	PubMap acl.PubMap
 	Logger *zap.Logger
 }
 
@@ -86,21 +84,6 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 		controller.Ips = ips
 	}
 
-	if len(offline) == 0 || offline[0] == "pubmap" {
-		pubMap := make(acl.PubMap)
-		bs, err := os.ReadFile(c.RPubMap)
-		if err != nil {
-			return nil, err
-		}
-		if bs != nil {
-			err = json.Unmarshal(bs, &pubMap)
-			if err != nil {
-				return nil, err
-			}
-		}
-		controller.PubMap = pubMap
-	}
-
 	return controller, nil
 }
 
@@ -146,7 +129,9 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if pubStr == "" {
 		pubStr = acl.PUBDefault
 	}
-	pubObj, err := self.PubMap.PubFromRedis(ctx, self.Redis, self.C.RPubMap, pubStr)
+	pubObj, err := acl.PubFromRedis(ctx, self.Redis, pubStr)
+	//top, _ := self.C.Spread
+	//pubObj, err := acl.PubFromIO(top, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -165,6 +150,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	glog.Infof("2: width %d, height %d, rpub %v", width, height, attr.RPub)
 
 	monitors, err := match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
+	//monitors, err := match.RAdvsFromIOBySizeIDSlotID(top, attr.RPub.SlotID, attr.SizeID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -194,7 +180,14 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	glog.Infof("5: total # after fcap %d", len(candidates))
-	radvs, audiences, err := candidates.FilterByAudiences(ctx, self.Redis, attr)
+	audiences, err := candidates.AudiencesFromRedis(ctx, self.Redis)
+	//audiences, err := candidates.AudiencesFromIO(top)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		glog.Infof("%v", err)
+		return
+	}
+	radvs, audiences, err := candidates.FilterByAudiences(audiences, attr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -223,6 +216,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	creative, err := match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
+	//creative, err := match.CreativeFromIO(top, one.CreativeID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)

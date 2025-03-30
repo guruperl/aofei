@@ -25,7 +25,7 @@ type Config struct {
 	Redis        *Red     `json:"redis,omitempty"`
 	NatsURL      string   `json:"nats_url,omitempty"`
 	ConnectArray []string `json:"connect_array,omitempty"`
-	RPubMap      string   `json:"rpub_map,omitempty"`
+	Spread       string   `json:"spread,omitempty"`
 	LogRequest   string   `json:"log_request,omitempty"`
 	LogResponse  string   `json:"log_response,omitempty"`
 	LogAttribute string   `json:"log_attribute,omitempty"`

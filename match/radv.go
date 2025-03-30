@@ -157,8 +157,10 @@ WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
 	return hash, rows.Err()
 }
 
+var HashNameSlot = "slot"
+
 func HashNameRAdvs(sizeID uint32) string {
-	return fmt.Sprintf("slot:%d", sizeID)
+	return fmt.Sprintf("%s:%d", HashNameSlot, sizeID)
 }
 
 // ToRedis inserts RAdvs into Redis.
@@ -387,11 +389,8 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 	return blocks, bothcaps, err
 }
 
-func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, attr *Attribute) (RAdvs, Audiences, error) {
-	audiences, err := self.AudiencesFromRedis(ctx, conn)
-	if err != nil {
-		return nil, nil, err
-	}
+// FilterByAudiences filters RAdvs by audiences from Redis.
+func (self RAdvs) FilterByAudiences(audiences Audiences, attr *Attribute) (RAdvs, Audiences, error) {
 	bools := audiences.Match(attr)
 
 	var blocks RAdvs

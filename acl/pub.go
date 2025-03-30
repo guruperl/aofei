@@ -81,19 +81,19 @@ func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) (uint32, uint32, u
 }
 
 // ToSpread put Pub to spread
-func (self *Pub) ToSpread(conn *nats.Conn, channel, domain string) error {
+func (self *Pub) ToSpread(conn *nats.Conn, domain string) error {
 	bs, err := self.Pack()
 	if err != nil {
 		return err
 	}
-	return conn.Publish(channel+":"+domain, bs)
+	return conn.Publish(HashNamePubmap+":"+domain, bs)
 }
 
 // SpreadGetPub retrieves Pub from nats
-func SpreadGetPub(m *nats.Msg, channel, top string) error {
+func SpreadGetPub(m *nats.Msg, top string) error {
 	subject := m.Subject
-	domain := strings.TrimPrefix(subject, channel+":")
-	w, err := os.OpenFile(top+"/"+channel+"/"+domain, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	domain := strings.TrimPrefix(subject, HashNamePubmap+":")
+	w, err := os.OpenFile(top+"/"+HashNamePubmap+"/"+domain, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

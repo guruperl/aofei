@@ -6,9 +6,12 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 
 	"github.com/mediocregopher/radix/v4"
+	"github.com/nats-io/nats.go"
 )
 
 type Creative struct {
@@ -31,6 +34,18 @@ func (self *Creative) Pack() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+// PackIO serializes the audience into a byte slice for IO.
+func (self *Creative) PackIO(w io.Writer) error {
+	return gob.NewEncoder(w).Encode(self)
+}
+
+// UnpackCreativeIO deserializes the audience from an IO reader.
+func UnpackCreativeIO(r io.Reader) (*Creative, error) {
+	audience := new(Creative)
+	err := gob.NewDecoder(r).Decode(audience)
+	return audience, err
+}
+
 // UnpackCreative deserializes the audience from a byte slice.
 func UnpackCreative(data []byte) (*Creative, error) {
 	audience := new(Creative)
@@ -40,7 +55,7 @@ func UnpackCreative(data []byte) (*Creative, error) {
 }
 
 // DBGetCreativesToRedis retrieves all creatives from the database and inserts them into Redis.
-func DBGetCreativesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB) error {
 	rows, err := db.Query(`
 SELECT r.creative_id, r.size_id, c.iurl, i.item_click, r.creative_name, r.content
 FROM adv_creative r
@@ -69,7 +84,15 @@ WHERE r.active="Yes"`)
 		if content.Valid {
 			cre.CreativeContent = content.String
 		}
-		if err = cre.ToRedis(ctx, conn, creativeID); err != nil {
+		switch t := conn.(type) {
+		case radix.Client:
+			err = cre.ToRedis(ctx, t, creativeID)
+		case *nats.Conn:
+			err = cre.ToSpread(t, creativeID)
+		default:
+			err = fmt.Errorf("unknown connection type %T", t)
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -102,6 +125,15 @@ func (self *Creative) ToRedis(ctx context.Context, conn radix.Client, creativeID
 	return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameCreative, fmt.Sprintf("%d", creativeID), string(data)))
 }
 
+// ToSpread publishes creative to nats.
+func (self *Creative) ToSpread(conn *nats.Conn, creativeID uint32) error {
+	data, err := self.Pack()
+	if err != nil {
+		return err
+	}
+	return conn.Publish(fmt.Sprintf("%s:%d", HashNameCreative, creativeID), data)
+}
+
 // CreativeFromRedis retrieves audience data from Redis.
 func CreativeFromRedis(ctx context.Context, conn radix.Client, creativeID uint32) (*Creative, error) {
 	var bs []byte
@@ -112,8 +144,18 @@ func CreativeFromRedis(ctx context.Context, conn radix.Client, creativeID uint32
 	return UnpackCreative(bs)
 }
 
-// CreativesFromRedis retrieves all creatives from Redis.
-func CreativesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]*Creative, error) {
+// CreativeFromIO retrieves audience data from IO.
+func CreativeFromIO(top string, creativeID uint32) (*Creative, error) {
+	fh, err := os.Open(fmt.Sprintf("%s/%s/%d", top, HashNameCreative, creativeID))
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	return UnpackCreativeIO(fh)
+}
+
+// CreativeMapFromRedis retrieves all creatives from Redis.
+func CreativeMapFromRedis(ctx context.Context, conn radix.Client) (map[uint32]*Creative, error) {
 	var arr []string
 	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", HashNameCreative))
 	if err != nil {
@@ -138,6 +180,27 @@ func CreativesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]*Cre
 			return nil, err
 		}
 		creatives[uint32(id)] = cre
+	}
+	return creatives, nil
+}
+
+// CreativeMapFromIO retrieves all creatives from IO.
+func CreativeMapFromIO(top string) (map[uint32]*Creative, error) {
+	var creatives = make(map[uint32]*Creative)
+	files, err := os.ReadDir(fmt.Sprintf("%s/%s", top, HashNameCreative))
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		creativeID, err := strconv.ParseUint(file.Name(), 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		creative, err := CreativeFromIO(top, uint32(creativeID))
+		if err != nil {
+			return nil, err
+		}
+		creatives[creative.SizeID] = creative
 	}
 	return creatives, nil
 }
