@@ -1,4 +1,9 @@
-# 1) demand sample
+# 0) generate two configuration files
+$ cp aofei.json ../etc/
+$ cp summer.json ../etc/
+# and edit them
+
+# 1) create the first demand sample
 $ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < demand.sql
 
 # 2) generate default pubmap in database
@@ -11,6 +16,7 @@ go install github.com/genelet/winter/cmd/nats-client
 go install github.com/genelet/winter/cmd/redis-cache
 go install github.com/genelet/winter/cmd/unify
 go install github.com/genelet/winter/cmd/winloss
+go install github.com/genelet/winter/cmd/spread
 
 # 4) generate the maxmind country and region file for parsing 
 $ export AOFEI=/srv/aofei/aofei/conf/aofei.json
@@ -19,11 +25,28 @@ $ maxmind
 # 5) generate the pubmap and demand caches in redis, plus pubmap in conf
 $ redis-cache
 
+# 6) spread is nats program to receive caches as local files. It is running as systemd
+[Unit]
+Description=spread service
+After=aofei.service
 
-# 6) build systemd service of nats-cliet
+[Service]
+Type=simple
+Environment=AOFEI=/srv/aofei/aofei/conf/aofei.json
+StandardOutput=append:/srv/aofei/logs/spread.log
+StandardError=append:/srv/aofei/logs/spread.log
+ExecStart=/srv/aofei/go/bin/spread
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+
+# 6) nats-cliet to receive nats logs info the stamped logs. It is running as systemd
 # /etc/systemd/system/nats-client.service:
 [Unit]
 Description=nats-client service
+After=aofei.service
 
 [Service]
 Type=simple
@@ -31,6 +54,7 @@ Environment=AOFEI=/srv/aofei/aofei/conf/aofei.json
 StandardOutput=append:/srv/aofei/logs/nats-client.log
 StandardError=append:/srv/aofei/logs/nats-client.log
 ExecStart=/srv/aofei/aofei/cmd/nats/nats-client -interval=10
+Restart=on-failure
 #User=peter
 #Group=peter
 
@@ -41,20 +65,21 @@ WantedBy=multi-user.target
 [Unit]
 Description=nats-server service
 After=network-online.target
-Before=aofei.service nats-client.service
+Before=spread.service nats-client.service
 
 [Service]
 Type=simple
 ExecStart=/srv/aofei/go/bin/nats-server
 
 [Install]
-WantedBy=multi-user.target aofei.service nats-client.service
+WantedBy=multi-user.target
 
 
 # 7) run the unify program as systemd web server
 
 [Unit]
 Description=Aofei DSP service
+After=nats-server.service
 
 [Service]
 Type=simple

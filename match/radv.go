@@ -163,6 +163,10 @@ func HashNameRAdvs(sizeID uint32) string {
 	return fmt.Sprintf("%s:%d", HashNameSlot, sizeID)
 }
 
+func HashIONameRAdvs(slotID uint32) string {
+	return fmt.Sprintf("%s/%d", HashNameSlot, slotID)
+}
+
 // ToRedis inserts RAdvs into Redis.
 func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint32) error {
 	key := strconv.FormatUint(uint64(slotID), 10)
@@ -255,7 +259,7 @@ func RAdvsFromRedisBySizeIDSlotID(ctx context.Context, conn radix.Client, slotID
 
 // RAdvsFromIOBySizeIDSlotID builds RAdvs from redis.
 func RAdvsFromIOBySizeIDSlotID(top string, slotID, sizeID uint32) (RAdvs, error) {
-	r, err := os.OpenFile(fmt.Sprintf("%s/%s/%d", top, HashNameRAdvs(sizeID), slotID), os.O_RDONLY, 0644)
+	r, err := os.OpenFile(fmt.Sprintf("%s/%s/%d", top, HashIONameRAdvs(sizeID), slotID), os.O_RDONLY, 0644)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil // No file found
@@ -299,7 +303,7 @@ func RAdvsFromRedisBySizeID(ctx context.Context, conn radix.Client, sizeID uint3
 
 // RAdvsFromIOBySizeID builds RAdvs from redis by sizeID.
 func RAdvsFromIOBySizeID(top string, sizeID uint32) (map[uint32]RAdvs, error) {
-	key := HashNameRAdvs(sizeID)
+	key := HashIONameRAdvs(sizeID)
 	// Open the directory containing the files
 	dir := fmt.Sprintf("%s/%s", top, key)
 	files, err := os.ReadDir(dir)

@@ -54,7 +54,7 @@ func UnpackCreative(data []byte) (*Creative, error) {
 	return audience, err
 }
 
-// DBGetCreativesToRedis retrieves all creatives from the database and inserts them into Redis.
+// DBGetCreativesToRedisSpread retrieves all creatives from the database and inserts them into Redis.
 func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB) error {
 	rows, err := db.Query(`
 SELECT r.creative_id, r.size_id, c.iurl, i.item_click, r.creative_name, r.content

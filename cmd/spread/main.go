@@ -2,7 +2,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -14,6 +13,8 @@ import (
 	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/match"
 	"github.com/nats-io/nats.go"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func usage() {
@@ -31,16 +32,17 @@ func init() {
 }
 
 func main() {
-	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf, "nats")
+	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
+	nc, err := nats.Connect(c.NatsURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer nc.Close()
 
-	nc := sc.Nc
-	defer sc.Close()
-
-	top := sc.C.Spread
+	top := c.Spread
 	if err := os.MkdirAll(top, os.ModePerm); err != nil {
 		log.Fatal(err)
 	}
@@ -79,6 +81,7 @@ func main() {
 			if err != nil {
 				errchan <- err
 			}
+			log.Printf("write %s", m.Subject)
 		}
 		successchan <- true
 	})

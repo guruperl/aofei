@@ -1,11 +1,15 @@
 package dsp
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/mediocregopher/radix/v4"
 )
 
 type Red struct {
@@ -26,6 +30,7 @@ type Config struct {
 	NatsURL      string   `json:"nats_url,omitempty"`
 	ConnectArray []string `json:"connect_array,omitempty"`
 	Spread       string   `json:"spread,omitempty"`
+	IsLocal      bool     `json:"is_local,omitempty"`
 	LogRequest   string   `json:"log_request,omitempty"`
 	LogResponse  string   `json:"log_response,omitempty"`
 	LogAttribute string   `json:"log_attribute,omitempty"`
@@ -93,6 +98,29 @@ func NewConfig(filename string) (*Config, error) {
 	}
 
 	return parsed, nil
+}
+
+// GetRedisDB returns the Redis conn and database handler
+func (self *Config) GetRedisDB(ctx context.Context) (radix.Client, *sql.DB, error) {
+	db, err := sql.Open(self.ConnectArray[0], self.ConnectArray[1])
+	if err != nil {
+		return nil, nil, err
+	}
+	red := self.Redis
+	cfg := radix.PoolConfig{
+		Dialer: radix.Dialer{
+			AuthUser: red.User,
+			AuthPass: red.Pass,
+		},
+	}
+	if red.Size != 0 {
+		cfg.Size = red.Size
+	}
+	redis, err := cfg.New(ctx, red.Network, red.Addr)
+	if err != nil {
+		return nil, nil, err
+	}
+	return redis, db, nil
 }
 
 type Stamp struct {

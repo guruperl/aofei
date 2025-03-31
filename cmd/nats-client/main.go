@@ -2,13 +2,13 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/genelet/winter/dsp"
+	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -30,15 +30,17 @@ func init() {
 }
 
 func main() {
-	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf, "nats")
+	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	nc := sc.Nc
-	defer sc.Close()
+	nc, err := nats.Connect(c.NatsURL, nats.ReconnectWait(20))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer nc.Drain()
 
-	filewriters, err := NewFileWriters(sc.C.LogRequest, sc.C.LogResponse, sc.C.LogAttribute, sc.C.LogWinLoss, interval)
+	filewriters, err := NewFileWriters(c.LogRequest, c.LogResponse, c.LogAttribute, c.LogWinLoss, interval)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -29,12 +29,13 @@ const (
 )
 
 type Controller struct {
-	C      *Config
-	Ips    *maxmind.IPSearch
-	Redis  radix.Client
-	DB     *sql.DB
-	Nc     *nats.Conn
-	Logger *zap.Logger
+	C       *Config
+	Ips     *maxmind.IPSearch
+	Redis   radix.Client
+	DB      *sql.DB
+	Nc      *nats.Conn
+	Logger  *zap.Logger
+	IsLocal bool
 }
 
 func NewController(ctx context.Context, filename string, offline ...string) (*Controller, error) {
@@ -42,26 +43,10 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 	if err != nil {
 		return nil, err
 	}
-
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
+	redis, db, err := c.GetRedisDB(ctx)
 	if err != nil {
 		return nil, err
 	}
-	red := c.Redis
-	cfg := radix.PoolConfig{
-		Dialer: radix.Dialer{
-			AuthUser: red.User,
-			AuthPass: red.Pass,
-		},
-	}
-	if red.Size != 0 {
-		cfg.Size = red.Size
-	}
-	redis, err := cfg.New(ctx, red.Network, red.Addr)
-	if err != nil {
-		return nil, err
-	}
-
 	controller := &Controller{
 		C:     c,
 		Redis: redis,
@@ -69,7 +54,7 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 	}
 
 	if len(offline) == 0 || offline[0] == "nats" {
-		nc, err := nats.Connect(c.NatsURL)
+		nc, err := nats.Connect(c.NatsURL, nats.ReconnectWait(10*time.Second))
 		if err != nil {
 			return nil, err
 		}
@@ -109,6 +94,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	current := time.Now()
 	ctx := r.Context()
+	c := self.C
 
 	bidStr, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -125,20 +111,14 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pubStr := r.PathValue("domain")
-	if pubStr == "" {
-		pubStr = acl.PUBDefault
-	}
-	pubObj, err := acl.PubFromRedis(ctx, self.Redis, pubStr)
-	//top, _ := self.C.Spread
-	//pubObj, err := acl.PubFromIO(top, pubStr)
+	pubStr, pubObj, err := self.getPub(ctx, r, bid)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
 		return
 	}
 
-	glog.Info("1: bid")
+	glog.Infof("1: bid %s=>%d", pubStr, pubObj.PubID)
 	attr, err := match.NewAttribute(ctx, self.Ips, bid, pubObj, current, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -148,9 +128,13 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	width, height := match.SizeID1To2(attr.SizeID)
 
 	glog.Infof("2: width %d, height %d, rpub %v", width, height, attr.RPub)
-
-	monitors, err := match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
-	//monitors, err := match.RAdvsFromIOBySizeIDSlotID(top, attr.RPub.SlotID, attr.SizeID)
+	var monitors match.RAdvs
+	top := c.Spread
+	if c.IsLocal {
+		monitors, err = match.RAdvsFromIOBySizeIDSlotID(top, attr.RPub.SlotID, attr.SizeID)
+	} else {
+		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -180,8 +164,12 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	glog.Infof("5: total # after fcap %d", len(candidates))
-	audiences, err := candidates.AudiencesFromRedis(ctx, self.Redis)
-	//audiences, err := candidates.AudiencesFromIO(top)
+	var audiences match.Audiences
+	if c.IsLocal {
+		audiences, err = candidates.AudiencesFromIO(top)
+	} else {
+		audiences, err = candidates.AudiencesFromRedis(ctx, self.Redis)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -215,8 +203,12 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 			bothcap = &b
 		}
 	}
-	creative, err := match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
-	//creative, err := match.CreativeFromIO(top, one.CreativeID)
+	var creative *match.Creative
+	if c.IsLocal {
+		creative, err = match.CreativeFromIO(top, one.CreativeID)
+	} else {
+		creative, err = match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -389,4 +381,25 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		return err
 	}
 	return self.Nc.Publish(SUBJECTWinLoss, bs)
+}
+
+// getPub returns the publisher string and object from the bid request
+func (self *Controller) getPub(ctx context.Context, r *http.Request, bid *openrtb2.BidRequest) (string, *acl.Pub, error) {
+	pubStr := r.PathValue("domain")
+	if pubStr == "" {
+		pubStr = acl.PUBDefault
+	}
+	var pubObj *acl.Pub
+	var err error
+	top := self.C.Spread
+	if self.C.IsLocal {
+		if pubObj, err = acl.PubFromIO(top, pubStr); err == nil && pubObj == nil {
+			pubObj, err = acl.PubFromIO(top, acl.PUBDefault)
+		}
+	} else {
+		if pubObj, err = acl.PubFromRedis(ctx, self.Redis, pubStr); err == nil && pubObj == nil {
+			pubObj, err = acl.PubFromRedis(ctx, self.Redis, acl.PUBDefault)
+		}
+	}
+	return pubStr, pubObj, err
 }
