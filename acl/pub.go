@@ -4,7 +4,12 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/gob"
+	"io"
 	"math/rand"
+	"os"
+	"strings"
+
+	"github.com/nats-io/nats.go"
 )
 
 type Pub struct {
@@ -26,10 +31,24 @@ func (self *Pub) Pack() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+// PackIO packs a Pub object into a byte slice in IO writer.
+func (self *Pub) PackIO(w io.Writer) error {
+	enc := gob.NewEncoder(w)
+	return enc.Encode(self)
+}
+
 // UnpackPub decodes a byte slice into a Pub object.
 func UnpackPub(data []byte) (*Pub, error) {
 	var p Pub
 	dec := gob.NewDecoder(bytes.NewReader(data))
+	err := dec.Decode(&p)
+	return &p, err
+}
+
+// UnpackPubIO decodes a byte slice from an IO reader into a Pub object.
+func UnpackPubIO(r io.Reader) (*Pub, error) {
+	var p Pub
+	dec := gob.NewDecoder(r)
 	err := dec.Decode(&p)
 	return &p, err
 }
@@ -59,6 +78,28 @@ func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) (uint32, uint32, u
 	}
 
 	return self.PubID, siteID, slotID
+}
+
+// ToSpread put Pub to spread
+func (self *Pub) ToSpread(conn *nats.Conn, domain string) error {
+	bs, err := self.Pack()
+	if err != nil {
+		return err
+	}
+	return conn.Publish(HashNamePubmap+":"+domain, bs)
+}
+
+// SpreadGetPub retrieves Pub from nats
+func SpreadGetPub(m *nats.Msg, top string) error {
+	subject := m.Subject
+	domain := strings.TrimPrefix(subject, HashNamePubmap+":")
+	w, err := os.OpenFile(top+"/"+HashNamePubmap+"/"+domain, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	_, err = w.Write(m.Data)
+	return err
 }
 
 // DBGetPub retrieves the Pub from the database using domain

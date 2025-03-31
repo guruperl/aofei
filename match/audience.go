@@ -7,7 +7,9 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/genelet/winter/acl"
@@ -15,6 +17,7 @@ import (
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/maxmind"
+	"github.com/nats-io/nats.go"
 
 	"github.com/mediocregopher/radix/v4"
 )
@@ -65,6 +68,11 @@ func (self *Audience) Pack() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+// PackIO packs the audience into an IO writer.
+func (self *Audience) PackIO(w *bytes.Buffer) error {
+	return gob.NewEncoder(w).Encode(self)
+}
+
 // UnpackAudience deserializes the audience from a byte slice.
 func UnpackAudience(data []byte) (*Audience, error) {
 	audience := new(Audience)
@@ -73,18 +81,25 @@ func UnpackAudience(data []byte) (*Audience, error) {
 	return audience, err
 }
 
-// DBGetAudiencesToRedis retrieves audiences from the database and inserts them into Redis.
-func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+// UnpackAudienceIO deserializes the audience from an IO reader.
+func UnpackAudienceIO(r io.Reader) (*Audience, error) {
+	audience := new(Audience)
+	err := gob.NewDecoder(r).Decode(audience)
+	return audience, err
+}
+
+// getItemIDs retrieves item IDs from the database for active audiences.
+func getItemIDs(db *sql.DB) ([]uint32, error) {
 	rows, err := db.Query(`
-SELECT item_id
-FROM adv_item
-INNER JOIN adv_campaign USING (campaign_id)
-INNER JOIN adv USING (adv_id)
-WHERE adv_item.active="Yes"
-AND adv_campaign.active="Yes" 
-AND adv.active="Yes"`)
+	SELECT item_id
+	FROM adv_item
+	INNER JOIN adv_campaign USING (campaign_id)
+	INNER JOIN adv USING (adv_id)
+	WHERE adv_item.active="Yes"
+	AND adv_campaign.active="Yes" 
+	AND adv.active="Yes"`)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -93,19 +108,47 @@ AND adv.active="Yes"`)
 		var itemID uint32
 		err = rows.Scan(&itemID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		itemIDs = append(itemIDs, itemID)
 	}
 	if err := rows.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	rows.Close()
+	return itemIDs, nil
+}
+
+// DBGetAudiencesToRedis retrieves audiences from the database and inserts them into Redis.
+func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+	itemIDs, err := getItemIDs(db)
+	if err != nil {
+		return fmt.Errorf("failed to get item IDs: %w", err)
+	}
 
 	for _, itemID := range itemIDs {
 		aud, err := DBGetAudience(db, itemID)
 		if err == nil {
 			err = aud.ToRedis(ctx, conn, itemID)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DBGetAudiencesToSpread retrieves audiences from the database and publishes them to nats.
+func DBGetAudiencesToSpread(conn *nats.Conn, db *sql.DB) error {
+	itemIDs, err := getItemIDs(db)
+	if err != nil {
+		return fmt.Errorf("failed to get item IDs: %w", err)
+	}
+
+	for _, itemID := range itemIDs {
+		aud, err := DBGetAudience(db, itemID)
+		if err == nil {
+			err = aud.ToSpread(conn, itemID)
 		}
 		if err != nil {
 			return err
@@ -176,6 +219,16 @@ func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uin
 	return err
 }
 
+// ToSpread publishes the audience to NATS.
+func (self *Audience) ToSpread(conn *nats.Conn, itemID uint32) error {
+	subject := fmt.Sprintf("%s:%d", HashNameAudience, itemID)
+	bs, err := self.Pack()
+	if err != nil {
+		return err
+	}
+	return conn.Publish(subject, bs)
+}
+
 // AudienceFromRedis retrieves audience data from Redis.
 func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*Audience, error) {
 	var bs []byte
@@ -184,6 +237,71 @@ func AudienceFromRedis(ctx context.Context, conn radix.Client, itemID uint32) (*
 		return nil, err
 	}
 	return UnpackAudience(bs)
+}
+
+// AudienceFromIO retrieves audience data from IO.
+func AudienceFromIO(top string, itemID uint32) (*Audience, error) {
+	fh, err := os.Open(fmt.Sprintf("%s/%s/%d", top, HashNameAudience, itemID))
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	return UnpackAudienceIO(fh)
+}
+
+// AudienceMapFromRedis retrieves all multiple audience data by itemID from Redis
+func AudienceMapFromRedis(ctx context.Context, conn radix.Client) (map[uint32]*Audience, error) {
+	var arr []string
+	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", HashNameAudience))
+	if err != nil {
+		return nil, err
+	}
+	if len(arr) == 0 {
+		return nil, nil // No audiences found in Redis
+	}
+	if len(arr)%2 != 0 {
+		return nil, sql.ErrNoRows // Invalid format
+	}
+
+	// Decode each key-value pair into the Audiences map
+	audiences := make(map[uint32]*Audience)
+	for i := 0; i < len(arr); i += 2 {
+		itemID, err := strconv.ParseUint(arr[i], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		data := []byte(arr[i+1])
+		audience, err := UnpackAudience(data)
+		if err != nil {
+			return nil, err
+		}
+		audiences[uint32(itemID)] = audience
+	}
+	return audiences, nil
+}
+
+// AudienceMapFromIO retrieves all multiple audience data by itemID from IO
+func AudienceMapFromIO(top string) (map[uint32]*Audience, error) {
+	files, err := os.ReadDir(top + "/" + HashNameAudience)
+	if err != nil {
+		return nil, err
+	}
+	hash := make(map[uint32]*Audience)
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		itemID, err := strconv.ParseUint(file.Name(), 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		audience, err := AudienceFromIO(top, uint32(itemID))
+		if err != nil {
+			return nil, err
+		}
+		hash[uint32(itemID)] = audience
+	}
+	return hash, nil
 }
 
 type Audiences []*Audience
@@ -214,33 +332,15 @@ func (self RAdvs) AudiencesFromRedis(ctx context.Context, conn radix.Client) (Au
 	return audiences, nil
 }
 
-// AudiencesFromRedis retrieves all multiple audience data by itemID from Redis
-func AudiencesFromRedis(ctx context.Context, conn radix.Client) (map[uint32]Audiences, error) {
-	var arr []string
-	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", HashNameAudience))
-	if err != nil {
-		return nil, err
-	}
-	if len(arr) == 0 {
-		return nil, nil // No audiences found in Redis
-	}
-	if len(arr)%2 != 0 {
-		return nil, sql.ErrNoRows // Invalid format
-	}
-
-	// Decode each key-value pair into the Audiences map
-	audiences := make(map[uint32]Audiences)
-	for i := 0; i < len(arr); i += 2 {
-		itemID, err := strconv.ParseUint(arr[i], 10, 32)
+// AudiencesFromIO retrieves multiple audience data from Redis for specified RAdvs
+func (self RAdvs) AudiencesFromIO(top string) (Audiences, error) {
+	audiences := make([]*Audience, len(self))
+	for i, radv := range self {
+		audience, err := AudienceFromIO(top, radv.ItemID)
 		if err != nil {
 			return nil, err
 		}
-		data := []byte(arr[i+1])
-		audience, err := UnpackAudience(data)
-		if err != nil {
-			return nil, err
-		}
-		audiences[uint32(itemID)] = append(audiences[uint32(itemID)], audience)
+		audiences[i] = audience
 	}
 	return audiences, nil
 }

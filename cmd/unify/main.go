@@ -48,11 +48,13 @@ func usage() {
 }
 
 var gConf, sConf string
+var isLocal bool
 
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&gConf, "g", os.Getenv("SUMMER"), "Genelet Config")
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "Ssp Config")
+	flag.BoolVar(&isLocal, "local", false, "local mode")
 	flag.Parse()
 }
 
@@ -68,6 +70,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	sc.C.IsLocal = isLocal
 	sc.Logger = logger
 	defer sc.Close()
 
