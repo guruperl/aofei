@@ -294,7 +294,7 @@ func pubmapUpdate(c *dsp.Config, db *sql.DB, pubmap acl.PubMap) error {
 	}
 	fn := c.NewLogfileName(dsp.SUBJECTAttribute, stampObject)
 	fh, err := os.Open(fn)
-	if err != nil && err == os.ErrNotExist {
+	if err != nil && os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
 		return err

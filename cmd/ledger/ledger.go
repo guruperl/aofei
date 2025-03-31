@@ -109,7 +109,9 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 
 	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.current)
 	fh, err := os.Open(name)
-	if err != nil {
+	if err != nil && os.IsNotExist(err) {
+		return nil, nil, nil, nil, nil, nil
+	} else if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 	defer fh.Close()

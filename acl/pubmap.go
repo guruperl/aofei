@@ -178,7 +178,7 @@ func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr strin
 func PubFromRedis(ctx context.Context, conn radix.Client, pubStr string) (*Pub, error) {
 	var bs []byte
 	name := HashNamePubmap
-	err := conn.Do(ctx, radix.Cmd(&bs, "MGET", name, pubStr))
+	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", name, pubStr))
 	if err == nil && len(bs) > 2 {
 		return UnpackPub(bs)
 	}
