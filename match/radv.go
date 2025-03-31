@@ -108,6 +108,9 @@ func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, sizeI
 		return err
 	}
 	for slotID, radvs := range hash {
+		if len(radvs) == 0 {
+			continue
+		}
 		if err = radvs.ToRedis(ctx, conn, slotID, sizeID); err != nil {
 			return err
 		}
@@ -121,7 +124,11 @@ func DBGetRAdvsToSpread(ctx context.Context, conn *nats.Conn, db *sql.DB, sizeID
 	if err != nil {
 		return err
 	}
+
 	for slotID, radvs := range hash {
+		if len(radvs) == 0 {
+			continue
+		}
 		if err = radvs.ToSpread(conn, slotID, sizeID); err != nil {
 			return err
 		}
@@ -130,7 +137,7 @@ func DBGetRAdvsToSpread(ctx context.Context, conn *nats.Conn, db *sql.DB, sizeID
 }
 
 // dbGetRAdvs builds slots' block map, according to size
-func dbGetRAdvs(ctx context.Context, db *sql.DB, siteID uint32) (map[uint32]RAdvs, error) {
+func dbGetRAdvs(ctx context.Context, db *sql.DB, sizeID uint32) (map[uint32]RAdvs, error) {
 	hash := make(map[uint32]RAdvs)
 	rows, err := db.QueryContext(ctx, `
 SELECT t.slot_id
@@ -149,7 +156,7 @@ WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
 		if err != nil {
 			return nil, err
 		}
-		hash[slotID], err = RAdvsFromDatabase(ctx, db, slotID, siteID)
+		hash[slotID], err = RAdvsFromDatabase(ctx, db, slotID, sizeID)
 		if err != nil {
 			return nil, err
 		}

@@ -92,7 +92,7 @@ func main() {
 	}
 
 	if update {
-		err = pubmapUpdate(ctx, c, db, pubmap)
+		err = pubmapUpdate(c, db, pubmap)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -285,7 +285,7 @@ func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.Pu
 }
 
 // pubmapUpdate updates the pubmap with new attribute log
-func pubmapUpdate(ctx context.Context, c *dsp.Config, db *sql.DB, pubmap acl.PubMap) error {
+func pubmapUpdate(c *dsp.Config, db *sql.DB, pubmap acl.PubMap) error {
 	var stampObject *dsp.Stamp
 	if stamp > 0 {
 		stampObject = dsp.NewStamp(interval, stamp)
