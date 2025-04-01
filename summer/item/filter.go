@@ -102,9 +102,9 @@ func (self *Filter) After(model *Model) error {
 		return err
 	}
 
-	//ARGS := self.R.Form
+	ARGS := self.R.Form
 	action := self.Action
-	//who := self.RoleValue
+	who := self.RoleValue
 	lists := *model.LISTS
 	other := *model.OTHER
 
@@ -155,33 +155,21 @@ func (self *Filter) After(model *Model) error {
 			}
 		}
 		summer.TranslateOne(lists, "qa_mime", "qa_chinese")
+	} else if (who == "admin" || who == "agent") && action == "update" {
+		// this is to recalculate the weight of active creatives, after an update
+		// to ensure the weights are normalized to 1.0
+		err := model.DoSQL(`
+UPDATE adv_creative r
+INNER JOIN (
+	SELECT SUM(weight) AS weight
+	FROM adv_creative
+	WHERE item_id=? AND active="Yes"
+) AS t ON r.item_id = ?
+SET r.weight= r.weight/t.weight`, ARGS.Get("item_id"), ARGS.Get("item_id"))
+		if err != nil {
+			return fmt.Errorf("failed to recalculate weight: %s", err.Error())
+		}
 	}
-
-	/*
-	   	if action=="update" || (action=="authen" && ARGS.Get("active")=="Yes") {
-	   		taodb, err := sql.Open(self.C.Custom["taoType"], self.C.Custom["taoAccount"])
-	   		if err != nil { return err }
-	   		hmodel := new(hitem.Model)
-	   		err = hmodel.Load(self.C.ProjectRoot+"/src/holiday/item/component.json")
-	   		if err != nil { return err }
-	   		hmodel.Db = taodb
-	   		err = hmodel.ExecSQL("drop table if exists item_"+ARGS.Get("item_id"))
-	   		if err != nil { return err }
-	   		lists := make([]map[string]interface{},0)
-	   		err = model.SelectSQL(&lists,
-	   `SELECT i.item_id, creative_id, weight, item_click, cpc_fc, cpc_length, content
-	   FROM adv_item i
-	   INNER JOIN adv_campaign c USING (campaign_id)
-	   INNER JOIN adv_creative r USING (item_id)
-	   WHERE i.item_id=? AND c.active="Yes" AND i.active="Yes"`, ARGS.Get("item_id"))
-	   		if err != nil { return err }
-	   		for _, one := range lists {
-	   			err = hmodel.Insert(one)
-	   			if err != nil { return err }
-	   		}
-	   		taodb.Close()
-	   	}
-	*/
 
 	return nil
 }

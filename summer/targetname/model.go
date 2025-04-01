@@ -98,9 +98,8 @@ func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
 	itemID := self.getItemID(extra...)
 
-	data := ``
-	err := self.DoSQL(
-		`DELETE FROM adv_targetname WHERE item_id=?`, itemID)
+	err := self.DoSQL(`
+DELETE FROM adv_targetname WHERE item_id=?`, itemID)
 	if err != nil {
 		return err
 	}
@@ -125,10 +124,10 @@ func (self *Model) Insert(extra ...url.Values) error {
 		}
 	}
 
+	data := ``
 	for attrname, attrnameID := range hash {
-		err = self.DoSQL(
-			`INSERT INTO adv_targetname (item_id, attrname_id) VALUES (?, ?)`,
-			itemID, attrnameID)
+		err = self.DoSQL(`
+INSERT INTO adv_targetname (item_id, attrname_id) VALUES (?, ?)`, itemID, attrnameID)
 		if err != nil {
 			return err
 		}
@@ -144,19 +143,18 @@ func (self *Model) Insert(extra ...url.Values) error {
 			}
 		}
 		if total == 0 {
-			err = self.DoSQL(
-				`DELETE FROM adv_targetname WHERE targetname_id=?`, targetnameID)
+			err = self.DoSQL(`
+DELETE FROM adv_targetname WHERE targetname_id=?`, targetnameID)
 			if err != nil {
 				return err
 			}
 		}
 	}
-
 	length := len(data)
 	if length == 0 {
 		return nil
 	}
 
-	return self.DoSQL(
-		`INSERT INTO adv_targetvalue (targetname_id, value_id) VALUES ` + data[:length-1])
+	return self.DoSQL(`
+INSERT INTO adv_targetvalue (targetname_id, value_id) VALUES ` + data[:length-1])
 }

@@ -94,7 +94,7 @@ func (self *Filter) After(model *Model) error {
 				return err
 			}
 		}
-	} else if action == "update" {
+	} else if action == "update" && who == "adv" {
 		ARGS.Set("table", "adv_item")
 		ARGS.Set("idname", "campaign_id")
 		ARGS.Set("entity_id", ARGS.Get("campaign_id"))

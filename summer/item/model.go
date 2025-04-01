@@ -13,8 +13,8 @@ type Model struct {
 }
 
 func (self *Model) Review(extra ...url.Values) error {
-	return self.DoSQL(
-		`UPDATE adv_item SET active="New" WHERE active="Prepare" AND item_id=?`, self.ARGS.Get("item_id"))
+	return self.DoSQL(`
+UPDATE adv_item SET active="New" WHERE active="Prepare" AND item_id=?`, self.ARGS.Get("item_id"))
 }
 
 func (self *Model) normalizeCreatives() error {
@@ -29,12 +29,12 @@ AND item_id=?`, ARGS.Get("item_id"))
 	}
 	ref := make(map[uint32]map[uint32]float32)
 	for _, item := range lists {
-		creative_id := uint32(item["creative_id"].(int64))
-		size_id := uint32(item["size_id"].(int64))
-		if _, ok := ref[size_id]; !ok {
-			ref[size_id] = make(map[uint32]float32)
+		creativeID := uint32(item["creative_id"].(int64))
+		sizeID := uint32(item["size_id"].(int64))
+		if _, ok := ref[sizeID]; !ok {
+			ref[sizeID] = make(map[uint32]float32)
 		}
-		ref[size_id][creative_id] = float32(item["weight"].(int64))
+		ref[sizeID][creativeID] = float32(item["weight"].(int64))
 	}
 	for _, v := range ref {
 		var total float32
@@ -60,17 +60,17 @@ func (self *Model) Authen(extra ...url.Values) error {
 		return err
 	}
 	if ARGS.Get("agent_level") == "1" {
-		return self.DoSQL(
-			`UPDATE adv_item SET active=? WHERE active="New" AND item_id=?`, ARGS.Get("active"), ARGS.Get("item_id"))
+		return self.DoSQL(`
+UPDATE adv_item SET active=? WHERE active="New" AND item_id=?`, ARGS.Get("active"), ARGS.Get("item_id"))
 	}
-	return self.DoSQL(
-		`UPDATE adv_item SET active=? WHERE active IN ("Pass2", "New") AND item_id=?`, ARGS.Get("active"), ARGS.Get("item_id"))
+	return self.DoSQL(`
+UPDATE adv_item SET active=? WHERE active IN ("Pass2", "New") AND item_id=?`, ARGS.Get("active"), ARGS.Get("item_id"))
 }
 
 func (self *Model) Insert(extra ...url.Values) error {
 	ARGS := self.ARGS
-	err := self.GetArgs(ARGS,
-		`SELECT active AS item_active FROM adv_item WHERE item_id=?`, ARGS.Get("item_id"))
+	err := self.GetArgs(ARGS, `
+SELECT active AS item_active FROM adv_item WHERE item_id=?`, ARGS.Get("item_id"))
 	if err != nil {
 		return err
 	}

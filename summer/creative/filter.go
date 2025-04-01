@@ -1,3 +1,4 @@
+// Package creative implements creative modules, including uploading
 package creative
 
 import (
@@ -51,8 +52,8 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 			}
 		}
 		if found {
-			item_id := ARGS.Get("item_id")
-			dir := self.C.UploadDir + "/" + item_id
+			itemID := ARGS.Get("item_id")
+			dir := self.C.UploadDir + "/" + itemID
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
 				if err = os.Mkdir(dir, 0755); err != nil {
 					return err
@@ -63,10 +64,12 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 				if file == "" {
 					continue
 				}
-				err := self.Uploading(dir, item_id, file, strconv.Itoa(i+1))
+				err := self.Uploading(dir, itemID, file, strconv.Itoa(i+1))
 				if err != nil {
 					return err
 				}
+				// this is a lazy testing of uploading only
+				ARGS.Set("content", ARGS.Get("media"))
 			}
 		}
 	}
@@ -103,7 +106,7 @@ VALUES (?,?,?,?,?,NOW())`, lists[0]["creative_id"], ARGS["series"][i], m,
 	return nil
 }
 
-func (self *Filter) Uploading(dir, item_id, file, series string) error {
+func (self *Filter) Uploading(dir, itemID, file, series string) error {
 	ARGS := self.R.Form
 
 	fh, err := os.Open(self.C.UploadDir + "/" + file)
@@ -136,7 +139,7 @@ func (self *Filter) Uploading(dir, item_id, file, series string) error {
 		return err
 	}
 
-	media := self.C.UploadURL + "/" + item_id + "/" + file
+	media := self.C.UploadURL + "/" + itemID + "/" + file
 	ARGS.Add("mime", mime)
 	ARGS.Add("series", series)
 	ARGS.Add("media", media)
