@@ -131,9 +131,9 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	var monitors match.RAdvs
 	top := c.Spread
 	if c.IsLocal {
-		monitors, err = match.RAdvsFromIOBySizeIDSlotID(top, attr.RPub.SlotID, attr.SizeID)
+		monitors, err = match.RAdvsFromIOBySizeIDSlotID(top, attr.SizeID, attr.RPub.SlotID)
 	} else {
-		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.RPub.SlotID, attr.SizeID)
+		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.SizeID, attr.RPub.SlotID)
 	}
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)

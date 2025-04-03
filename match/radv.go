@@ -101,44 +101,75 @@ func UnpackRAdvsIO(r io.Reader) (RAdvs, error) {
 	return UnpackRAdvs(buf.Bytes())
 }
 
-// DBGetRAdvsToRedis retrieves RAdvs from the database and inserts them into Redis.
-func DBGetRAdvsToRedis(ctx context.Context, conn radix.Client, db *sql.DB, sizeID uint32) error {
-	hash, err := dbGetRAdvs(ctx, db, sizeID)
+// DBGetRAdvsToRedisSpreadByItemID retrieves RAdvs from the database with give item and inserts them into Redis.
+func DBGetRAdvsToRedisSpreadByItemID(ctx context.Context, conn interface{}, db *sql.DB, itemID uint32) error {
+	slotHash := func(hash map[uint32]bool, creativeID uint32) error {
+		rows, err := db.QueryContext(ctx, `
+CALL proc_creative(?, ?)`, creativeID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			w := RAdv{}
+			var pubID, siteID, slotID, sizeID uint32
+			var costType sql.NullString
+			var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
+			var cost sql.NullFloat64
+			err = rows.Scan(&pubID, &siteID, &slotID, &sizeID, &w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
+			if err != nil {
+				return err
+			}
+			hash[slotID] = true
+		}
+		return rows.Err()
+	}
+
+	rows, err := db.QueryContext(ctx, `
+SELECT creative_id, size_id
+FROM adv_creative v
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+INNER JOIN adv USING a (adv_id)
+WHERE item_id=?
+AND v.active="Yes" AND i.active="Yes" AND c.active="Yes" AND a.active="Yes"`, itemID)
 	if err != nil {
 		return err
 	}
-	for slotID, radvs := range hash {
-		if len(radvs) == 0 {
-			continue
+	defer rows.Close()
+
+	ref := make(map[uint32]map[uint32]bool)
+	for rows.Next() {
+		var creativeID, sizeID uint32
+		if err = rows.Scan(&creativeID, &sizeID); err != nil {
+			return err
 		}
-		if err = radvs.ToRedis(ctx, conn, slotID, sizeID); err != nil {
+		if _, ok := ref[sizeID]; !ok {
+			ref[sizeID] = make(map[uint32]bool)
+		}
+		if err = slotHash(ref[sizeID], creativeID); err != nil {
 			return err
 		}
 	}
-	return nil
-}
 
-// DBGetRAdvsToSpread retrieves RAdvs from the database and publishes them to nats.
-func DBGetRAdvsToSpread(ctx context.Context, conn *nats.Conn, db *sql.DB, sizeID uint32) error {
-	hash, err := dbGetRAdvs(ctx, db, sizeID)
-	if err != nil {
-		return err
-	}
-
-	for slotID, radvs := range hash {
-		if len(radvs) == 0 {
-			continue
+	for sizeID, block := range ref {
+		hash := make(map[uint32]RAdvs)
+		for slotID := range block {
+			// we need to get all radvs for this slotID again, not only this creative
+			if hash[slotID], err = radvsFromDatabaseBySizeIDSlotID(ctx, db, sizeID, slotID); err != nil {
+				return err
+			}
 		}
-		if err = radvs.ToSpread(conn, slotID, sizeID); err != nil {
+		if err = radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-// dbGetRAdvs builds slots' block map, according to size
-func dbGetRAdvs(ctx context.Context, db *sql.DB, sizeID uint32) (map[uint32]RAdvs, error) {
-	hash := make(map[uint32]RAdvs)
+// DBGetRAdvsToRedisSpreadBySizeID retrieves RAdvs from the database with given size and inserts them into Redis.
+func DBGetRAdvsToRedisSpreadBySizeID(ctx context.Context, conn interface{}, db *sql.DB, sizeID uint32) error {
 	rows, err := db.QueryContext(ctx, `
 SELECT t.slot_id
 FROM pub_slot t
@@ -146,22 +177,49 @@ INNER JOIN pub_site s USING (site_id)
 INNER JOIN pub      p USING (pub_id)
 WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
 
+	hash := make(map[uint32]RAdvs)
 	for rows.Next() {
 		var slotID uint32
 		err = rows.Scan(&slotID)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		hash[slotID], err = RAdvsFromDatabase(ctx, db, slotID, sizeID)
+		hash[slotID], err = radvsFromDatabaseBySizeIDSlotID(ctx, db, sizeID, slotID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return hash, rows.Err()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+
+	return radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID)
+}
+
+// radvHashToRedisSpread
+func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash map[uint32]RAdvs, sizeID uint32) error {
+	for slotID, radvs := range hash {
+		if len(radvs) == 0 {
+			continue
+		}
+		var err error
+		switch t := conn.(type) {
+		case radix.Client:
+			err = radvs.ToRedis(ctx, t, slotID, sizeID)
+		case *nats.Conn:
+			err = radvs.ToSpread(t, slotID, sizeID)
+		default:
+			err = fmt.Errorf("unsupported connection type: %T", conn)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var HashNameSlot = "slot"
@@ -194,8 +252,8 @@ func (self RAdvs) ToSpread(conn *nats.Conn, slotID, sizeID uint32) error {
 	return conn.Publish(subject, data)
 }
 
-// RAdvsFromDatabase builds RAdvs from the database.
-func RAdvsFromDatabase(ctx context.Context, db *sql.DB, slotID, sizeID uint32) (RAdvs, error) {
+// radvsFromDatabaseBySizeIDSlotID builds RAdvs from the database.
+func radvsFromDatabaseBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint32) (RAdvs, error) {
 	rows, err := db.QueryContext(ctx, `
 CALL proc_slot(?, ?)`, slotID, sizeID)
 	if err != nil {
@@ -250,7 +308,7 @@ CALL proc_slot(?, ?)`, slotID, sizeID)
 }
 
 // RAdvsFromRedisBySizeIDSlotID builds RAdvs from redis.
-func RAdvsFromRedisBySizeIDSlotID(ctx context.Context, conn radix.Client, slotID, sizeID uint32) (RAdvs, error) {
+func RAdvsFromRedisBySizeIDSlotID(ctx context.Context, conn radix.Client, sizeID, slotID uint32) (RAdvs, error) {
 	key := strconv.FormatUint(uint64(slotID), 10)
 	var data []byte
 	err := conn.Do(ctx, radix.Cmd(&data, "HGET", HashNameRAdvs(sizeID), key))
@@ -265,7 +323,7 @@ func RAdvsFromRedisBySizeIDSlotID(ctx context.Context, conn radix.Client, slotID
 }
 
 // RAdvsFromIOBySizeIDSlotID builds RAdvs from redis.
-func RAdvsFromIOBySizeIDSlotID(top string, slotID, sizeID uint32) (RAdvs, error) {
+func RAdvsFromIOBySizeIDSlotID(top string, sizeID, slotID uint32) (RAdvs, error) {
 	r, err := os.OpenFile(fmt.Sprintf("%s/%s/%d", top, HashIONameRAdvs(sizeID), slotID), os.O_RDONLY, 0644)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -334,7 +392,7 @@ func RAdvsFromIOBySizeID(top string, sizeID uint32) (map[uint32]RAdvs, error) {
 			continue // Skip files with invalid names
 		}
 		// Open the file for reading
-		radvs, err := RAdvsFromIOBySizeIDSlotID(top, uint32(slotID), sizeID)
+		radvs, err := RAdvsFromIOBySizeIDSlotID(top, sizeID, uint32(slotID))
 		if err != nil {
 			return nil, err // Error unpacking RAdvs
 		}

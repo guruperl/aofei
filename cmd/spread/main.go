@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/dsp"
@@ -75,7 +76,17 @@ func main() {
 				var w *os.File
 				if w, err = os.OpenFile(fmt.Sprintf("%s/%s/%s", top, dir, base), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666); err == nil {
 					defer w.Close()
-					_, err = w.Write(m.Data)
+					// Acquire exclusive lock.
+					// LOCK_NB is not used here, because we want to wait for the lock until it is released by other process.
+					if err = syscall.Flock(int(w.Fd()), syscall.LOCK_EX); err == nil {
+						defer func() {
+							err1 := syscall.Flock(int(w.Fd()), syscall.LOCK_UN)
+							if err1 != nil {
+								log.Println("Error releasing lock:", err1)
+							}
+						}()
+						_, err = w.Write(m.Data)
+					}
 				}
 			}
 			if err != nil {

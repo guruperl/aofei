@@ -55,13 +55,27 @@ func UnpackCreative(data []byte) (*Creative, error) {
 }
 
 // DBGetCreativesToRedisSpread retrieves all creatives from the database and inserts them into Redis.
-func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB) error {
-	rows, err := db.Query(`
+func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB, extra ...string) error {
+	var pars []interface{}
+	str := `
 SELECT r.creative_id, r.size_id, c.iurl, i.item_click, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
-WHERE r.active="Yes"`)
+WHERE r.active="Yes"`
+	if len(extra) > 0 {
+		switch extra[0] {
+		case "item_id":
+			str += " AND i.item_id=?"
+		case "campaign_id":
+			str += " AND c.campaign_id=?"
+		case "creative_id":
+			str += " AND r.creative_id=?"
+		default:
+		}
+		pars = append(pars, extra[1])
+	}
+	rows, err := db.Query(str, pars...)
 	if err != nil {
 		return err
 	}

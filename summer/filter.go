@@ -1,6 +1,7 @@
 package summer
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/genelet/winter/genelet"
 	"github.com/genelet/winter/match"
+	"github.com/mediocregopher/radix/v4"
+	"github.com/nats-io/nats.go"
 )
 
 type Filter struct {
@@ -240,20 +243,90 @@ func (self *Filter) After(model *Model) error {
 	ARGS := self.R.Form
 	other := *model.OTHER
 
+	who := self.RoleValue
 	action := self.Action
 	obj := ARGS.Get("_gobj")
 
 	if genelet.Grep([]string{"item", "slot"}, obj) && genelet.Grep([]string{"startnew", "edit"}, action) {
-		other["slots"] = GetSlotNames()
+		//other["slots"] = GetSlotNames()
 		other["slotsChinese"] = Translate(other["slots"])
 		other["slotsDefault"] = CreateSlot("", "", "", "", "", "", "", "", "", "", "").InHash()
-		other["slotAttrs"] = GetSlotAttrs()
+		//other["slotAttrs"] = GetSlotAttrs()
 		other["slotAttrsChinese"] = Translate(other["slotAttrs"])
-		other["items"] = GetItemNames()
+		//other["items"] = GetItemNames()
 		other["itemsChinese"] = Translate(other["items"])
 		other["itemsDefault"] = CreateItem("", "", "", "", "", "").InHash()
-		other["itemAttrs"] = GetItemAttrs()
+		//other["itemAttrs"] = GetItemAttrs()
 		other["itemAttrsChinese"] = Translate(other["itemAttrs"])
 	}
+
+	// creative caches belong to a specific campaign, item or creative are published
+	if genelet.Grep([]string{"item", "campaign", "creative"}, obj) && genelet.Grep([]string{"insert", "update"}, action) {
+		var par []string
+		switch obj {
+		case "item":
+			par = []string{"item_id", ARGS.Get("item_id")}
+		case "campaign":
+			par = []string{"campaign_id", ARGS.Get("campaign_id")}
+		case "creative":
+			par = []string{"creative_id", ARGS.Get("creative_id")}
+		default:
+		}
+		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
+			if err := match.DBGetCreativesToRedisSpread(context.Background(), nc.(*nats.Conn), model.DB, par...); err != nil {
+				return err
+			}
+		}
+		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+			if err := match.DBGetCreativesToRedisSpread(context.Background(), redis.(radix.Client), model.DB, par...); err != nil {
+				return err
+			}
+		}
+	}
+
+	var itemID uint32
+	// audience of item is published
+	if (obj == "targetname" && action == "insert") ||
+		(who == "admin" && obj == "item" && action == "update") {
+		if str := ARGS.Get("item_id"); str != "" {
+			id, err := strconv.Atoi(str)
+			if err != nil {
+				return fmt.Errorf("item_id should be a number")
+			}
+			itemID = uint32(id)
+		} else {
+			return fmt.Errorf("item_id is empty")
+		}
+	}
+
+	if obj == "item" && action == "update" {
+		aud, err := match.DBGetAudience(model.DB, itemID)
+		if err == nil && aud != nil {
+			if nc, ok := model.Storage["Nc"]; ok && nc != nil {
+				err = aud.ToSpread(nc.(*nats.Conn), itemID)
+			}
+			if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+				err = aud.ToRedis(context.Background(), redis.(radix.Client), itemID)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("failed to update audience: %s", err.Error())
+		}
+	}
+
+	if who == "admin" && obj == "item" && action == "update" {
+		var err error
+		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
+			err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), nc.(*nats.Conn), model.DB, itemID)
+		}
+		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+			err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), redis.(radix.Client), model.DB, itemID)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to update advs: %s", err.Error())
+		}
+
+	}
+
 	return nil
 }

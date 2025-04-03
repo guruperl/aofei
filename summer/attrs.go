@@ -1,4 +1,4 @@
-// Package pzutil implements common functions for PZ project.
+// Package summer implements common functions for PZ project.
 // It defines the mapping between attribute name and attribute value.
 // The AttrName is a map from attribute value to attribute name, and the AttrValue is a map from attribute name to attribute value.
 package summer

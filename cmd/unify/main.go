@@ -80,6 +80,7 @@ func main() {
 	}
 	gc.DB = sc.DB
 	gc.Storage["Redis"] = sc.Redis
+	gc.Storage["Nc"] = sc.Nc
 	if gc.C.ServerPort == "" {
 		gc.C.ServerPort = sc.C.ServerPort
 	}

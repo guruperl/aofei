@@ -180,7 +180,7 @@ func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap ac
 		{64, 64},
 		{100, 100},
 	} {
-		err = match.DBGetRAdvsToRedis(ctx, redis, db, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, redis, db, match.SizeID2To1(sizeID2[0], sizeID2[1]))
 		if err != nil {
 			return err
 		}
@@ -263,7 +263,7 @@ func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.Pu
 		{64, 64},
 		{100, 100},
 	} {
-		err = match.DBGetRAdvsToSpread(ctx, nc, db, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, nc, db, match.SizeID2To1(sizeID2[0], sizeID2[1]))
 		if err != nil {
 			return err
 		}

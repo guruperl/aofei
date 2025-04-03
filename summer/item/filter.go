@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/genelet/winter/summer"
-	// "database/sql"
-	// hitem "github.com/genelet/winter/holiday/item"
 )
 
 type Filter struct {
