@@ -118,7 +118,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	glog.Infof("1: bid %s=>%d", pubStr, pubObj.PubID)
+	glog.Infof("1: bid domain: %s => pub id: %d", pubStr, pubObj.PubID)
 	attr, err := match.NewAttribute(ctx, self.Ips, bid, pubObj, current, pubStr)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -127,7 +127,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 	width, height := match.SizeID1To2(attr.SizeID)
 
-	glog.Infof("2: width %d, height %d, rpub %v", width, height, attr.RPub)
+	glog.Infof("2: size %d (%dx%d), siteID: %d, slotID: %d", attr.SizeID, width, height, attr.RPub.SiteID, attr.SlotID)
 	var monitors match.RAdvs
 	top := c.Spread
 	if c.IsLocal {
@@ -150,7 +150,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if userID == "" {
 		userID = attr.IFA
 	}
-	glog.Infof("4: total # for slot %d and size %d: %d", attr.RPub.SlotID, attr.SizeID, len(monitors))
+	glog.Infof("4: total # of candidates: %d", len(monitors))
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
@@ -163,7 +163,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	glog.Infof("5: total # after fcap %d", len(candidates))
+	glog.Infof("5: total # after fcap: %d", len(candidates))
 	var audiences match.Audiences
 	if c.IsLocal {
 		audiences, err = candidates.AudiencesFromIO(top)
@@ -187,7 +187,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	glog.Infof("6: radvs # %d and audieces # %d", len(radvs), len(audiences))
+	glog.Infof("6: total # after audience: %d and audieces # %d", len(radvs), len(audiences))
 	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
 	if index < 0 {
 		w.WriteHeader(http.StatusNoContent)
@@ -195,8 +195,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	glog.Infof("7: index %d", index)
 	one := radvs[index]
+	glog.Infof("7: index %d and campaign %d item %d creative %d", index, one.CampaignID, one.ItemID, one.CreativeID)
 	var bothcap *match.BothCap
 	if bothcaps != nil {
 		if b, ok := bothcaps[one.ItemID]; ok {

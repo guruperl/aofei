@@ -43,6 +43,10 @@
     {"name":"adv_balance", "alias":"b", "type":"LEFT", "on":"c.total_balance_id=b.balance_id"}
   ],
   "topics_hash" : {
+    "a.domain": "domain",
+    "c.foreign_id":"foreign_id",
+    "c.iurl":"iurl",
+    "c.access_order":"access_order",
     "c.adv_id":"adv_id",
     "c.campaign_id":"campaign_id",
     "c.campaign_name":"campaign_name",

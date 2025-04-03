@@ -67,6 +67,13 @@ func main() {
 
 		filename := strings.ReplaceAll(m.Subject, ":", "/")
 		dir, base := filepath.Split(filename)
+		if pure, ok := strings.CutSuffix(base, "cleanup"); ok {
+			base = pure
+			if err := os.RemoveAll(fmt.Sprintf("%s/%s", top, dir)); err != nil {
+				errchan <- err
+				return
+			}
+		}
 		if strings.HasPrefix(dir, acl.HashNamePubmap) ||
 			strings.HasPrefix(dir, match.HashNameAudience) ||
 			strings.HasPrefix(dir, match.HashNameSlot) ||
@@ -91,6 +98,7 @@ func main() {
 			}
 			if err != nil {
 				errchan <- err
+				return
 			}
 			log.Printf("write %s", m.Subject)
 		}

@@ -176,19 +176,19 @@ func UnpackRAdvsIO(r io.Reader) (RAdvs, error) {
 
 // DBGetRAdvsToRedisSpreadByItemID retrieves RAdvs from the database with give item and inserts them into Redis.
 func DBGetRAdvsToRedisSpreadByItemID(ctx context.Context, conn any, db *sql.DB, itemID uint32, top ...string) error {
-	return dbRAdvsToRedisSpreadByItemID(ctx, "get", conn, db, itemID, top...)
+	return dbRAdvsToRedisSpreadByItemID(ctx, "Get", conn, db, itemID, top...)
 }
 
 // DBDeleteRAdvsToRedisSpreadByItemID retrieves RAdvs from the database with give item and inserts them into Redis.
 func DBDeleteRAdvsToRedisSpreadByItemID(ctx context.Context, conn any, db *sql.DB, itemID uint32, top ...string) error {
 	// This function is used to delete the RAdvs from Redis by itemID
-	return dbRAdvsToRedisSpreadByItemID(ctx, "delete", conn, db, itemID, top...)
+	return dbRAdvsToRedisSpreadByItemID(ctx, "Delete", conn, db, itemID, top...)
 }
 
 func dbRAdvsToRedisSpreadByItemID(ctx context.Context, how string, conn any, db *sql.DB, itemID uint32, top ...string) error {
 	slotHash := func(hash map[uint32]map[uint32]RAdv, creativeID uint32) error {
 		rows, err := db.QueryContext(ctx, `
-CALL proc_creative(?, ?)`, creativeID)
+CALL proc_creative(?)`, creativeID)
 		if err != nil {
 			return err
 		}
@@ -216,9 +216,9 @@ SELECT DISTINCT creative_id, size_id
 FROM adv_creative v
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
-INNER JOIN adv USING a (adv_id)
+INNER JOIN adv a USING (adv_id)
 WHERE item_id=?
-AND v.active="Yes" AND i.active="Yes" AND c.active="Yes" AND a.active="Yes"`, itemID)
+AND c.active="Yes" AND a.active="Yes"`, itemID)
 	if err != nil {
 		return err
 	}
@@ -243,9 +243,9 @@ AND v.active="Yes" AND i.active="Yes" AND c.active="Yes" AND a.active="Yes"`, it
 		for slotID, hash := range block {
 			var radvs RAdvs
 			var err error
-			switch conn.(type) {
+			switch t := conn.(type) {
 			case radix.Client:
-				radvs, err = RAdvsFromRedisBySizeIDSlotID(ctx, conn.(radix.Client), sizeID, slotID)
+				radvs, err = RAdvsFromRedisBySizeIDSlotID(ctx, t, sizeID, slotID)
 			case *nats.Conn:
 				radvs, err = RAdvsFromIOBySizeIDSlotID(top[0], sizeID, slotID)
 			}
@@ -253,9 +253,9 @@ AND v.active="Yes" AND i.active="Yes" AND c.active="Yes" AND a.active="Yes"`, it
 				return err
 			}
 			switch how {
-			case "get":
+			case "Get":
 				output[slotID] = radvs.Update(hash)
-			case "delete":
+			case "Delete":
 				output[slotID] = radvs.Delete(hash)
 			default:
 			}
@@ -326,8 +326,17 @@ WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
 	return radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID)
 }
 
-// radvHashToRedisSpread
+// radvHashToRedisSpread the size slot cache, used for the 10 minute refresh.
 func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash map[uint32]RAdvs, sizeID uint32) error {
+	switch t := conn.(type) {
+	case radix.Client:
+		if err := t.Do(ctx, radix.Cmd(nil, "DEL", HashNameRAdvs(sizeID))); err != nil {
+			return err
+		}
+	case *nats.Conn:
+	default:
+	}
+	i := 0
 	for slotID, radvs := range hash {
 		if len(radvs) == 0 {
 			continue
@@ -337,7 +346,10 @@ func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash m
 		case radix.Client:
 			err = radvs.ToRedis(ctx, t, slotID, sizeID)
 		case *nats.Conn:
-			err = radvs.ToSpread(t, slotID, sizeID)
+			if i == 0 {
+				err = radvs.ToSpread(t, slotID, sizeID, true)
+			}
+			i++
 		default:
 			err = fmt.Errorf("unsupported connection type: %T", conn)
 		}
@@ -369,12 +381,17 @@ func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, slotID, sizeID
 }
 
 // ToSpread publishes the RAdvs to nats
-func (self RAdvs) ToSpread(conn *nats.Conn, slotID, sizeID uint32) error {
+func (self RAdvs) ToSpread(conn *nats.Conn, slotID, sizeID uint32, cleanup ...bool) error {
 	data, err := self.Pack()
 	if err != nil {
 		return err
 	}
 	subject := fmt.Sprintf("%s:%d", HashNameRAdvs(sizeID), slotID)
+	// cleanup is attached to the subject, to clean up the size directory.
+	// this should be assigned only for the 10 minute refresh in radvHashToRedisSpreadBySizeID
+	if len(cleanup) > 0 && cleanup[0] {
+		subject += "cleanup"
+	}
 	return conn.Publish(subject, data)
 }
 

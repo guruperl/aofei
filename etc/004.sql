@@ -17,7 +17,7 @@ BEGIN
   INNER JOIN adv_item     i USING (item_id)
   INNER JOIN adv_campaign c USING (campaign_id)
   INNER JOIN adv          a USING (adv_id)
-  WHERE a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.creative_id = creativeID
+  WHERE a.active="Yes" AND c.active="Yes" AND v.creative_id = creativeID
   AND (i.startx <= NOW() OR (i.startx IS NULL))
   AND (  i.endx >= NOW() OR (  i.endx IS NULL));
 
