@@ -81,6 +81,7 @@ func main() {
 	gc.DB = sc.DB
 	gc.Storage["Redis"] = sc.Redis
 	gc.Storage["Nc"] = sc.Nc
+	gc.Storage["Spread"] = sc.C.Spread // pass the top to genelet, so it can use the same IO for local mode
 	if gc.C.ServerPort == "" {
 		gc.C.ServerPort = sc.C.ServerPort
 	}

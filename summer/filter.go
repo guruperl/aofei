@@ -317,10 +317,21 @@ func (self *Filter) After(model *Model) error {
 	if who == "admin" && obj == "item" && action == "update" {
 		var err error
 		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
-			err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), nc.(*nats.Conn), model.DB, itemID)
+			top := model.Storage["Spread"].(string)
+			switch ARGS.Get("active") {
+			case "Yes":
+				err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), nc.(*nats.Conn), model.DB, itemID, top)
+			case "Pause", "No":
+				err = match.DBDeleteRAdvsToRedisSpreadByItemID(context.Background(), nc.(*nats.Conn), model.DB, itemID)
+			}
 		}
 		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
-			err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), redis.(radix.Client), model.DB, itemID)
+			switch ARGS.Get("active") {
+			case "Yes":
+				err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), redis.(radix.Client), model.DB, itemID)
+			case "Pause", "No":
+				err = match.DBDeleteRAdvsToRedisSpreadByItemID(context.Background(), redis.(radix.Client), model.DB, itemID)
+			}
 		}
 		if err != nil {
 			return fmt.Errorf("failed to update advs: %s", err.Error())
