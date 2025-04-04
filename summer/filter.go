@@ -298,7 +298,7 @@ func (self *Filter) After(model *Model) error {
 		}
 	}
 
-	if obj == "item" && action == "update" {
+	if obj == "targetname" && action == "insert" {
 		aud, err := match.DBGetAudience(model.DB, itemID)
 		if err == nil && aud != nil {
 			if nc, ok := model.Storage["Nc"]; ok && nc != nil {
