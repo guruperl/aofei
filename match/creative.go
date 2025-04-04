@@ -19,9 +19,11 @@ type Creative struct {
 	CreativeName string
 	// creative content
 	CreativeContent string
+	SizeID          uint32
 	// click landing, here for retrieve from Redis only
-	SizeID  uint32
 	Landing string
+	// foreign_id of campaign
+	Failback string
 	// campaign quality check
 	IURL string
 	// this should be the domain name of the advertiser
@@ -58,7 +60,7 @@ func UnpackCreative(data []byte) (*Creative, error) {
 func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB, extra ...string) error {
 	var pars []interface{}
 	str := `
-SELECT r.creative_id, r.size_id, c.iurl, i.item_click, r.creative_name, r.content
+SELECT r.creative_id, r.size_id, c.iurl, i.item_click, c.foreign_id, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
@@ -83,9 +85,9 @@ WHERE r.active="Yes"`
 
 	for rows.Next() {
 		var creativeID uint32
-		var iurl, landing, content sql.NullString
+		var iurl, landing, failback, content sql.NullString
 		cre := new(Creative)
-		err = rows.Scan(&creativeID, &cre.SizeID, &iurl, &landing, &cre.CreativeName, &content)
+		err = rows.Scan(&creativeID, &cre.SizeID, &iurl, &landing, &failback, &cre.CreativeName, &content)
 		if err != nil {
 			return err
 		}
@@ -94,6 +96,9 @@ WHERE r.active="Yes"`
 		}
 		if landing.Valid {
 			cre.Landing = landing.String
+		}
+		if failback.Valid {
+			cre.Failback = failback.String
 		}
 		if content.Valid {
 			cre.CreativeContent = content.String
@@ -117,11 +122,11 @@ WHERE r.active="Yes"`
 func DBGetCreative(db *sql.DB, creativeID uint32) (*Creative, error) {
 	cre := new(Creative)
 	err := db.QueryRow(`
-SELECT c.iurl, i.item_click, r.size_id, r.creative_name, r.content
+SELECT c.iurl, i.item_click, c.foreign_id, r.size_id, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
-WHERE r.creative_id=?`, creativeID).Scan(&cre.IURL, &cre.Landing, &cre.SizeID, &cre.CreativeName, &cre.CreativeContent)
+WHERE r.creative_id=?`, creativeID).Scan(&cre.IURL, &cre.Landing, &cre.Failback, &cre.SizeID, &cre.CreativeName, &cre.CreativeContent)
 
 	return cre, err
 }
@@ -222,9 +227,9 @@ func CreativeMapFromIO(top string) (map[uint32]*Creative, error) {
 func (self *Creative) AdM(attr *Attribute, trackers ...string) (string, error) {
 	w, h := SizeID1To2(self.SizeID)
 	if attr.NativeFormat != nil || attr.IsApp {
-		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(trackers...)
+		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(self.Landing, self.Failback, trackers...)
 	} else if attr.IsVideo {
-		return DefaultVideoNative(self.CreativeContent).AdM(trackers...)
+		return DefaultVideoNative(self.CreativeContent).AdM(self.Landing, self.Failback, trackers...)
 	}
 
 	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, self.CreativeContent, w, h), nil

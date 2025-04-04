@@ -79,6 +79,7 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 		summer.TranslateOne(other["chac_topics"], "channel_name", "channel_name_g")
 
 		isps := make(map[uint32][]interface{})
+		countries := make(map[uint32][]interface{})
 		states := make(map[uint32][]interface{})
 		cities := make(map[string]map[uint32][]interface{})
 		customs := make(map[string]map[uint32][]interface{})
@@ -89,8 +90,18 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 				ispID := uint32(item["isp_id"].(int64))
 				isps[ispID] = []interface{}{ispName, item["value_id"]}
 			}
-			other["isp"] = isps
+			//other["isp"] = isps
 			delete(other, "targetname_topicsIsps")
+		}
+
+		if other["targetname_topicsCountries"] != nil {
+			for _, item := range other["targetname_topicsCountries"].([]map[string]interface{}) {
+				countryName := item["country_name"].(string)
+				countryID := uint32(item["country_id"].(int64))
+				countries[countryID] = []interface{}{countryName, item["value_id"]}
+			}
+			other["country"] = countries
+			delete(other, "targetname_topicsCountries")
 		}
 
 		if other["targetname_topicsStates"] != nil {
@@ -100,7 +111,7 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 				states[stateID] = []interface{}{stateName, item["value_id"], item["state_code"], item["country_name"]}
 				cities[stateName] = make(map[uint32][]interface{})
 			}
-			other["state"] = states
+			//other["state"] = states
 			delete(other, "targetname_topicsStates")
 		}
 
@@ -111,7 +122,7 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 				cityID := uint32(item["city_id"].(int64))
 				cities[stateName][cityID] = []interface{}{cityName, item["value_id"]}
 			}
-			other["city"] = cities
+			//other["city"] = cities
 			delete(other, "targetname_topicsCities")
 		}
 
@@ -125,7 +136,7 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 				dmaID := uint32(item["dma_id"].(int64))
 				dmas[cityName][dmaID] = []interface{}{metroCode, item["value_id"]}
 			}
-			other["dma"] = dmas
+			//other["dma"] = dmas
 			delete(other, "targetname_topicsDmas")
 		}
 

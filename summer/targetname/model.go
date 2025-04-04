@@ -53,6 +53,19 @@ LEFT JOIN (
 WHERE c.active="Yes"`, self.getItemID(extra...))
 }
 
+func (self *Model) TopicsCountries(extra ...url.Values) error {
+	return self.SelectSQL(self.LISTS,
+		`SELECT c.country_id, c.country_name, tmp.value_id
+FROM def_country c
+LEFT JOIN (
+	SELECT tn.targetname_id, tn.attrname_id, tv.value_id
+	FROM adv_targetname tn
+	INNER JOIN adv_targetvalue tv USING (targetname_id)
+	INNER JOIN adv_attrname an USING (attrname_id)
+	WHERE tn.item_id=? AND an.attrname='country'
+) tmp ON (c.country_id=tmp.value_id)`, self.getItemID(extra...))
+}
+
 func (self *Model) TopicsStates(extra ...url.Values) error {
 	return self.SelectSQL(self.LISTS,
 		`SELECT c.country_id, c.country_name, s.state_id, s.state_code, s.state_name, tmp.value_id

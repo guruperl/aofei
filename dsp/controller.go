@@ -286,12 +286,12 @@ func bidSeatBid(creative *match.Creative, one match.RAdv, audience *match.Audien
 		AdM:     adm,
 		AdID:    fmt.Sprintf("%d", one.CreativeID),
 		ADomain: []string{audience.AdvStr},
-		Bundle:  audience.AppStr,
-		CID:     fmt.Sprintf("%d", one.CampaignID),
-		CrID:    fmt.Sprintf("%d", one.CreativeID),
-		Cat:     audience.Categories,
-		W:       int64(w),
-		H:       int64(h),
+		//Bundle:  audience.AppStr,
+		CID:  fmt.Sprintf("%d", one.CampaignID),
+		CrID: fmt.Sprintf("%d", one.CreativeID),
+		Cat:  audience.Categories,
+		W:    int64(w),
+		H:    int64(h),
 	}
 
 	return rspnsBid, nil

@@ -87,6 +87,7 @@ func (self *Filter) After(model *Model) error {
 		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
 	} else if action == "edit" {
 		item := lists[0]
+		item["size_id"] = int64(4194368) // 64x64
 		summer.SetWH(item)
 		slot := summer.UnpackSlot((uint32(item["qa_slot"].(int64))))
 		for k, v := range slot.InHash() {
@@ -128,7 +129,10 @@ func (self *Filter) After(model *Model) error {
 		ARGS.Set("site_str", summer.PackTwo(uint32(pubID), uint32(siteID)))
 		for _, item := range lists {
 			slotID := uint32(item["slot_id"].(int64))
-			sizeID := uint32(item["size_id"].(int64))
+			item["w"] = uint16(64)
+			item["h"] = uint16(64)
+			sizeID := uint32(4194368) // 64x64
+			item["size_id"] = int64(sizeID)
 			summer.SetWH(item)
 			item["slot_str"] = summer.PackTwo(slotID, sizeID)
 			var err error

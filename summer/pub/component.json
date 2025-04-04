@@ -45,6 +45,7 @@
   ],
   "topics_hash" : {
     "p.pub_id":"pub_id",
+    "p.domain":"domain",
     "p.email":"email",
     "p.firstname":"firstname",
     "p.lastname":"lastname",

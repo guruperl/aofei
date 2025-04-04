@@ -61,7 +61,7 @@ func TestRequestStringToNativeFromat(t *testing.T) {
 		t.Errorf("%#v", nat.ImpTrackers[0])
 	}
 
-	str, err := nat.AdM()
+	str, err := nat.AdM("landing url", "failback url", "https://hiveads.example-dsp-bid.com/receiver/impression/400DD1F2BDFAA27563A2D51736911100148?win_price=0.5&client=40&supply=221&campaign=4198&group=12610&ad=89941&creative=7615")
 	if err != nil {
 		t.Fatal(err)
 	}

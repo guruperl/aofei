@@ -109,6 +109,10 @@ func DemoResetArgs(ARGS url.Values) error {
 	for _, item := range []string{"gender", "yob", "language"} {
 		if values, ok := ARGS[item]; ok {
 			for _, value := range values {
+				if value == "0" {
+					pars[item] = nil
+					break
+				}
 				if value != "" {
 					v, err := strconv.ParseInt(value, 10, 32)
 					if err != nil {

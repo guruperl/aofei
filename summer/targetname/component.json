@@ -13,6 +13,7 @@
     "topics" : [
       {"model":"chac", "action":"topics"},
       {"model":"targetname", "action":"topicsCustom"},
+      {"model":"targetname", "action":"topicsCountries"},
       {"model":"targetname", "action":"topicsCities"},
       {"model":"targetname", "action":"topicsStates"},
       {"model":"targetname", "action":"topicsDmas"},

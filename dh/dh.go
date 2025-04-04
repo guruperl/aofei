@@ -58,7 +58,9 @@ func dhNames() map[string]map[uint32]string {
 		6: "Saturday",
 		7: "Sunday",
 	}
-	names["fullday"] = make(map[uint32]string)
+	names["fullday"] = map[uint32]string{
+		0: "All",
+	}
 	for i := 1; i < 32; i++ {
 		names["fullday"][uint32(i)] = fmt.Sprintf("%02d", i)
 	}
