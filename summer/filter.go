@@ -248,15 +248,14 @@ func (self *Filter) After(model *Model) error {
 	obj := ARGS.Get("_gobj")
 
 	if genelet.Grep([]string{"item", "slot"}, obj) && genelet.Grep([]string{"startnew", "edit"}, action) {
-		//other["slots"] = GetSlotNames()
 		other["slotsChinese"] = Translate(other["slots"])
 		other["slotsDefault"] = CreateSlot("", "", "", "", "", "", "", "", "", "", "").InHash()
-		//other["slotAttrs"] = GetSlotAttrs()
+		other["slotAttrs"] = GetSlotAttrs()
 		other["slotAttrsChinese"] = Translate(other["slotAttrs"])
-		//other["items"] = GetItemNames()
+		other["items"] = GetItemNames()
 		other["itemsChinese"] = Translate(other["items"])
 		other["itemsDefault"] = CreateItem("", "", "", "", "", "").InHash()
-		//other["itemAttrs"] = GetItemAttrs()
+		other["itemAttrs"] = GetItemAttrs()
 		other["itemAttrsChinese"] = Translate(other["itemAttrs"])
 	}
 
