@@ -27,29 +27,53 @@ const (
 // ${AUCTION_SEAT_ID} ID of the bidder seat;for whom the bid was made.
 // ${AUCTION_AD_ID} ID of the ad markup the bidder wishes to serve; from bid.adid attribute.
 type WinLoss struct {
-	Current      time.Time `json:"current,omitempty"`
 	Status       `json:"status,omitempty"`
+	Current      time.Time `json:"current,omitempty"`
 	match.RPub   `json:"rpub,omitempty"`
 	match.RAdv   `json:"radv,omitempty"`
 	BothCap      *match.BothCap `json:"-,omitempty"`
+	Seat         string         `json:"seat,omitempty"`
 	AuctionID    string         `json:"auction_id,omitempty"`
 	AuctionBidID string         `json:"auction_bid_id,omitempty"`
 	AuctionImpID string         `json:"auction_imp_id,omitempty"`
+	AuctionAdID  string         `json:"auction_ad_id,omitempty"`
 	serverURL    string
 }
 
 // NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.
-func NewWinLoss(current time.Time, how Status, rpub match.RPub, radv match.RAdv, bothcap *match.BothCap, auctionID, auctionBidID, auctionImpID, serverURL string) *WinLoss {
+func NewWinLoss(
+	how Status,
+	current time.Time,
+	rpub match.RPub,
+	radv match.RAdv,
+	bothcap *match.BothCap,
+	seat, auctionID, auctionBidID, auctionImpID, auctionAdID, serverURL string,
+) *WinLoss {
 	return &WinLoss{
-		Current:      current,
 		Status:       how,
+		Current:      current,
 		RPub:         rpub,
 		RAdv:         radv,
 		BothCap:      bothcap,
+		Seat:         seat,
 		AuctionID:    auctionID,
 		AuctionBidID: auctionBidID,
 		AuctionImpID: auctionImpID,
+		AuctionAdID:  auctionAdID,
 		serverURL:    serverURL,
+	}
+}
+
+// Macro returns the replacement macro hash
+func (self *WinLoss) Macro() map[string]string {
+	return map[string]string{
+		`${AUCTION_ID}`:       self.AuctionID,
+		`${AUCTION_BID_ID}`:   self.AuctionBidID,
+		`${AUCTION_IMP_ID}`:   self.AuctionImpID,
+		`${AUCTION_AD_ID}`:    self.AuctionAdID,
+		`${AUCTION_SEAT_ID}`:  self.Seat,
+		`${AUCTION_PRICE}`:    fmt.Sprintf("%.3f", self.RAdv.Cost),
+		`${AUCTION_CURRENCY}`: "USD",
 	}
 }
 
@@ -77,6 +101,7 @@ func (self *WinLoss) ClkURL() string {
 func (self *WinLoss) PackURLString(tracking ...bool) string {
 	status := self.Status
 	args := url.Values{}
+	// seatid and adid are not used in the URL
 	if status == StatusTrackClk || status == StatusTrackImp || (len(tracking) > 0 && tracking[0]) {
 		args.Set("auction_id", self.AuctionID)
 		args.Set("auction_bid_id", self.AuctionBidID)
@@ -115,9 +140,11 @@ func UnpackURLString(urlString string, bidResponse ...*openrtb2.BidResponse) (*u
 
 	auctionID := bidResponse[0].ID
 	auctionBidID := bidResponse[0].BidID
+	auctionAdID := bidResponse[0].SeatBid[0].Bid[0].AdID
 	auctionImpID := bidResponse[0].SeatBid[0].Bid[0].ImpID
 	auctionPrice := bidResponse[0].SeatBid[0].Bid[0].Price
 	auctionCurrency := bidResponse[0].Cur
+	auctionSeatID := bidResponse[0].SeatBid[0].Seat
 	args := u.Query()
 	for k, v := range args {
 		switch v[0] {
@@ -127,6 +154,10 @@ func UnpackURLString(urlString string, bidResponse ...*openrtb2.BidResponse) (*u
 			args.Set(k, auctionBidID)
 		case `${AUCTION_IMP_ID}`:
 			args.Set(k, auctionImpID)
+		case `${AUCTION_SEAT_ID}`:
+			args.Set(k, auctionSeatID)
+		case `${AUCTION_AD_ID}`:
+			args.Set(k, auctionAdID)
 		case `${AUCTION_PRICE}`:
 			args.Set(k, fmt.Sprintf("%.3f", auctionPrice))
 		case `${AUCTION_CURRENCY}`:

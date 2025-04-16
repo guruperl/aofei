@@ -17,6 +17,8 @@
       {"model":"targetname", "action":"topicsCities"},
       {"model":"targetname", "action":"topicsStates"},
       {"model":"targetname", "action":"topicsDmas"},
+      {"model":"targetname", "action":"topicsACL"},
+      {"model":"targetname", "action":"editACL"},
       {"model":"targetname", "action":"topicsIsps"}
     ]
   },

@@ -16,7 +16,13 @@ ALTER TABLE adv_campaign
 
 ALTER TABLE adv_item
 	DROP COLUMN size_id;
-ALTER TABLE adv_creative
+ALTER TABLE adv_item
+	ADD fl_sitetypes SET('App','Web') DEFAULT 'App,Web' AFTER page_cap,
+	ADD access_order ENUM('White','Black','Inherit') DEFAULT 'Inherit' AFTER fl_sitetypes,
+	CHANGE item_click item_click TEXT NOT NULL,
+	ADD imp_url TEXT DEFAULT NULL AFTER item_click,
+	ADD click_url TEXT DEFAULT NULL AFTER imp_url;
+ALTER TABLE adv_creativ
 	ADD size_id int unsigned NOT NULL AFTER item_id;
 ALTER TABLE adv_creative
 	ADD key `size_id` (size_id);

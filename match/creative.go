@@ -7,8 +7,10 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
@@ -26,7 +28,10 @@ type Creative struct {
 	Failback string
 	// campaign quality check
 	IURL string
-	// this should be the domain name of the advertiser
+	// imp tracker
+	ImpTrackers []string
+	// click tracker
+	ClickTrackers []string
 }
 
 // Pack serializes the audience into a byte slice.
@@ -60,7 +65,7 @@ func UnpackCreative(data []byte) (*Creative, error) {
 func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB, extra ...string) error {
 	var pars []interface{}
 	str := `
-SELECT r.creative_id, r.size_id, c.iurl, i.item_click, c.foreign_id, r.creative_name, r.content
+SELECT r.creative_id, r.size_id, c.iurl, i.item_click, i.imp_url, i.click_url, c.foreign_id, r.creative_name, r.content
 FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
@@ -85,9 +90,9 @@ WHERE r.active="Yes"`
 
 	for rows.Next() {
 		var creativeID uint32
-		var iurl, landing, failback, content sql.NullString
+		var iurl, landing, failback, content, impTracker, clickTracker sql.NullString
 		cre := new(Creative)
-		err = rows.Scan(&creativeID, &cre.SizeID, &iurl, &landing, &failback, &cre.CreativeName, &content)
+		err = rows.Scan(&creativeID, &cre.SizeID, &iurl, &landing, &impTracker, &clickTracker, &failback, &cre.CreativeName, &content)
 		if err != nil {
 			return err
 		}
@@ -96,6 +101,20 @@ WHERE r.active="Yes"`
 		}
 		if landing.Valid {
 			cre.Landing = landing.String
+		}
+		if impTracker.Valid {
+			for _, v := range strings.Split(impTracker.String, ",") {
+				if item := strings.TrimSpace(v); item != "" {
+					cre.ImpTrackers = append(cre.ImpTrackers, item)
+				}
+			}
+		}
+		if clickTracker.Valid {
+			for _, v := range strings.Split(clickTracker.String, ",") {
+				if item := strings.TrimSpace(v); item != "" {
+					cre.ClickTrackers = append(cre.ClickTrackers, item)
+				}
+			}
 		}
 		if failback.Valid {
 			cre.Failback = failback.String
@@ -224,13 +243,54 @@ func CreativeMapFromIO(top string) (map[uint32]*Creative, error) {
 	return creatives, nil
 }
 
-func (self *Creative) AdM(attr *Attribute, trackers ...string) (string, error) {
+func (self *Creative) AdM(attr *Attribute, impTracker, clickTracker string, macroStandard, macroCustom map[string]string) (string, error) {
+	impTrackers := []string{impTracker}
+	clickTrackers := []string{clickTracker}
+	for _, v := range self.ImpTrackers {
+		item, err := applyMacro(v, macroStandard, macroCustom)
+		if err != nil {
+			continue
+		}
+		impTrackers = append(impTrackers, item)
+	}
+	for _, v := range self.ClickTrackers {
+		item, err := applyMacro(v, macroStandard, macroCustom)
+		if err != nil {
+			continue
+		}
+		clickTrackers = append(clickTrackers, item)
+	}
+
+	landing, _ := applyMacro(self.Landing, macroStandard, macroCustom)
+
 	w, h := SizeID1To2(self.SizeID)
 	if attr.NativeFormat != nil || attr.IsApp {
-		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(self.Landing, self.Failback, trackers...)
+		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(landing, self.Failback, impTrackers, clickTrackers)
 	} else if attr.IsVideo {
-		return DefaultVideoNative(self.CreativeContent).AdM(self.Landing, self.Failback, trackers...)
+		return DefaultVideoNative(self.CreativeContent).AdM(landing, self.Failback, impTrackers, clickTrackers)
 	}
 
 	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, self.CreativeContent, w, h), nil
+}
+
+// applyMacro applies the macro to the URL.
+func applyMacro(str string, macroStandard, macroCustom map[string]string) (string, error) {
+	u, err := url.Parse(str)
+	if err != nil {
+		return "", err
+	}
+	args := url.Values{}
+	for k, v := range u.Query() {
+		if len(v) != 1 {
+			continue
+		}
+		switch v[0] {
+		case `${AUCTION_ID}`, `${AUCTION_BID_ID}`, `${AUCTION_IMP_ID}`, `${AUCTION_SEAT_ID}`, `${AUCTION_AD_ID}`, `${AUCTION_PRICE}`, `${AUCTION_CURRENCY}`:
+			args.Set(k, macroStandard[v[0]])
+		default:
+			args.Set(k, macroCustom[v[0]])
+		}
+	}
+	u.RawQuery = args.Encode()
+	return u.String(), nil
 }

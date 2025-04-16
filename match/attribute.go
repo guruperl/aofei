@@ -55,6 +55,9 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		if attr.UserID == "" {
 			attr.UserID = bidRequest.User.ID
 		}
+		if attr.UserID == "" {
+			attr.UserID = attr.IFA
+		}
 	}
 
 	attr.Demo = demo.NewOpenRTBDemo(bidRequest)

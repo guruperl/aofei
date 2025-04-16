@@ -8,10 +8,19 @@ const (
 	SLOTDefault    = "defaultSlot"
 )
 
+type SiteType uint8
+
+const (
+	SiteTypeUnknown SiteType = iota
+	SiteTypeWeb
+	SiteTypeAPP
+)
+
 type ACL struct {
 	// publisher name, publish.id for web, bundle for app
-	PubStr string `json:"bundle"`
-	// site name, i.e. site.id for web and app.id for app
+	PubStr   string `json:"bundle"`
+	SiteType `json:"site_type"`
+	// site foreign id, i.e. site domain .id for web and app foreign .id for app
 	SiteStr string `json:"app_id"`
 	// slot name, request_domain or tagid. Not used in bw logic
 	SlotStr string `json:"slot"`

@@ -43,15 +43,8 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	if action == "topics" {
 		extra.Set("item_id", self.R.Form.Get("item_id"))
 	} else if action == "insert" {
-		medias := []string{"media_1", "media_2", "media_3", "media_4", "media_5"}
-		found := false
-		for _, fn := range medias {
-			if ARGS.Get(fn) != "" {
-				found = true
-				break
-			}
-		}
-		if found {
+		switch ARGS.Get("randomChoice") {
+		case "2":
 			itemID := ARGS.Get("item_id")
 			dir := self.C.UploadDir + "/" + itemID
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -59,7 +52,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 					return err
 				}
 			}
-			for i, fn := range medias {
+			for i, fn := range []string{"media_1", "media_2", "media_3"} {
 				file := ARGS.Get(fn)
 				if file == "" {
 					continue
@@ -71,6 +64,8 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 				// this is a lazy testing of uploading only
 				ARGS.Set("content", ARGS.Get("media"))
 			}
+		case "3":
+
 		}
 	}
 

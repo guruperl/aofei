@@ -7,16 +7,19 @@ import (
 )
 
 type ACLAudience struct {
-	AdvStr string
+	// This should be the adv domain
+	AdvDomain string
 	// this should be the foriegn id of the campaign
-	AppStr string
-	// adv or campaign, black list publisher
+	CampaignForeignID string
+	// Simply target Web or App. 0: all, 1: web, 2: app
+	SiteTypes SiteType
+	// adv or campaign, black list publisher. because of proc_slot, this is redundant in matching
 	BPub []string
-	// adv or campaign, white list publisher
+	// adv or campaign, white list publisher. because of proc_slot, this is redundant in matching
 	WPub []string
-	// adv or campaign, black list site/app
+	// adv or campaign, black list site/app. because of proc_slot, this is redundant in matching
 	BApp []string
-	// adv or campaign, white list site/app
+	// adv or campaign, white list site/app. because of proc_slot, this is redundant in matching
 	WApp []string
 	// campaign's category
 	Categories []string
@@ -59,6 +62,13 @@ func (self *ACLAudience) Has(a *ACL) bool {
 		return false
 	}
 
+	// adv simple blocks
+	if self.SiteTypes != 0 {
+		if self.SiteTypes != a.SiteType {
+			return false
+		}
+	}
+
 	// adv block pub
 	if self.BPub != nil {
 		if grepString(self.BPub, a.PubStr) {
@@ -82,11 +92,11 @@ func (self *ACLAudience) Has(a *ACL) bool {
 	}
 
 	// pub block adv
-	if a.BAdv != nil && grepString(a.BAdv, self.AdvStr) {
+	if a.BAdv != nil && grepString(a.BAdv, self.AdvDomain) {
 		return false
 	}
 	// app block item
-	if a.BApp != nil && grepString(a.BApp, self.AppStr) {
+	if a.BApp != nil && grepString(a.BApp, self.CampaignForeignID) {
 		return false
 	}
 
@@ -122,66 +132,134 @@ func (self *ACLAudience) Has(a *ACL) bool {
 func DBGetACLAudience(db *sql.DB, itemID uint32) (*ACLAudience, error) {
 	aud := new(ACLAudience)
 
-	var aOrder, cOrder string
+	err := dbGetPubAppAudience(db, itemID, aud)
+	if err != nil {
+		return nil, err
+	}
+	err = dbGetCategoryAudience(db, itemID, aud)
+	return aud, err
+}
+
+// dbGetPubAppAudience retrieves black/white list publisher and app/site audience
+// see proc_slot and proc_creative for more details
+func dbGetPubAppAudience(db *sql.DB, itemID uint32, aud *ACLAudience) error {
+	var aOrder, cOrder, iOrder string
 	var advID, campaignID uint32
+	var sitetypes string
 	err := db.QueryRow(`
-SELECT a.domain, c.foreign_id, a.adv_id, a.access_order, c.campaign_id, c.access_order
+SELECT a.domain, c.foreign_id, a.adv_id, a.access_order, c.campaign_id, c.access_order, i.fl_sitetypes, i.access_order
 FROM adv_item i
 INNER JOIN adv_campaign c USING (campaign_id)
 INNER JOIN adv a USING (adv_id)
-WHERE i.item_id=?`, itemID).Scan(&aud.AdvStr, &aud.AppStr, &advID, &aOrder, &campaignID, &cOrder)
+WHERE i.item_id=?`, itemID).Scan(&aud.AdvDomain, &aud.CampaignForeignID, &advID, &aOrder, &campaignID, &cOrder, &sitetypes, &iOrder)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if sitetypes == "Web" {
+		aud.SiteTypes = SiteTypeWeb
+	} else if sitetypes == "App" {
+		aud.SiteTypes = SiteTypeAPP
 	}
 
-	rows, err := db.Query(`
-SELECT entitytype_id, entity_id, othertype_id, other_id, p.domain, s.site_url
+	var pubSQL, appSQL string
+	var id uint32
+	var order string
+	switch {
+	case iOrder == "Inherit" && cOrder == "Inherit":
+		pubSQL = `
+SELECT p.domain
 FROM ac ac
-LEFT JOIN pub p          ON (ac.othertype_id=3 AND p.pub_id=ac.other_id)
-LEFT JOIN pub_site s     ON (ac.othertype_id=31 AND s.site_id=ac.other_id)
-LEFT JOIN adv a          ON (ac.entitytype_id=4 AND a.adv_id=ac.entity_id)
-LEFT JOIN adv_campaign c ON (ac.entitytype_id=41 AND c.campaign_id=ac.entity_id)
-WHERE (entitytype_id=4 AND entity_id=?)
-OR (entitytype_id=41 AND entity_id=? AND c.access_order != "Inherit")`, advID, campaignID)
+INNER JOIN pub p ON (ac.othertype_id=3 AND p.pub_id=ac.other_id)
+WHERE ac.entitytype_id=4 AND ac.entity_id=?`
+		appSQL = `
+SELECT s.foreign_id
+FROM ac ac
+INNER JOIN pub_site s ON (ac.othertype_id=31 AND s.site_id=ac.other_id)
+WHERE ac.entitytype_id=4 AND ac.entity_id=?`
+		id = advID
+		order = aOrder
+	case iOrder == "Inherit":
+		pubSQL = `
+SELECT p.domain
+FROM ac ac
+INNER JOIN pub p ON (ac.othertype_id=3 AND p.pub_id=ac.other_id)
+WHERE (ac.entitytype_id=41 AND ac.entity_id=?`
+		appSQL = `
+SELECT s.foreign_id
+FROM ac ac
+INNER JOIN pub_site s ON (ac.othertype_id=31 AND s.site_id=ac.other_id)
+WHERE (ac.entitytype_id=41 AND ac.entity_id=?)`
+		id = campaignID
+		order = cOrder
+	default:
+		appSQL = `
+SELECT foreign_id
+FROM ac ac
+INNER JOIN pub_site s ON (ac.othertype_id=31 AND s.site_id=ac.other_id)
+WHERE (ac.entitytype_id=42 AND ac.entity_id=?)`
+		id = itemID
+		order = iOrder
+	}
+
+	if iOrder == "Inherit" {
+		rows, err := db.Query(pubSQL, id)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var domain string
+			err = rows.Scan(&domain)
+			if err != nil {
+				return err
+			}
+			if order == "White" {
+				aud.WPub = append(aud.WPub, domain)
+			} else if order == "Black" {
+				aud.BPub = append(aud.BPub, domain)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		rows.Close()
+	}
+
+	rows, err := db.Query(appSQL, id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
-
 	for rows.Next() {
-		var entityType, entityID, otherType, otherID uint32
-		var pubDomain, siteURL sql.NullString
-		err = rows.Scan(&entityType, &entityID, &otherType, &otherID, &pubDomain, &siteURL)
+		var foreignID string
+		err = rows.Scan(&foreignID)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if (entityType == 4 && aOrder == "White") || (entityType == 41 && cOrder == "White") {
-			if otherType == 3 && pubDomain.Valid {
-				aud.WPub = append(aud.WPub, pubDomain.String)
-			} else if otherType == 31 && siteURL.Valid {
-				aud.WApp = append(aud.WApp, siteURL.String)
-			}
-		} else if (entityType == 4 && aOrder == "Black") || (entityType == 41 && cOrder == "Black") {
-			if otherType == 3 && pubDomain.Valid {
-				aud.BPub = append(aud.BPub, pubDomain.String)
-			} else if otherType == 31 && siteURL.Valid {
-				aud.BApp = append(aud.BApp, siteURL.String)
-			}
+		if order == "White" {
+			aud.WApp = append(aud.WApp, foreignID)
+		} else if order == "Black" {
+			aud.BApp = append(aud.BApp, foreignID)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	rows.Close()
 
-	rows, err = db.Query(`
+	return nil
+}
+
+// dbGetCategoryAudience retrieves category audience from the database.
+func dbGetCategoryAudience(db *sql.DB, itemID uint32, aud *ACLAudience) error {
+	rows, err := db.Query(`
 SELECT c.channel_name
 FROM ch_belong b
 INNER JOIN def_channel c USING (channel_id)
 INNER JOIN adv_item i ON (b.entitytype_id=41 AND b.entity_id=i.campaign_id)
 WHERE i.item_id=?`, itemID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
 
@@ -189,12 +267,12 @@ WHERE i.item_id=?`, itemID)
 		var channelName string
 		err = rows.Scan(&channelName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		aud.Categories = append(aud.Categories, channelName)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	rows.Close()
 
@@ -204,7 +282,7 @@ SELECT channel_order
 FROM adv_item
 WHERE item_id=?`, itemID).Scan(&channelOrder)
 	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+		return err
 	}
 
 	rows, err = db.Query(`
@@ -214,7 +292,7 @@ INNER JOIN def_channel c USING (channel_id)
 INNER JOIN adv_item i ON (a.entitytype_id=42 AND a.entity_id=i.item_id)
 WHERE i.item_id=?`, itemID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rows.Close()
 
@@ -223,12 +301,12 @@ WHERE i.item_id=?`, itemID)
 		var channelName string
 		err = rows.Scan(&channelName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		cats = append(cats, channelName)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return err
 	}
 	rows.Close()
 
@@ -240,5 +318,5 @@ WHERE i.item_id=?`, itemID)
 		}
 	}
 
-	return aud, nil
+	return nil
 }

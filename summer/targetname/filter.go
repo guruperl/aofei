@@ -84,6 +84,21 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 		cities := make(map[string]map[uint32][]interface{})
 		customs := make(map[string]map[uint32][]interface{})
 		dmas := make(map[string]map[uint32][]interface{})
+
+		if other["targetname_editACL"] != nil {
+			item := other["targetname_editACL"].([]map[string]interface{})[0]
+			other["orderSiteTypes"] = item["access_order"]
+			other["aclSiteTypes"] = item["fl_sitetypes"]
+			delete(other, "targetname_editACL")
+			aclChinese := make(map[uint32][]any)
+			for _, item := range other["targetname_topicsACL"].([]map[string]interface{}) {
+				siteID := uint32(item["site_id"].(int64))
+				aclChinese[siteID] = []any{item["other_id"], item["site_type"], item["domain"], item["foreign_id"]}
+			}
+			other["aclChinese"] = aclChinese
+			delete(other, "targetname_topicsACL")
+		}
+
 		if other["targetname_topicsIsps"] != nil {
 			for _, item := range other["targetname_topicsIsps"].([]map[string]interface{}) {
 				ispName := item["isp_name"].(string)

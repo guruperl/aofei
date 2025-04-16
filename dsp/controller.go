@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -147,9 +146,6 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := attr.UserID
-	if userID == "" {
-		userID = attr.IFA
-	}
 	glog.Infof("4: total # of candidates: %d", len(monitors))
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
 	if err != nil {
@@ -215,12 +211,11 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bidID := NewBid(current, userID).BidID()
-	impID := bid.Imp[0].ID
-	winloss := NewWinLoss(current, StatusBid, attr.RPub, one, bothcap, bid.ID, bidID, impID, self.C.ServerURL)
+	dsp := NewDSP(bid, attr, one, bothcap, creative, audiences[index], self.C.ServerURL)
+	winloss := dsp.WinLoss(StatusBid)
 
 	glog.Info("8: BidSeat Bid")
-	rspnsBid, err := bidSeatBid(creative, one, audiences[index], winloss, attr, impID)
+	rspnsBid, err := dsp.NewBid(winloss)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
@@ -230,10 +225,10 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	glog.Info("9: rspnsBid")
 	response := &openrtb2.BidResponse{
 		ID:    bid.ID,
-		BidID: bidID,
+		BidID: dsp.bidID(),
 		Cur:   "USD",
 		SeatBid: []openrtb2.SeatBid{{
-			Seat:  fmt.Sprintf("%d", one.CampaignID),
+			Seat:  dsp.seat(),
 			Group: 0,
 			Bid:   []openrtb2.Bid{rspnsBid},
 		}},
@@ -268,33 +263,6 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		glog.Infof("nats error: %v", err)
 	}
-}
-
-// bidSeatBid returns the SeatBid for the bid response.
-func bidSeatBid(creative *match.Creative, one match.RAdv, audience *match.Audience, winloss *WinLoss, attr *match.Attribute, impID string) (openrtb2.Bid, error) {
-	adm, err := creative.AdM(attr, winloss.ImpURL(), winloss.ClkURL())
-	if err != nil {
-		return openrtb2.Bid{}, err
-	}
-	w, h := match.SizeID1To2(creative.SizeID)
-	rspnsBid := openrtb2.Bid{
-		ID:      NewSeatBidBid(attr.When, one.CreativeID).Pack(),
-		ImpID:   impID,
-		Price:   float64(one.Cost),
-		NURL:    winloss.NURL(),
-		LURL:    winloss.LURL(),
-		AdM:     adm,
-		AdID:    fmt.Sprintf("%d", one.CreativeID),
-		ADomain: []string{audience.AdvStr},
-		//Bundle:  audience.AppStr,
-		CID:  fmt.Sprintf("%d", one.CampaignID),
-		CrID: fmt.Sprintf("%d", one.CreativeID),
-		Cat:  audience.Categories,
-		W:    int64(w),
-		H:    int64(h),
-	}
-
-	return rspnsBid, nil
 }
 
 func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
@@ -365,7 +333,7 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 			break
 		}
 		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
-			var bid Bid
+			var bid bidID
 			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
 				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, status == StatusTrackImp, status == StatusTrackClk)
 			}
