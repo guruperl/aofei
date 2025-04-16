@@ -10,6 +10,7 @@ import (
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/summer"
+	"github.com/genelet/winter/uploaded"
 )
 
 type Filter struct {
@@ -35,6 +36,7 @@ func (self *Filter) Preset() error {
 		advice.UAResetArgs(ARGS)
 		demo.DemoResetArgs(ARGS)
 		dh.DHResetArgs(ARGS)
+		uploaded.UploadedResetArgs(ARGS)
 	}
 
 	return nil
@@ -189,17 +191,46 @@ SELECT channel_order FROM adv_item WHERE item_id = ?`, ARGS.Get("item_id")).Scan
 		dhAud := new(dh.DHAudience)
 		demAud := new(demo.DemoAudience)
 		uaAud := new(advice.UaAudience)
+		uploadedAud := new(uploaded.UploadAudience)
 		for _, item := range lists {
 			attrname := item["attrname"].(string)
 			valueID := uint32(int(item["value_id"].(int64)))
 			dhAud.DBFillDhAudience(attrname, valueID)
 			demAud.DBFillDemoAudience(attrname, valueID)
 			uaAud.DBFillUaAudience(attrname, valueID)
+			uploadedAud.DBFillUploadAudience(attrname, valueID)
 		}
 
 		other["dtChinese"] = summer.Translate(dhAud.Tmpls())
 		other["pzuaChinese"] = summer.Translate(uaAud.Tmpls())
 		other["demoChinese"] = summer.Translate(demAud.Tmpls())
+		other["uploadChinese"] = summer.Translate(uploadedAud.Tmpls())
+		/*
+
+					<div class="tab-pane fade" id="t4">
+						<h4>自定义Upload</h4>
+			            <div class="form-group row">
+			                <div class="col-sm-12">
+			                    <div class="form-check form-check-inline">{{range $k, $v:= .Other.uploadChinese}}
+			                        <input class="form-check-input" type=checkbox name="uploads" {{if index $v 1}}checked{{end}} value="{{$k}}" />
+			                        <label class="form-check-label">{{index $v 0}}</label>{{end}}
+			                    </div>
+			                </div>
+			            </div>
+			            <h3>自定义标签定向</h3>
+			            {{range $key, $val := .Other.custom}}<h4>{{$key}}</h4>
+			            <div class="form-group row">
+			                <div class="col-sm-12">
+			                    <div class="form-check form-check-inline">{{range $k, $v:= $val}}
+			                        <input class="form-check-input" type=checkbox name="{{$key}}" valu
+			e="{{$k}}" {{if index $v 1}}checked{{end}}>
+			                        <label class="form-check-label">{{index $v 0}}</label>{{end}}
+			                    </div>
+			                </div>
+			            </div>{{end}}
+			        </div>
+
+		*/
 	} else if who == "adv" && action == "insert" {
 		ARGS.Set("table", "adv_item")
 		ARGS.Set("idname", "item_id")

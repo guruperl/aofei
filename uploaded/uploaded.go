@@ -1,10 +1,6 @@
 // Package uploaded handles uploaded audience data.
 package uploaded
 
-import (
-	"strings"
-)
-
 type UploadType int8
 
 const (
@@ -41,12 +37,25 @@ var UploadType2String = map[UploadType]string{
 
 type WUploads uint32
 
+/*
 func NewUploads(uploads []string) WUploads {
 	var wuploads WUploads
 	for _, upload := range uploads {
 		if code, ok := String2UploadType[strings.ToLower(upload)]; ok {
 			wuploads |= 1 << code
 		}
+	}
+	return wuploads
+}
+*/
+
+func NewUploads(uploads []uint32) WUploads {
+	var wuploads WUploads
+	for _, upload := range uploads {
+		if upload > 7 {
+			continue
+		}
+		wuploads |= 1 << upload
 	}
 	return wuploads
 }

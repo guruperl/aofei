@@ -3,17 +3,18 @@ package uploaded
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
 
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 type UploadAudience struct {
-	ItemID  uint32
 	Uploads uint32
 }
 
-func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest) (bool, error) {
+func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest, itemID uint32) (bool, error) {
 	if self.Uploads == 0 {
 		return false, nil
 	}
@@ -49,7 +50,7 @@ func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *ope
 		if !ok {
 			continue
 		}
-		ok, err := self.findUploaded(ctx, conn, k, v)
+		ok, err := self.findUploaded(ctx, conn, itemID, k, v)
 		if err != nil {
 			return false, err
 		}
@@ -62,18 +63,18 @@ func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *ope
 }
 
 // uploadName is the name of the audience data in Redis.
-func (self *UploadAudience) uploadName(marker string) string {
-	return fmt.Sprintf("upload:%d:%s", self.ItemID, marker)
+func uploadName(itemID uint32, marker string) string {
+	return fmt.Sprintf("upload:%d:%s", itemID, marker)
 }
 
 // findUploaded checks if the given value is present in the audience data.
-func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client, marker string, target string) (bool, error) {
+func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client, itemID uint32, marker string, target string) (bool, error) {
 	if marker == "" || target == "" {
 		return false, nil
 	}
 
 	var ok int
-	err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", self.uploadName(marker), target))
+	err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", uploadName(itemID, marker), target))
 	if err != nil {
 		return false, err
 	}
@@ -84,15 +85,78 @@ func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client,
 	return false, nil
 }
 
-func (self *UploadAudience) UnpackAudience(ctx context.Context, conn radix.Client, marker string, data []string) error {
+func (self *UploadAudience) UnpackAudience(ctx context.Context, conn radix.Client, itemID uint32, marker string, data []string) error {
 	if len(data) == 0 {
 		return nil
 	}
 
 	arr := make([]string, len(data)+1)
-	arr[0] = self.uploadName(marker)
+	arr[0] = uploadName(itemID, marker)
 	for i, d := range data {
 		arr[i+1] = d
 	}
 	return conn.Do(ctx, radix.Cmd(nil, "SADD", arr...))
+}
+
+// UploadedResetArgs resets the ARGS to the values in the DemoAudience, ready to be inserted or updated in the database.
+func UploadedResetArgs(ARGS url.Values) error {
+	var par []uint32
+	if values, ok := ARGS["uploads"]; ok {
+		for _, value := range values {
+			if value == "" || value == "0" {
+				par = nil
+				break
+			}
+			v, err := strconv.ParseInt(value, 10, 32)
+			if err != nil {
+				return err
+			}
+			par = append(par, uint32(v))
+		}
+	}
+
+	if par == nil {
+		ARGS.Del("uploads")
+		return nil
+	}
+
+	uploads := NewUploads(par)
+	ARGS.Set("uploads", strconv.FormatInt(int64(uploads), 10))
+
+	return nil
+}
+
+func (self *UploadAudience) hasUpload(uploadType UploadType) bool {
+	if self.Uploads == 0 {
+		return true
+	}
+	if uploadType == UploadUnknown {
+		return false
+	}
+	if self.Uploads&(1<<uploadType) != 0 {
+		return true
+	}
+
+	return false
+}
+
+// Tmpls returns the map of attribute name and valueID ready to use on web page.
+func (self *UploadAudience) Tmpls() map[int][]interface{} {
+	uploads := make(map[int][]interface{})
+	for str, typ := range String2UploadType {
+		uploads[int(typ)] = []interface{}{str, self.hasUpload(typ)}
+	}
+	return uploads
+}
+
+// DBFillUploadAudience fills UploadAudience with attribute name and valueID, derived from the database.
+func (self *UploadAudience) DBFillUploadAudience(attrname string, valueID uint32) int {
+	switch attrname {
+	case "uploads":
+		self.Uploads = valueID
+		return 1
+	default:
+	}
+
+	return 0
 }
