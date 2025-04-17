@@ -2,7 +2,8 @@
   "actions" : {
     "topics" :{"groups":["adv"],"validate":["item_id"]},
     "insert" :{"groups":["adv"],"validate":["item_id"]},
-    "delete" :{"groups":["adv"],"validate":["item_id"]}
+    "delete" :{"groups":["adv"],"validate":["item_id"]},
+    "upload" :{"groups":["adv"],"validate":["item_id"], "options":["no_db", "no_method"]}
   },
 
   "fks" : {

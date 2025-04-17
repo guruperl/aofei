@@ -85,7 +85,11 @@ func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client,
 	return false, nil
 }
 
-func (self *UploadAudience) UnpackAudience(ctx context.Context, conn radix.Client, itemID uint32, marker string, data []string) error {
+func UploadSingle(ctx context.Context, conn radix.Client, itemID uint32, marker string, single string) error {
+	return conn.Do(ctx, radix.Cmd(nil, "SADD", uploadName(itemID, marker), single))
+}
+
+func UploadMany(ctx context.Context, conn radix.Client, itemID uint32, marker string, data []string) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -127,9 +131,6 @@ func UploadedResetArgs(ARGS url.Values) error {
 }
 
 func (self *UploadAudience) hasUpload(uploadType UploadType) bool {
-	if self.Uploads == 0 {
-		return true
-	}
 	if uploadType == UploadUnknown {
 		return false
 	}
@@ -144,7 +145,15 @@ func (self *UploadAudience) hasUpload(uploadType UploadType) bool {
 func (self *UploadAudience) Tmpls() map[int][]interface{} {
 	uploads := make(map[int][]interface{})
 	for str, typ := range String2UploadType {
-		uploads[int(typ)] = []interface{}{str, self.hasUpload(typ)}
+		if self.Uploads == 0 {
+			if typ == UploadUnknown {
+				uploads[int(typ)] = []interface{}{str, true}
+			} else {
+				uploads[int(typ)] = []interface{}{str, false}
+			}
+		} else {
+			uploads[int(typ)] = []interface{}{str, self.hasUpload(typ)}
+		}
 	}
 	return uploads
 }

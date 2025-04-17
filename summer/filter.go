@@ -1,15 +1,18 @@
 package summer
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/genelet/winter/genelet"
 	"github.com/genelet/winter/match"
+	"github.com/genelet/winter/uploaded"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
@@ -259,6 +262,7 @@ func (self *Filter) After(model *Model) error {
 		other["itemAttrsChinese"] = Translate(other["itemAttrs"])
 	}
 
+	ctx := context.Background()
 	// creative caches belong to a specific campaign, item or creative are published
 	if genelet.Grep([]string{"item", "campaign", "creative"}, obj) && genelet.Grep([]string{"insert", "update"}, action) {
 		var par []string
@@ -272,12 +276,12 @@ func (self *Filter) After(model *Model) error {
 		default:
 		}
 		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
-			if err := match.DBGetCreativesToRedisSpread(context.Background(), nc.(*nats.Conn), model.DB, par...); err != nil {
+			if err := match.DBGetCreativesToRedisSpread(ctx, nc.(*nats.Conn), model.DB, par...); err != nil {
 				return err
 			}
 		}
 		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
-			if err := match.DBGetCreativesToRedisSpread(context.Background(), redis.(radix.Client), model.DB, par...); err != nil {
+			if err := match.DBGetCreativesToRedisSpread(ctx, redis.(radix.Client), model.DB, par...); err != nil {
 				return err
 			}
 		}
@@ -305,7 +309,7 @@ func (self *Filter) After(model *Model) error {
 				err = aud.ToSpread(nc.(*nats.Conn), itemID)
 			}
 			if redis, ok := model.Storage["Redis"]; ok && redis != nil {
-				err = aud.ToRedis(context.Background(), redis.(radix.Client), itemID)
+				err = aud.ToRedis(ctx, redis.(radix.Client), itemID)
 			}
 		}
 		if err != nil {
@@ -319,23 +323,77 @@ func (self *Filter) After(model *Model) error {
 			top := model.Storage["Spread"].(string)
 			switch ARGS.Get("how") {
 			case "Get":
-				err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), nc.(*nats.Conn), model.DB, itemID, top)
+				err = match.DBGetRAdvsToRedisSpreadByItemID(ctx, nc.(*nats.Conn), model.DB, itemID, top)
 			case "Delete":
-				err = match.DBDeleteRAdvsToRedisSpreadByItemID(context.Background(), nc.(*nats.Conn), model.DB, itemID, top)
+				err = match.DBDeleteRAdvsToRedisSpreadByItemID(ctx, nc.(*nats.Conn), model.DB, itemID, top)
 			}
 		}
 		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
 			switch ARGS.Get("how") {
 			case "Get":
-				err = match.DBGetRAdvsToRedisSpreadByItemID(context.Background(), redis.(radix.Client), model.DB, itemID)
+				err = match.DBGetRAdvsToRedisSpreadByItemID(ctx, redis.(radix.Client), model.DB, itemID)
 			case "Delete":
-				err = match.DBDeleteRAdvsToRedisSpreadByItemID(context.Background(), redis.(radix.Client), model.DB, itemID)
+				err = match.DBDeleteRAdvsToRedisSpreadByItemID(ctx, redis.(radix.Client), model.DB, itemID)
 			}
 		}
 		if err != nil {
 			return fmt.Errorf("failed to update advs: %s", err.Error())
 		}
 
+	}
+
+	if who == "adv" && obj == "targetname" && action == "upload" {
+		marker := ARGS.Get("marker")
+		if marker == "" {
+			return fmt.Errorf("marker is empty")
+		}
+		file := ARGS.Get("media_1")
+		if file == "" {
+			return fmt.Errorf("uploaded file is not found")
+		}
+		itemID, err := strconv.ParseUint(ARGS.Get("item_id"), 10, 32)
+		if err != nil {
+			return fmt.Errorf("item_id should be a number")
+		}
+		dest := self.C.UploadDir + "/" + ARGS.Get("item_id")
+		err = os.MkdirAll(dest, 0755)
+		if err != nil {
+			return err
+		}
+		dest += "/" + file
+
+		err = os.Rename(self.C.UploadDir+"/"+file, dest)
+		if err != nil {
+			return err
+		}
+		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+			fn, err := os.Open(dest)
+			if err != nil {
+				return err
+			}
+			defer fn.Close()
+			conn := redis.(radix.Client)
+			id := uint32(itemID)
+			scanner := bufio.NewScanner(fn)
+			i := 0
+			for scanner.Scan() {
+				if i > 10000 {
+					break
+				}
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" {
+					continue
+				}
+				err = uploaded.UploadSingle(ctx, conn, id, marker, line)
+				if err != nil {
+					return err
+				}
+				i++
+			}
+			if err := scanner.Err(); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

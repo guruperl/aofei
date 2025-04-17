@@ -37,18 +37,7 @@ var UploadType2String = map[UploadType]string{
 
 type WUploads uint32
 
-/*
-func NewUploads(uploads []string) WUploads {
-	var wuploads WUploads
-	for _, upload := range uploads {
-		if code, ok := String2UploadType[strings.ToLower(upload)]; ok {
-			wuploads |= 1 << code
-		}
-	}
-	return wuploads
-}
-*/
-
+// NewUploads creates WUploads from a list of upload types.
 func NewUploads(uploads []uint32) WUploads {
 	var wuploads WUploads
 	for _, upload := range uploads {

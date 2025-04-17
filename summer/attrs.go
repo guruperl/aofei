@@ -37,6 +37,7 @@ var AttrName = map[uint32]string{
 	1307: "ethnicity",
 	1308: "education",
 	1309: "occupation",
+	1400: "uploads",
 }
 
 var AttrValue = map[string]uint32{
@@ -73,4 +74,5 @@ var AttrValue = map[string]uint32{
 	"ethnicity":  1307,
 	"education":  1308,
 	"occupation": 1309,
+	"uploads":    1400,
 }
