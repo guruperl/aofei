@@ -138,20 +138,20 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 	w, h := match.SizeID1To2(self.creative.SizeID)
 	one := self.one
 	rspnsBid := openrtb2.Bid{
-		ID:      self.rspndBidID(),
-		ImpID:   self.impID(),
-		Price:   float64(one.Cost),
-		NURL:    winloss.NURL(),
-		LURL:    winloss.LURL(),
-		AdM:     adm,
-		AdID:    self.adID(),
-		ADomain: []string{self.audience.AdvDomain},
-		//Bundle:  self.audience.CampaignForeignID,
-		CID:  fmt.Sprintf("%d", one.CampaignID),
-		CrID: fmt.Sprintf("%d", one.CreativeID),
-		Cat:  self.audience.Categories,
-		W:    int64(w),
-		H:    int64(h),
+		ID:    self.rspndBidID(),
+		ImpID: self.impID(),
+		Price: float64(one.Cost),
+		NURL:  winloss.NURL(),
+		LURL:  winloss.LURL(),
+		AdM:   adm,
+		AdID:  self.adID(),
+		//ADomain: []string{self.audience.AdvDomain},
+		Bundle: self.audience.CampaignForeignID,
+		CID:    fmt.Sprintf("%d", one.CampaignID),
+		CrID:   fmt.Sprintf("%d", one.CreativeID),
+		Cat:    self.audience.Categories,
+		W:      int64(w),
+		H:      int64(h),
 	}
 
 	return rspnsBid, nil
