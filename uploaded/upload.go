@@ -44,7 +44,7 @@ func NewUploads(uploads []uint32) WUploads {
 		if upload > 7 {
 			continue
 		}
-		wuploads |= 1 << upload
+		wuploads |= (1 << upload)
 	}
 	return wuploads
 }
@@ -53,7 +53,7 @@ func NewUploads(uploads []uint32) WUploads {
 func (self WUploads) ToStrings() []string {
 	var arr []string
 	for i := 0; i < 8; i++ {
-		if self&1<<i != 0 {
+		if self&(1<<i) != 0 {
 			arr = append(arr, UploadType2String[UploadType(i)])
 		}
 	}

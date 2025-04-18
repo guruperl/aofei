@@ -2,7 +2,8 @@
   "actions" : {
     "topics":{"groups":["adv"]},
     "insert":{"groups":["adv"], "validate":["attrname"]},
-    "delete":{"groups":["adv"]}
+    "delete":{"groups":["adv"]},
+    "upload" :{"groups":["adv"],"options":["no_db", "no_method"]}
   },
 
   "insert_pars":["attrname_id","adv_id","attrname"],

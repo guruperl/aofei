@@ -14,7 +14,7 @@ type UploadAudience struct {
 	Uploads uint32
 }
 
-func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest, itemID uint32) (bool, error) {
+func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest, advID uint32) (bool, error) {
 	if self.Uploads == 0 {
 		return false, nil
 	}
@@ -35,22 +35,24 @@ func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *ope
 		}
 	}
 
-	args := map[string]string{
-		"ip":       bid.Device.IP,
-		"userid":   bid.User.ID,
-		"buyeruid": bid.User.BuyerUID,
-		"ifa":      bid.User.BuyerUID,
-		"did":      did,
-		"dpid":     dpid,
-		"mac":      mac,
+	args := map[UploadType]string{
+		UploadBuyerUID: bid.User.BuyerUID,
+		UploadUserID:   bid.User.ID,
+		UploadIP:       bid.Device.IP,
+		UploadIFA:      bid.Device.IFA,
+		UploadDID:      did,
+		UploadDPID:     dpid,
+		UploadMAC:      mac,
 	}
 
-	for _, k := range WUploads(self.Uploads).ToStrings() {
-		v, ok := args[k]
-		if !ok {
+	for typ, v := range args {
+		if v == "" {
 			continue
 		}
-		ok, err := self.findUploaded(ctx, conn, itemID, k, v)
+		if !self.hasUpload(typ) {
+			continue
+		}
+		ok, err := self.findUploaded(ctx, conn, advID, UploadType2String[typ], v)
 		if err != nil {
 			return false, err
 		}
@@ -63,18 +65,18 @@ func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *ope
 }
 
 // uploadName is the name of the audience data in Redis.
-func uploadName(itemID uint32, marker string) string {
-	return fmt.Sprintf("upload:%d:%s", itemID, marker)
+func uploadName(advID uint32, marker string) string {
+	return fmt.Sprintf("upload:%d:%s", advID, marker)
 }
 
 // findUploaded checks if the given value is present in the audience data.
-func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client, itemID uint32, marker string, target string) (bool, error) {
+func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client, advID uint32, marker string, target string) (bool, error) {
 	if marker == "" || target == "" {
 		return false, nil
 	}
 
 	var ok int
-	err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", uploadName(itemID, marker), target))
+	err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", uploadName(advID, marker), target))
 	if err != nil {
 		return false, err
 	}
@@ -85,17 +87,17 @@ func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client,
 	return false, nil
 }
 
-func UploadSingle(ctx context.Context, conn radix.Client, itemID uint32, marker string, single string) error {
-	return conn.Do(ctx, radix.Cmd(nil, "SADD", uploadName(itemID, marker), single))
+func UploadSingle(ctx context.Context, conn radix.Client, advID uint32, marker string, single string) error {
+	return conn.Do(ctx, radix.Cmd(nil, "SADD", uploadName(advID, marker), single))
 }
 
-func UploadMany(ctx context.Context, conn radix.Client, itemID uint32, marker string, data []string) error {
+func UploadMany(ctx context.Context, conn radix.Client, advID uint32, marker string, data []string) error {
 	if len(data) == 0 {
 		return nil
 	}
 
 	arr := make([]string, len(data)+1)
-	arr[0] = uploadName(itemID, marker)
+	arr[0] = uploadName(advID, marker)
 	for i, d := range data {
 		arr[i+1] = d
 	}

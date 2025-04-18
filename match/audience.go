@@ -17,6 +17,7 @@ import (
 	"github.com/genelet/winter/demo"
 	"github.com/genelet/winter/dh"
 	"github.com/genelet/winter/maxmind"
+	"github.com/genelet/winter/uploaded"
 	"github.com/nats-io/nats.go"
 
 	"github.com/mediocregopher/radix/v4"
@@ -28,6 +29,7 @@ type Audience struct {
 	*maxmind.GeoAudience
 	*demo.DemoAudience
 	*advice.UaAudience
+	*uploaded.UploadAudience
 }
 
 func (self *Audience) Has(attr *Attribute) bool {
@@ -176,11 +178,12 @@ WHERE tn.item_id=?`, itemID)
 	}
 	defer rows.Close()
 
-	var idh, igeo, idemo, iua int
+	var idh, igeo, idemo, iua, iupload int
 	dhA := new(dh.DHAudience)
 	geoA := new(maxmind.GeoAudience)
 	demoA := new(demo.DemoAudience)
 	uaA := new(advice.UaAudience)
+	uploadA := new(uploaded.UploadAudience)
 	for rows.Next() {
 		var valueID, attrnameID uint32
 		var attrvalueID sql.NullInt64
@@ -194,17 +197,25 @@ WHERE tn.item_id=?`, itemID)
 		igeo += geoA.DBFillGeoAudience(attrname, valueID)
 		idemo += demoA.DBFillDemoAudience(attrname, valueID)
 		iua += uaA.DBFillUaAudience(attrname, valueID)
+		iupload += uploadA.DBFillUploadAudience(attrname, valueID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	rows.Close()
 
-	if a == nil && idh == 0 && igeo == 0 && idemo == 0 && iua == 0 {
+	if a == nil && idh == 0 && igeo == 0 && idemo == 0 && iua == 0 && iupload == 0 {
 		return nil, nil
 	}
 
-	return &Audience{DHAudience: dhA, GeoAudience: geoA, DemoAudience: demoA, UaAudience: uaA, ACLAudience: a}, nil
+	return &Audience{
+		DHAudience:     dhA,
+		GeoAudience:    geoA,
+		DemoAudience:   demoA,
+		UaAudience:     uaA,
+		ACLAudience:    a,
+		UploadAudience: uploadA,
+	}, nil
 }
 
 const (

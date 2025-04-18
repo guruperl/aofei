@@ -342,7 +342,7 @@ func (self *Filter) After(model *Model) error {
 
 	}
 
-	if who == "adv" && obj == "targetname" && action == "upload" {
+	if who == "adv" && obj == "attrname" && action == "upload" {
 		marker := ARGS.Get("marker")
 		if marker == "" {
 			return fmt.Errorf("marker is empty")
@@ -351,11 +351,11 @@ func (self *Filter) After(model *Model) error {
 		if file == "" {
 			return fmt.Errorf("uploaded file is not found")
 		}
-		itemID, err := strconv.ParseUint(ARGS.Get("item_id"), 10, 32)
+		advID, err := strconv.ParseUint(ARGS.Get("adv_id"), 10, 32)
 		if err != nil {
-			return fmt.Errorf("item_id should be a number")
+			return fmt.Errorf("adv_id should be a number")
 		}
-		dest := self.C.UploadDir + "/" + ARGS.Get("item_id")
+		dest := self.C.UploadDir + "/" + ARGS.Get("adv_id")
 		err = os.MkdirAll(dest, 0755)
 		if err != nil {
 			return err
@@ -373,11 +373,11 @@ func (self *Filter) After(model *Model) error {
 			}
 			defer fn.Close()
 			conn := redis.(radix.Client)
-			id := uint32(itemID)
+			id := uint32(advID)
 			scanner := bufio.NewScanner(fn)
 			i := 0
 			for scanner.Scan() {
-				if i > 10000 {
+				if i > 10000000 {
 					break
 				}
 				line := strings.TrimSpace(scanner.Text())

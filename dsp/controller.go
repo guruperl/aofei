@@ -171,19 +171,44 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		glog.Infof("%v", err)
 		return
 	}
-	radvs, audiences, err := candidates.FilterByAudiences(audiences, attr)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-	if len(radvs) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("no ad after matching audience")
-		return
+
+	var radvs match.RAdvs
+	var auds match.Audiences
+	// if we could find a direct match in the uploaded files
+	for i, candidate := range candidates {
+		aud := audiences[i]
+		if aud == nil || aud.UploadAudience == nil {
+			continue
+		}
+		ok, err := aud.UploadAudience.Has(ctx, self.Redis, bid, candidate.AdvID)
+		if err != nil {
+			w.WriteHeader(http.StatusNoContent)
+			glog.Infof("%v", err)
+			return
+		}
+
+		if ok {
+			radvs = append(radvs, candidate)
+			auds = append(auds, aud)
+		}
 	}
 
-	glog.Infof("6: total # after audience: %d and audieces # %d", len(radvs), len(audiences))
+	if len(radvs) == 0 {
+		glog.Infof("direct match not found, try by audience")
+		radvs, auds, err = candidates.FilterByAudiences(audiences, attr)
+		if err != nil {
+			w.WriteHeader(http.StatusNoContent)
+			glog.Infof("%v", err)
+			return
+		}
+		if len(radvs) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			glog.Infof("no ad after matching audience")
+			return
+		}
+	}
+
+	glog.Infof("6: total # after audience: %d and audieces # %d", len(radvs), len(auds))
 	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
 	if index < 0 {
 		w.WriteHeader(http.StatusNoContent)
@@ -211,7 +236,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dsp := NewDSP(bid, attr, one, bothcap, creative, audiences[index], self.C.ServerURL)
+	dsp := NewDSP(bid, attr, one, bothcap, creative, auds[index], self.C.ServerURL)
 	winloss := dsp.WinLoss(StatusBid)
 
 	glog.Info("8: BidSeat Bid")
