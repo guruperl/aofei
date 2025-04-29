@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -380,19 +381,26 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 func (self *Controller) getPub(ctx context.Context, r *http.Request, bid *openrtb2.BidRequest) (string, *acl.Pub, error) {
 	pubStr := r.PathValue("domain")
 	if pubStr == "" {
-		pubStr = acl.PUBDefault
+		return "", nil, fmt.Errorf("adx not found")
+		//pubStr = acl.PUBDefault
 	}
 	var pubObj *acl.Pub
 	var err error
 	top := self.C.Spread
 	if self.C.IsLocal {
 		if pubObj, err = acl.PubFromIO(top, pubStr); err == nil && pubObj == nil {
-			pubObj, err = acl.PubFromIO(top, acl.PUBDefault)
+			return "", nil, fmt.Errorf("%s not found", pubStr)
+			//pubObj, err = acl.PubFromIO(top, acl.PUBDefault)
 		}
 	} else {
 		if pubObj, err = acl.PubFromRedis(ctx, self.Redis, pubStr); err == nil && pubObj == nil {
-			pubObj, err = acl.PubFromRedis(ctx, self.Redis, acl.PUBDefault)
+			return "", nil, fmt.Errorf("%s not found", pubStr)
+			//pubObj, err = acl.PubFromRedis(ctx, self.Redis, acl.PUBDefault)
 		}
 	}
+	if err != nil {
+		return "", nil, err
+	}
+
 	return pubStr, pubObj, err
 }

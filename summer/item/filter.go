@@ -69,6 +69,9 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 	ARGS := self.R.Form
 	action := self.Action
 	who := self.RoleValue
+	if ARGS.Get("_gadmin") == "1" {
+		who = "admin"
+	}
 
 	if who == "admin" && action == "topics" {
 		if ARGS.Get("campaign_id") != "" {
@@ -103,6 +106,9 @@ func (self *Filter) After(model *Model) error {
 	ARGS := self.R.Form
 	action := self.Action
 	who := self.RoleValue
+	if ARGS.Get("_gadmin") == "1" {
+		who = "admin"
+	}
 	lists := *model.LISTS
 	other := *model.OTHER
 

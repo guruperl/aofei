@@ -79,7 +79,9 @@ func main() {
 			strings.HasPrefix(dir, match.HashNameSlot) ||
 			strings.HasPrefix(dir, match.HashNameCreative) {
 			var err error
-			if err = os.MkdirAll(fmt.Sprintf("%s/%s", top, dir), os.ModePerm); err == nil {
+			if len(m.Data) == 6 && string(m.Data) == "DELETE" {
+				err = os.RemoveAll(fmt.Sprintf("%s/%s/%s", top, dir, base))
+			} else if err = os.MkdirAll(fmt.Sprintf("%s/%s", top, dir), os.ModePerm); err == nil {
 				var w *os.File
 				if w, err = os.OpenFile(fmt.Sprintf("%s/%s/%s", top, dir, base), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666); err == nil {
 					defer w.Close()

@@ -14,7 +14,8 @@ import (
 
 type Pub struct {
 	PubID            uint32
-	Imps             int
+	LimitImps        uint32
+	CurrentImps      uint32
 	DefaultWebSiteID uint32
 	DefaultAppSiteID uint32
 	DefaultWebSlotID uint32
@@ -105,11 +106,12 @@ func SpreadGetPub(m *nats.Msg, top string) error {
 // DBGetPub retrieves the Pub from the database using domain
 func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	rows, err := db.Query(`
-SELECT p.pub_id, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id
+SELECT p.pub_id, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id, b.limit_imp, b.current_imp
 FROM pub p
 INNER JOIN pub_site s USING (pub_id)
-INNER JOIN pub_slot t USING (site_id)	"log"
-WHERE domain = ?`, domain)
+INNER JOIN pub_slot t USING (site_id)
+LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
+WHERE domain = ? AND p.active="Yes"`, domain)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +124,7 @@ WHERE domain = ?`, domain)
 	for rows.Next() {
 		var siteID, slotID uint32
 		var slotName, foreignID, siteType string
-		err = rows.Scan(&p.PubID, &foreignID, &siteID, &siteType, &slotName, &slotID)
+		err = rows.Scan(&p.PubID, &foreignID, &siteID, &siteType, &slotName, &slotID, &p.LimitImps, &p.CurrentImps)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +186,7 @@ VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, si
 	return siteID, nil
 }
 
-func addPub(db *sql.DB, pubStr string) (*Pub, error) {
+func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
 	pubID := rand.Uint32()
 	_, err := db.Exec(`
 INSERT INTO pub (pub_id, domain, email, passwd, address_id, active, created)

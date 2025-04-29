@@ -12,8 +12,17 @@ import (
 type PubMap map[string]*Pub
 
 // ToRedis encodes the PubMap to a byte slice and stores it in Redis
-func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
+func (self PubMap) ToRedis(ctx context.Context, conn radix.Client, domains []string) error {
+	// delete old pubmap
+	for _, domain := range domains {
+		err := conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubmap, domain))
+		if err != nil {
+			return err
+		}
+	}
+
 	arr := []string{HashNamePubmap}
+	// set new pubmap
 	for k, v := range self {
 		bs, err := v.Pack()
 		if err != nil {
@@ -25,7 +34,15 @@ func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
 }
 
 // ToSpread encodes the PubMap to a byte slice and publish it to nats
-func (self PubMap) ToSpread(conn *nats.Conn) error {
+func (self PubMap) ToSpread(conn *nats.Conn, domains []string) error {
+	// delete old pubmap
+	for _, domain := range domains {
+		err := conn.Publish(HashNamePubmap+":"+domain, []byte("DELETE"))
+		if err != nil {
+			return err
+		}
+	}
+	// set new pubmap
 	for k, v := range self {
 		err := v.ToSpread(conn, k)
 		if err != nil {
@@ -94,13 +111,45 @@ func PubMapFromIO(top string) (PubMap, error) {
 	return pubmap, nil
 }
 
+// InactiveDomains resets overhitting domains to be inactive
+// and retrieves the inactive domains from the database
+func InactiveDomains(db *sql.DB) ([]string, error) {
+	_, err := db.Exec(`
+UPDATE pub p
+INNER JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
+SET p.active = 'No'
+WHERE p.active = 'Yes'
+AND b.limit_imp > 0 AND b.limit_imp > b.current_imp`)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.Query(`
+SELECT domain FROM pub WHERE active = 'No'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var domains []string
+	for rows.Next() {
+		var domain string
+		err = rows.Scan(&domain)
+		if err != nil {
+			return nil, err
+		}
+		domains = append(domains, domain)
+	}
+	return domains, rows.Err()
+}
+
 // DBGetPubMap retrieves the PubMap from the database
 func DBGetPubMap(db *sql.DB) (PubMap, error) {
 	rows, err := db.Query(`
-SELECT domain, p.pub_id, foreign_id, s.site_id, t.slot_name, t.slot_id
+SELECT domain, p.pub_id, foreign_id, s.site_id, t.slot_name, t.slot_id, b.limit_imp, b.current_imp
 FROM pub p
 INNER JOIN pub_site s USING (pub_id)
 INNER JOIN pub_slot t USING (site_id)
+LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
 WHERE p.active = 'Yes' AND s.active = 'Yes' AND t.active = 'Yes'`)
 	if err != nil {
 		return nil, err
@@ -109,17 +158,19 @@ WHERE p.active = 'Yes' AND s.active = 'Yes' AND t.active = 'Yes'`)
 
 	pubMap := make(map[string]*Pub)
 	for rows.Next() {
-		var pubID, siteID, slotID uint32
+		var pubID, siteID, slotID, limitImps, currentImps uint32
 		var domain, slotName, foreignID string
-		err = rows.Scan(&domain, &pubID, &foreignID, &siteID, &slotName, &slotID)
+		err = rows.Scan(&domain, &pubID, &foreignID, &siteID, &slotName, &slotID, &limitImps, &currentImps)
 		if err != nil {
 			return nil, err
 		}
 		if _, ok := pubMap[domain]; !ok {
 			pubMap[domain] = &Pub{
-				PubID: pubID,
-				Sites: make(map[string]uint32),
-				Slots: make(map[uint32]map[string]uint32),
+				PubID:       pubID,
+				LimitImps:   limitImps,
+				CurrentImps: currentImps,
+				Sites:       make(map[string]uint32),
+				Slots:       make(map[uint32]map[string]uint32),
 			}
 		}
 		if _, ok := pubMap[domain].Sites[foreignID]; !ok {
@@ -167,7 +218,7 @@ func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr strin
 			}
 		}
 	} else {
-		pub, err = addPub(db, pubStr)
+		pub, err = AddPub(db, pubStr)
 	}
 
 	return pub, err
