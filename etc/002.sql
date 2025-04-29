@@ -22,8 +22,9 @@ ALTER TABLE adv_item
 	CHANGE item_click item_click TEXT NOT NULL,
 	ADD imp_url TEXT DEFAULT NULL AFTER item_click,
 	ADD click_url TEXT DEFAULT NULL AFTER imp_url;
-ALTER TABLE adv_creativ
-	ADD size_id int unsigned NOT NULL AFTER item_id;
+ALTER TABLE adv_creative
+	ADD size_id int unsigned NOT NULL AFTER item_id,
+	ADD media_type ENUM('Banner','Video', 'Native') DEFAULT 'Banner' AFTER size_id;
 ALTER TABLE adv_creative
 	ADD key `size_id` (size_id);
 

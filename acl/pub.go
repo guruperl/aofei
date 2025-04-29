@@ -2,6 +2,7 @@ package acl
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/gob"
 	"io"
@@ -9,11 +10,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
 
 type Pub struct {
 	PubID            uint32
+	Active           bool
 	LimitImps        uint32
 	CurrentImps      uint32
 	DefaultWebSiteID uint32
@@ -81,11 +84,29 @@ func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) (uint32, uint32, u
 	return self.PubID, siteID, slotID
 }
 
+// ToRedis writes the Pub object to Redis.
+func (self *Pub) ToRedis(ctx context.Context, conn radix.Client, domain string) error {
+	if self.Active && (self.LimitImps == 0 || self.CurrentImps < self.LimitImps) {
+		bs, err := self.Pack()
+		if err != nil {
+			return err
+		}
+		return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubmap, domain, string(bs)))
+	}
+	return conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubmap, domain))
+}
+
 // ToSpread put Pub to spread
 func (self *Pub) ToSpread(conn *nats.Conn, domain string) error {
-	bs, err := self.Pack()
-	if err != nil {
-		return err
+	var bs []byte
+	var err error
+	if self.Active && (self.LimitImps == 0 || self.CurrentImps < self.LimitImps) {
+		bs, err = self.Pack()
+		if err != nil {
+			return err
+		}
+	} else {
+		bs = []byte("DELETE")
 	}
 	return conn.Publish(HashNamePubmap+":"+domain, bs)
 }
@@ -103,15 +124,26 @@ func SpreadGetPub(m *nats.Msg, top string) error {
 	return err
 }
 
+// DBGetPubByID retrieves the Pub from the database using pubID
+func DBGetPubByID(db *sql.DB, pubID string) (*Pub, string, error) {
+	var domain string
+	err := db.QueryRow(`SELECT domain FROM pub WHERE pub_id = ?`, pubID).Scan(&domain)
+	if err != nil {
+		return nil, "", err
+	}
+	pub, err := DBGetPub(db, domain)
+	return pub, domain, err
+}
+
 // DBGetPub retrieves the Pub from the database using domain
 func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	rows, err := db.Query(`
-SELECT p.pub_id, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id, b.limit_imp, b.current_imp
+SELECT p.pub_id, p.active, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id, b.limit_imp, b.current_imp
 FROM pub p
 INNER JOIN pub_site s USING (pub_id)
 INNER JOIN pub_slot t USING (site_id)
 LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
-WHERE domain = ? AND p.active="Yes"`, domain)
+WHERE domain = ?`, domain)
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +155,21 @@ WHERE domain = ? AND p.active="Yes"`, domain)
 	}
 	for rows.Next() {
 		var siteID, slotID uint32
+		var limitImps, currentImps sql.NullInt64
 		var slotName, foreignID, siteType string
-		err = rows.Scan(&p.PubID, &foreignID, &siteID, &siteType, &slotName, &slotID, &p.LimitImps, &p.CurrentImps)
+		var active sql.NullString
+		err = rows.Scan(&p.PubID, &active, &foreignID, &siteID, &siteType, &slotName, &slotID, &limitImps, &currentImps)
 		if err != nil {
 			return nil, err
+		}
+		if active.Valid && active.String == "Yes" {
+			p.Active = true
+		}
+		if limitImps.Valid {
+			p.LimitImps = uint32(limitImps.Int64)
+		}
+		if currentImps.Valid {
+			p.CurrentImps = uint32(currentImps.Int64)
 		}
 		if _, ok := p.Sites[foreignID]; !ok {
 			p.Sites[foreignID] = siteID

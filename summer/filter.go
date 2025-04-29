@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/genelet"
 	"github.com/genelet/winter/match"
 	"github.com/genelet/winter/uploaded"
@@ -249,6 +250,9 @@ func (self *Filter) After(model *Model) error {
 	who := self.RoleValue
 	action := self.Action
 	obj := ARGS.Get("_gobj")
+	if ARGS.Get("_gadmin") == "1" {
+		who = "admin"
+	}
 
 	if genelet.Grep([]string{"item", "slot"}, obj) && genelet.Grep([]string{"startnew", "edit"}, action) {
 		other["slotsChinese"] = Translate(other["slots"])
@@ -339,7 +343,22 @@ func (self *Filter) After(model *Model) error {
 		if err != nil {
 			return fmt.Errorf("failed to update advs: %s", err.Error())
 		}
+	}
 
+	if who == "admin" && obj == "pub" && action == "takedown" {
+		pub, domain, err := acl.DBGetPubByID(model.DB, ARGS.Get("pub_id"))
+		if err != nil {
+			return fmt.Errorf("failed to get pub: %s", err.Error())
+		}
+		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
+			err = pub.ToSpread(nc.(*nats.Conn), domain)
+		}
+		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+			err = pub.ToRedis(ctx, redis.(radix.Client), domain)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to update pub of %s: %s", domain, err.Error())
+		}
 	}
 
 	if who == "adv" && obj == "attrname" && action == "upload" {

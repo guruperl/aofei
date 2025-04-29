@@ -98,11 +98,6 @@ func main() {
 		}
 	}
 
-	inactiveDomains, err := acl.InactiveDomains(db)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	nc, err := nats.Connect(c.NatsURL)
 	if err != nil {
 		log.Fatal(err)
@@ -111,12 +106,12 @@ func main() {
 
 	switch cache {
 	case "spread":
-		err = writeToSpread(ctx, nc, db, pubmap, inactiveDomains)
+		err = writeToSpread(ctx, nc, db, pubmap)
 	case "redis":
-		err = writeToRedis(ctx, redis, db, pubmap, inactiveDomains)
+		err = writeToRedis(ctx, redis, db, pubmap)
 	default:
-		if err = writeToSpread(ctx, nc, db, pubmap, inactiveDomains); err == nil {
-			err = writeToRedis(ctx, redis, db, pubmap, inactiveDomains)
+		if err = writeToSpread(ctx, nc, db, pubmap); err == nil {
+			err = writeToRedis(ctx, redis, db, pubmap)
 		}
 	}
 	if err != nil {
@@ -173,9 +168,9 @@ func redisRead(ctx context.Context, redis radix.Client) error {
 	return nil
 }
 
-func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, inactiveDomains []string) error {
+func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap) error {
 	log.Printf("new PubMap is written to redis\n")
-	err := pubmap.ToRedis(ctx, redis, inactiveDomains)
+	err := pubmap.ToRedis(ctx, redis)
 	if err != nil {
 		return err
 	}
@@ -256,9 +251,9 @@ func spreadRead(top string) error {
 	return nil
 }
 
-func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap, inactiveDomains []string) error {
+func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap) error {
 	log.Printf("new PubMap is written to nats\n")
-	err := pubmap.ToSpread(nc, inactiveDomains)
+	err := pubmap.ToSpread(nc)
 	if err != nil {
 		return err
 	}

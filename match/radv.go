@@ -15,6 +15,7 @@ import (
 
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
+	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 type Demand struct {
@@ -547,8 +548,23 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 }
 
 // FilterByAudiences filters RAdvs by audiences from Redis.
-func (self RAdvs) FilterByAudiences(audiences Audiences, attr *Attribute) (RAdvs, Audiences, error) {
+func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest, audiences Audiences, attr *Attribute) (RAdvs, Audiences, error) {
 	bools := audiences.Match(attr)
+
+	for i, candidate := range self {
+		if !bools[i] {
+			continue
+		}
+		aud := audiences[i]
+		if aud == nil || aud.UploadAudience == nil {
+			continue
+		}
+		ok, err := aud.UploadAudience.Has(ctx, conn, bid, candidate.AdvID)
+		if err != nil {
+			return nil, nil, err
+		}
+		bools[i] = ok
+	}
 
 	var blocks RAdvs
 	var trueAudiences []*Audience

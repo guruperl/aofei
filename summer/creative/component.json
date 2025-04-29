@@ -10,10 +10,10 @@
     "adv" : ["item_id", "item_md5"]
   },
 
-  "insert_pars"    : [               "weight", "item_id", "size_id","creative_name", "content", "active" ],
-  "update_pars"    : ["creative_id", "weight", "item_id", "size_id","creative_name", "content", "active" ],
-  "topics_pars"    : ["creative_id", "weight", "item_id", "size_id","creative_name", "content", "active" ],
-  "edit_pars"      : ["creative_id", "weight", "item_id", "size_id","creative_name", "content", "active" ],
+  "insert_pars"    : [               "weight", "item_id", "size_id", "media_type", "creative_name", "content", "active" ],
+  "update_pars"    : ["creative_id", "weight", "item_id", "size_id", "media_type", "creative_name", "content", "active" ],
+  "topics_pars"    : ["creative_id", "weight", "item_id", "size_id", "media_type", "creative_name", "content", "active" ],
+  "edit_pars"      : ["creative_id", "weight", "item_id", "size_id", "media_type", "creative_name", "content", "active" ],
 
   "current_table"   : "adv_creative",
   "current_key"     : "creative_id",

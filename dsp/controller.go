@@ -196,7 +196,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	if len(radvs) == 0 {
 		glog.Infof("direct match not found, try by audience")
-		radvs, auds, err = candidates.FilterByAudiences(audiences, attr)
+		radvs, auds, err = candidates.FilterByAudiences(ctx, self.Redis, bid, audiences, attr)
 		if err != nil {
 			w.WriteHeader(http.StatusNoContent)
 			glog.Infof("%v", err)

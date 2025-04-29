@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/genelet/winter/summer"
@@ -44,7 +43,7 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 		extra.Set("item_id", self.R.Form.Get("item_id"))
 	} else if action == "insert" {
 		switch ARGS.Get("randomChoice") {
-		case "2":
+		case "2", "3":
 			itemID := ARGS.Get("item_id")
 			dir := self.C.UploadDir + "/" + itemID
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -52,20 +51,23 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 					return err
 				}
 			}
-			for i, fn := range []string{"media_1", "media_2", "media_3"} {
+			for _, fn := range []string{"media_1", "media_2"} {
+				if ARGS.Get("randomChoice") == "3" && fn == "media_1" {
+					continue
+				}
+				if ARGS.Get("randomChoice") == "2" && fn == "media_2" {
+					continue
+				}
 				file := ARGS.Get(fn)
 				if file == "" {
 					continue
 				}
-				err := self.Uploading(dir, itemID, file, strconv.Itoa(i+1))
+				err := self.uploading(dir, itemID, file, "1")
 				if err != nil {
 					return err
 				}
-				// this is a lazy testing of uploading only
-				ARGS.Set("content", ARGS.Get("media"))
 			}
-		case "3":
-
+		default:
 		}
 	}
 
@@ -85,10 +87,10 @@ func (self *Filter) After(model *Model) error {
 
 	if action == "insert" && ARGS.Get("media") != "" {
 		for i, m := range ARGS["media"] {
-			if err := model.DoSQL(
-				`INSERT INTO adv_media (creative_id, series, media, disk, mime, created)
-VALUES (?,?,?,?,?,NOW())`, lists[0]["creative_id"], ARGS["series"][i], m,
-				ARGS["disk"][i], ARGS["mime"][i]); err != nil {
+			if err := model.DoSQL(`
+INSERT INTO adv_media (creative_id, series, media, disk, mime, created)
+VALUES (?,?,?,?,?,NOW())`,
+				lists[0]["creative_id"], ARGS["series"][i], m, ARGS["disk"][i], ARGS["mime"][i]); err != nil {
 				return err
 			}
 		}
@@ -101,7 +103,7 @@ VALUES (?,?,?,?,?,NOW())`, lists[0]["creative_id"], ARGS["series"][i], m,
 	return nil
 }
 
-func (self *Filter) Uploading(dir, itemID, file, series string) error {
+func (self *Filter) uploading(dir, itemID, file, series string) error {
 	ARGS := self.R.Form
 
 	fh, err := os.Open(self.C.UploadDir + "/" + file)
@@ -116,7 +118,7 @@ func (self *Filter) Uploading(dir, itemID, file, series string) error {
 		return err
 	}
 	mime := http.DetectContentType(buffer)
-	if ARGS.Get("qa_mime") == "video" && mime == "application/octet-stream" {
+	if ARGS.Get("randomChoice") == "3" && mime == "application/octet-stream" {
 		arrs := strings.Split(file, ".")
 		popular := map[string]string{
 			"m3u": "application/x-mpegURL", "m3u8": "application/x-mpegURL",
@@ -139,8 +141,16 @@ func (self *Filter) Uploading(dir, itemID, file, series string) error {
 	ARGS.Add("series", series)
 	ARGS.Add("media", media)
 	ARGS.Add("disk", dir+"/"+file)
-	ARGS.Set("content", strings.Replace(ARGS.Get("content"), "MEDIA_"+series, media, -1))
-	ARGS.Set("content", strings.Replace(ARGS.Get("content"), `"`, `\"`, -1))
+	switch ARGS.Get("randomChoice") {
+	case "2":
+		ARGS.Set("content", media)
+	case "3":
+		ARGS.Set("media_type", "Video")
+		ARGS.Set("content", `<video controls><source src="`+media+`" type="`+mime+`">not supported</video>`)
+	case "4":
+	// TODO build native adm
+	default:
+	}
 
 	return nil
 }

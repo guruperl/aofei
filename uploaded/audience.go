@@ -14,6 +14,8 @@ type UploadAudience struct {
 	Uploads uint32
 }
 
+// Has returns false if and only if the ad targets the uploading type but not found.
+// Like all the other audience targeting, the default is true.
 func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest, advID uint32) (bool, error) {
 	if self.Uploads == 0 {
 		return false, nil
@@ -46,22 +48,22 @@ func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *ope
 	}
 
 	for typ, v := range args {
-		if v == "" {
-			continue
-		}
 		if !self.hasUpload(typ) {
 			continue
+		}
+		if v == "" {
+			return false, nil
 		}
 		ok, err := self.findUploaded(ctx, conn, advID, UploadType2String[typ], v)
 		if err != nil {
 			return false, err
 		}
-		if ok {
-			return true, nil
+		if !ok {
+			return false, nil
 		}
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // uploadName is the name of the audience data in Redis.

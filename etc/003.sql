@@ -26,7 +26,7 @@ BEGIN
   WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes" AND t.slot_id = slotID;
   IF (siteID>0)
   THEN
-    SELECT a.adv_id, c.campaign_id, i.item_id, v.creative_id, v.weight, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length, i.startx, i.endx
+    SELECT a.adv_id, c.campaign_id, i.item_id, v.creative_id, v.weight, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
     FROM adv_creative v
     INNER JOIN adv_item i USING (item_id)
     INNER JOIN adv_campaign c USING (campaign_id)
@@ -39,7 +39,7 @@ BEGIN
     AND FIND_IN_SET(siteType,i.fl_sitetypes) > 0
     AND v.size_id=sizeID
     UNION
-    SELECT a.adv_id, c.campaign_id, i.item_id, v.creative_id, v.weight, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length, i.startx, i.endx
+    SELECT a.adv_id, c.campaign_id, i.item_id, v.creative_id, v.weight, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
     FROM adv_creative v
     INNER JOIN adv_item i USING (item_id)
     INNER JOIN adv_campaign c USING (campaign_id)
@@ -52,12 +52,12 @@ BEGIN
     AND FIND_IN_SET(siteType,i.fl_sitetypes) > 0
     AND v.size_id=sizeID
     UNION
-    SELECT a.adv_id, c.campaign_id, i.item_id, v.creative_id, v.weight, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length, i.startx, i.endx
+    SELECT a.adv_id, c.campaign_id, i.item_id, v.creative_id, v.weight, i.cost_type, i.cost, i.cpm_fc, i.cpm_length, i.cpm_throttle, i.cpc_fc, i.cpc_length
     FROM adv_creative v
     INNER JOIN adv_item i USING (item_id)
     INNER JOIN adv_campaign c USING (campaign_id)
     INNER JOIN adv      a USING (adv_id)
-    LEFT JOIN ac ON (ac.entitytype_id=42 AND ac.entity_id=t.item_id AND (ac.othertype_id=31 AND ac.other_id=siteID))
+    LEFT JOIN ac ON (ac.entitytype_id=42 AND ac.entity_id=i.item_id AND (ac.othertype_id=31 AND ac.other_id=siteID))
     WHERE a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
     AND ( i.access_order !='Inherit' AND ((i.access_order="Black" AND ac.entity_id IS NULL) OR (i.access_order="White" AND ac.entity_id IS NOT NULL)))
     AND (i.startx <= NOW() OR (i.startx IS NULL))
@@ -111,7 +111,7 @@ BEGIN
     INNER JOIN adv_item i USING (item_id)
     INNER JOIN adv_campaign c USING (campaign_id)
     INNER JOIN adv      a USING (adv_id)
-    LEFT JOIN ac ON (ac.entitytype_id=42 AND ac.entity_id=t.item_id AND (ac.othertype_id=31 AND ac.other_id=siteID))
+    LEFT JOIN ac ON (ac.entitytype_id=42 AND ac.entity_id=i.item_id AND (ac.othertype_id=31 AND ac.other_id=siteID))
     WHERE a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
     AND ( i.access_order !='Inherit' AND ((i.access_order="Black" AND ac.entity_id IS NULL) OR (i.access_order="White" AND ac.entity_id IS NOT NULL)))
     AND FIND_IN_SET(siteType,i.fl_sitetypes) > 0
