@@ -44,6 +44,9 @@ fields.
 
 If no candidates exist for an impression's size/slot pair, that impression is
 skipped. The bid path returns no content only when no impression produces a bid.
+Middleman AdX fallback is not active yet; the M16 schema adds downstream DSP
+accounts, bidder endpoints, route groups, and reporting tables, but `ServeBid`
+still returns no content when local campaign matching produces no bid.
 
 ## Filtering
 

@@ -393,3 +393,26 @@ Acceptance:
   and cap refresh behavior.
 - Measurement, workflow, cache, audience, and memory-bank docs describe the new
   serving contracts.
+
+## M16 - Middleman AdX Identity And Schema `[+]`
+
+Establish the downstream DSP account, endpoint, routing, and reporting schema
+needed before fallback fanout changes the bid path.
+
+Scope:
+
+- Add a separate Summer/Genelet `dsp` role backed by `mid_dsp`.
+- Add downstream endpoint metadata under `mid_bidder`, with credential refs and
+  activation state controlled by operators.
+- Add `mid_route_*` tables for future fallback route groups and inventory
+  assignment.
+- Add `daily_mid_bidder` for future aggregated middleman reporting.
+- Document that runtime fanout is still disabled after this milestone.
+
+Acceptance:
+
+- The active schema baseline recreates empty middleman tables and the
+  `def_entitytype` row for `mid_dsp`.
+- Summer registry includes DSP account and bidder endpoint modules.
+- Docs and memory bank describe the self-service boundary and future milestone
+  sequence.

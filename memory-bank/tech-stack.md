@@ -68,6 +68,9 @@ URLs; when omitted, `TRACKING_SECRET` is used as the fallback.
 
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
+The checked-in Summer config includes `admin`, `adv`, `pub`, `agent`, and
+downstream `dsp` roles; the `dsp` role maps to `mid_dsp.dsp_id` for middleman
+partner self-service.
 
 Production defaults are `/etc/aofei/aofei.json` and
 `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The production

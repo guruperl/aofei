@@ -84,13 +84,20 @@ After `reset && load`, the expected inventory is:
 
 | Object/data | Count |
 |---|---:|
-| Base tables | 50 |
+| Base tables | 56 |
 | Views | 1 |
 | Stored routines | 6 |
 | Triggers | 18 |
 | Events | 0 |
 | Advertisers | 1 |
 | Publishers | 14 |
+| Downstream DSPs | 0 |
+
+Middleman AdX schema is present but starts empty. `mid_dsp` stores downstream
+DSP partner accounts for the Summer `dsp` role, `mid_bidder` stores their
+OpenRTB endpoint metadata, `mid_route_*` tables store operator-controlled
+fallback route configuration, and `daily_mid_bidder` is reserved for aggregated
+middleman reporting.
 
 ## Updating The Baseline
 

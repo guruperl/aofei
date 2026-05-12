@@ -1,0 +1,41 @@
+{
+  "actions" : {
+    "insert" : {"groups":["admin","dsp"], "validate":["dsp_id","bidder_name","endpoint_url"]},
+    "topics" : {"groups":["admin","dsp"]},
+    "edit" :   {"groups":["admin","dsp"], "validate":["bidder_id"]},
+    "update" : {"groups":["admin","dsp"], "validate":["bidder_id"]},
+    "delete" : {"groups":["admin"], "validate":["bidder_id"]}
+  },
+
+  "fks" : {
+    "dsp" : ["bidder_id", ""]
+  },
+
+  "insert_pars" : ["bidder_id","dsp_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active","created"],
+  "update_pars" : ["bidder_id","dsp_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active"],
+  "topics_pars" : ["bidder_id","dsp_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active","created"],
+  "edit_pars" :   ["bidder_id","dsp_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active","created"],
+
+  "current_table" : "mid_bidder",
+  "current_key" : "bidder_id",
+  "current_id_auto" : "bidder_id",
+
+  "current_tables" : [
+    {"name":"mid_bidder", "alias":"b"},
+    {"name":"mid_dsp", "alias":"d", "type":"INNER", "using":"dsp_id"}
+  ],
+  "topics_hash" : {
+    "b.bidder_id":"bidder_id",
+    "b.dsp_id":"dsp_id",
+    "d.email":"dsp_email",
+    "b.bidder_name":"bidder_name",
+    "b.endpoint_url":"endpoint_url",
+    "b.openrtb_version":"openrtb_version",
+    "b.seat":"seat",
+    "b.credential_ref":"credential_ref",
+    "b.credential_status":"credential_status",
+    "b.timeout_ms":"timeout_ms",
+    "b.active":"active",
+    "b.created":"created"
+  }
+}

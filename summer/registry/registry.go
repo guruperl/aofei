@@ -8,12 +8,14 @@ import (
 	"github.com/genelet/winter/summer/alipay"
 	"github.com/genelet/winter/summer/attrname"
 	"github.com/genelet/winter/summer/balance"
+	"github.com/genelet/winter/summer/bidder"
 	"github.com/genelet/winter/summer/campaign"
 	"github.com/genelet/winter/summer/cc"
 	"github.com/genelet/winter/summer/chac"
 	"github.com/genelet/winter/summer/channel"
 	"github.com/genelet/winter/summer/cheque"
 	"github.com/genelet/winter/summer/creative"
+	"github.com/genelet/winter/summer/dsp"
 	"github.com/genelet/winter/summer/item"
 	"github.com/genelet/winter/summer/ledger"
 	"github.com/genelet/winter/summer/manage"
@@ -41,12 +43,14 @@ var Entries = []Entry{
 	{"alipay", func() interface{} { return new(alipay.Model) }, func() interface{} { return new(alipay.Model) }, func() interface{} { return new(alipay.Filter) }},
 	{"attrname", func() interface{} { return new(attrname.Model) }, func() interface{} { return new(attrname.Model) }, func() interface{} { return new(attrname.Filter) }},
 	{"balance", func() interface{} { return new(balance.Model) }, func() interface{} { return new(balance.Model) }, func() interface{} { return new(balance.Filter) }},
+	{"bidder", func() interface{} { return new(bidder.Model) }, func() interface{} { return new(bidder.Model) }, func() interface{} { return new(bidder.Filter) }},
 	{"campaign", func() interface{} { return new(campaign.Model) }, func() interface{} { return new(campaign.Model) }, func() interface{} { return new(campaign.Filter) }},
 	{"cc", func() interface{} { return new(cc.Model) }, func() interface{} { return new(cc.Model) }, func() interface{} { return new(cc.Filter) }},
 	{"chac", func() interface{} { return new(chac.Model) }, func() interface{} { return new(chac.Model) }, func() interface{} { return new(chac.Filter) }},
 	{"channel", func() interface{} { return new(channel.Model) }, func() interface{} { return new(channel.Model) }, func() interface{} { return new(channel.Filter) }},
 	{"cheque", func() interface{} { return new(cheque.Model) }, func() interface{} { return new(cheque.Model) }, func() interface{} { return new(cheque.Filter) }},
 	{"creative", func() interface{} { return new(creative.Model) }, func() interface{} { return new(creative.Model) }, func() interface{} { return new(creative.Filter) }},
+	{"dsp", func() interface{} { return new(dsp.Model) }, func() interface{} { return new(dsp.Model) }, func() interface{} { return new(dsp.Filter) }},
 	{"item", func() interface{} { return new(item.Model) }, func() interface{} { return new(item.Model) }, func() interface{} { return new(item.Filter) }},
 	{"ledger", func() interface{} { return new(ledger.Model) }, func() interface{} { return new(ledger.Model) }, func() interface{} { return new(ledger.Filter) }},
 	{"manage", func() interface{} { return new(manage.Model) }, func() interface{} { return new(manage.Model) }, func() interface{} { return new(manage.Filter) }},

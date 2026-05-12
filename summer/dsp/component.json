@@ -1,0 +1,44 @@
+{
+  "actions" : {
+    "dashboard" : {"groups":["dsp"], "validate":["dsp_id"]},
+    "edit" :      {"groups":["dsp"], "validate":["dsp_id"]},
+    "update" :    {"groups":["dsp"], "validate":["dsp_id"]},
+    "topics" :    {"groups":["admin"]},
+    "insert" :    {"groups":["admin"], "validate":["email","passwd"]},
+    "delete" :    {"groups":["admin"], "validate":["dsp_id"]}
+  },
+
+  "nextpages": {
+    "dashboard" : [
+      {"model":"bidder", "action":"topics"}
+    ]
+  },
+
+  "insert_pars" : ["dsp_id","email","passwd","domain","firstname","lastname","timezone_id","address_id","active","created"],
+  "update_pars" : ["dsp_id","email",         "domain","firstname","lastname","timezone_id","address_id","active"],
+  "topics_pars" : ["dsp_id","email",         "domain","firstname","lastname","timezone_id","address_id","active","created"],
+  "edit_pars" :   ["dsp_id","email",         "domain","firstname","lastname","timezone_id","address_id","active","created"],
+
+  "current_table" : "mid_dsp",
+  "current_key" : "dsp_id",
+  "key_in" : {"mid_bidder":"dsp_id"},
+
+  "current_tables" : [
+    {"name":"mid_dsp", "alias":"p"},
+    {"name":"add_address", "alias":"a", "type":"LEFT", "using":"address_id"}
+  ],
+  "topics_hash" : {
+    "p.dsp_id":"dsp_id",
+    "p.email":"email",
+    "p.domain":"domain",
+    "p.firstname":"firstname",
+    "p.lastname":"lastname",
+    "p.timezone_id":"timezone_id",
+    "p.address_id":"address_id",
+    "p.active":"active",
+    "p.created":"created",
+    "a.company":"company",
+    "a.contact":"contact",
+    "a.phone":"phone"
+  }
+}
