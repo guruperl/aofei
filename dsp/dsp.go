@@ -137,6 +137,12 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 	}
 	w, h := match.SizeID1To2(self.creative.SizeID)
 	one := self.one
+	var bundle string
+	var categories []string
+	if self.audience != nil {
+		bundle = self.audience.CampaignForeignID
+		categories = self.audience.Categories
+	}
 	rspnsBid := openrtb2.Bid{
 		ID:    self.rspndBidID(),
 		ImpID: self.impID(),
@@ -146,10 +152,10 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 		AdM:   adm,
 		AdID:  self.adID(),
 		//ADomain: []string{self.audience.AdvDomain},
-		Bundle: self.audience.CampaignForeignID,
+		Bundle: bundle,
 		CID:    fmt.Sprintf("%d", one.CampaignID),
 		CrID:   fmt.Sprintf("%d", one.CreativeID),
-		Cat:    self.audience.Categories,
+		Cat:    categories,
 		W:      int64(w),
 		H:      int64(h),
 	}
@@ -162,8 +168,47 @@ func (self *DSP) Macro() map[string]string {
 	bid := self.bid
 	one := self.one
 	attribute := self.attribute
-	device := bid.Device
-	w, h := match.SizeID1To2(attribute.RPub.SizeID)
+	var device *openrtb2.Device
+	if bid != nil {
+		device = bid.Device
+	}
+	if device == nil {
+		device = &openrtb2.Device{}
+	}
+	geo := device.Geo
+	if geo == nil {
+		geo = &openrtb2.Geo{}
+	}
+	var app *openrtb2.App
+	if bid != nil {
+		app = bid.App
+	}
+	if app == nil {
+		app = &openrtb2.App{}
+	}
+	var imp openrtb2.Imp
+	if bid != nil && len(bid.Imp) > 0 {
+		imp = bid.Imp[0]
+	}
+	var rpub match.RPub
+	var nativeFormat *match.NativeFormat
+	var pubName string
+	if attribute != nil {
+		rpub = attribute.RPub
+		nativeFormat = attribute.NativeFormat
+		if attribute.ACL != nil {
+			pubName = attribute.ACL.PubStr
+		}
+	}
+	w, h := match.SizeID1To2(rpub.SizeID)
+	var campaignForeignID string
+	if self.audience != nil {
+		campaignForeignID = self.audience.CampaignForeignID
+	}
+	var creativeName string
+	if self.creative != nil {
+		creativeName = self.creative.CreativeName
+	}
 
 	gaid := device.DPIDMD5
 	if gaid == "" {
@@ -175,9 +220,9 @@ func (self *DSP) Macro() map[string]string {
 	}
 	return map[string]string{
 		`{DSP_IP}`:              device.IP,
-		`{DSP_COUNTRY}`:         device.Geo.Country,
-		`{DSP_REGION}`:          device.Geo.Region,
-		`{DSP_CITY}`:            device.Geo.City,
+		`{DSP_COUNTRY}`:         geo.Country,
+		`{DSP_REGION}`:          geo.Region,
+		`{DSP_CITY}`:            geo.City,
 		`{DSP_CARRIER}`:         device.Carrier,
 		`{DSP_CONNECTION_TYPE}`: fmt.Sprintf("%v", device.ConnectionType),
 		`{DSP_USER_AGENT}`:      device.UA,
@@ -192,16 +237,16 @@ func (self *DSP) Macro() map[string]string {
 		`{DSP_DEVICE_ID}`:       did,
 		`{DSP_DEVICE_ID_MD5}`:   device.MACMD5,
 		`{DSP_DEVICE_ID_SHA1}`:  device.MACSHA1,
-		`{DSP_BUNDLE}`:          bid.App.Bundle,
-		`{DSP_TAGID}`:           bid.Imp[0].TagID,
-		`{DSP_AD_FORMAT}`:       fmt.Sprintf("%v", attribute.NativeFormat),
+		`{DSP_BUNDLE}`:          app.Bundle,
+		`{DSP_TAGID}`:           imp.TagID,
+		`{DSP_AD_FORMAT}`:       fmt.Sprintf("%v", nativeFormat),
 		`{DSP_AD_SIZE}`:         fmt.Sprintf("%dx%d", w, h),
 		`{DSP_CAMPAIGN_ID}`:     fmt.Sprintf("%d", one.CampaignID),
-		`{DSP_ADV_CAMPAIGN}`:    self.audience.CampaignForeignID,
+		`{DSP_ADV_CAMPAIGN}`:    campaignForeignID,
 		`{DSP_AD_GROUP_ID}`:     fmt.Sprintf("%d", one.ItemID),
 		`{DSP_CREATIVE_ID}`:     fmt.Sprintf("%d", one.CreativeID),
-		`{DSP_CREATIVE_NAME}`:   self.creative.CreativeName,
-		`{DSP_PUBLISHER_ID}`:    fmt.Sprintf("%v", attribute.RPub.PubID),
-		`{DSP_PUBLISHER_NAME}`:  attribute.ACL.PubStr,
+		`{DSP_CREATIVE_NAME}`:   creativeName,
+		`{DSP_PUBLISHER_ID}`:    fmt.Sprintf("%v", rpub.PubID),
+		`{DSP_PUBLISHER_NAME}`:  pubName,
 	}
 }

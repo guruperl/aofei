@@ -18,10 +18,14 @@ type UploadAudience struct {
 // Like all the other audience targeting, the default is true.
 func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *openrtb2.BidRequest, advID uint32) (bool, error) {
 	if self.Uploads == 0 {
+		return true, nil
+	}
+	if bid == nil {
 		return false, nil
 	}
 
 	var did, dpid, mac string
+	var buyerUID, userID, ip, ifa string
 	if bid.Device != nil {
 		did = bid.Device.DIDMD5
 		if did == "" {
@@ -35,13 +39,19 @@ func (self *UploadAudience) Has(ctx context.Context, conn radix.Client, bid *ope
 		if mac == "" {
 			mac = bid.Device.MACSHA1
 		}
+		ip = bid.Device.IP
+		ifa = bid.Device.IFA
+	}
+	if bid.User != nil {
+		buyerUID = bid.User.BuyerUID
+		userID = bid.User.ID
 	}
 
 	args := map[UploadType]string{
-		UploadBuyerUID: bid.User.BuyerUID,
-		UploadUserID:   bid.User.ID,
-		UploadIP:       bid.Device.IP,
-		UploadIFA:      bid.Device.IFA,
+		UploadBuyerUID: buyerUID,
+		UploadUserID:   userID,
+		UploadIP:       ip,
+		UploadIFA:      ifa,
 		UploadDID:      did,
 		UploadDPID:     dpid,
 		UploadMAC:      mac,

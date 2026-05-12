@@ -95,6 +95,18 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
 
+Run the bid-path smoke against the seeded Redis cache:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go test ./dsp -run 'Test.*Smoke'
+```
+
+The bid smoke uses `httptest` against `dsp.Controller.ServeBid` and
+`etc/samples/sample_bid.json`. It skips only when `AOFEI` is unset or the
+generated config file is missing; with `AOFEI` set, missing Docker Redis or cache
+data is a test failure.
+
 Inspect Redis cache content through the app reader:
 
 ```bash

@@ -83,7 +83,7 @@ Acceptance:
 - NATS-required cache/spread flows connect to Docker NATS.
 - Cache inspection commands show expected sample objects.
 
-## M4 - Bid Path Smoke Coverage `[ ]`
+## M4 - Bid Path Smoke Coverage `[+]`
 
 Add a reliable local proof that the DSP request path still works.
 
@@ -99,6 +99,12 @@ Acceptance:
 - A documented command proves the seeded local runtime can process representative
   bid-path samples.
 - Failures point to config, schema, cache, fixture, or matching boundaries.
+
+Result:
+
+- `GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'`
+  covers the Redis-backed `ServeBid` path with local sample data and controlled
+  malformed, oversized, and no-bid failure modes.
 
 ## M5 - Summer/Genelet Admin Compatibility `[ ]`
 

@@ -42,3 +42,43 @@ func TestConfig(t *testing.T) {
 		t.Errorf("Redis.Addr = %q, want localhost:6379", c.Redis.Addr)
 	}
 }
+
+func TestLocalConfigSmoke(t *testing.T) {
+	configPath, ok := os.LookupEnv("AOFEI")
+	if !ok || configPath == "" {
+		t.Skip("AOFEI is unset; run ./scripts/aofei-local.sh up")
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("AOFEI config %s is missing; run ./scripts/aofei-local.sh up", configPath)
+		}
+		t.Fatal(err)
+	}
+
+	c, err := NewConfig(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.ConnectArray) < 2 || c.ConnectArray[0] == "" || c.ConnectArray[1] == "" {
+		t.Fatalf("ConnectArray is incomplete: %#v", c.ConnectArray)
+	}
+	if c.Redis == nil || c.Redis.Addr == "" {
+		t.Fatalf("Redis config is incomplete: %#v", c.Redis)
+	}
+	if c.NatsURL == "" {
+		t.Fatal("NatsURL is empty")
+	}
+	if c.Spread == "" {
+		t.Fatal("Spread is empty")
+	}
+	for name, path := range map[string]string{
+		"log_request":   c.LogRequest,
+		"log_response":  c.LogResponse,
+		"log_attribute": c.LogAttribute,
+		"log_winloss":   c.LogWinLoss,
+	} {
+		if path == "" {
+			t.Fatalf("%s is empty", name)
+		}
+	}
+}

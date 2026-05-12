@@ -2,6 +2,7 @@
 package dsp
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -31,7 +32,7 @@ type WinLoss struct {
 	Current      time.Time `json:"current,omitempty"`
 	match.RPub   `json:"rpub,omitempty"`
 	match.RAdv   `json:"radv,omitempty"`
-	BothCap      *match.BothCap `json:"-,omitempty"`
+	BothCap      *match.BothCap `json:"-"`
 	Seat         string         `json:"seat,omitempty"`
 	AuctionID    string         `json:"auction_id,omitempty"`
 	AuctionBidID string         `json:"auction_bid_id,omitempty"`
@@ -136,6 +137,15 @@ func UnpackURLString(urlString string, bidResponse ...*openrtb2.BidResponse) (*u
 	if len(bidResponse) == 0 {
 		u.Scheme = "http"
 		return u, nil
+	}
+	if bidResponse[0] == nil {
+		return nil, errors.New("bid response is nil")
+	}
+	if len(bidResponse[0].SeatBid) == 0 {
+		return nil, errors.New("bid response has no seat bids")
+	}
+	if len(bidResponse[0].SeatBid[0].Bid) == 0 {
+		return nil, errors.New("bid response has no bids")
 	}
 
 	auctionID := bidResponse[0].ID

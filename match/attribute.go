@@ -3,6 +3,8 @@ package match
 import (
 	"context"
 	"crypto/md5"
+	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/genelet/winter/acl"
@@ -36,9 +38,18 @@ type AttributePlus struct {
 
 // NewAttribute creates a new Attribute from a bid request.
 func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, pubObj *acl.Pub, when time.Time, pubStr string) (*Attribute, error) {
+	if bidRequest == nil {
+		return nil, fmt.Errorf("bid request is nil")
+	}
+	if len(bidRequest.Imp) == 0 {
+		return nil, fmt.Errorf("bid request has no impressions")
+	}
 	device := bidRequest.Device
 	if device == nil {
-		return nil, nil
+		return nil, fmt.Errorf("bid request has no device")
+	}
+	if pubObj == nil {
+		return nil, fmt.Errorf("publisher is nil")
 	}
 
 	attr := &Attribute{
@@ -49,21 +60,26 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 
 	var err error
 	attr.IFA = getIFA(device)
-
-	if bidRequest.User != nil && (bidRequest.User.BuyerUID != "" || bidRequest.User.ID != "") {
-		attr.UserID = bidRequest.User.BuyerUID
-		if attr.UserID == "" {
+	attr.UserID = attr.IFA
+	if bidRequest.User != nil {
+		switch {
+		case bidRequest.User.BuyerUID != "":
+			attr.UserID = bidRequest.User.BuyerUID
+		case bidRequest.User.ID != "":
 			attr.UserID = bidRequest.User.ID
-		}
-		if attr.UserID == "" {
+		case attr.IFA != "":
 			attr.UserID = attr.IFA
 		}
 	}
 
 	attr.Demo = demo.NewOpenRTBDemo(bidRequest)
-	attr.Geo, err = ipSearch.NewOpenRTBGeo(device)
-	if err != nil {
-		return nil, err
+	if ipSearch != nil {
+		attr.Geo, err = ipSearch.NewOpenRTBGeo(device)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		attr.Geo = &maxmind.Geo{}
 	}
 
 	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
@@ -93,7 +109,7 @@ func getIFA(device *openrtb2.Device) string {
 			ifa = device.MACMD5
 		case device.UA != "" && device.IP != "":
 			v := md5.Sum([]byte(device.IP + "." + device.UA))
-			ifa = string(v[:])
+			ifa = hex.EncodeToString(v[:])
 		default:
 		}
 	}

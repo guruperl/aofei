@@ -100,6 +100,13 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
 
+Run the bid-path smoke after `reset-sample` and Redis cache population:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go test ./dsp -run 'Test.*Smoke'
+```
+
 Read Redis cache content:
 
 ```bash
@@ -142,6 +149,8 @@ Current smoke verification:
 bash -n scripts/aofei-cache-smoke.sh
 GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
 GOWORK=off go test ./cmd/spread -run 'Test'
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
+GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 git diff --check
 ```

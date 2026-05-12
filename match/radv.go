@@ -585,7 +585,7 @@ func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, bid 
 			continue
 		}
 		aud := audiences[i]
-		if aud == nil || aud.UploadAudience == nil {
+		if aud == nil || aud.UploadAudience == nil || aud.UploadAudience.Uploads == 0 {
 			continue
 		}
 		ok, err := aud.UploadAudience.Has(ctx, conn, bid, candidate.AdvID)

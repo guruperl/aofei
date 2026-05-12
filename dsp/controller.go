@@ -26,6 +26,8 @@ const (
 	SUBJECTResponse  = "response"
 	SUBJECTAttribute = "attribute"
 	SUBJECTWinLoss   = "winloss"
+
+	maxBidRequestBodyBytes = 1 << 20
 )
 
 type Controller struct {
@@ -89,24 +91,38 @@ func (self *Controller) Close() {
 }
 
 func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
-	glog := self.Logger.Sugar()
+	logger := self.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	glog := logger.Sugar()
 	glog.Info("0: initial")
 
 	current := time.Now()
 	ctx := r.Context()
 	c := self.C
 
-	bidStr, err := io.ReadAll(r.Body)
+	bidStr, err := io.ReadAll(io.LimitReader(r.Body, maxBidRequestBodyBytes+1))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		glog.Infof("%v", err)
 		return
 	}
 	r.Body.Close()
+	if len(bidStr) > maxBidRequestBodyBytes {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		glog.Infof("bid request body exceeds %d bytes", maxBidRequestBodyBytes)
+		return
+	}
 
 	bid := &openrtb2.BidRequest{}
 	if err = json.Unmarshal(bidStr, bid); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		glog.Infof("%v", err)
+		return
+	}
+	if err = validateBidRequest(bid); err != nil {
+		w.WriteHeader(http.StatusNoContent)
 		glog.Infof("%v", err)
 		return
 	}
@@ -178,7 +194,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	// if we could find a direct match in the uploaded files
 	for i, candidate := range candidates {
 		aud := audiences[i]
-		if aud == nil || aud.UploadAudience == nil {
+		if aud == nil || aud.UploadAudience == nil || aud.UploadAudience.Uploads == 0 {
 			continue
 		}
 		ok, err := aud.UploadAudience.Has(ctx, self.Redis, bid, candidate.AdvID)
@@ -274,21 +290,56 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	glog.Info("11: publish to nats")
 	elapsed := time.Since(current)
-	if err = self.Nc.Publish(SUBJECTRequest, bidStr); err == nil {
-		if err = self.Nc.Publish(SUBJECTResponse, rspnStr); err == nil {
-			if bidStr, err = json.Marshal(match.AttributePlus{
-				Attribute: *attr,
-				RAdv:      one,
-				Elapsed:   time.Duration(elapsed.Milliseconds()),
-			}); err == nil {
-				err = self.Nc.Publish(SUBJECTAttribute, bidStr)
-				self.Nc.Flush()
-			}
-		}
-	}
-	if err != nil {
+	if self.Nc == nil {
+		glog.Info("nats unavailable: skipped bid audit publish")
+	} else if err = self.publishBidAudit(bidStr, rspnStr, attr, one, elapsed); err != nil {
 		glog.Infof("nats error: %v", err)
 	}
+}
+
+func validateBidRequest(bid *openrtb2.BidRequest) error {
+	if bid == nil {
+		return fmt.Errorf("bid request is nil")
+	}
+	if len(bid.Imp) == 0 {
+		return fmt.Errorf("bid request has no impressions")
+	}
+	if bid.Device == nil {
+		return fmt.Errorf("bid request has no device")
+	}
+	return nil
+}
+
+func (self *Controller) publishWinLoss(bs []byte) error {
+	if self.Nc == nil {
+		return nil
+	}
+	return self.Nc.Publish(SUBJECTWinLoss, bs)
+}
+
+func (self *Controller) publishBidAudit(bidStr, rspnStr []byte, attr *match.Attribute, one match.RAdv, elapsed time.Duration) error {
+	if self.Nc == nil {
+		return nil
+	}
+	if err := self.Nc.Publish(SUBJECTRequest, bidStr); err != nil {
+		return err
+	}
+	if err := self.Nc.Publish(SUBJECTResponse, rspnStr); err != nil {
+		return err
+	}
+	bs, err := json.Marshal(match.AttributePlus{
+		Attribute: *attr,
+		RAdv:      one,
+		Elapsed:   time.Duration(elapsed.Milliseconds()),
+	})
+	if err != nil {
+		return err
+	}
+	if err := self.Nc.Publish(SUBJECTAttribute, bs); err != nil {
+		return err
+	}
+	self.Nc.Flush()
+	return nil
 }
 
 func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +412,7 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
 			var bid bidID
 			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
-				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, status == StatusTrackImp, status == StatusTrackClk)
+				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, status == StatusTrackImp, status == StatusTrackClk)
 			}
 		}
 		if err != nil {
@@ -374,7 +425,7 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	if err != nil {
 		return err
 	}
-	return self.Nc.Publish(SUBJECTWinLoss, bs)
+	return self.publishWinLoss(bs)
 }
 
 // getPub returns the publisher string and object from the bid request

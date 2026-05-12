@@ -127,7 +127,7 @@ func (self *BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool)
 		imp.Refresh(when)
 	}
 	if isCli {
-		if !block.Cap.ValidPeriodImp(when, imp) {
+		if !block.Cap.ValidPeriodCli(when, cli) {
 			cli = NewFcap(when)
 		}
 		cli.Refresh(when)
@@ -141,7 +141,7 @@ func HashNameBothCap(pid string) string {
 }
 
 // MustRefreshBothCap reads bothcap from Redis and refreshes it. And write it back to Redis.
-func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, isImp bool, isCli bool) error {
+func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, cap Cap, isImp bool, isCli bool) error {
 	if !isImp && !isCli {
 		return nil
 	}
@@ -162,12 +162,7 @@ func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, 
 	} else {
 		bothcap = NewBothCap(when)
 	}
-	if isImp {
-		bothcap.Imp.Refresh(when)
-	}
-	if isCli {
-		bothcap.Cli.Refresh(when)
-	}
+	bothcap.Refresh(when, RAdv{Cap: cap}, isImp, isCli)
 
 	if data, err = bothcap.Pack(); err == nil {
 		err = conn.Do(ctx, radix.Cmd(nil, "HSET", key, itemIDStr, string(data)))

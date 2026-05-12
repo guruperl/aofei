@@ -18,6 +18,9 @@ local configs live at `etc/aofei.local.json` and `etc/summer.local.json`.
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go test ./dsp -run 'Test.*Smoke'
+
 ./scripts/aofei-local.sh status
 ```
 
@@ -26,6 +29,10 @@ Run the cache pipeline smoke, including Redis, NATS, and spread artifacts:
 ```bash
 ./scripts/aofei-cache-smoke.sh
 ```
+
+Run the bid-path smoke after `reset-sample` and Redis cache population. It uses
+`etc/samples/sample_bid.json`, the generated local DSP config, and Docker Redis
+to exercise `dsp.Controller.ServeBid` through `httptest`.
 
 The helper starts:
 
