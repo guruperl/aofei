@@ -154,8 +154,8 @@ M13.
     if win callbacks should drive spend.
   - Disposition: `M12 documented`.
 
-- `[+]` Medium: banner iframe responses do not embed DSP impression/click
-  trackers.
+- `[+]` Medium: banner iframe responses did not embed DSP impression/click
+  trackers at the time of the M12 review.
   - Evidence: `Creative.AdM` builds `impTrackers` and `clickTrackers` for
     native/native-video markup, but the banner branch returns only an iframe
     using creative content (`match/creative.go:246`, `match/creative.go:273`).
@@ -164,7 +164,9 @@ M13.
   - Recommended fix: product-scope banner measurement expectations, then either
     embed tracker pixels/click wrappers or document banner delivery as externally
     measured.
-  - Disposition: `M13 deferred`.
+  - Disposition: `M13 deferred`; later work added banner impression pixels and
+    `{CLICK_URL}` / `{LANDING_URL}` opt-in macros for careful click redirect
+    measurement without blindly wrapping iframe content.
 
 - `[+]` Low: focused tests do not yet cover the riskiest matching seams.
   - Evidence: current DSP tests cover controller options, bid ID packing, and
@@ -205,5 +207,5 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
   `memory-bank/status-M13.md`.
 - Evolution V3 records the review-to-refactor milestone handoff.
 - Post-review fixes expanded the documentation guard to future status/evolution
-  files, corrected the OpenRTB dependency memory, and documented the banner
-  tracker gap.
+  files, corrected the OpenRTB dependency memory, and later narrowed the banner
+  tracker gap with impression pixels plus opt-in click redirect macros.

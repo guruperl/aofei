@@ -1,7 +1,7 @@
 # Operational Commands
 
-This document covers the active local operational commands for M6. All commands
-use the Docker-generated DSP config:
+This document covers the active local operational commands. All commands use the
+Docker-generated DSP config:
 
 ```bash
 ./scripts/aofei-local.sh up
@@ -159,7 +159,9 @@ Modes:
 - `win`: call the win URL, then the impression tracker.
 - `loss`: call the loss URL.
 - `imp`: call only the impression tracker.
-- `clk`: call only the click tracker.
+- `clk`: call only the native click URL. Current native markup uses the DSP
+  `/clk` redirect URL as `link.url`; the simulator falls back to legacy native
+  `clicktrackers` only when `link.url` is absent.
 - omitted mode: randomly choose win/impression/click or loss.
 
 Inputs:
@@ -167,7 +169,7 @@ Inputs:
 - Running local DSP HTTP server at `server_url` from `AOFEI`.
 - Redis cache populated for the sample bid request.
 - Bid response containing at least one seat bid, one bid, native markup, one
-  impression tracker, and one click tracker.
+  impression tracker, and one native click URL.
 
 Outputs:
 

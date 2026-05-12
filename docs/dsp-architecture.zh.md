@@ -1,6 +1,9 @@
 # DSP 架构说明
 
-本文件由根目录 `introduction.md` 移入 `docs/`，作为现有 DSP 架构背景资料保留。
+本文件由根目录 `introduction.md` 移入 `docs/`，作为历史 DSP 架构背景资料保留。
+当前可执行的英文运行文档以 `docs/dsp-workflow.md`、`docs/multiple-cache.md`、
+`docs/openrtb-measurement.md` 和 `docs/production-runbook.md` 为准；本文件不再作为
+部署或缓存契约的权威来源。
 
 ### 引言  
 在数字广告生态系统中，DSP通过实时竞价广告库存发挥着关键作用。本文将介绍构建该DSP的架构和技术考量。  

@@ -13,7 +13,7 @@ a new runtime contract.
 | `GET` | `/win` | `dsp.Controller.ServeWinLoss` | Record an exchange win callback. |
 | `GET` | `/loss` | `dsp.Controller.ServeWinLoss` | Record an exchange loss callback. |
 | `GET` | `/imp` | `dsp.Controller.ServeWinLoss` | Record an impression tracker callback and refresh impression caps. |
-| `GET` | `/clk` | `dsp.Controller.ServeWinLoss` | Record a click tracker callback and refresh click caps. |
+| `GET` | `/clk` | `dsp.Controller.ServeWinLoss` | Record a click callback, refresh click caps, and redirect when a valid `redirect` target is present. |
 
 `ServeBid` reads and limits the request body, unmarshals
 `openrtb2.BidRequest`, validates that at least one impression and a device are
@@ -83,9 +83,9 @@ spend.
 - Ledger spend depends on the impression tracker firing; a win callback alone
   is not billable in the current aggregation code.
 - Cap refresh runs on `/imp` and `/clk`, not on `/win` or `/loss`.
-- Banner iframe responses embed DSP impression pixels but do not embed or
-  rewrite click tracking. Banner click measurement still requires creative or
-  landing-flow integration.
+- Banner iframe responses embed DSP impression pixels. Banner click redirect
+  measurement requires the creative content URL/template to opt in with
+  `{CLICK_URL}`; arbitrary iframe contents are not wrapped or rewritten.
 - Multi-impression requests can produce partial responses. Impressions skipped
   for targeting, unsupported currency, or missing cache entries have no bid and
   no attribute audit record.

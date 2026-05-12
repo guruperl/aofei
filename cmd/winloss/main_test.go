@@ -36,9 +36,9 @@ func TestExtractBidResponseTrackersValidatesShape(t *testing.T) {
 			want: "missing impression trackers",
 		},
 		{
-			name: "missing click tracker",
+			name: "missing click URL",
 			rsp:  responseWithADM(`{"native":{"imptrackers":["http://example.test/imp"],"link":{}}}`),
-			want: "missing click trackers",
+			want: "missing click URL",
 		},
 	}
 
@@ -53,12 +53,22 @@ func TestExtractBidResponseTrackersValidatesShape(t *testing.T) {
 }
 
 func TestExtractBidResponseTrackersValidResponse(t *testing.T) {
-	trackers, err := extractBidResponseTrackers(responseWithADM(`{"native":{"imptrackers":["http://example.test/imp"],"link":{"clicktrackers":["http://example.test/click"]}}}`))
+	trackers, err := extractBidResponseTrackers(responseWithADM(`{"native":{"imptrackers":["http://example.test/imp"],"link":{"url":"http://example.test/click"}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if trackers.nurl.String() == "" || trackers.lurl.String() == "" || trackers.imp.String() == "" || trackers.click.String() == "" {
 		t.Fatalf("expected all tracker URLs, got %#v", trackers)
+	}
+}
+
+func TestExtractBidResponseTrackersFallsBackToLegacyClickTracker(t *testing.T) {
+	trackers, err := extractBidResponseTrackers(responseWithADM(`{"native":{"imptrackers":["http://example.test/imp"],"link":{"clicktrackers":["http://example.test/click"]}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trackers.click.String() == "" {
+		t.Fatalf("expected legacy click tracker fallback, got %#v", trackers)
 	}
 }
 

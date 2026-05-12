@@ -99,6 +99,14 @@ Install the package command binaries:
   systemd-oriented production runbook.
 - [docs/database-baseline.md](docs/database-baseline.md): schema baseline and
   drift rules.
+- [docs/multiple-cache.md](docs/multiple-cache.md): Redis, NATS/spread,
+  disk-snapshot, and in-process static-cache roles plus likely bottlenecks.
+- [docs/dsp-workflow.md](docs/dsp-workflow.md): current OpenRTB bid workflow,
+  static/mutable cache reads, response construction, and click redirect flow.
+- [docs/openrtb-measurement.md](docs/openrtb-measurement.md): win/loss,
+  impression, click, NATS log, and ledger measurement behavior.
+- [docs/audience-matching.md](docs/audience-matching.md): attribute extraction,
+  audience predicates, cache contracts, and matching order.
 - [docs/operational-commands.md](docs/operational-commands.md): local
   operational command contracts for logs, ledger, spread, win/loss simulation,
   and MaxMind inventory.

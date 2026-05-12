@@ -41,7 +41,9 @@ Goal: resolve the implementation and design backlog found during M12.
   - Decision: format precedence is native, then video, then banner.
   - Result: size/format resolution and creative markup branch on impression
     format, not app/web context. App banner returns banner iframe markup.
-    Banner markup embeds impression pixels but does not rewrite click tracking.
+    Banner markup embeds impression pixels. Later click-redirect work lets
+    banner creatives opt in with `{CLICK_URL}` without blindly wrapping iframe
+    content.
   - Tests: `match/attribute_m13_test.go`, `match/creative_m13_test.go`.
 
 - `[+]` Product-scope uploaded-audience candidate priority.
@@ -99,3 +101,7 @@ Goal: resolve the implementation and design backlog found during M12.
 - `[+]` Avoid forcing MaxMind lookup solely because UTC offset is zero.
   Zero remains a valid visitor offset; IP fallback is triggered by missing geo
   IDs instead.
+- `[+]` Add careful click redirect handling after the cache review. Native
+  markup now uses `/clk?...&redirect=<landing>` as the primary click link with a
+  direct fallback URL, and banner creative content can opt in through
+  `{CLICK_URL}` / `{LANDING_URL}` macros.

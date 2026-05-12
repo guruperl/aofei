@@ -1,5 +1,5 @@
 // this simulates traffic to the dsp, as if it were an adx. It then sends a win or loss, 50% of each.
-// If it wins, it sends an impression tracker as well, plus the 50% chance of a click tracker.
+// If it wins, it sends an impression tracker as well, plus the 50% chance of a click URL.
 package main
 
 import (
@@ -189,12 +189,16 @@ func extractBidResponseTrackers(bidResponse *openrtb2.BidResponse) (*bidResponse
 	if native.Link == nil {
 		return nil, fmt.Errorf("bid response native markup missing link")
 	}
-	if len(native.Link.Clicktrackers) == 0 {
-		return nil, fmt.Errorf("bid response native markup missing click trackers")
+	clickURL := native.Link.URL
+	if clickURL == "" && len(native.Link.Clicktrackers) > 0 {
+		clickURL = native.Link.Clicktrackers[0]
 	}
-	clickObject, err := dsp.UnpackURLString(native.Link.Clicktrackers[0])
+	if clickURL == "" {
+		return nil, fmt.Errorf("bid response native markup missing click URL")
+	}
+	clickObject, err := dsp.UnpackURLString(clickURL)
 	if err != nil {
-		return nil, fmt.Errorf("unpack click tracker: %w", err)
+		return nil, fmt.Errorf("unpack click URL: %w", err)
 	}
 
 	return &bidResponseTrackers{nurl: nurlObject, lurl: lurlObject, imp: impObject, click: clickObject}, nil

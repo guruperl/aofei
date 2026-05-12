@@ -83,8 +83,8 @@ impression.
 ## Creative And Response
 
 The selected creative is loaded from the local static cache or Redis `creative`.
-`match.Creative.AdM` expands landing, impression, and click tracker URLs and
-returns one of:
+`match.Creative.AdM` expands landing, impression, click redirect, and configured
+tracker URLs and returns one of:
 
 - default native image markup,
 - default native video markup,
@@ -134,5 +134,6 @@ returns no content.
 
 - Request, response, and attribute logs are best effort after response write.
 - Ledger spend is based on impression tracker records, not win records.
-- Redis is the production runtime cache path; spread/local snapshots are a
-  development and cache-propagation path that must remain contract-compatible.
+- Redis remains the shared mutable-state backend. Redis mode can also serve
+  static cache reads, while local/spread mode serves static publisher, slot,
+  audience, and creative data from in-process snapshots backed by spread files.

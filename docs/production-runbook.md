@@ -13,7 +13,7 @@ Long-running services:
 
 | Service | Binary | Purpose |
 |---|---|---|
-| `aofei-unify.service` | `cmd/unify` | HTTP admin, DSP bid, win, and loss endpoints. |
+| `aofei-unify.service` | `cmd/unify` | HTTP admin, DSP bid, win/loss, impression, and click endpoints. |
 | `aofei-nats-client.service` | `cmd/nats-client` | Consumes NATS log subjects into interval files. |
 | `aofei-spread.service` | `cmd/spread` | Persists spread/cache NATS messages to files. |
 
@@ -28,8 +28,8 @@ Scheduled or manual jobs:
 External dependencies:
 
 - MySQL for schema, admin data, campaign data, and ledger tables.
-- Redis for runtime DSP cache reads.
-- NATS for log and spread/cache message transport.
+- Redis for mutable DSP state and Redis-mode static cache reads.
+- NATS for best-effort log transport and spread/cache snapshot distribution.
 - MaxMind GeoLite2 City `.mmdb` file stored outside the repository.
 - Static document root, upload directory, template directory, and log
   directories owned by the deployment.
@@ -144,7 +144,9 @@ Smoke checks:
 - `cmd/unify` listens on `ServerPort` and serves expected admin/static paths.
 - DSP bid endpoint returns the expected local or staging fixture response.
 - Redis contains `pubmap`, `audience`, `creative`, and `slot:<size_id>` cache
-  families after cache population.
+  families after cache population when Redis static-cache mode is used.
+- In local/spread static-cache mode, spread files exist and bid nodes have
+  loaded a current in-process static generation.
 - NATS log subjects are written into the configured log directories.
 - No unexpected HTTP 403 appears for configured admin origins.
 
@@ -187,12 +189,17 @@ Redis requirements:
 
 - Persistence and eviction policy are operational decisions.
 - Monitor memory, connected clients, command errors, and key counts.
-- Repopulate cache after flushes, failover, or schema/data changes.
+- Repopulate static cache after flushes, failover, or schema/data changes when
+  Redis static-cache mode is used.
+- Keep mutable-state key families such as `bothcap:<user_id>` and
+  `upload:<adv_id>:<marker>` protected from accidental static-cache flushes.
 
 NATS requirements:
 
 - Provide the URL in `AOFEI`.
 - Monitor service availability, subscription health, and dropped messages.
+- Run `spread` on nodes that use local/spread static-cache mode so static
+  snapshots can be persisted and reloaded.
 - Restart `nats-client` and `spread` after NATS outages if subscriptions do not
   recover cleanly.
 

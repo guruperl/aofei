@@ -101,7 +101,7 @@ GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./genelet
 config. Genelet DB-backed tests use the generated Summer `ConnectArray` and
 skip explicitly when `SUMMER` is unset or Docker MySQL is unavailable.
 
-## Redis Cache
+## Cache Population
 
 Run the full cache smoke workflow:
 
@@ -112,7 +112,9 @@ Run the full cache smoke workflow:
 The smoke helper resets sample data, flushes Redis, populates Redis, reads Redis
 through application code, starts the spread receiver, publishes spread cache
 messages, runs combined mode, and checks for expected Redis keys and spread
-artifact directories.
+artifact directories. Redis is also the mutable-state backend for caps and
+uploaded audiences; local/spread bid mode can serve static publisher, slot,
+audience, and creative reads from in-process snapshots backed by spread files.
 
 Populate Redis from MySQL:
 
@@ -239,7 +241,7 @@ starts and consumes live NATS cache messages.
 
 ## Operational Commands
 
-The active M6 command contracts live in
+The active command contracts live in
 [operational-commands.md](operational-commands.md). In short:
 
 ```bash
