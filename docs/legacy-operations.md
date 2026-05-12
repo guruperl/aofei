@@ -1,9 +1,16 @@
 # Legacy Operations Notes
 
 This file was moved from the old root `README.md`. It is retained as historical
-reference only. The current local workflow is documented in the root
-[`README.md`](../README.md), [`docs/local-docker-runtime.md`](local-docker-runtime.md),
-and [`docs/database-baseline.md`](database-baseline.md).
+reference only and is not an active production or local-development runbook.
+The current production entry point is
+[`docs/production-runbook.md`](production-runbook.md). The current local
+workflow is documented in the root [`README.md`](../README.md),
+[`docs/local-docker-runtime.md`](local-docker-runtime.md), and
+[`docs/database-baseline.md`](database-baseline.md).
+
+Do not copy credentials, service units, database commands, paths, or dependency
+versions from this file into active deployments without revalidating them
+against the current runbooks.
 
 ## Original Notes
 

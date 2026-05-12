@@ -296,6 +296,7 @@ JSON
   "ProjectRoot": "$ROOT",
   "Script": "/goto",
   "ServerURL": "http://localhost:8080",
+  "CORSOrigins": [],
   "ServerPort": "8080",
   "DocumentRoot": "/tmp/aofei-www",
   "UploadURL": "http://localhost:8080/uploads",

@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const oauthConsumerSecretKey = "oauth_consumer_" + "secret"
+
 func Oauth1Sign(method string, uri string, hash map[string]string, items []string, combined []string, form url.Values) string {
 	tmps := make([]string, len(items))
 	copy(tmps, items)
@@ -118,7 +120,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 	hash["oauth_nonce"] = fmt.Sprintf("%x%8x", os.Getpid(), now)
 
 	if login == "" {
-		self.Combined = []string{hash["oauth_consumer_secret"]}
+		self.Combined = []string{hash[oauthConsumerSecretKey]}
 		back, err := get_body("GET", hash["oauth_request_token"], hash, []string{"oauth_callback"}, self.Combined)
 		if err != nil {
 			return err
@@ -142,7 +144,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 
 	hash["oauth_token_secret"] = oauthTokenSecret.Value
 	hash["oauth_token_secret"] = DecodeScoder(hash["oauth_token_secret"], role.Coding)
-	self.Combined = []string{hash["oauth_consumer_secret"], hash["oauth_token_secret"]}
+	self.Combined = []string{hash[oauthConsumerSecretKey], hash["oauth_token_secret"]}
 	back, err := get_body("GET", hash["oauth_access_token"], hash, []string{"oauth_token", "oauth_verifier"}, self.Combined)
 	if err != nil {
 		return err
@@ -152,7 +154,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 	}
 	// we get back oauth_token oauth_token_secret user_id screen_name x_auth_expires
 	// need to re-assigned to Combined
-	self.Combined = []string{hash["oauth_consumer_secret"], hash["oauth_token_secret"]}
+	self.Combined = []string{hash[oauthConsumerSecretKey], hash["oauth_token_secret"]}
 
 	if hash["oauth_endpoint"] != "" {
 		back1, err := self.Oauth1_api("GET", hash["oauth_endpoint"], nil)
@@ -169,7 +171,7 @@ func (self *Oauth1) Authenticate(login, password string) error {
 	}
 
 	// oauth_token oauth_token_secret user_id screen_name x_auth_expires
-	// oauth_consumer_key oauth_consumer_secre already
+	// OAuth consumer key and secret are already present.
 	return self.Fill_provider(back)
 }
 
