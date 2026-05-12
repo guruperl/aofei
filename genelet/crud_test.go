@@ -1,7 +1,6 @@
 package genelet
 
 import (
-	"database/sql"
 	"net/url"
 	"testing"
 )
@@ -117,10 +116,8 @@ import (
 	}
 */
 func TestCrudDb(t *testing.T) {
-	db, err := sql.Open("mysql", "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test?multiStatements=true")
-	if err != nil {
-		panic(err)
-	}
+	db := openTestDB(t)
+	defer db.Close()
 	crud := NewCrud(db, "atesting", nil)
 
 	crud.ExecSQL(`drop table if exists atesting`)

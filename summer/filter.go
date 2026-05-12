@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,14 @@ import (
 
 type Filter struct {
 	genelet.Filter
+}
+
+func CleanUploadName(file string) (string, error) {
+	name := filepath.Base(file)
+	if name != file || name == "." || name == string(filepath.Separator) {
+		return "", fmt.Errorf("invalid upload filename")
+	}
+	return name, nil
 }
 
 var TABLES = map[string][]string{
@@ -370,18 +379,22 @@ func (self *Filter) After(model *Model) error {
 		if file == "" {
 			return fmt.Errorf("uploaded file is not found")
 		}
+		file, err := CleanUploadName(file)
+		if err != nil {
+			return err
+		}
 		advID, err := strconv.ParseUint(ARGS.Get("adv_id"), 10, 32)
 		if err != nil {
 			return fmt.Errorf("adv_id should be a number")
 		}
-		dest := self.C.UploadDir + "/" + ARGS.Get("adv_id")
+		dest := filepath.Join(self.C.UploadDir, ARGS.Get("adv_id"))
 		err = os.MkdirAll(dest, 0755)
 		if err != nil {
 			return err
 		}
-		dest += "/" + file
+		dest = filepath.Join(dest, file)
 
-		err = os.Rename(self.C.UploadDir+"/"+file, dest)
+		err = os.Rename(filepath.Join(self.C.UploadDir, file), dest)
 		if err != nil {
 			return err
 		}

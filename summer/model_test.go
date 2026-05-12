@@ -20,7 +20,7 @@ func TestModelExternal(t *testing.T) {
 
 	model := new(Model)
 	model.DB = db
-	model.CurrentTable = "testing"
+	model.CurrentTable = "testing_summer"
 	model.SORTBY = "sortby"
 	model.SORTREVERSE = "sortreverse"
 	model.PAGENO = "pageno"
@@ -34,11 +34,11 @@ func TestModelExternal(t *testing.T) {
 	if ret != nil {
 		t.Errorf("create table testing_f failed %s", ret.Error())
 	}
-	ret = model.ExecSQL(`drop table if exists testing`)
+	ret = model.ExecSQL(`drop table if exists testing_summer`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
-	ret = model.ExecSQL(`CREATE TABLE testing (id int(10) unsigned NOT NULL, email varchar(255) not null, address_id int(10) unsigned DEFAULT NULL, active enum('Yes','No','New') default 'New', primary key (id))`)
+	ret = model.ExecSQL(`CREATE TABLE testing_summer (id int(10) unsigned NOT NULL, email varchar(255) not null, address_id int(10) unsigned DEFAULT NULL, active enum('Yes','No','New') default 'New', primary key (id))`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
@@ -55,6 +55,8 @@ func TestModelExternal(t *testing.T) {
 	model.SetDefaults(args, &lists, &other, storage)
 
 	model.CurrentKey = "id"
+	addressTables = append(addressTables, "testing_summer")
+	defer func() { addressTables = addressTables[:len(addressTables)-1] }()
 	model.InsertPars = []string{"id", "email", "address_id"}
 	model.EditPars = []string{"id", "email", "address_id", "active"}
 	model.UpdatePars = []string{"id", "email", "address_id"}
@@ -64,10 +66,7 @@ func TestModelExternal(t *testing.T) {
 	args["contact_email"] = args["email"]
 	args["company"] = []string{"b_company"}
 
-	err = model.Randomid("testing", "id", 100, 200, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	args["id"] = []string{"160"}
 	err = model.Insert(extra...)
 	if err != nil {
 		t.Fatal(err)
@@ -121,10 +120,8 @@ func TestModelExternal(t *testing.T) {
 		t.Errorf("%v", lists)
 	}
 
-	if _, err = db.Exec("DROP TABLE testing"); err == nil {
-		if _, err = db.Exec("DELETE FROM add_address WHERE address_id>=21"); err == nil {
-			_, err = db.Exec("ALTER TABLE add_address AUTO_INCREMENT=21")
-		}
+	if _, err = db.Exec("DROP TABLE testing_summer"); err == nil {
+		_, err = db.Exec("DELETE FROM add_address WHERE address_id=?", addressID)
 	}
 	if err != nil {
 		t.Errorf("%v", err)
@@ -181,9 +178,9 @@ func TestModelSummer(t *testing.T) {
 	model.SetDefaults(args, &lists, &other, storage)
 
 	model.CurrentKey = "slot_id"
-	model.EditPars = []string{"slot_id", "site_id", "slot_name", "size_id", "qa_device", "qa_position", "fl_expnd", "channel_order", "created", "active"}
+	model.EditPars = []string{"slot_id", "site_id", "slot_name", "qa_device", "qa_position", "fl_expnd", "channel_order", "created", "active"}
 
-	args["slot_id"] = []string{"125"}
+	args["slot_id"] = []string{"25"}
 	err = model.Edit(extra...)
 
 	if err != nil {
@@ -191,10 +188,9 @@ func TestModelSummer(t *testing.T) {
 	}
 
 	one := lists[0]
-	if one["size_id"].(int64) != 5 ||
-		one["active"].(string) != "Yes" ||
-		one["slot_name"].(string) != "slot 125" ||
-		one["slot_id"].(int64) != 125 ||
+	if one["active"].(string) != "Yes" ||
+		one["slot_name"].(string) != "defaultSlot" ||
+		one["slot_id"].(int64) != 25 ||
 		one["site_id"].(int64) != 25 ||
 		one["qa_device"].(string) != "0" ||
 		one["qa_position"].(string) != "0" ||

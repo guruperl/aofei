@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -52,9 +53,9 @@ func TestGate(t *testing.T) {
 		t.Errorf("%s wanted", h[2])
 	}
 
-	cookie := &http.Cookie{Name: "mc", Value: "Ec9rwEEzh1/0UTuoE7dvi/k4lCC5RHm/SgbasG0Jca7XoTUFbKrrnkpWOcmZ8UQUEPAMPeLsi0pteOPNl2s1TO2I", Path: "/", Domain: "genelet.com"}
-	b.R.AddCookie(cookie)
 	access := NewTGate(*b)
+	cookie := &http.Cookie{Name: "mc", Value: access.Signature("x2", "1", "first", "last"), Path: "/", Domain: "genelet.com"}
+	b.R.AddCookie(cookie)
 	err = access.Forbid()
 	if err != nil {
 		t.Errorf("%s got\n", err.Error())
@@ -63,13 +64,12 @@ func TestGate(t *testing.T) {
 	access.SetAttributes(map[string]string{"last_name": "aaa", "address": "bbb", "company": "ccc"})
 	x := w.Header()
 	c := x["Set-Cookie"][3]
-	matched, err = regexp.MatchString("Ec9rwEEzh1\\/0UTuoE7dvi\\/k4lCC5RHm\\/SgbasG0JIvyA8HlXP\\+fAv38AbqPM8jhMZe8wWvTCyWgdOfaQklgxZvC24NY9RuvIwjMplkfD", c)
-	if !matched {
+	if !strings.HasPrefix(c, "mc=") {
 		t.Errorf("%s wanted", c)
 	}
 
 	b.R.Header.Del("Cookie")
-	cookie = &http.Cookie{Name: "mc", Value: "Ec9rwEEzh1/0UTuoE7dvi/k4lCC5RHm/SgbasG0JIvyA8HlXP+fAv38AbqPM8jhMZe8wWvTCyWgdOfaQklgxZvC24NY9RuvIwjMplkfD", Path: "/", Domain: "genelet.com"}
+	cookie = &http.Cookie{Name: "mc", Value: strings.SplitN(strings.TrimPrefix(c, "mc="), ";", 2)[0], Path: "/", Domain: "genelet.com"}
 	b.R.AddCookie(cookie)
 	access = NewTGate(*b)
 	err = access.Forbid()

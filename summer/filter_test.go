@@ -17,7 +17,7 @@ func TestFilter(t *testing.T) {
 	filter.Component = "address"
 
 	var err error
-	filter.Base.C, err = genelet.NewConfig("../etc/aofei.local.json")
+	filter.Base.C, err = genelet.NewConfig("../etc/summer.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}

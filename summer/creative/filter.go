@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/genelet/winter/summer"
@@ -45,9 +46,9 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 		switch ARGS.Get("randomChoice") {
 		case "2", "3":
 			itemID := ARGS.Get("item_id")
-			dir := self.C.UploadDir + "/" + itemID
+			dir := filepath.Join(self.C.UploadDir, itemID)
 			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				if err = os.Mkdir(dir, 0755); err != nil {
+				if err = os.MkdirAll(dir, 0755); err != nil {
 					return err
 				}
 			}
@@ -62,8 +63,11 @@ func (self *Filter) Before(model *Model, extra url.Values, nextextra url.Values)
 				if file == "" {
 					continue
 				}
-				err := self.uploading(dir, itemID, file, "1")
+				file, err := summer.CleanUploadName(file)
 				if err != nil {
+					return err
+				}
+				if err := self.uploading(dir, itemID, file, "1"); err != nil {
 					return err
 				}
 			}
@@ -106,7 +110,11 @@ VALUES (?,?,?,?,?,NOW())`,
 func (self *Filter) uploading(dir, itemID, file, series string) error {
 	ARGS := self.R.Form
 
-	fh, err := os.Open(self.C.UploadDir + "/" + file)
+	file, err := summer.CleanUploadName(file)
+	if err != nil {
+		return err
+	}
+	fh, err := os.Open(filepath.Join(self.C.UploadDir, file))
 	if err != nil {
 		return err
 	}
@@ -131,7 +139,8 @@ func (self *Filter) uploading(dir, itemID, file, series string) error {
 		}
 	}
 
-	err = os.Rename(self.C.UploadDir+"/"+file, dir+"/"+file)
+	dest := filepath.Join(dir, file)
+	err = os.Rename(filepath.Join(self.C.UploadDir, file), dest)
 	if err != nil {
 		return err
 	}
@@ -140,7 +149,7 @@ func (self *Filter) uploading(dir, itemID, file, series string) error {
 	ARGS.Add("mime", mime)
 	ARGS.Add("series", series)
 	ARGS.Add("media", media)
-	ARGS.Add("disk", dir+"/"+file)
+	ARGS.Add("disk", dest)
 	switch ARGS.Get("randomChoice") {
 	case "2":
 		ARGS.Set("content", media)

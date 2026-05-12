@@ -35,6 +35,14 @@ type Model struct {
 	summer.Model
 }
 
+func (self *Model) accessTarget() (string, string, error) {
+	parts, ok := summer.TABLES[self.ARGS.Get("entitytype_id")]
+	if !ok || len(parts) != 2 {
+		return "", "", fmt.Errorf("unknown entitytype_id %q", self.ARGS.Get("entitytype_id"))
+	}
+	return parts[0], parts[1], nil
+}
+
 func (self *Model) Delete(extra ...url.Values) error {
 	ARGS := self.ARGS
 
@@ -147,8 +155,12 @@ DELETE FROM ac WHERE entitytype_id=? AND entity_id=?`, ARGS.Get("entitytype_id")
 
 func (self *Model) UpdateOrder(extra ...url.Values) error {
 	ARGS := self.ARGS
+	table, idname, err := self.accessTarget()
+	if err != nil {
+		return err
+	}
 
-	err := self.DoSQL(`
+	err = self.DoSQL(`
 DELETE FROM ac
 WHERE entitytype_id=? AND entity_id=?`,
 		ARGS.Get("entitytype_id"), ARGS.Get("entity_id"))
@@ -157,17 +169,21 @@ WHERE entitytype_id=? AND entity_id=?`,
 	}
 
 	return self.DoSQL(`
-UPDATE `+ARGS.Get("table")+`
+UPDATE `+table+`
 SET access_order=?
-WHERE `+ARGS.Get("idname")+`=?`,
+WHERE `+idname+`=?`,
 		ARGS.Get("access_order"), ARGS.Get("entity_id"))
 }
 
 func (self *Model) getAccessOrder() error {
 	ARGS := self.ARGS
+	table, idname, err := self.accessTarget()
+	if err != nil {
+		return err
+	}
 	return self.GetArgs(ARGS, `
-SELECT access_order FROM `+ARGS.Get("table")+`
-WHERE `+ARGS.Get("idname")+`=?`, ARGS.Get("entity_id"))
+SELECT access_order FROM `+table+`
+WHERE `+idname+`=?`, ARGS.Get("entity_id"))
 }
 
 func (self *Model) Topics(extra ...url.Values) error {
@@ -225,13 +241,17 @@ func (self *Model) Startnew(extra ...url.Values) error {
 	if ARGS.Get("access_order") == "Inherit" {
 		return nil
 	}
+	_, idname, err := self.accessTarget()
+	if err != nil {
+		return err
+	}
 
 	err = self.SelectSQL(self.LISTS, `
 SELECT campaign_id, ANY_VALUE(campaign_name) AS campaign_name,
 	ANY_VALUE(adv_id) AS adv_id, ANY_VALUE(adv_name) AS adv_name,
 	ANY_VALUE(othertype_id) AS othertype_id, ANY_VALUE(other_id) AS other_id,
 	ANY_VALUE(ac_id) AS ac_id
-FROM ViewSlotOpen WHERE `+ARGS.Get("idname")+`=?
+FROM ViewSlotOpen WHERE `+idname+`=?
 GROUP BY campaign_id`, ARGS.Get("entity_id"))
 	if err != nil {
 		return err

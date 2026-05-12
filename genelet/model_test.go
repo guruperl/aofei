@@ -1,21 +1,18 @@
 package genelet
 
 import (
-	"database/sql"
 	"net/url"
 	"strconv"
 	"testing"
 )
 
 func TestModelSimple(t *testing.T) {
-	db, err := sql.Open("mysql", "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test")
-	if err != nil {
-		panic(err)
-	}
+	db := openTestDB(t)
+	defer db.Close()
 
 	model := new(Model)
 	model.DB = db
-	model.CurrentTable = "testing"
+	model.CurrentTable = "genelet_model_testing"
 	model.SORTBY = "sortby"
 	model.SORTREVERSE = "sortreverse"
 	model.PAGENO = "pageno"
@@ -25,11 +22,11 @@ func TestModelSimple(t *testing.T) {
 	model.FIELD = "field"
 	model.EMPTIES = "empties"
 
-	ret := model.ExecSQL(`drop table if exists testing`)
+	ret := model.ExecSQL(`drop table if exists genelet_model_testing`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
-	ret = model.ExecSQL(`CREATE TABLE testing (id int auto_increment, x varchar(255), y varchar(255), primary key (id))`)
+	ret = model.ExecSQL(`CREATE TABLE genelet_model_testing (id int auto_increment, x varchar(255), y varchar(255), primary key (id))`)
 	if ret != nil {
 		t.Errorf("create table testing failed %s", ret.Error())
 	}
@@ -151,7 +148,7 @@ func TestModelSimple(t *testing.T) {
 		t.Errorf("%s %d wanted", ret.Error(), model.Affected)
 	}
 
-	model.ExecSQL(`truncate table testing`)
+	model.ExecSQL(`truncate table genelet_model_testing`)
 	delete(args, "id")
 	for i := 1; i < 100; i++ {
 		delete(args, "id")
@@ -251,5 +248,4 @@ func TestModelSimple(t *testing.T) {
 			t.Errorf("%d %s delete id failed", i, x["id"].(string))
 		}
 	}
-	db.Close()
 }

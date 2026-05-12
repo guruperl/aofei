@@ -1,17 +1,12 @@
 package genelet
 
 import (
-	"database/sql"
 	"testing"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 func TestProcedure(t *testing.T) {
-	db, err := sql.Open("mysql", "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test")
-	if err != nil {
-		panic(err)
-	}
+	db := openTestDB(t)
+	defer db.Close()
 	dbi := &DBI{DB: db}
 
 	dbi.ExecSQL(`drop procedure if exists proc_w`)
@@ -66,5 +61,4 @@ func TestProcedure(t *testing.T) {
 	dbi.ExecSQL(`drop procedure if exists proc_w`)
 	dbi.ExecSQL(`drop procedure if exists proc_w_resultset`)
 	dbi.ExecSQL(`drop table if exists letters`)
-	db.Close()
 }

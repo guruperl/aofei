@@ -34,6 +34,16 @@ Run the bid-path smoke after `reset-sample` and Redis cache population. It uses
 `etc/samples/sample_bid.json`, the generated local DSP config, and Docker Redis
 to exercise `dsp.Controller.ServeBid` through `httptest`.
 
+Run the admin compatibility checks against Docker MySQL:
+
+```bash
+GOWORK=off SUMMER="$PWD/etc/summer.local.json" \
+  go test ./summer ./summer/pub ./summer/slot
+
+GOWORK=off SUMMER="$PWD/etc/summer.local.json" \
+  go test ./genelet
+```
+
 The helper starts:
 
 - MySQL `mysql:8.0.41` on `127.0.0.1:3307`

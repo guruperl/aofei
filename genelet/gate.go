@@ -121,7 +121,7 @@ func (self *Gate) GetAttributes(ref map[string]string) error {
 	for i, a := range role.Attributes {
 		if i == 0 {
 			ref[a] = login
-		} else if len(groups) >= i {
+		} else if len(groups) > i-1 {
 			ref[a] = groups[i-1]
 		}
 	}
@@ -156,7 +156,7 @@ func (self *Gate) SetAttributes(ref map[string]string) error {
 		n_value, ok := ref[role.Attributes[i]]
 		if ok {
 			new_groups[i-1] = n_value
-		} else if len(groups) >= i {
+		} else if len(groups) > i-1 {
 			new_groups[i-1] = groups[i-1]
 		} else {
 			new_groups[i-1] = ""

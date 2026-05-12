@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
@@ -18,6 +19,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 )
+
+const maxUploadBytes = 32 << 20
 
 type Controller struct {
 	C       *Config
@@ -177,16 +180,28 @@ func (self *Controller) checkForm(r *http.Request, dir string) error {
 				scanner.Scan()
 				form.Add(fieldName, scanner.Text())
 			} else {
-				fullname := dir + "/" + fileName
+				cleanName := filepath.Base(fileName)
+				if cleanName != fileName || cleanName == "." || cleanName == string(filepath.Separator) {
+					return Err(1010, "invalid upload filename")
+				}
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return err
+				}
+				fullname := filepath.Join(dir, cleanName)
 				dst, err := os.Create(fullname)
 				if err != nil {
 					return err
 				}
 				defer dst.Close()
-				if _, err := io.Copy(dst, part); err != nil {
+				written, err := io.Copy(dst, io.LimitReader(part, maxUploadBytes+1))
+				if err != nil {
 					return err
 				}
-				form.Add(fieldName, fileName)
+				if written > maxUploadBytes {
+					_ = os.Remove(fullname)
+					return Err(1010, "upload file too large")
+				}
+				form.Add(fieldName, cleanName)
 			}
 			part.Close()
 		}

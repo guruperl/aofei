@@ -75,6 +75,20 @@ The generated Summer `Template` path is `.local/templates`. The directory is
 created so config validation has a local path, but admin UI template assets are
 not part of M1 runtime verification.
 
+## Admin Tests
+
+Run the Summer/Genelet admin compatibility checks against Docker MySQL:
+
+```bash
+./scripts/aofei-local.sh reset-sample
+GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./summer ./summer/pub ./summer/slot
+GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./genelet
+```
+
+`SUMMER` must point at `etc/summer.local.json`, not the lower-case `AOFEI`
+config. Genelet DB-backed tests use the generated Summer `ConnectArray` and
+skip explicitly when `SUMMER` is unset or Docker MySQL is unavailable.
+
 ## Redis Cache
 
 Run the full cache smoke workflow:

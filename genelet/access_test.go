@@ -34,10 +34,10 @@ func TestAccess(t *testing.T) {
 	if ac.Surface != "mc" {
 		t.Errorf("%s wanted", ac.Surface)
 	}
-	if ac.Coding != "jkfjowc29xgzymzg3dj5fq2w8z9vvrmb1owvnp9z4k96ttgx0r" {
+	if ac.Coding != "member-local-coding" {
 		t.Errorf("%s wanted", ac.Coding)
 	}
-	if ac.Secret != "***REMOVED***" {
+	if ac.Secret != "member-local-secret" {
 		t.Errorf("%s wanted", ac.Secret)
 	}
 	if ac.Domain != "genelet.com" {
@@ -89,8 +89,9 @@ func TestAccess(t *testing.T) {
 			t.Errorf("%s wanted but we got %v", "Ec9rwEEzh1/0UTuoE7dvi+lv1yvnF2niRA2N4yYNbq3RoCp4b/Par3EUdNGGqUwsHfg1O6jtk3IvLaPSuW8/",  r.Header["X-Forwarded-Raw"])
 		}
 	*/
-	if r.Header["X-Forwarded-Hash"][0] != "M2vfsmw5A|kDPI8K63ImKw-0uBE_" {
-		t.Errorf("%s wanted", "M2vfsmw5A|kDPI8K63ImKw-0uBE_")
+	wantHash := Digest(role.Secret, access.SetIP(), "x2", "g1|g2|g3", "360001")
+	if r.Header["X-Forwarded-Hash"][0] != wantHash {
+		t.Errorf("%s wanted", wantHash)
 	}
 
 	sig = access.Signature("x3", "g2", "g3", "g4")

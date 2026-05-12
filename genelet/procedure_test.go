@@ -34,10 +34,8 @@ func TestDbiProcedure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sql.Open("mysql", "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openTestDB(t)
+	defer db.Close()
 	req, err := http.NewRequest("GET", "http://example.com/foo?email=hello&passwd=world", nil)
 	if err != nil {
 		log.Fatal(err)
@@ -48,6 +46,7 @@ func TestDbiProcedure(t *testing.T) {
 	tticket := NewTProcedure(*b, db, "http://xxx.yyy.zzz/foo/bar", "db")
 	//issuer := tticket.C.Roles["m"].Issuers["db"]
 	db.Exec("DROP TABLE IF EXISTS user")
+	defer db.Exec("DROP TABLE IF EXISTS user")
 	db.Exec("CREATE TABLE `user` (   `m_id` int(11) NOT NULL AUTO_INCREMENT,   `email` varchar(255) DEFAULT NULL,   `passwd` varchar(255) DEFAULT NULL,   `first_name` varchar(255) DEFAULT NULL,   `last_name` varchar(255) DEFAULT NULL,   `address` varchar(255) DEFAULT NULL,   `company` varchar(255) DEFAULT NULL,   PRIMARY KEY (`m_id`) )")
 	db.Exec("INSERT INTO user (email, passwd, first_name, last_name, address, company) VALUES ('a','b','c','d','e','f')")
 	tticket.Uri = "asw"
@@ -81,5 +80,4 @@ func TestDbiProcedure(t *testing.T) {
 	if !matched {
 		// t.Errorf("%s wanted", h.Get("Set-Cookie"))
 	}
-	db.Close()
 }

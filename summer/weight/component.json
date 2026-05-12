@@ -23,6 +23,7 @@
   "current_tables":[
     {"name":"pub_weight", "alias":"w"},
     {"name":"adv_item", "alias":"i", "type":"INNER", "using":"item_id"},
+    {"name":"adv_creative", "alias":"v", "type":"INNER", "using":"item_id"},
     {"name":"adv_campaign", "alias":"c", "type":"INNER", "using":"campaign_id"}
   ],
 
@@ -31,7 +32,7 @@
     "w.item_id":"item_id",
     "w.weight":"weight",
     "w.slot_id":"slot_id",
-    "i.size_id":"size_id",
+    "v.size_id":"size_id",
     "CASE i.cost_type WHEN 'ROI' THEN 4 WHEN 'CPA' THEN 3 WHEN 'CPC' THEN 2 ELSE 1 END": "cost_type",
     "i.cost":"price",
     "UNIX_TIMESTAMP(i.endx)":"endx",

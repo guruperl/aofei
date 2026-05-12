@@ -21,7 +21,7 @@ func TestModel(t *testing.T) {
 	//    extra := []url.Values{url.Values{}}
 	model.SetDefaults(args, &lists, &other, storage)
 
-	if model.Nextpages["edit"][0]["model"] != "chbelong" {
+	if model.Nextpages["edit"][0]["model"] != "chac" {
 		t.Errorf("%v\n", model.Nextpages)
 	}
 }

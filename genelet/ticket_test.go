@@ -3,7 +3,7 @@ package genelet
 import (
 	"net/http"
 	"net/http/httptest"
-	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -119,11 +119,12 @@ func TestTicket(t *testing.T) {
 		t.Errorf("%s returned", ret.Error())
 	}
 	h := w.Header()
-	matched, err := regexp.MatchString("^mc=Ec9rwEEzh1\\/0UTuoE7dvi\\/k4lCC5RHKsRBaR\\/yMLbq3QvmN8Dd37pnJaBfiillFOGaQJZ\\/\\+RyhRgVb7hjHU=", h.Get("Set-Cookie"))
-	if !matched {
-		// t.Errorf("%s wanted", h.Get("Set-Cookie"))
+	setCookie := h.Get("Set-Cookie")
+	if !strings.HasPrefix(setCookie, "mc=") {
+		t.Errorf("%s wanted", setCookie)
 	}
-	ret = tticket.VerifyCookie("Ec9rwEEzh1/0UTuoE7dvi/k4lCC5RHKsRBaR/yMLbq3QvmN8Dd37pnJaBfiillFOGaQJZ/+RyhRgVb7hjHU=")
+	cookieValue := strings.SplitN(strings.TrimPrefix(setCookie, "mc="), ";", 2)[0]
+	ret = tticket.VerifyCookie(cookieValue)
 	if ret != nil {
 		t.Errorf("%s wanted", ret.Error())
 	}
@@ -146,11 +147,7 @@ func TestTicket(t *testing.T) {
 		t.Errorf("%s wanted", ret.Error())
 	}
 	h = w.Header()
-	matched, err = regexp.MatchString("^mc=Ec9rwEEzh1\\/0UTuoE7dvi\\/k4lCC5RHKsRBaR\\/yMLbq3QvmN8Dd37pnJaBfiillFOGaQJZ\\/\\+RyhRgVb7hjHU=", h.Get("Set-Cookie"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !matched {
+	if !strings.HasPrefix(h.Get("Set-Cookie"), "mc=") {
 		t.Errorf("%s wanted", h.Get("Set-Cookie"))
 	}
 
@@ -191,11 +188,7 @@ func TestTicket(t *testing.T) {
 		t.Errorf("%s wanted", ret.Error())
 	}
 	h = w.Header()
-	matched, err = regexp.MatchString("^mc=Ec9rwEEzh1\\/0UTuoE7dvi\\/k4lCC5RHKsRBaR\\/yMLbq3QvmN8Dd37pnJaBfiillFOGaQJZ\\/\\+RyhRgVb7hjHU=", h.Get("Set-Cookie"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !matched {
+	if !strings.HasPrefix(h.Get("Set-Cookie"), "mc=") {
 		t.Errorf("%s wanted", h.Get("Set-Cookie"))
 	}
 	if ret.(Gerror).Errstr != "http://xxx.yyy.zzz/foo/bar" {

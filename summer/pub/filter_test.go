@@ -12,13 +12,13 @@ import (
 
 func TestFilter(t *testing.T) {
 	filter := new(Filter)
-	comp := genelet.NewComponent("address/component.json")
+	comp := genelet.NewComponent("../address/component.json")
 	filter.Initialize(comp)
 	filter.Action = "insert"
 	filter.Component = "address"
 
 	var err error
-	filter.Base.C, err = genelet.NewConfig("../../etc/aofei.local.json")
+	filter.Base.C, err = genelet.NewConfig("../../etc/summer.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}

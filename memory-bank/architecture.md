@@ -39,6 +39,13 @@
 6. Bid/win/loss/log flows use Redis for runtime state and NATS/spread/log paths
    for message and log transport.
 
+## Admin Runtime Boundary
+
+Summer/Genelet admin code uses the generated `SUMMER` config and Docker MySQL.
+Admin tests that need a database read `etc/summer.local.json`; they must not use
+the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
+`Template`, and `UploadDir`.
+
 ## Active Configuration Boundary
 
 - `etc/aofei.json` and `etc/summer.json` are checked-in examples.
@@ -58,8 +65,6 @@ legacy definers or `eightran_*` auth references.
 
 - Full `go test ./...` is not yet the canonical verification target because
   historical Go files moved into `backup/` still appear as a Go package.
-- Bid-path Redis cache consumers still need deeper integration tests with seeded
-  sample data.
 - Production deployment notes are historical; the current supported workflow is
   local Docker development.
 - Runtime config parsing needs one validation/defaulting boundary across DSP

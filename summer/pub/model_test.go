@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/genelet/winter/genelet"
+	"github.com/genelet/winter/summer"
 )
 
 func TestModel(t *testing.T) {
@@ -19,15 +20,17 @@ func TestModel(t *testing.T) {
 	}
 
 	comp := genelet.NewComponent("component.json")
+	addressComp := genelet.NewComponent("../address/component.json")
 
 	model := new(Model)
 	model.DB = db
-	add := new(Model)
+	add := new(summer.Model)
 	add.DB = db
 	model.Initialize(comp)
-	add.Initialize(comp)
+	add.Initialize(addressComp)
+	model.Nextpages = nil
 
-	storage := map[string]interface{}{"pub": add}
+	storage := map[string]interface{}{"address": add}
 
 	ret := model.ExecSQL(`drop table if exists testing`)
 	if ret != nil {
@@ -44,6 +47,8 @@ func TestModel(t *testing.T) {
 	extra := []url.Values{{}}
 	model.SetDefaults(args, &lists, &other, storage)
 
+	model.CurrentTable = "testing"
+	model.CurrentTables = nil
 	model.CurrentKey = "id"
 	model.InsertPars = []string{"id", "email", "address_id"}
 	model.EditPars = []string{"id", "email", "address_id", "active"}
@@ -54,15 +59,12 @@ func TestModel(t *testing.T) {
 	args["contact_email"] = args["email"]
 	args["company"] = []string{"b_company"}
 
-	err = model.Randomid("testing", "id", 100, 200, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
+	args["id"] = []string{"160"}
 	err = model.Insert(extra...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := other["summer_Model_Insert"].([]map[string]interface{})
+	result := other["address_insert"].([]map[string]interface{})
 	if result[0]["company"].(string) != "b_company" {
 		t.Errorf("%v", other)
 	}

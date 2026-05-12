@@ -31,7 +31,7 @@ type Issuer struct {
 	Screen       int8
 	Sql          string
 	Sql_as       string
-	ProviderPars map[string]string
+	ProviderPars map[string]string `json:"Provider_pars"`
 	Credential   []string
 	InPars       []string
 	OutPars      []string

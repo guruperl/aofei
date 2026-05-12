@@ -62,6 +62,9 @@ SUMMER="$PWD/etc/summer.local.json"
 
 These files are local artifacts and are ignored by git.
 
+Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
+upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
+
 ## Schema Baseline Commands
 
 `etc/step4_init.sql` is the active schema and baseline-data contract. The local
@@ -153,6 +156,14 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
 GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 git diff --check
+```
+
+Admin compatibility verification:
+
+```bash
+./scripts/aofei-local.sh reset-sample
+GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./summer ./summer/pub ./summer/slot
+GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./genelet
 ```
 
 Schema baseline verification:

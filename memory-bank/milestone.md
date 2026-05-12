@@ -106,7 +106,7 @@ Result:
   covers the Redis-backed `ServeBid` path with local sample data and controlled
   malformed, oversized, and no-bid failure modes.
 
-## M5 - Summer/Genelet Admin Compatibility `[ ]`
+## M5 - Summer/Genelet Admin Compatibility `[+]`
 
 Align admin models, filters, and components with the active Docker schema.
 
@@ -122,6 +122,13 @@ Acceptance:
 - Admin model smoke tests run against the Docker schema.
 - Known admin/schema mismatches are either fixed or explicitly listed for later
   product decisions.
+
+Result:
+
+- Summer root/pub/slot model and filter tests and Genelet framework tests pass
+  against Docker MySQL via `SUMMER="$PWD/etc/summer.local.json"`.
+- Stale slot/weight schema assumptions were corrected; larger Genelet
+  query-builder hardening remains tracked as future architecture work.
 
 ## M6 - Ledger, Logs, And Operational Commands `[ ]`
 
