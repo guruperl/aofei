@@ -1,0 +1,93 @@
+# Audience Matching
+
+This document describes the current runtime matching model across attribute
+extraction, audience cache data, predicates, and known correctness risks.
+
+## Attribute Extraction
+
+`match.NewAttribute` requires a nonnil bid request, at least one impression, a
+device, and a publisher cache object. It is the compatibility wrapper for
+`imp[0]`; the bid path uses `match.NewAttributeForImp` to build one
+`match.Attribute` per impression:
+
+| Package | Runtime role |
+|---|---|
+| `advice` | Extract device type, make/platform, OS, and OS version from OpenRTB device fields and user-agent fallback. |
+| `demo` | Extract gender, year-of-birth bucket, and language from `user`, `wlang`, and device language fields. |
+| `dh` | Convert request time plus OpenRTB geo UTC-offset minutes into day, hour, and weekday predicates. Stored audience UTC-offset values keep the existing enum contract. |
+| `maxmind` | Copy OpenRTB geo fields and enrich missing geo fields from configured IP search data, including IP fallback when `device.geo` is absent. |
+| `acl` | Extract publisher, web/app site type, site/app, per-impression slot, category, and blocklist attributes. |
+| `match` | Combine all attributes with resolved `RPub`, size ID, native format, user ID, IFA, and app/video flags. |
+
+The user key used for frequency caps prefers `user.buyeruid`, then `user.id`,
+then IFA/device IDs, then an MD5 of IP plus user-agent when both are present.
+
+## Audience Sources
+
+`match.DBGetAudience` builds a runtime `Audience` per active item. It combines:
+
+- `acl.ACLAudience` from advertiser, campaign, item, publisher/site/app, and
+  category access-control tables.
+- `dh.DHAudience` from `fullday`, `fullhour`, `weekday`, and `utcoffset`
+  targeting values.
+- `maxmind.GeoAudience` from country, state, DMA, city, ISP, zip, lon, lat, and
+  connection-type targeting.
+- `demo.DemoAudience` from gender, age/year bucket, and language targeting.
+- `advice.UaAudience` from OS, OS version, platform/browser, and device
+  targeting.
+- `uploaded.UploadAudience` from uploaded user/device identifier sets in Redis.
+
+Nil or empty subaudiences generally mean wildcard targeting. Uploaded audiences
+are different: when upload targeting is configured, every configured identifier
+type must be present in the bid and present in the advertiser upload set.
+
+## Cache Contracts
+
+Runtime matching reads these Redis families:
+
+| Family | Shape | Producer |
+|---|---|---|
+| `pubmap` | Hash keyed by publisher domain, gob-encoded `acl.Pub`. | `cmd/redis-cache` or Summer cache side effects. |
+| `slot:<size_id>` | Hash keyed by slot id, binary `match.RAdvs`. | `cmd/redis-cache` from active creatives and slots. |
+| `audience` | Hash keyed by item id, gob-encoded `match.Audience`. | `cmd/redis-cache` from active item targeting. |
+| `creative` | Hash keyed by creative id, gob-encoded `match.Creative`. | `cmd/redis-cache` from active creatives. |
+| `bothcap:<user_id>` | Hash keyed by item id, binary `match.BothCap`. | Tracker callbacks on `/imp` and `/clk`. |
+| `upload:<adv_id>:<marker>` | Redis set of uploaded identifier values. | Upload/admin flows. |
+
+Spread/local snapshot mode mirrors the same data under `.local/spread/`:
+
+- `pubmap/<domain>`
+- `slot/<size_id>/<slot_id>`
+- `audience/<item_id>`
+- `creative/<creative_id>`
+
+Redis and IO modes treat missing audience entries as wildcard matches. Malformed
+audience payloads still fail matching because they indicate cache corruption.
+
+## Matching Order
+
+The current bid path applies filters in this order:
+
+1. Resolve publisher/site/slot and creative size for each impression.
+2. Load `RAdvs` for `size_id` and `slot_id`.
+3. Filter candidates by frequency caps.
+4. Load audiences for the remaining candidates.
+5. First try uploaded-audience direct matches.
+6. If no uploaded direct match exists, run combined audience predicates.
+7. Pick a candidate using bid-floor/cost/weight math.
+8. Load the creative and render response markup.
+
+`Audience.Has` evaluates geo, demo, user-agent, date/hour, and ACL predicates.
+If a candidate has no audience object, both Redis and spread/IO modes treat it
+as matching.
+
+## Known Correctness Risks
+
+- Uploaded-audience direct matches intentionally form a priority tier. If any
+  uploaded match exists, otherwise eligible non-upload candidates are not
+  considered for that impression.
+- Currency conversion is not implemented. Empty or `USD` floors are accepted;
+  unsupported currencies produce no bid for that impression.
+- `dh` visitor-local offsets are OpenRTB minutes, while stored advertiser
+  timezone overrides remain the legacy enum values shown in the admin target
+  list.

@@ -301,3 +301,47 @@ Acceptance:
   data, and cache side effects use typed storage helpers.
 - `docs/genelet-manual.md` and `docs/summer-ui-structure.md` describe the
   current framework/operator contracts.
+
+## M12 - OpenRTB And Audience Matching Review `[+]`
+
+Run a documentation-first review of the OpenRTB bid path, attribute extraction,
+audience matching, cache contracts, selection, and measurement flow.
+
+Scope:
+
+- Review `advice`, `demo`, `dh`, `maxmind`, `acl`, `match`, and `dsp`.
+- Document request, response, win, loss, impression, click, NATS, log, and
+  ledger flow.
+- Document attribute extraction, audience data sources, matching predicates, and
+  Redis/spread cache contracts.
+- Record findings with severity, evidence, impact, recommended fix, and
+  disposition.
+- Do not refactor runtime code, schema, Redis/spread payloads, or production
+  config shape in this pass.
+
+Acceptance:
+
+- `memory-bank/status-M12.md` contains the review findings and verification.
+- `docs/openrtb-measurement.md`, `docs/audience-matching.md`, and
+  `docs/dsp-workflow.md` describe the current behavior and known gaps.
+- Deferred implementation work is carried into M13 instead of being hidden in
+  prose.
+
+## M13 - OpenRTB And DSP Refactor Backlog `[X]`
+
+Resolve the concrete implementation and design work discovered during M12.
+
+Scope:
+
+- Fix or explicitly product-scope OpenRTB bid-path gaps from M12.
+- Add targeted tests around ACL, geo/date-hour enrichment, multi-impression
+  behavior, app/video/native rendering, uploaded audience priority, selection
+  math, spread cache publishing, and measurement edge cases.
+- Keep Redis/spread cache and OpenRTB wire contract changes explicit and
+  documented.
+
+Acceptance:
+
+- Each M12 deferred finding is fixed, cancelled with rationale, or carried
+  forward with a named owner milestone.
+- Behavior changes include focused tests and updated docs/memory bank entries.

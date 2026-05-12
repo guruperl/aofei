@@ -16,5 +16,5 @@ Relevant existing project context at the time of this prompt:
 - Docker MySQL is the active local database backend.
 - Docker Redis and Docker NATS are part of the local runtime.
 - `etc/step4_init.sql` is the active schema/data baseline.
-- `conf/` has been retired in favor of active `etc/` files.
-- Legacy `eightran_*` MySQL users should not be active.
+- The retired root config directory has been replaced by active `etc/` files.
+- Legacy named MySQL users should not be active.

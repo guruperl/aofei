@@ -35,14 +35,13 @@ mapfile -t active_docs < <(
 			README.md \
 			AGENTS.md \
 			docs/*.md \
-			evolution/README.md \
 			memory-bank/product.md \
 			memory-bank/architecture.md \
 			memory-bank/tech-stack.md \
-			memory-bank/milestone.md \
-			memory-bank/status-M10.md \
-			memory-bank/status-M11.md 2>/dev/null
+			memory-bank/milestone.md 2>/dev/null
 		find docs -maxdepth 1 -name '*.md' -print
+		find evolution -maxdepth 1 -name '*.md' -print
+		find memory-bank -maxdepth 1 -name 'status-M*.md' -print
 	} | sort -u | grep -v '^docs/legacy-operations\.md$'
 )
 

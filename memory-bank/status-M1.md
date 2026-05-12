@@ -144,4 +144,4 @@ Verified on 2026-05-12.
 - `GOWORK=off go test ./genelet -run '^TestConfig$'` passed after isolating the
   Genelet fixture from legacy DB/auth keys.
 - Follow-up review findings were closed by making `dsp` config tests
-  self-contained and by removing the stale root `ref.sql` baseline fallback.
+  self-contained and by removing the stale root SQL baseline fallback.

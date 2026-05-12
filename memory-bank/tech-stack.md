@@ -15,7 +15,7 @@ from this checkout under that parent workspace.
 - MySQL driver: `github.com/go-sql-driver/mysql`
 - Redis client: `github.com/mediocregopher/radix/v4`
 - NATS client: `github.com/nats-io/nats.go`
-- OpenRTB: `github.com/mxmCherry/openrtb/v17`
+- OpenRTB: `github.com/prebid/openrtb/v20`
 - Logging: `go.uber.org/zap`
 - Geo/IP and user agent helpers: local `maxmind/`, `github.com/mssola/user_agent`
 
