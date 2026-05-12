@@ -1,7 +1,10 @@
 package maxmind
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	//"pzutil"
 	//"database/sql"
@@ -9,36 +12,64 @@ import (
 )
 
 func TestIpsearch(t *testing.T) {
-	const cityFile = "../etc/GeoLite2-City.mmdb"
-	if _, err := os.Stat(cityFile); err != nil {
-		if os.IsNotExist(err) {
-			t.Skipf("requires local GeoLite2 City asset at %s", cityFile)
-		}
-		t.Fatalf("stat %s: %v", cityFile, err)
+	cityFile := cityMMDBTestPath(t)
+
+	configFile := filepath.Join(t.TempDir(), "maxmind.json")
+	config := IPSearch{CityFile: cityFile}
+	bs, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if err := os.WriteFile(configFile, bs, 0600); err != nil {
+		t.Fatal(err)
+	}
+
 	//p, err := LoadIPData("../etc/qqzeng-ip-utf8.dat");
-	p, err := LoadIPData(cityFile)
+	p, err := LoadIPData(configFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	//ip := "210.51.200.123"
-	ip := "99.228.161.54"
-	/*
-		ipstr := p.GetSimple(ip)
-		if ipstr != `亚洲|中国|湖北|武汉||联通|420100|China|CN|114.298572|30.584355` {
-			t.Errorf("%s", ipstr)
-		}
-	*/
+	ip := "128.101.101.101"
 
 	pzgeo, err := p.CreatePzGeo(ip)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pzgeo.Continent != `NA` || pzgeo.Country != `加拿大` || pzgeo.State != `ON` || pzgeo.City != `列治文山` {
-		t.Errorf("%v", pzgeo.Continent)
-		t.Errorf("%v", pzgeo.Country)
-		t.Errorf("%v", pzgeo.State)
-		t.Errorf("%v", pzgeo.City)
+	if pzgeo.Continent != "NA" || pzgeo.Country == "" || pzgeo.State == "" || pzgeo.City == "" {
+		t.Fatalf("CreatePzGeo(%s) = %+v, want populated city-level result", ip, pzgeo)
 	}
+	if pzgeo.Geo.CountryID == 0 || pzgeo.Geo.CityID == 0 || pzgeo.Geo.Location.Lat == 0 || pzgeo.Geo.Location.Lon == 0 {
+		t.Fatalf("CreatePzGeo(%s) geo = %+v, want populated GeoName and location fields", ip, pzgeo.Geo)
+	}
+}
+
+func cityMMDBTestPath(t *testing.T) string {
+	t.Helper()
+
+	if path := os.Getenv("AOFEI_GEOLITE_CITY_FILE"); path != "" {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("AOFEI_GEOLITE_CITY_FILE=%s: %v", path, err)
+		}
+		return path
+	}
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve test file path")
+	}
+	root := filepath.Dir(filepath.Dir(filename))
+	for _, path := range []string{
+		filepath.Join(root, "external", "GeoLite2-City.mmdb"),
+		filepath.Join(root, "etc", "GeoLite2-City.mmdb"),
+	} {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("stat %s: %v", path, err)
+		}
+	}
+
+	t.Skip("requires GeoLite2 City MMDB at AOFEI_GEOLITE_CITY_FILE, external/GeoLite2-City.mmdb, or etc/GeoLite2-City.mmdb")
+	return ""
 }

@@ -10,6 +10,7 @@ file; generated local configs normally use an absolute path to it.
 |---|---|---|
 | `etc/maxmind.json` | checked in | Runtime JSON with the City database path plus country/state ID maps. |
 | `/media/GeoLite2-City.mmdb` | external | Default City `.mmdb` source referenced by `city_file`. |
+| `external/GeoLite2-City.mmdb` | external/local | Optional downloaded City `.mmdb` used by asset-backed tests when present. |
 | `etc/GeoLite2-City.mmdb` | ignored | Optional local test copy for `maxmind` package lookup tests. |
 | `etc/qq-pz.dat` | ignored | Optional legacy local test data for `maxmind/ipsearch`. |
 
@@ -46,9 +47,20 @@ Full package tests skip asset-backed lookups when local files are absent:
 GOWORK=off go test ./maxmind ./maxmind/ipsearch
 ```
 
+`maxmind` package asset-backed tests look for the City `.mmdb` in this order:
+
+1. `AOFEI_GEOLITE_CITY_FILE`
+2. `external/GeoLite2-City.mmdb`
+3. `etc/GeoLite2-City.mmdb`
+
+The test creates a temporary runtime JSON wrapper around the `.mmdb`, matching
+the `LoadIPData` contract.
+
 Run asset-backed checks explicitly when the optional files exist:
 
 ```bash
-test -f etc/GeoLite2-City.mmdb && GOWORK=off go test ./maxmind -run TestIpsearch
+AOFEI_GEOLITE_CITY_FILE="$PWD/external/GeoLite2-City.mmdb" \
+  GOWORK=off go test ./maxmind -run TestIpsearch
+
 test -f etc/qq-pz.dat && GOWORK=off go test ./maxmind/ipsearch -run TestIpsearch
 ```
