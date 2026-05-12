@@ -242,5 +242,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss win
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
 ```
 
-`cmd/maxmind` is inventoried and build-verified in M6. Validation of the
-external City `.mmdb` payload remains M7 scope.
+`cmd/maxmind` reads Docker MySQL country/state tables and atomically writes the
+configured `ips` JSON path, normally `etc/maxmind.json`. The external City
+`.mmdb` payload is referenced by path only; see
+[maxmind-runtime.md](maxmind-runtime.md) for geodata asset and test details.

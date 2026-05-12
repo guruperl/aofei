@@ -41,6 +41,9 @@
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files, and `cmd/ledger` consumes `winloss.<stamp>` files into
    interval and daily ledger tables.
+8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
+   regenerates the configured MaxMind runtime JSON without loading the existing
+   geodata file first.
 
 ## Admin Runtime Boundary
 
@@ -55,6 +58,10 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
 - `etc/aofei.local.json` and `etc/summer.local.json` are generated local files
   and must remain ignored.
 - `etc/maxmind.json` is the active MaxMind config reference.
+- `etc/maxmind.json` references an external GeoLite2 City `.mmdb` through
+  `city_file`, currently `/media/GeoLite2-City.mmdb`.
+- Real geodata payloads are external runtime/test assets. `etc/GeoLite2-City.mmdb`
+  and `etc/qq-pz.dat` are ignored and must not be committed.
 - `conf/` is no longer active and should not be recreated.
 - Operational commands use the generated `AOFEI` config. `cmd/ledger`,
   `cmd/winloss`, and `cmd/maxmind` disable controller NATS and MaxMind startup

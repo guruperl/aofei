@@ -1,12 +1,12 @@
 # Status M7 - MaxMind And Geo Runtime
 
-Milestone status: `[ ]` Pending
+Milestone status: `[+]` Completed
 
 Goal: Make geodata expectations explicit and locally testable.
 
 ## Tasks
 
-- `[ ]` Inspect active MaxMind config.
+- `[+]` Inspect active MaxMind config.
   - Files: `etc/maxmind.json`, `maxmind/*`, `maxmind/ipsearch/*`.
   - Command:
     ```bash
@@ -14,7 +14,7 @@ Goal: Make geodata expectations explicit and locally testable.
     ```
   - Acceptance: every configured path and data source is understood.
 
-- `[ ]` Identify external geodata assets that are not in git.
+- `[+]` Identify external geodata assets that are not in git.
   - Files: `etc/maxmind.json`, `.gitignore`, `docs/maxmind-runtime.md`.
   - Command:
     ```bash
@@ -22,7 +22,7 @@ Goal: Make geodata expectations explicit and locally testable.
     ```
   - Acceptance: required external files are listed with expected local paths.
 
-- `[ ]` Verify maxmind package tests that do not require external assets.
+- `[+]` Verify maxmind package tests that do not require external assets.
   - Files: `maxmind/*_test.go`, `maxmind/ipsearch/*_test.go`.
   - Command:
     ```bash
@@ -30,7 +30,7 @@ Goal: Make geodata expectations explicit and locally testable.
     ```
   - Acceptance: packages compile without external assets or blockers are exact.
 
-- `[ ]` Run available MaxMind tests with current local assets.
+- `[+]` Run available MaxMind tests with current local assets.
   - Files: `maxmind/*_test.go`, `maxmind/ipsearch/*_test.go`.
   - Command:
     ```bash
@@ -39,13 +39,13 @@ Goal: Make geodata expectations explicit and locally testable.
   - Acceptance: passing tests are recorded; failing tests identify missing
     assets or schema/config mismatch.
 
-- `[ ]` Add skips or fixture paths for asset-dependent tests.
+- `[+]` Add skips or fixture paths for asset-dependent tests.
   - Files: `maxmind/*_test.go`, `maxmind/ipsearch/*_test.go`,
     `docs/maxmind-runtime.md`.
   - Acceptance: tests fail only for real code problems, not absent proprietary
     or large local assets.
 
-- `[ ]` Verify `cmd/maxmind` build and local invocation.
+- `[+]` Verify `cmd/maxmind` build and local invocation.
   - Files: `cmd/maxmind/main.go`, `etc/maxmind.json`.
   - Command:
     ```bash
@@ -54,13 +54,13 @@ Goal: Make geodata expectations explicit and locally testable.
     ```
   - Acceptance: command requirements are known and documented.
 
-- `[ ]` Create MaxMind runtime documentation.
+- `[+]` Create MaxMind runtime documentation.
   - Files: `docs/maxmind-runtime.md`, `README.md`,
     `memory-bank/tech-stack.md`.
   - Acceptance: docs explain config file, external assets, ignored paths, and
     test commands.
 
-- `[ ]` Run M7 verification.
+- `[+]` Run M7 verification.
   - Command:
     ```bash
     GOWORK=off go test ./maxmind ./maxmind/ipsearch ./cmd/maxmind -run '^$'
@@ -71,24 +71,24 @@ Goal: Make geodata expectations explicit and locally testable.
 
 ## Review Findings
 
-- `[ ]` Make MaxMind asset-dependent tests explicit. Current full tests expect
+- `[+]` Make MaxMind asset-dependent tests explicit. Current full tests expect
   local GeoLite/IP data files that are not present in the repository.
 
-- `[ ]` Document or parameterize the active geodata path. `etc/maxmind.json`
+- `[+]` Document or parameterize the active geodata path. `etc/maxmind.json`
   points at an external `/media` database path.
 
-- `[ ]` Fix `cmd/maxmind` generation flow. The command creates a controller that
+- `[+]` Fix `cmd/maxmind` generation flow. The command creates a controller that
   loads configured IP data before generating or writing that target data.
 
-- `[ ]` Replace remaining panic-style error handling in the IP search path with
+- `[+]` Replace remaining panic-style error handling in the IP search path with
   returned errors or documented fatal command behavior.
 
 ### Second Review Pass - 2026-05-12
 
-- `[ ]` Make MaxMind data generation atomic. `cmd/maxmind` writes to the
+- `[+]` Make MaxMind data generation atomic. `cmd/maxmind` writes to the
   configured IP data path directly, so interrupted generation can corrupt the
   active runtime file.
 
-- `[ ]` Remove the existing-IP-data dependency from generation startup.
+- `[+]` Remove the existing-IP-data dependency from generation startup.
   `cmd/maxmind` still creates a DSP controller before generating data, which
   loads MaxMind state before the command has produced it.

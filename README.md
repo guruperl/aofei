@@ -8,6 +8,8 @@ baseline data needed to run the package locally.
 Current local development uses Docker MySQL, Docker Redis, and Docker NATS. The
 active database baseline is [etc/step4_init.sql](etc/step4_init.sql); generated
 local configs live at `etc/aofei.local.json` and `etc/summer.local.json`.
+MaxMind runtime config lives at `etc/maxmind.json`; real `.mmdb` and legacy
+geodata payloads are external ignored assets.
 
 ## Quick Start
 
@@ -40,6 +42,10 @@ GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./c
 See [docs/operational-commands.md](docs/operational-commands.md) for the local
 contracts for `cmd/ledger`, `cmd/nats-client`, `cmd/winloss`, `cmd/spread`, and
 `cmd/maxmind`.
+
+See [docs/maxmind-runtime.md](docs/maxmind-runtime.md) for the active
+`etc/maxmind.json` contract, expected external GeoLite2 City path, ignored
+local test assets, and MaxMind verification commands.
 
 Run the bid-path smoke after `reset-sample` and Redis cache population. It uses
 `etc/samples/sample_bid.json`, the generated local DSP config, and Docker Redis
@@ -88,6 +94,8 @@ Install the package command binaries:
 - [docs/operational-commands.md](docs/operational-commands.md): local
   operational command contracts for logs, ledger, spread, win/loss simulation,
   and MaxMind inventory.
+- [docs/maxmind-runtime.md](docs/maxmind-runtime.md): MaxMind config,
+  external geodata assets, generation, and test behavior.
 - [docs/dsp-architecture.zh.md](docs/dsp-architecture.zh.md): historical DSP
   architecture note in Chinese.
 - [docs/legacy-operations.md](docs/legacy-operations.md): historical manual

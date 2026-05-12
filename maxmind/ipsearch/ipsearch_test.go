@@ -1,6 +1,7 @@
 package ipsearch
 
 import (
+	"os"
 	"testing"
 	//"pzutil"
 	//"database/sql"
@@ -25,8 +26,15 @@ func TestDatabase(t *testing.T) {
 */
 
 func TestIpsearch(t *testing.T) {
+	const dataFile = "../../etc/qq-pz.dat"
+	if _, err := os.Stat(dataFile); err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("requires local legacy qq-pz.dat asset at %s", dataFile)
+		}
+		t.Fatalf("stat %s: %v", dataFile, err)
+	}
 	//p, err := LoadIpData("../../etc/qqzeng-ip-utf8.dat");
-	p, err := LoadIPData("../../etc/qq-pz.dat")
+	p, err := LoadIPData(dataFile)
 	if err != nil {
 		t.Fatal(err)
 	}

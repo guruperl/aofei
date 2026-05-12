@@ -163,7 +163,7 @@ Result:
 - Win/loss simulation validates no-bid and malformed native tracker responses
   before indexing response slices.
 
-## M7 - MaxMind And Geo Runtime `[ ]`
+## M7 - MaxMind And Geo Runtime `[+]`
 
 Make geodata expectations explicit and locally testable.
 
@@ -178,6 +178,17 @@ Acceptance:
 - Developers know which geo assets are required and where config points.
 - Geodata tests are either runnable locally or marked with explicit input
   requirements.
+
+Result:
+
+- `docs/maxmind-runtime.md` documents `etc/maxmind.json`, the external
+  GeoLite2 City `.mmdb` path, ignored local geodata assets, generation, and
+  verification commands.
+- `cmd/maxmind` now loads only DSP config/database access, generates the
+  country/state maps without loading existing MaxMind runtime data, and writes
+  the configured JSON atomically.
+- Asset-backed lookup tests skip explicitly when `etc/GeoLite2-City.mmdb` or
+  `etc/qq-pz.dat` is absent; compile and pure utility tests remain local-safe.
 
 ## M8 - Full Repository Test Hygiene `[ ]`
 

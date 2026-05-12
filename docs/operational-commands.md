@@ -190,12 +190,16 @@ Inputs:
 
 Outputs:
 
-- JSON written to the configured `ips` path, normally `etc/maxmind.json`.
+- JSON written atomically to the configured `ips` path, normally
+  `etc/maxmind.json`.
 
-M6 status:
+Notes:
 
-- The command is buildable and inventoried.
-- Full external MaxMind data-file validation is deferred to M7.
+- The command reads database country/state tables without loading the existing
+  MaxMind runtime JSON first.
+- The `-city` value is recorded as `city_file`; the `.mmdb` payload remains an
+  external asset and is not copied into the repository.
+- See [maxmind-runtime.md](maxmind-runtime.md) for asset and test details.
 
 ## Verification
 

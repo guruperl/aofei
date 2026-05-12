@@ -6,6 +6,7 @@ cmd/ledger/ledger
 cmd/redis/redis-cache
 cmd/winloss/winloss
 etc/GeoLite2-City.mmdb
+etc/qq-pz.dat
 etc/aofei.local.json
 etc/summer.local.json
 .local/

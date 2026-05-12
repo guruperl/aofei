@@ -1,6 +1,7 @@
 package maxmind
 
 import (
+	"os"
 	"testing"
 	//"pzutil"
 	//"database/sql"
@@ -8,8 +9,15 @@ import (
 )
 
 func TestIpsearch(t *testing.T) {
+	const cityFile = "../etc/GeoLite2-City.mmdb"
+	if _, err := os.Stat(cityFile); err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("requires local GeoLite2 City asset at %s", cityFile)
+		}
+		t.Fatalf("stat %s: %v", cityFile, err)
+	}
 	//p, err := LoadIPData("../etc/qqzeng-ip-utf8.dat");
-	p, err := LoadIPData("../etc/GeoLite2-City.mmdb")
+	p, err := LoadIPData(cityFile)
 	if err != nil {
 		t.Fatal(err)
 	}

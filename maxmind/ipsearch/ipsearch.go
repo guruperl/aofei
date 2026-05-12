@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -239,7 +240,7 @@ func DatabaseToDat(db *sql.DB, outfile string) error {
 		ids := Geo{continentID, countryID, stateID, dmaID, cityID, ispID, uint32(zip32), lat64, lon64}
 		length += 33 // 1+2+2+2+4+2
 		if length >= 255 {
-			panic(err)
+			return fmt.Errorf("ip location record for %s is too long: %d bytes", ipStart, length)
 		}
 		ind = append(ind, &ipIndex{ipStartNum, ipEndNum, uint32(total), uint32(length), ids, clean})
 

@@ -160,8 +160,26 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and
-`.local/logs/log_winloss/`. `cmd/maxmind` is buildable and inventoried in M6;
-full external City `.mmdb` validation remains M7 scope.
+`.local/logs/log_winloss/`. `cmd/maxmind` reads MySQL country/state tables and
+atomically writes the configured MaxMind JSON path, normally
+`etc/maxmind.json`.
+
+## MaxMind Assets
+
+`etc/maxmind.json` is the active geodata config reference. Its `city_file`
+currently points to the external GeoLite2 City database at
+`/media/GeoLite2-City.mmdb`.
+
+Ignored optional local assets:
+
+```bash
+etc/GeoLite2-City.mmdb
+etc/qq-pz.dat
+```
+
+Compile and pure-unit tests must pass without those files. Full lookup tests in
+`maxmind` and `maxmind/ipsearch` skip with explicit messages when the local
+assets are absent. Details live in `docs/maxmind-runtime.md`.
 
 ## Verification
 
@@ -171,6 +189,7 @@ Current smoke verification:
 bash -n scripts/aofei-cache-smoke.sh
 GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
 GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
+GOWORK=off go test ./maxmind ./maxmind/ipsearch
 GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
 GOWORK=off go test ./cmd/spread -run 'Test'
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
