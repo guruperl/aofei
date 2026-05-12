@@ -1,6 +1,12 @@
 package dsp
 
-import "testing"
+import (
+	"net/url"
+	"testing"
+	"time"
+
+	"github.com/genelet/winter/match"
+)
 
 func TestControllerOptionsCanDisableNATSAndMaxMindIndependently(t *testing.T) {
 	defaults := applyControllerOptions()
@@ -22,4 +28,24 @@ func TestControllerOptionsCanDisableNATSAndMaxMindIndependently(t *testing.T) {
 	if withoutBoth.nats || withoutBoth.maxmind {
 		t.Fatalf("without both = %+v, want both disabled", withoutBoth)
 	}
+}
+
+func TestServeStatusRejectsInvalidAuctionPrice(t *testing.T) {
+	err := (&Controller{}).serveStatus(nil, StatusWin, time.Now(), url.Values{
+		"auction_price": []string{"bad-price"},
+	})
+	if err == nil {
+		t.Fatal("expected invalid auction_price to return an error")
+	}
+}
+
+func TestPublishBidAuditNoNATSIsNoop(t *testing.T) {
+	err := (&Controller{}).publishBidAudit(nil, nil, nil, zeroRAdv(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func zeroRAdv() match.RAdv {
+	return match.RAdv{}
 }

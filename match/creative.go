@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"fmt"
+	"html"
 	"io"
 	"net/url"
 	"os"
@@ -264,13 +265,24 @@ func (self *Creative) AdM(attr *Attribute, impTracker, clickTracker string, macr
 	landing, _ := applyMacro(self.Landing, macroStandard, macroCustom)
 
 	w, h := SizeID1To2(self.SizeID)
-	if attr.NativeFormat != nil || attr.IsApp {
+	if attr.NativeFormat != nil {
 		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(landing, self.Failback, impTrackers, clickTrackers)
 	} else if attr.IsVideo {
 		return DefaultVideoNative(self.CreativeContent).AdM(landing, self.Failback, impTrackers, clickTrackers)
 	}
 
-	return fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, self.CreativeContent, w, h), nil
+	return bannerAdM(self.CreativeContent, w, h, impTrackers), nil
+}
+
+func bannerAdM(src string, w, h uint16, impTrackers []string) string {
+	adm := fmt.Sprintf(`<iframe src="%s" width="%d" height="%d" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" topmargin="0" leftmargin="0"></iframe>`, html.EscapeString(src), w, h)
+	for _, tracker := range impTrackers {
+		if tracker == "" {
+			continue
+		}
+		adm += fmt.Sprintf(`<img src="%s" width="1" height="1" style="display:none" alt="">`, html.EscapeString(tracker))
+	}
+	return adm
 }
 
 // applyMacro applies the macro to the URL.

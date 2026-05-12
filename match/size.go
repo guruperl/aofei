@@ -14,22 +14,35 @@ func SizeID1To2(sizeID uint32) (uint16, uint16) {
 
 // getSizeID returns the size ID from the bid request for banner, video, and native ads.
 func getSizeIDNative(bidRequest *openrtb2.BidRequest) (uint32, *NativeFormat, error) {
-	if banner := bidRequest.Imp[0].Banner; banner != nil {
-		if banner.W != nil && banner.H != nil {
-			return SizeID2To1(uint16(*banner.W), uint16(*banner.H)), nil, nil
-		}
+	return getSizeIDNativeForImp(&bidRequest.Imp[0])
+}
+
+// getSizeIDNativeForImp returns the size ID for one impression.
+func getSizeIDNativeForImp(imp *openrtb2.Imp) (uint32, *NativeFormat, error) {
+	if imp == nil {
+		return 0, nil, nil
 	}
-	if video := bidRequest.Imp[0].Video; video != nil {
-		if video.W != nil && video.H != nil {
-			return SizeID2To1(uint16(*video.W), uint16(*video.H)), nil, nil
-		}
-	}
-	if native := bidRequest.Imp[0].Native; native != nil {
+	if native := imp.Native; native != nil {
 		nt, err := NewNativeFormat(native)
 		if err != nil {
 			return 0, nil, err
 		}
-		return SizeID2To1(nt.GetSizes()), nt, nil
+		if nt != nil {
+			w, h := nt.GetSizes()
+			if w != 0 && h != 0 {
+				return SizeID2To1(w, h), nt, nil
+			}
+		}
+	}
+	if video := imp.Video; video != nil {
+		if video.W != nil && video.H != nil {
+			return SizeID2To1(uint16(*video.W), uint16(*video.H)), nil, nil
+		}
+	}
+	if banner := imp.Banner; banner != nil {
+		if banner.W != nil && banner.H != nil {
+			return SizeID2To1(uint16(*banner.W), uint16(*banner.H)), nil, nil
+		}
 	}
 	return 0, nil, nil
 }

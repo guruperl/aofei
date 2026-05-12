@@ -67,6 +67,33 @@ func TestHandleSpreadMessageCleanupSubject(t *testing.T) {
 	}
 }
 
+func TestHandleSpreadMessageMultipleSlotRefresh(t *testing.T) {
+	top := t.TempDir()
+	old := filepath.Join(top, "slot", "4194368", "10")
+	if err := os.MkdirAll(filepath.Dir(old), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(old, []byte("old"), 0644); err != nil {
+		t.Fatalf("write old file: %v", err)
+	}
+
+	for _, msg := range []*nats.Msg{
+		{Subject: "slot:4194368:10cleanup", Data: []byte("slot-10")},
+		{Subject: "slot:4194368:20", Data: []byte("slot-20")},
+	} {
+		handled, err := handleSpreadMessage(top, msg)
+		if err != nil {
+			t.Fatalf("handle %s: %v", msg.Subject, err)
+		}
+		if !handled {
+			t.Fatalf("expected %s to be handled", msg.Subject)
+		}
+	}
+
+	assertSpreadFile(t, filepath.Join(top, "slot", "4194368", "10"), "slot-10")
+	assertSpreadFile(t, filepath.Join(top, "slot", "4194368", "20"), "slot-20")
+}
+
 func TestHandleSpreadMessageDelete(t *testing.T) {
 	top := t.TempDir()
 	path := filepath.Join(top, "audience", "5")
@@ -104,5 +131,16 @@ func TestHandleSpreadMessageIgnoresSubjects(t *testing.T) {
 		if handled {
 			t.Fatalf("expected %s to be ignored", subject)
 		}
+	}
+}
+
+func assertSpreadFile(t *testing.T, path, want string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != want {
+		t.Fatalf("%s = %q, want %q", path, string(data), want)
 	}
 }

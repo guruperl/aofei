@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
@@ -376,9 +377,7 @@ func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash m
 		case radix.Client:
 			err = radvs.ToRedis(ctx, t, slotID, sizeID)
 		case *nats.Conn:
-			if i == 0 {
-				err = radvs.ToSpread(t, slotID, sizeID, true)
-			}
+			err = radvs.ToSpread(t, slotID, sizeID, i == 0)
 			i++
 		default:
 			err = fmt.Errorf("unsupported connection type: %T", conn)
@@ -607,33 +606,54 @@ func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, bid 
 	return blocks, trueAudiences, nil
 }
 
-func (self RAdv) GetItemWeight(bidFloor float64, bidFoorCur string) (float32, bool) {
-	var cpm float32
+func (self RAdv) ECPM() (float32, bool) {
 	switch self.CostType {
 	case 1:
-		cpm = 100.0 * self.Cost
+		return 100.0 * self.Cost, true
 	case 2:
-		cpm = self.Weight
+		return self.Cost, true
 	case 3:
-		cpm = 100.0 * self.Cost
+		return 100.0 * self.Cost, true
+	case 4:
+		return 0.01 * self.Cost, true
 	}
-	if cpm >= float32(bidFloor) {
+	return 0, false
+}
+
+func (self RAdv) GetItemWeight(bidFloor float64, bidFoorCur string) (float32, bool) {
+	if !supportedBidFloorCurrency(bidFoorCur) {
+		return 0.0, false
+	}
+	cpm, ok := self.ECPM()
+	if ok && cpm >= float32(bidFloor) {
 		return cpm, true
 	}
 	return 0.0, false
 }
 
 func (self RAdvs) PickIndex(bidFloor float64, bidFoorCur string) int {
+	index, _ := self.PickIndexPrice(bidFloor, bidFoorCur)
+	return index
+}
+
+func (self RAdvs) PickIndexPrice(bidFloor float64, bidFoorCur string) (int, float32) {
 	var weights []float32
+	var prices []float32
 	for _, block := range self {
 		weight, engage := block.GetItemWeight(bidFloor, bidFoorCur)
 		if engage {
 			weights = append(weights, weight*block.Weight)
+			prices = append(prices, weight)
 		} else {
 			weights = append(weights, 0.0)
+			prices = append(prices, 0.0)
 		}
 	}
-	return selectOne(weights)
+	index := selectOne(weights)
+	if index < 0 {
+		return -1, 0
+	}
+	return index, prices[index]
 }
 
 func selectOne(weights []float32) int {
@@ -641,6 +661,9 @@ func selectOne(weights []float32) int {
 	n := len(weights)
 	for i := 0; i < n; i++ {
 		total += weights[i]
+	}
+	if total <= 0 {
+		return -1
 	}
 	for i := 0; i < n; i++ {
 		weights[i] /= total
@@ -654,4 +677,9 @@ func selectOne(weights []float32) int {
 		}
 	}
 	return -1
+}
+
+func supportedBidFloorCurrency(cur string) bool {
+	cur = strings.TrimSpace(strings.ToUpper(cur))
+	return cur == "" || cur == "USD"
 }

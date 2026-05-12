@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -350,6 +351,9 @@ func (self RAdvs) AudiencesFromIO(top string) (Audiences, error) {
 	for i, radv := range self {
 		audience, err := AudienceFromIO(top, radv.ItemID)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return nil, err
 		}
 		audiences[i] = audience

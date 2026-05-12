@@ -6,15 +6,26 @@ import (
 )
 
 type DH struct {
-	Datetime  time.Time
-	FlyOffset uint8
+	Datetime      time.Time
+	FlyOffset     uint8
+	OffsetSeconds int
 }
 
-// NewDH returns a new DT from the give time and utc offset.
+// NewDH returns a new DT from the given time and stored UTC offset enum.
 func NewDH(t time.Time, utcoffset uint8) *DH {
+	seconds := offsetEnumSeconds(utcoffset)
 	return &DH{
-		Datetime:  t,
-		FlyOffset: utcoffset,
+		Datetime:      t,
+		FlyOffset:     utcoffset,
+		OffsetSeconds: seconds,
+	}
+}
+
+// NewDHFromMinutes returns a new DH from an OpenRTB UTC offset in minutes.
+func NewDHFromMinutes(t time.Time, utcOffsetMinutes int64) *DH {
+	return &DH{
+		Datetime:      t,
+		OffsetSeconds: int(utcOffsetMinutes) * 60,
 	}
 }
 
@@ -22,19 +33,12 @@ func NewDH(t time.Time, utcoffset uint8) *DH {
 // which is determined by IP in the bid request.
 // If demand-side has specified a UTC offset, use that timezone.
 func (self *DH) dhw(offsets ...uint8) (int, int, int) {
-	fly := self.FlyOffset
+	offsetSeconds := self.OffsetSeconds
 	if offsets != nil && offsets[0] != 0 {
-		fly = offsets[0]
+		offsetSeconds = offsetEnumSeconds(offsets[0])
 	}
-
-	utc := 0
-	if fly >= 1 && fly <= 13 {
-		utc = int(fly - 1)
-	} else if fly >= 14 && fly <= 24 {
-		utc = int(fly - 25)
-	}
-	zName := fmt.Sprintf("UTC%+d", utc)
-	loc := time.FixedZone(zName, utc*3600)
+	zName := fmt.Sprintf("UTC%+g", float64(offsetSeconds)/3600.0)
+	loc := time.FixedZone(zName, offsetSeconds)
 	localTime := self.Datetime.In(loc)
 	fullday := localTime.Day()
 	fullhour := localTime.Hour() + 1
@@ -43,6 +47,15 @@ func (self *DH) dhw(offsets ...uint8) (int, int, int) {
 		weekday = 7
 	}
 	return fullday, fullhour, weekday
+}
+
+func offsetEnumSeconds(fly uint8) int {
+	if fly >= 1 && fly <= 13 {
+		return int(fly-1) * 3600
+	} else if fly >= 14 && fly <= 24 {
+		return int(fly-25) * 3600
+	}
+	return 0
 }
 
 // dhNames returns the day, hour, and weekday names.

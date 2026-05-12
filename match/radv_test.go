@@ -110,3 +110,35 @@ func TestRAdvSelectOne(t *testing.T) {
 		t.Errorf("%v", probs)
 	}
 }
+
+func TestSelectOneAllZeroReturnsNoMatch(t *testing.T) {
+	if got := selectOne([]float32{0, 0}); got != -1 {
+		t.Fatalf("selectOne all zero = %d, want -1", got)
+	}
+}
+
+func TestRAdvECPMAndCurrencySelection(t *testing.T) {
+	radvs := RAdvs{
+		{Demand: Demand{ItemID: 1}, Weight: 1, CostType: 2, Cost: 1.5},
+		{Demand: Demand{ItemID: 2}, Weight: 1, CostType: 3, Cost: 0.02},
+		{Demand: Demand{ItemID: 3}, Weight: 1, CostType: 4, Cost: 400},
+	}
+
+	index, price := radvs.PickIndexPrice(2.0, "USD")
+	if index < 0 {
+		t.Fatalf("PickIndexPrice returned no match")
+	}
+	if price < 2.0 {
+		t.Fatalf("selected price = %f, want above floor", price)
+	}
+
+	index, price = radvs.PickIndexPrice(0, "EUR")
+	if index != -1 || price != 0 {
+		t.Fatalf("unsupported currency result = %d, %f; want no match", index, price)
+	}
+
+	index, price = RAdvs{{Weight: 1, CostType: 2, Cost: 0.5}}.PickIndexPrice(1.0, "")
+	if index != -1 || price != 0 {
+		t.Fatalf("below floor result = %d, %f; want no match", index, price)
+	}
+}

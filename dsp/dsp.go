@@ -9,11 +9,13 @@ import (
 
 type DSP struct {
 	bid       *openrtb2.BidRequest
+	impIndex  int
 	attribute *match.Attribute
 	one       match.RAdv
 	bothcap   *match.BothCap
 	creative  *match.Creative
 	audience  *match.Audience
+	bidPrice  float32
 	serverURL string
 }
 
@@ -27,12 +29,30 @@ func NewDSP(
 	audience *match.Audience,
 	serverURL string,
 ) *DSP {
+	price, _ := one.ECPM()
+	return NewDSPForImp(bid, 0, attribute, one, bothcap, creative, audience, price, serverURL)
+}
+
+// NewDSPForImp creates a DSP instance for one impression in a request.
+func NewDSPForImp(
+	bid *openrtb2.BidRequest,
+	impIndex int,
+	attribute *match.Attribute,
+	one match.RAdv,
+	bothcap *match.BothCap,
+	creative *match.Creative,
+	audience *match.Audience,
+	bidPrice float32,
+	serverURL string,
+) *DSP {
 	return &DSP{
 		bid:       bid,
+		impIndex:  impIndex,
 		attribute: attribute,
 		one:       one,
 		creative:  creative,
 		audience:  audience,
+		bidPrice:  bidPrice,
 		serverURL: serverURL,
 		bothcap:   bothcap,
 	}
@@ -40,7 +60,7 @@ func NewDSP(
 
 // impID returns the impID of the bid.
 func (self *DSP) impID() string {
-	return self.bid.Imp[0].ID
+	return self.bid.Imp[self.impIndex].ID
 }
 
 // adID returns the AdID of the bid.
@@ -66,6 +86,7 @@ func (self *DSP) rspndBidID() string {
 	return responseBidID{
 		When:       self.attribute.When.UnixNano(),
 		CreativeID: self.one.CreativeID,
+		ImpIndex:   uint32(self.impIndex),
 	}.String()
 }
 
@@ -95,17 +116,21 @@ func UnpackBidID(data string) (bidID, error) {
 type responseBidID struct {
 	When       int64
 	CreativeID uint32
+	ImpIndex   uint32
 }
 
 // Pack returns the packed string of responseBidID.
 func (self responseBidID) String() string {
-	return fmt.Sprintf("%16x%d", self.When, self.CreativeID)
+	return fmt.Sprintf("%16x%d:%d", self.When, self.CreativeID, self.ImpIndex)
 }
 
 // UnpackResponseBidID unpacks the responseBidID from the packed string.
 func UnpackResponseBidID(data string) (responseBidID, error) {
 	var seatBid responseBidID
-	_, err := fmt.Sscanf(data, "%16x%d", &seatBid.When, &seatBid.CreativeID)
+	_, err := fmt.Sscanf(data, "%16x%d:%d", &seatBid.When, &seatBid.CreativeID, &seatBid.ImpIndex)
+	if err != nil {
+		_, err = fmt.Sscanf(data, "%16x%d", &seatBid.When, &seatBid.CreativeID)
+	}
 	return seatBid, err
 }
 
@@ -115,7 +140,7 @@ func (self *DSP) WinLoss(StatusBid Status) *WinLoss {
 		StatusBid,
 		self.attribute.When,
 		self.attribute.RPub,
-		self.one,
+		self.billableRAdv(),
 		self.bothcap,
 		self.seat(),
 		self.bid.ID,
@@ -124,6 +149,13 @@ func (self *DSP) WinLoss(StatusBid Status) *WinLoss {
 		self.adID(),
 		self.serverURL,
 	)
+}
+
+func (self *DSP) billableRAdv() match.RAdv {
+	one := self.one
+	one.Cost = self.bidPrice
+	one.CostType = 2
+	return one
 }
 
 // NewBid returns the SeatBid for the bid response.
@@ -146,7 +178,7 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 	rspnsBid := openrtb2.Bid{
 		ID:    self.rspndBidID(),
 		ImpID: self.impID(),
-		Price: float64(one.Cost),
+		Price: float64(self.bidPrice),
 		NURL:  winloss.NURL(),
 		LURL:  winloss.LURL(),
 		AdM:   adm,
@@ -187,8 +219,8 @@ func (self *DSP) Macro() map[string]string {
 		app = &openrtb2.App{}
 	}
 	var imp openrtb2.Imp
-	if bid != nil && len(bid.Imp) > 0 {
-		imp = bid.Imp[0]
+	if bid != nil && self.impIndex >= 0 && self.impIndex < len(bid.Imp) {
+		imp = bid.Imp[self.impIndex]
 	}
 	var rpub match.RPub
 	var nativeFormat *match.NativeFormat

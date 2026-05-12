@@ -38,11 +38,19 @@ type AttributePlus struct {
 
 // NewAttribute creates a new Attribute from a bid request.
 func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, pubObj *acl.Pub, when time.Time, pubStr string) (*Attribute, error) {
+	return NewAttributeForImp(ctx, ipSearch, bidRequest, 0, pubObj, when, pubStr)
+}
+
+// NewAttributeForImp creates a new Attribute from one impression in a bid request.
+func NewAttributeForImp(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *openrtb2.BidRequest, impIndex int, pubObj *acl.Pub, when time.Time, pubStr string) (*Attribute, error) {
 	if bidRequest == nil {
 		return nil, fmt.Errorf("bid request is nil")
 	}
 	if len(bidRequest.Imp) == 0 {
 		return nil, fmt.Errorf("bid request has no impressions")
+	}
+	if impIndex < 0 || impIndex >= len(bidRequest.Imp) {
+		return nil, fmt.Errorf("impression index %d out of range", impIndex)
 	}
 	device := bidRequest.Device
 	if device == nil {
@@ -54,7 +62,7 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 
 	attr := &Attribute{
 		When:    when,
-		IsVideo: bidRequest.Imp[0].Video != nil,
+		IsVideo: bidRequest.Imp[impIndex].Video != nil,
 		IsApp:   bidRequest.App != nil,
 	}
 
@@ -82,12 +90,12 @@ func NewAttribute(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequest *o
 		attr.Geo = &maxmind.Geo{}
 	}
 
-	attr.DH = dh.NewDH(when, uint8(attr.Geo.Location.UTCOffset))
+	attr.DH = dh.NewDHFromMinutes(when, attr.Geo.Location.UTCOffset)
 	attr.PzUa = advice.NewOpenRTBPzUa(device)
-	attr.ACL = acl.NewOpenRTBACL(bidRequest, pubStr)
+	attr.ACL = acl.NewOpenRTBACLForImp(bidRequest, impIndex, pubStr)
 	d1, d2, d3 := pubObj.GetRPub(attr.ACL.SiteStr, attr.ACL.SlotStr, attr.IsApp)
 	attr.RPub = RPub{PubID: d1, SiteID: d2, SlotID: d3}
-	attr.RPub.SizeID, attr.NativeFormat, err = getSizeIDNative(bidRequest)
+	attr.RPub.SizeID, attr.NativeFormat, err = getSizeIDNativeForImp(&bidRequest.Imp[impIndex])
 	if err != nil {
 		return nil, err
 	}

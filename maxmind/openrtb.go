@@ -31,28 +31,32 @@ func (self *IPSearch) NewOpenRTBGeo(device *openrtb2.Device) (*Geo, error) {
 		if geo.Metro != "" {
 			pzg.DmaID = MetroMap[geo.Metro]
 		}
+	}
 
-		if device.IP != "" && (pzg.CountryID == 0 || pzg.StateID == 0) {
-			mm, err := self.CreatePzGeo(device.IP)
-			if err != nil {
-				return nil, err
-			}
-			if pzg.CountryID == 0 {
-				pzg.CountryID = mm.Geo.CountryID
-			}
-			if pzg.StateID == 0 {
-				pzg.StateID = mm.Geo.StateID
-			}
-			if pzg.CityID == 0 {
-				pzg.CityID = mm.Geo.CityID
-			}
-			if pzg.DmaID == 0 {
-				pzg.DmaID = mm.Geo.DmaID
-			}
-			if pzg.Location.UTCOffset == 0 {
-				pzg.Location.UTCOffset = mm.Geo.Location.UTCOffset
-			}
+	if device.IP != "" && needsIPGeo(pzg) {
+		mm, err := self.CreatePzGeo(device.IP)
+		if err != nil {
+			return nil, err
+		}
+		if pzg.CountryID == 0 {
+			pzg.CountryID = mm.Geo.CountryID
+		}
+		if pzg.StateID == 0 {
+			pzg.StateID = mm.Geo.StateID
+		}
+		if pzg.CityID == 0 {
+			pzg.CityID = mm.Geo.CityID
+		}
+		if pzg.DmaID == 0 {
+			pzg.DmaID = mm.Geo.DmaID
+		}
+		if pzg.Location.UTCOffset == 0 {
+			pzg.Location.UTCOffset = mm.Geo.Location.UTCOffset
 		}
 	}
 	return pzg, nil
+}
+
+func needsIPGeo(pzg *Geo) bool {
+	return pzg.CountryID == 0 || pzg.StateID == 0 || pzg.CityID == 0 || pzg.DmaID == 0
 }

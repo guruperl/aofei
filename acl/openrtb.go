@@ -10,6 +10,11 @@ import (
 
 // NewOpenRTBACL returns the acl object from the bid request.
 func NewOpenRTBACL(bidRequest *openrtb2.BidRequest, pubStr string) *ACL {
+	return NewOpenRTBACLForImp(bidRequest, 0, pubStr)
+}
+
+// NewOpenRTBACLForImp returns the acl object from the bid request for a single impression.
+func NewOpenRTBACLForImp(bidRequest *openrtb2.BidRequest, impIndex int, pubStr string) *ACL {
 	if pubStr == "" && bidRequest.Ext != nil {
 		hash := make(map[string]interface{})
 		if err := json.Unmarshal(bidRequest.Ext, &hash); err == nil {
@@ -22,8 +27,10 @@ func NewOpenRTBACL(bidRequest *openrtb2.BidRequest, pubStr string) *ACL {
 		pubStr = PUBDefault
 	}
 	siteStr := SITEDefaultWeb
+	siteType := SiteTypeWeb
 	if bidRequest.App != nil {
 		siteStr = SITEDefaultApp
+		siteType = SiteTypeAPP
 	}
 	slotStr := SLOTDefault
 
@@ -77,11 +84,12 @@ func NewOpenRTBACL(bidRequest *openrtb2.BidRequest, pubStr string) *ACL {
 			categories = append(categories, app.PageCat...)
 		}
 	}
-	if slotStr == SLOTDefault && bidRequest.Imp[0].TagID != "" {
-		slotStr = bidRequest.Imp[0].TagID
+	if slotStr == SLOTDefault && impIndex >= 0 && impIndex < len(bidRequest.Imp) && bidRequest.Imp[impIndex].TagID != "" {
+		slotStr = bidRequest.Imp[impIndex].TagID
 	}
 
 	a.PubStr = pubStr
+	a.SiteType = siteType
 	a.SiteStr = siteStr
 	a.SlotStr = slotStr
 	a.Categories = categories

@@ -45,6 +45,12 @@ type controllerOptions struct {
 	maxmind bool
 }
 
+type bidAudit struct {
+	Attr    *match.Attribute
+	One     match.RAdv
+	Elapsed time.Duration
+}
+
 // ControllerOption configures optional external services for a Controller.
 type ControllerOption func(*controllerOptions)
 
@@ -145,7 +151,6 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	current := time.Now()
 	ctx := r.Context()
-	c := self.C
 
 	bidStr, err := io.ReadAll(io.LimitReader(r.Body, maxBidRequestBodyBytes+1))
 	if err != nil {
@@ -180,145 +185,51 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	glog.Infof("1: bid domain: %s => pub id: %d", pubStr, pubObj.PubID)
-	attr, err := match.NewAttribute(ctx, self.Ips, bid, pubObj, current, pubStr)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-	width, height := match.SizeID1To2(attr.SizeID)
-
-	glog.Infof("2: size %d (%dx%d), siteID: %d, slotID: %d", attr.SizeID, width, height, attr.RPub.SiteID, attr.SlotID)
-	var monitors match.RAdvs
-	top := c.Spread
-	if c.IsLocal {
-		monitors, err = match.RAdvsFromIOBySizeIDSlotID(top, attr.SizeID, attr.RPub.SlotID)
-	} else {
-		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.SizeID, attr.RPub.SlotID)
-	}
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-	if len(monitors) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
-		return
-	}
-
-	userID := attr.UserID
-	glog.Infof("4: total # of candidates: %d", len(monitors))
-	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, userID)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-	if len(candidates) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("no ad after fcap for user %s", userID)
-		return
-	}
-
-	glog.Infof("5: total # after fcap: %d", len(candidates))
-	var audiences match.Audiences
-	if c.IsLocal {
-		audiences, err = candidates.AudiencesFromIO(top)
-	} else {
-		audiences, err = candidates.AudiencesFromRedis(ctx, self.Redis)
-	}
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-
-	var radvs match.RAdvs
-	var auds match.Audiences
-	// if we could find a direct match in the uploaded files
-	for i, candidate := range candidates {
-		aud := audiences[i]
-		if aud == nil || aud.UploadAudience == nil || aud.UploadAudience.Uploads == 0 {
+	var audits []bidAudit
+	var seatOrder []string
+	seatBids := make(map[string][]openrtb2.Bid)
+	responseBidID := ""
+	for impIndex := range bid.Imp {
+		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex)
+		if err != nil {
+			glog.Infof("imp %d: %v", impIndex, err)
 			continue
 		}
-		ok, err := aud.UploadAudience.Has(ctx, self.Redis, bid, candidate.AdvID)
+		seat := dspBid.seat()
+		if _, ok := seatBids[seat]; !ok {
+			seatOrder = append(seatOrder, seat)
+		}
+		winloss := dspBid.WinLoss(StatusBid)
+		rspnsBid, err := dspBid.NewBid(winloss)
 		if err != nil {
-			w.WriteHeader(http.StatusNoContent)
-			glog.Infof("%v", err)
-			return
+			glog.Infof("imp %d: %v", impIndex, err)
+			continue
 		}
-
-		if ok {
-			radvs = append(radvs, candidate)
-			auds = append(auds, aud)
+		if responseBidID == "" {
+			responseBidID = dspBid.bidID()
 		}
+		seatBids[seat] = append(seatBids[seat], rspnsBid)
+		audits = append(audits, audit)
 	}
-
-	if len(radvs) == 0 {
-		glog.Infof("direct match not found, try by audience")
-		radvs, auds, err = candidates.FilterByAudiences(ctx, self.Redis, bid, audiences, attr)
-		if err != nil {
-			w.WriteHeader(http.StatusNoContent)
-			glog.Infof("%v", err)
-			return
-		}
-		if len(radvs) == 0 {
-			w.WriteHeader(http.StatusNoContent)
-			glog.Infof("no ad after matching audience")
-			return
-		}
-	}
-
-	glog.Infof("6: total # after audience: %d and audieces # %d", len(radvs), len(auds))
-	index := radvs.PickIndex(bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
-	if index < 0 {
+	if len(audits) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("no ad to match for bid floor %f %s", bid.Imp[0].BidFloor, bid.Imp[0].BidFloorCur)
+		glog.Infof("no impression produced a bid")
 		return
 	}
 
-	one := radvs[index]
-	glog.Infof("7: index %d and campaign %d item %d creative %d", index, one.CampaignID, one.ItemID, one.CreativeID)
-	var bothcap *match.BothCap
-	if bothcaps != nil {
-		if b, ok := bothcaps[one.ItemID]; ok {
-			bothcap = &b
-		}
-	}
-	var creative *match.Creative
-	if c.IsLocal {
-		creative, err = match.CreativeFromIO(top, one.CreativeID)
-	} else {
-		creative, err = match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
-	}
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-
-	dsp := NewDSP(bid, attr, one, bothcap, creative, auds[index], self.C.ServerURL)
-	winloss := dsp.WinLoss(StatusBid)
-
-	glog.Info("8: BidSeat Bid")
-	rspnsBid, err := dsp.NewBid(winloss)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
-		return
-	}
-
-	glog.Info("9: rspnsBid")
-	response := &openrtb2.BidResponse{
-		ID:    bid.ID,
-		BidID: dsp.bidID(),
-		Cur:   "USD",
-		SeatBid: []openrtb2.SeatBid{{
-			Seat:  dsp.seat(),
+	var responseSeatBids []openrtb2.SeatBid
+	for _, seat := range seatOrder {
+		responseSeatBids = append(responseSeatBids, openrtb2.SeatBid{
+			Seat:  seat,
 			Group: 0,
-			Bid:   []openrtb2.Bid{rspnsBid},
-		}},
+			Bid:   seatBids[seat],
+		})
+	}
+	response := &openrtb2.BidResponse{
+		ID:      bid.ID,
+		BidID:   responseBidID,
+		Cur:     "USD",
+		SeatBid: responseSeatBids,
 	}
 
 	rspnStr, err := json.Marshal(response)
@@ -335,11 +246,109 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	glog.Info("11: publish to nats")
 	elapsed := time.Since(current)
+	for i := range audits {
+		audits[i].Elapsed = elapsed
+	}
 	if self.Nc == nil {
 		glog.Info("nats unavailable: skipped bid audit publish")
-	} else if err = self.publishBidAudit(bidStr, rspnStr, attr, one, elapsed); err != nil {
+	} else if err = self.publishBidAudits(bidStr, rspnStr, audits); err != nil {
 		glog.Infof("nats error: %v", err)
 	}
+}
+
+func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, impIndex int) (*DSP, bidAudit, error) {
+	attr, err := match.NewAttributeForImp(ctx, self.Ips, bid, impIndex, pubObj, current, pubStr)
+	if err != nil {
+		return nil, bidAudit{}, err
+	}
+	var monitors match.RAdvs
+	top := self.C.Spread
+	if self.C.IsLocal {
+		monitors, err = match.RAdvsFromIOBySizeIDSlotID(top, attr.SizeID, attr.RPub.SlotID)
+	} else {
+		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.SizeID, attr.RPub.SlotID)
+	}
+	if err != nil {
+		return nil, bidAudit{}, err
+	}
+	if len(monitors) == 0 {
+		return nil, bidAudit{}, fmt.Errorf("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
+	}
+
+	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, attr.UserID)
+	if err != nil {
+		return nil, bidAudit{}, err
+	}
+	if len(candidates) == 0 {
+		return nil, bidAudit{}, fmt.Errorf("no ad after fcap for user %s", attr.UserID)
+	}
+
+	var audiences match.Audiences
+	if self.C.IsLocal {
+		audiences, err = candidates.AudiencesFromIO(top)
+	} else {
+		audiences, err = candidates.AudiencesFromRedis(ctx, self.Redis)
+	}
+	if err != nil {
+		return nil, bidAudit{}, err
+	}
+
+	radvs, auds, err := self.priorityAudienceMatches(ctx, bid, candidates, audiences, attr)
+	if err != nil {
+		return nil, bidAudit{}, err
+	}
+	if len(radvs) == 0 {
+		return nil, bidAudit{}, fmt.Errorf("no ad after matching audience")
+	}
+
+	imp := bid.Imp[impIndex]
+	index, bidPrice := radvs.PickIndexPrice(imp.BidFloor, imp.BidFloorCur)
+	if index < 0 {
+		return nil, bidAudit{}, fmt.Errorf("no ad to match for bid floor %f %s", imp.BidFloor, imp.BidFloorCur)
+	}
+
+	one := radvs[index]
+	var bothcap *match.BothCap
+	if bothcaps != nil {
+		if b, ok := bothcaps[one.ItemID]; ok {
+			bothcap = &b
+		}
+	}
+	var creative *match.Creative
+	if self.C.IsLocal {
+		creative, err = match.CreativeFromIO(top, one.CreativeID)
+	} else {
+		creative, err = match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
+	}
+	if err != nil {
+		return nil, bidAudit{}, err
+	}
+
+	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, auds[index], bidPrice, self.C.ServerURL)
+	return dspBid, bidAudit{Attr: attr, One: one}, nil
+}
+
+func (self *Controller) priorityAudienceMatches(ctx context.Context, bid *openrtb2.BidRequest, candidates match.RAdvs, audiences match.Audiences, attr *match.Attribute) (match.RAdvs, match.Audiences, error) {
+	var radvs match.RAdvs
+	var auds match.Audiences
+	for i, candidate := range candidates {
+		aud := audiences[i]
+		if aud == nil || aud.UploadAudience == nil || aud.UploadAudience.Uploads == 0 {
+			continue
+		}
+		ok, err := aud.UploadAudience.Has(ctx, self.Redis, bid, candidate.AdvID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if ok {
+			radvs = append(radvs, candidate)
+			auds = append(auds, aud)
+		}
+	}
+	if len(radvs) != 0 {
+		return radvs, auds, nil
+	}
+	return candidates.FilterByAudiences(ctx, self.Redis, bid, audiences, attr)
 }
 
 func validateBidRequest(bid *openrtb2.BidRequest) error {
@@ -363,6 +372,14 @@ func (self *Controller) publishWinLoss(bs []byte) error {
 }
 
 func (self *Controller) publishBidAudit(bidStr, rspnStr []byte, attr *match.Attribute, one match.RAdv, elapsed time.Duration) error {
+	return self.publishBidAudits(bidStr, rspnStr, []bidAudit{{
+		Attr:    attr,
+		One:     one,
+		Elapsed: elapsed,
+	}})
+}
+
+func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAudit) error {
 	if self.Nc == nil {
 		return nil
 	}
@@ -372,16 +389,21 @@ func (self *Controller) publishBidAudit(bidStr, rspnStr []byte, attr *match.Attr
 	if err := self.Nc.Publish(SUBJECTResponse, rspnStr); err != nil {
 		return err
 	}
-	bs, err := json.Marshal(match.AttributePlus{
-		Attribute: *attr,
-		RAdv:      one,
-		Elapsed:   time.Duration(elapsed.Milliseconds()),
-	})
-	if err != nil {
-		return err
-	}
-	if err := self.Nc.Publish(SUBJECTAttribute, bs); err != nil {
-		return err
+	for _, audit := range audits {
+		if audit.Attr == nil {
+			continue
+		}
+		bs, err := json.Marshal(match.AttributePlus{
+			Attribute: *audit.Attr,
+			RAdv:      audit.One,
+			Elapsed:   time.Duration(audit.Elapsed.Milliseconds()),
+		})
+		if err != nil {
+			return err
+		}
+		if err := self.Nc.Publish(SUBJECTAttribute, bs); err != nil {
+			return err
+		}
 	}
 	self.Nc.Flush()
 	return nil

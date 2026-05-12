@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"time"
 
 	"github.com/IncSW/geoip2"
 )
@@ -54,9 +55,10 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 		CountryID: r.Country.GeoNameID,
 		CityID:    r.City.GeoNameID,
 		Location: Location{
-			Lat:      r.Location.Latitude,
-			Lon:      r.Location.Longitude,
-			Accuracy: int64(r.Location.AccuracyRadius),
+			Lat:       r.Location.Latitude,
+			Lon:       r.Location.Longitude,
+			Accuracy:  int64(r.Location.AccuracyRadius),
+			UTCOffset: timezoneOffsetMinutes(r.Location.TimeZone),
 		},
 	}
 	if r.Subdivisions != nil {
@@ -72,4 +74,16 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 	}
 	pzg.Geo = g
 	return pzg, nil
+}
+
+func timezoneOffsetMinutes(name string) int64 {
+	if name == "" {
+		return 0
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return 0
+	}
+	_, offset := time.Now().In(loc).Zone()
+	return int64(offset / 60)
 }
