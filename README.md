@@ -1,115 +1,62 @@
-Chapter 1: Start NATS Server Automatically
+# Aofei / Winter DSP
 
-1.1 Install the server
-go get github.com/nats-io/gnatsd
+`github.com/genelet/winter` is a Go package for an OpenRTB-oriented DSP stack.
+It contains the bid path, campaign and publisher matching logic, Summer/Genelet
+admin models, cache population commands, local Docker service helpers, and SQL
+baseline data needed to run the package locally.
 
-1.2 Create the service file in /etc/systemd/system/nats-server.service
->>>>>>>>>>>
-[Unit]
-Description=nats-server service
-After=network-online.target
-Before=aofei.service
+Current local development uses Docker MySQL, Docker Redis, and Docker NATS. The
+active database baseline is [etc/step4_init.sql](etc/step4_init.sql); generated
+local configs live at `etc/aofei.local.json` and `etc/summer.local.json`.
 
-[Service]
-Type=simple
-ExecStart=/home/winter/go/bin/nats-server
+## Quick Start
 
-[Install]
-WantedBy=multi-user.target aofei.service
-<<<<<<<<<<<
+```bash
+./scripts/aofei-local.sh up
+./scripts/aofei-local.sh reset-sample
 
-Start it: sudo systemctl start gnatsd
-Get it to run at boot: sudo systemctl enable gnatsd
-stop it: sudo systemctl stop gnatsd
-disable it: sudo systemctl disable gnatsd
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=redis
 
-1.3 Create the httpd file in /etc/systemd/system/aofei.service
->>>>>>>>>>>
-[Unit]
-Description=Aofei DSP service
+./scripts/aofei-local.sh status
+```
 
-[Service]
-Type=simple
-Environment=SUMMER=/home/winter/aofei/conf/summer.json AOFEI=/home/winter/aofei/conf/aofei.json 
-ExecStart=/home/winter/aofei/cmd/unify/unify -log_dir=/home/winter/logs
+The helper starts:
 
-[Install]
-WantedBy=multi-user.target
-<<<<<<<<<<<
+- MySQL `mysql:8.0.41` on `127.0.0.1:3307`
+- Redis `redis:7-alpine` on `127.0.0.1:6379`
+- NATS `nats:2-alpine` on `127.0.0.1:4222`
 
-Start it: sudo systemctl start web
-Get it to run at boot: sudo systemctl enable web
-stop it: sudo systemctl stop web
-disable it: sudo systemctl disable web
+Stop the local services without deleting Docker volumes:
 
+```bash
+./scripts/aofei-local.sh down
+```
 
+Install the package command binaries:
 
-Chapter 2: Install redis
+```bash
+./scripts/aofei-local.sh install
+```
 
-Follow-up here: https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-redis-on-ubuntu-16-04
+## Repository Map
 
-After that: systemctl enable redis
-to have it run at reboot.
+- [AGENTS.md](AGENTS.md): bootstrap guide for agents working in this repo.
+- [memory-bank/](memory-bank/): active project source of truth.
+- [docs/local-docker-runtime.md](docs/local-docker-runtime.md): local Docker
+  runtime commands and generated config notes.
+- [docs/database-baseline.md](docs/database-baseline.md): schema baseline and
+  drift rules.
+- [docs/dsp-architecture.zh.md](docs/dsp-architecture.zh.md): historical DSP
+  architecture note in Chinese.
+- [docs/legacy-operations.md](docs/legacy-operations.md): historical manual
+  deployment notes retained for reference.
+- [backup/](backup/): historical files moved out of active runtime paths.
 
+## Development Notes
 
-Chapter 3: Configuration
+Use `GOWORK=off` for package commands from this repository. The parent
+workspace's `go.work` does not include this module path.
 
-3.1) pzutil/config is conf/gotest.conf, product e.g. aofei.json
-3.2) genet/config is conf/gotest.json, product e.g. summer.json
-
-
-Chapter 4: Run Test with the "gotest" database
-
-4.1) "go test" the follow packages:
-demo dmp genelet ipsearch match pzutil uadevice
-Make sure in each directory, so the config file is correctly located
-
-4.2) initialize the database in conf
-mysql -ueightran -p12pass34 gotest  < summer.sql
-Add any SQL/VIEW/TBL with series > 100...
-
-4.3) loading testing data in src/summer
-mysql -ueightran -p12pass34 gotest  < sample.sql
-mysql -ueightran -p12pass34 gotest  < more.sql
-and then
-go test summer
-
-4.4) fill-in weights and run weight test in src/summer/weight
-go test summer/weight
-
-4.5) go to ssp, make sure using DBGetNWeights in redis.go and make sure size_id
-= "1", ..."10" are defined in aofei.json for PSA. Run the test:
-go test ssp
-This should work. In production, we may use DbGetNWhites
-
-
-Chapter 5: Build a real database
-5.1) start with summer.sql
-5.2) start with any additional table/proc/view/trigger/sql/go from >= 100....
-
-
-Chapter 6: How to set up Condition_uri?
-
-Chapeter 7: From Bitbucket to Github
-$ cd $HOME/Code/repo-directory
-$ git remote rename origin bitbucket
-$ git remote add origin https://github.com/mandiwise/awesome-new-repo.git
-$ git push origin master
-
-$ git remote rm bitbucket
-
-Chapeter 8: taosd
-
-manual install
-after "make install":
-Directory/File	Description
-/etc/taos/taos.cfg	TDengine configuration file
-/usr/local/taos/driver	TDengine dynamic link library
-/var/lib/taos	TDengine default data directory
-/var/log/taos	TDengine default log directory
-/usr/local/taos/bin.	TDengine executables
-
-After installation. These lines pop up:
-To configure TDengine : edit /etc/taos/taos.cfg
-To start TDengine     : sudo systemctl start taosd
-To access TDengine    : use taos in shell
+Do not use legacy `eightran_*` MySQL users in local development. The Docker
+helper creates and uses the `aofei` database user.
