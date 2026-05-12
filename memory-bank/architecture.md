@@ -57,12 +57,15 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
 - `etc/aofei.json` and `etc/summer.json` are checked-in examples.
 - `etc/aofei.local.json` and `etc/summer.local.json` are generated local files
   and must remain ignored.
+- Production configs default to `/etc/aofei/aofei.json` and
+  `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`.
 - `etc/maxmind.json` is the active MaxMind config reference.
 - `etc/maxmind.json` references an external GeoLite2 City `.mmdb` through
   `city_file`, currently `/media/GeoLite2-City.mmdb`.
 - Real geodata payloads are external runtime/test assets. `etc/GeoLite2-City.mmdb`
   and `etc/qq-pz.dat` are ignored and must not be committed.
-- `conf/` is no longer active and should not be recreated.
+- The retired root config directory is no longer active and should not be
+  recreated.
 - Operational commands use the generated `AOFEI` config. `cmd/ledger`,
   `cmd/winloss`, and `cmd/maxmind` disable controller NATS and MaxMind startup
   explicitly when they only need database/config access.
@@ -72,20 +75,21 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
 `etc/step4_init.sql` is the source-of-truth baseline for local MySQL. When Docker
 MySQL schema changes are intentionally made, export or otherwise update
 `etc/step4_init.sql` in the same change. The baseline must not contain explicit
-legacy definers or `eightran_*` auth references.
+legacy definers or legacy named database auth references.
 
 ## Known Architecture Gaps
 
 - The parent `go.work` still does not include this module path, so repository
   package commands require `GOWORK=off` unless that workspace is intentionally
   changed.
-- Production deployment notes are historical; the current supported workflow is
-  local Docker development.
+- Production deployment now has a Linux systemd-oriented runbook; local Docker
+  remains the development workflow, not the production ownership model.
 - Runtime config parsing needs one validation/defaulting boundary across DSP
   and Summer/Genelet so missing service blocks fail with actionable errors.
 - Redis and spread cache payloads need typed/versioned contracts instead of
   direct struct serialization.
-- Summer/Genelet admin SQL needs a whitelisted identifier/query-building seam
-  before request or component metadata is interpolated into statements.
-- Production hardening still needs explicit decisions for credentials, CORS,
-  uploads, static file serving, and legacy password hashing.
+- Summer/Genelet admin SQL now has a central identifier/query-building seam for
+  component metadata and request-driven filters; handwritten module SQL should
+  continue to use narrow allowlists for any interpolated identifiers.
+- Production auth hardening still needs a future migration from SHA1-era
+  password compatibility to a modern password-hash contract.

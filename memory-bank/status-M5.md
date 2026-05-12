@@ -95,26 +95,25 @@ Goal: Align admin models, filters, and components with the active Docker schema.
   directory. Several tests assume relative paths that only work from a specific
   cwd.
 
-- `[ ]` Replace component-loader panics with actionable errors where practical.
+- `[+]` Replace component-loader panics with actionable errors where practical.
   Missing component JSON currently crashes tests and commands instead of
   returning setup diagnostics.
-  - Deferred: component loader API still returns `*Component` and panics.
-    Existing tests now use valid package-relative paths, but a broader API change
-    belongs with the query-builder cleanup.
+  - Carried to and resolved in M11: active setup uses `genelet.LoadComponent`;
+    `NewComponent` remains as the legacy panic wrapper.
 
-- `[ ]` Review `cmd/unify` model, storage, and filter registries. The command
+- `[+]` Review `cmd/unify` model, storage, and filter registries. The command
   hardcodes duplicated registrations, making missing Summer module coverage
   hard to verify.
-  - Deferred: no missing registration was required for M5 test compatibility.
+  - Carried to and resolved in M11: `summer/registry` owns component-backed
+    model, storage-model, and filter registration.
 
 ### Second Review Pass - 2026-05-12
 
-- `[ ]` Add a central SQL identifier whitelist for Genelet/Summer query
+- `[+]` Add a central SQL identifier whitelist for Genelet/Summer query
   builders. Request or component-derived fields, table names, and `_gsql`
   clauses are currently interpolated into SQL outside a single validation seam.
-  - Deferred: M5 added a narrow whitelist for Summer access-control table/id
-    selection, but a central Genelet query-builder validation seam remains a
-    larger architecture task.
+  - Carried to and resolved in M11: active CRUD/query builders validate
+    identifiers and reject request-provided `_gsql` fragments.
 
 - `[+]` Lock down Summer access-control SQL inputs. `summer/ac` uses request
   `table` and `idname` values directly in `SELECT` and `UPDATE` statements.
@@ -123,19 +122,18 @@ Goal: Align admin models, filters, and components with the active Docker schema.
   Multipart handling and creative upload moves use client-provided filenames in
   filesystem paths without `filepath.Base`/path traversal checks.
 
-- `[ ]` Replace fragile type assertions and header indexing with guarded error
+- `[+]` Replace fragile type assertions and header indexing with guarded error
   paths. Login/logout error handling and forwarded group parsing can panic on
   ordinary database errors or malformed auth headers.
-  - Partially addressed: forwarded group parsing now checks slice bounds
-    correctly. Broader login/logout type assertion cleanup remains with the
-    central Genelet hardening work.
+  - Carried to and resolved in M11: login/logout check error types and
+    forwarded group count mismatches return framework errors.
 
 ## Milestone Review - 2026-05-12
 
 - `[+]` Reviewed M5 after verification. No blocking regressions found in the
   Summer/Genelet config usage, active-schema test updates, upload path
   hardening, or access-control table/id whitelisting.
-- `[ ]` Residual hardening remains for a later architecture pass: central
+- `[+]` Residual hardening was carried to M11 and resolved there: central
   Genelet SQL identifier validation, component loading as errors instead of
-  panics, `cmd/unify` registry deduplication, and broader login/logout error
-  guard cleanup.
+  active setup panics, `cmd/unify` registry deduplication, and broader
+  login/logout error guard cleanup.

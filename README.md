@@ -95,6 +95,8 @@ Install the package command binaries:
 - [memory-bank/](memory-bank/): active project source of truth.
 - [docs/local-docker-runtime.md](docs/local-docker-runtime.md): local Docker
   runtime commands and generated config notes.
+- [docs/production-runbook.md](docs/production-runbook.md): current Linux
+  systemd-oriented production runbook.
 - [docs/database-baseline.md](docs/database-baseline.md): schema baseline and
   drift rules.
 - [docs/operational-commands.md](docs/operational-commands.md): local
@@ -102,6 +104,10 @@ Install the package command binaries:
   and MaxMind inventory.
 - [docs/maxmind-runtime.md](docs/maxmind-runtime.md): MaxMind config,
   external geodata assets, generation, and test behavior.
+- [docs/genelet-manual.md](docs/genelet-manual.md): Genelet config, routes,
+  auth, component, CRUD, upload, CORS, and error contracts.
+- [docs/summer-ui-structure.md](docs/summer-ui-structure.md): Summer module
+  layout, component conventions, registry, UI options, and cache side effects.
 - [docs/dsp-architecture.zh.md](docs/dsp-architecture.zh.md): historical DSP
   architecture note in Chinese.
 - [docs/legacy-operations.md](docs/legacy-operations.md): historical manual
@@ -114,8 +120,8 @@ Use `GOWORK=off` for package commands from this repository. The parent
 workspace's `go.work` does not include this module path, so plain
 `go list ./...` fails from this checkout unless the parent workspace is changed.
 
-Do not use legacy `eightran_*` MySQL users in local development. The Docker
-helper creates and uses the `aofei` database user.
+Do not use legacy MySQL users in local development. The Docker helper creates
+and uses the `aofei` database user.
 
 `AOFEI` points at the lower-case DSP JSON config. `SUMMER` points at the
 upper-case Summer/Genelet JSON config.

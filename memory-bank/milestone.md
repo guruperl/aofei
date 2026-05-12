@@ -1,7 +1,8 @@
 # Milestones
 
 This file stays at milestone level. Detailed task rows live in the matching
-`memory-bank/status-M*.md` files.
+`memory-bank/status-M*.md` files. Do not recreate an aggregate
+`memory-bank/status.md` file.
 
 Status markers:
 
@@ -12,6 +13,21 @@ Status markers:
 | `[~]` | In progress |
 | `[!]` | Blocked |
 | `[X]` | Cancelled |
+
+## Closeout Checklist
+
+Use this order when closing a milestone:
+
+1. Run the milestone's required verification commands.
+2. Update code-adjacent docs and the memory-bank files that changed behavior,
+   contracts, tools, or operator workflow.
+3. Resolve review findings or carry them forward explicitly in the matching
+   `status-M*.md` file with a dated note.
+4. Check whether `evolution/` needs a new prompt/result version.
+5. Mark the matching `status-M*.md` tasks, review findings, and milestone state
+   complete only after verification passes.
+6. Commit the milestone only when the execution request includes commit
+   handling.
 
 ## M0 - Agentic Harness Bootstrap `[+]`
 
@@ -46,7 +62,8 @@ Acceptance:
 
 - A clean checkout can start local services, load the database baseline, load
   sample data, populate Redis, and report service status.
-- No active workflow depends on `conf/` or `eightran_*` credentials.
+- No active workflow depends on the retired root config directory or legacy
+  database credentials.
 
 ## M2 - Schema Baseline Stewardship `[+]`
 
@@ -220,7 +237,7 @@ Result:
 - Staticcheck, Docker smoke/admin checks, and schema drift checks remain
   documented non-gating follow-ups for M8.
 
-## M9 - Production Deployment Runbook `[ ]`
+## M9 - Production Deployment Runbook `[+]`
 
 Rebuild production/operator docs from current reality rather than legacy notes.
 
@@ -238,7 +255,7 @@ Acceptance:
 - Operators have one current deployment/runbook document.
 - Historical notes are either retired or clearly marked as retained context.
 
-## M10 - Documentation And Agent Stewardship `[ ]`
+## M10 - Documentation And Agent Stewardship `[+]`
 
 Keep the harness useful as the project changes.
 
@@ -253,3 +270,34 @@ Acceptance:
 - A future agent can resume from the memory bank without rediscovering local
   runtime, schema, or documentation decisions.
 - Milestones, status, and docs remain consistent after each substantial change.
+
+## M11 - Genelet And Summer UI Stewardship `[+]`
+
+Review and harden the Genelet/Summer admin framework surface without changing
+DSP bid behavior, database schema, cache payload contracts, or production config
+shape.
+
+Scope:
+
+- Move the remaining M5 Genelet/Summer hardening findings into active work.
+- Replace active component-loading panics with error-returning setup paths.
+- Add a central Genelet SQL identifier/query-building validation seam for
+  component metadata and request-derived fields, filters, and ordering.
+- Guard controller/model/filter reflection dispatch, auth header parsing,
+  login/logout error handling, static files, multipart input, and Summer option
+  state.
+- Centralize the Summer module registry used by `cmd/unify`.
+- Add Genelet and Summer UI maintenance documentation under `docs/`.
+
+Acceptance:
+
+- `cmd/unify` initializes Summer modules from one registry and reports
+  component/setup errors instead of panicking.
+- Active CRUD/query paths reject unsafe identifiers and request-provided raw SQL
+  fragments before database execution.
+- Controller dispatch and forwarded group handling return framework errors for
+  malformed inputs instead of panics.
+- Summer request-specific UI selections do not mutate shared `LARGES` option
+  data, and cache side effects use typed storage helpers.
+- `docs/genelet-manual.md` and `docs/summer-ui-structure.md` describe the
+  current framework/operator contracts.

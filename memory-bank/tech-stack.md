@@ -66,6 +66,15 @@ These files are local artifacts and are ignored by git.
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
 
+Production defaults are `/etc/aofei/aofei.json` and
+`/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The production
+runbook is [docs/production-runbook.md](../docs/production-runbook.md).
+Summer/Genelet CORS allows the exact `ServerURL` origin plus exact entries in
+`CORSOrigins`.
+Genelet framework contracts are documented in
+`docs/genelet-manual.md`; Summer admin module and cache-side-effect conventions
+are documented in `docs/summer-ui-structure.md`.
+
 ## Schema Baseline Commands
 
 `etc/step4_init.sql` is the active schema and baseline-data contract. The local
@@ -77,7 +86,7 @@ helper keeps schema stewardship commands under the same Docker workflow:
 ./scripts/aofei-local.sh diff-schema
 ```
 
-`check-sql` rejects explicit `DEFINER=` clauses and legacy `eightran` auth
+`check-sql` rejects explicit `DEFINER=` clauses and legacy account-name auth
 references in `etc/step4_init.sql`. `dump-schema` writes a normalized current
 Docker schema to ignored `.local/schema/aofei.schema.sql`. `diff-schema`
 rebuilds a temporary database from `etc/step4_init.sql`, normalizes both dumps,
@@ -174,13 +183,16 @@ currently points to the external GeoLite2 City database at
 Ignored optional local assets:
 
 ```bash
+external/GeoLite2-City.mmdb
 etc/GeoLite2-City.mmdb
 etc/qq-pz.dat
 ```
 
 Compile and pure-unit tests must pass without those files. Full lookup tests in
-`maxmind` and `maxmind/ipsearch` skip with explicit messages when the local
-assets are absent. Details live in `docs/maxmind-runtime.md`.
+`maxmind` and `maxmind/ipsearch` skip with explicit messages when local assets
+are absent. `AOFEI_GEOLITE_CITY_FILE` can point `maxmind` tests at a downloaded
+City `.mmdb`; otherwise they fall back to `external/GeoLite2-City.mmdb` and then
+`etc/GeoLite2-City.mmdb`. Details live in `docs/maxmind-runtime.md`.
 
 ## Verification
 
@@ -196,6 +208,8 @@ historical Go helpers in `backup/` carry the `ignore` build tag.
 Useful non-gating local checks:
 
 ```bash
+bash -n scripts/aofei-doc-check.sh
+./scripts/aofei-doc-check.sh
 bash -n scripts/aofei-cache-smoke.sh
 GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
 GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
