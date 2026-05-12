@@ -6,7 +6,8 @@ able to fan out to downstream DSPs in parallel under a tight deadline, discard
 late responses, mark up the selected downstream bid, and return a normal
 OpenRTB response upstream.
 
-Before runtime fanout, the database needs a clear downstream DSP identity and
-schema boundary. Downstream DSPs should have self-service access for endpoint
-metadata and reports, while operators control credentials, activation, routing,
-and margins.
+Before runtime fanout, the database needs a clear downstream endpoint and
+reporting boundary. Downstream bidders should be owned by existing advertiser
+accounts so advertiser auth, ledger, and reporting tools can be reused, while
+operators control credentials, synthetic reporting IDs, activation, routing, and
+margins.

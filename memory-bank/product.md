@@ -27,9 +27,10 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 - Advertisers (`adv`) own campaigns, items, creatives, balances, and targeting.
 - Publishers (`pub`) expose sites, slots, publisher attributes, and traffic
   metadata.
-- Downstream DSP partners (`dsp`) are a separate middleman-demand account class
-  for future fallback exchange fanout. They own endpoint metadata and reports,
-  while operators retain route, credential, and traffic activation control.
+- Advertisers (`adv`) can own middleman bidder endpoints for future fallback
+  exchange fanout. Existing advertiser auth and reporting remain the account
+  boundary, while operators retain route, credential, synthetic reporting row,
+  and traffic activation control.
 - Matching code turns database state into Redis and spread/static cache
   structures such as `PubMap`, `RAdv`, audience maps, and creative maps.
 - DSP runtime code reads request data, config, cache entries, mutable Redis
@@ -41,7 +42,7 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 
 The prior hardening direction remains active, but the next feature direction is
 to add middleman AdX fallback in staged milestones after establishing the
-downstream DSP account/schema boundary:
+advertiser-owned endpoint and reporting schema boundary:
 
 - Local runtime should be Docker-backed and free of historical production auth.
 - The active schema should be represented by `etc/step4_init.sql`.
@@ -49,8 +50,9 @@ downstream DSP account/schema boundary:
   MySQL.
 - Static publisher, slot, audience, and creative data should be inspectable as
   Redis payloads, spread disk snapshots, and local in-process generations.
-- Middleman fallback should be implemented only after downstream DSP identity,
-  endpoint ownership, route configuration, and reporting contracts are explicit.
+- Middleman fallback should be implemented only after advertiser-owned endpoint,
+  route configuration, synthetic reporting row, and accounting contracts are
+  explicit.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

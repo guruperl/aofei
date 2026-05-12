@@ -12,7 +12,7 @@
 | `dsp/` | DSP config, controller, bid handling, and win/loss logic. |
 | `match/` | Runtime matching models for advertisers, creatives, audience maps, caps, sizes, and Redis/spread serialization. |
 | `acl/` | Access/control and publisher mapping helpers used by bid and cache paths. |
-| `summer/` | Admin UI data models, filters, components, and OpenRTB-oriented admin entities, including downstream DSP self-service account and bidder endpoint modules. |
+| `summer/` | Admin UI data models, filters, components, and OpenRTB-oriented admin entities, including advertiser-owned bidder endpoint modules. |
 | `genelet/` | Local web/admin framework helpers used by Summer. |
 | `maxmind/` | Geo/IP lookup helpers and tests. |
 | `etc/` | Active SQL baseline, sample configs, generated local configs, samples, and data-load helper code. |
@@ -57,11 +57,11 @@
    geodata file first.
 
 Middleman AdX fallback is schema-defined but not yet active in the bid path.
-Downstream DSP accounts use the Summer/Genelet `dsp` role backed by `mid_dsp`.
-Their OpenRTB endpoints live in `mid_bidder`; operators will later assign active
-route groups to publisher/site/slot inventory through `mid_route_*` tables.
-Runtime fanout, route caching, callback proxying, and daily reporting remain
-future milestones.
+Advertiser-owned OpenRTB endpoints live in `adv_bidder`, with optional
+synthetic campaign, item, and creative IDs for existing ledger/report joins.
+Operators will later assign active route groups to publisher/site/slot inventory
+through `mid_route_*` tables. Runtime fanout, route caching, callback proxying,
+and reporting integration remain future milestones.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the

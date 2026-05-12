@@ -1,27 +1,28 @@
-# Status M16 - Middleman AdX Identity And Schema
+# Status M16 - Middleman AdX Advertiser-Owned Bidder Schema
 
 ## Goal
 
-Create the database and admin identity foundation for middleman AdX fallback
-without changing bid serving behavior yet.
+Create the advertiser-owned bidder endpoint, route, and synthetic reporting
+schema foundation for middleman AdX fallback without changing bid serving
+behavior yet.
 
 ## Completed
 
-- `[+]` Downstream DSP account role.
-  - Added `mid_dsp` as a separate partner account table.
-  - Added `def_entitytype` row `6 -> mid_dsp.dsp_id`.
-  - Added Summer/Genelet `dsp` role config mapped to `mid_dsp`.
+- `[+]` Advertiser-owned endpoint metadata.
+  - Added `adv_bidder` for OpenRTB endpoint metadata owned by `adv`.
+  - Advertiser users can manage endpoint metadata through the existing `adv`
+    role; admins control credential refs, synthetic reporting IDs, credential
+    status, and activation.
+  - Registered the Summer `bidder` component module.
 
-- `[+]` Endpoint metadata.
-  - Added `mid_bidder` for DSP-owned OpenRTB endpoint metadata.
-  - DSP users can manage endpoint metadata; admins control credential refs,
-    credential status, and activation.
-  - Registered Summer `dsp` and `bidder` component modules.
+- `[+]` Synthetic reporting row contract.
+  - `adv_bidder` can point at synthetic campaign, item, and creative rows.
+  - Existing advertiser ledger and daily reporting can later roll up middleman
+    spend through `creative_id -> item_id -> campaign_id -> adv_id`.
 
 - `[+]` Route and reporting schema.
   - Added `mid_route_group`, `mid_route_bidder`, and `mid_route_target` for
     future fallback route assignment.
-  - Added `daily_mid_bidder` for future daily middleman reporting.
 
 - `[+]` Docs and memory bank.
   - Added `docs/middleman-adx.md`.
@@ -32,7 +33,8 @@ without changing bid serving behavior yet.
 
 - `[ ]` Build route cache and downstream OpenRTB fanout client in M17.
 - `[ ]` Integrate fallback auction behavior into `ServeBid` in M18.
-- `[ ]` Add callback proxying, audit, operations, and DSP reporting in M19/M20.
+- `[ ]` Add callback proxying, audit, operations, and advertiser reporting
+  integration in M19/M20.
 
 ## Verification
 
@@ -40,7 +42,7 @@ without changing bid serving behavior yet.
 - `[+]` `GOWORK=off go test ./...`
 - `[+]` `./scripts/aofei-local.sh check-sql`
 - `[+]` `./scripts/aofei-local.sh reset && ./scripts/aofei-local.sh load && ./scripts/aofei-local.sh diff-schema`
-- `[+]` `GOWORK=off staticcheck ./summer ./summer/registry ./summer/dsp ./summer/bidder`
+- `[+]` `GOWORK=off staticcheck ./summer ./summer/registry ./summer/bidder`
 - `[+]` `./scripts/aofei-doc-check.sh`
 - `[+]` `git diff --check`
 

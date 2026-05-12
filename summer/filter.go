@@ -33,7 +33,6 @@ func CleanUploadName(file string) (string, error) {
 
 var TABLES = map[string][]string{
 	"3":  {"pub", "pub_id"},
-	"6":  {"mid_dsp", "dsp_id"},
 	"31": {"pub_site", "site_id"},
 	"32": {"pub_slot", "slot_id"},
 	"4":  {"adv", "adv_id"},

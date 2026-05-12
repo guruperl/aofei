@@ -13,7 +13,7 @@ type Model struct {
 	genelet.Model
 }
 
-var addressTables []string = []string{"pub", "adv", "mid_dsp", "pay_cc", "pay_cheque", "testing"}
+var addressTables []string = []string{"pub", "adv", "pay_cc", "pay_cheque", "testing"}
 
 func (self *Model) Dashboard(extra ...url.Values) error {
 	return self.Topics(extra...)

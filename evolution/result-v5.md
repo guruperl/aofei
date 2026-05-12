@@ -2,12 +2,13 @@
 
 Resulting direction after M16:
 
-- Downstream DSP partners are a separate account class from advertisers and
-  publishers.
-- The Summer/Genelet `dsp` role maps to `mid_dsp.dsp_id`.
-- DSP users may manage owned bidder endpoint metadata and later read their own
-  reports.
-- Operators own credential references, activation, route groups, inventory
+- Downstream bidder endpoints are owned by existing advertiser accounts rather
+  than a separate `dsp` role.
+- The Summer `bidder` module stores endpoint metadata in `adv_bidder`.
+- `adv_bidder` can reference synthetic campaign, item, and creative rows so
+  existing advertiser ledger and reporting joins can be reused.
+- Advertiser users may manage owned endpoint metadata; operators own credential
+  references, synthetic reporting IDs, activation, route groups, inventory
   assignment, and margin settings.
 - Middleman runtime fanout is intentionally deferred until route caching,
   downstream client behavior, callback proxying, and reporting are implemented

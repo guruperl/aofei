@@ -34,8 +34,9 @@ scripts/aofei-local.sh load
 also strips any dump definers during import and removes historical `eightran`
 users from the Docker server. `load` exits before import if the target database
 already has schema objects, so use `reset` before replaying the baseline.
-The baseline now includes empty middleman AdX tables for downstream DSP
-accounts, bidder endpoints, route configuration, and future daily reporting.
+The baseline now includes empty middleman AdX tables for advertiser-owned bidder
+endpoints and route configuration. Runtime fanout remains disabled until later
+middleman milestones.
 
 For a one-shot reset with sample helpers:
 

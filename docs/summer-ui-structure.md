@@ -2,8 +2,8 @@
 
 Summer is the admin UI/model layer on top of Genelet. It provides module models,
 filters, component JSON, option dictionaries, upload handling, and cache update
-hooks for advertiser, publisher, downstream DSP, campaign, item, slot, creative,
-balance, payment, ledger, and access-control workflows.
+hooks for advertiser, publisher, bidder endpoint, campaign, item, slot,
+creative, balance, payment, ledger, and access-control workflows.
 
 ## Module Layout
 
@@ -51,15 +51,13 @@ role:
 
 - `admin`: full maintenance flows and cache publication actions.
 - `adv`: advertiser-facing campaign, item, creative, target, payment, and
-  account flows.
+  account flows, including owned middleman bidder endpoint metadata.
 - `pub`: publisher-facing site, slot, access-control, and take-down flows.
-- `dsp`: downstream DSP partner-facing endpoint metadata and report flows for
-  the middleman AdX roadmap.
 - `agent`: delegated admin flows.
 
-The `dsp` role is self-service only for owned `mid_bidder` endpoint metadata and
-future reports. Admins remain responsible for credential references, endpoint
-activation, and all `mid_route_*` traffic assignment.
+Advertisers can manage owned `adv_bidder` endpoint metadata. Admins remain
+responsible for credential references, synthetic reporting row assignment,
+endpoint activation, and all `mid_route_*` traffic assignment.
 
 Filters should add query restrictions through `extra url.Values`, not by
 concatenating request strings into SQL. Models should use Genelet CRUD helpers

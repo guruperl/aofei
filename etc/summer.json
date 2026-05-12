@@ -99,30 +99,6 @@
                 }
             }
         },
-        "dsp": {
-            "Id_name": "dsp_id",
-            "Type_id": 6,
-            "Attributes": ["dsp_id", "d_email", "d_company", "d_contact", "d_timezone_id"],
-            "Secret": "dsp-local-secret",
-            "Coding": "dsp-local-coding",
-            "Surface": "gdsp",
-            "Duration": 86400,
-            "MaxAge": 86400,
-            "Logout": "/",
-            "Issuers": {
-                "db": {
-                    "Default": true,
-                    "Screen": 1,
-                    "Credential": ["email", "passwd", "direct", "gdsp"],
-                    "Sql_as": "SELECT p.dsp_id, p.email, a.company, a.contact, p.timezone_id FROM mid_dsp p LEFT JOIN add_address a USING (address_id) WHERE p.email=?",
-                    "Sql": "SELECT p.dsp_id, p.email, a.company, a.contact, p.timezone_id FROM mid_dsp p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.passwd=SHA1(CONCAT(?,p.email)) AND p.active='Yes'",
-                    "ConditionURI" : [
-                        ["uC01","/goto/dsp/e/","_md5","/goto/dsp/e/dsp?action=dashboard"],
-                        ["uC01","/goto/dsp/g/","_md5","/goto/dsp/g/dsp?action=dashboard"]
-                    ]
-                }
-            }
-        },
         "agent": {
             "Id_name": "agent_id",
             "Type_id": 4,

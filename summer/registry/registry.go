@@ -15,7 +15,6 @@ import (
 	"github.com/genelet/winter/summer/channel"
 	"github.com/genelet/winter/summer/cheque"
 	"github.com/genelet/winter/summer/creative"
-	"github.com/genelet/winter/summer/dsp"
 	"github.com/genelet/winter/summer/item"
 	"github.com/genelet/winter/summer/ledger"
 	"github.com/genelet/winter/summer/manage"
@@ -50,7 +49,6 @@ var Entries = []Entry{
 	{"channel", func() interface{} { return new(channel.Model) }, func() interface{} { return new(channel.Model) }, func() interface{} { return new(channel.Filter) }},
 	{"cheque", func() interface{} { return new(cheque.Model) }, func() interface{} { return new(cheque.Model) }, func() interface{} { return new(cheque.Filter) }},
 	{"creative", func() interface{} { return new(creative.Model) }, func() interface{} { return new(creative.Model) }, func() interface{} { return new(creative.Filter) }},
-	{"dsp", func() interface{} { return new(dsp.Model) }, func() interface{} { return new(dsp.Model) }, func() interface{} { return new(dsp.Filter) }},
 	{"item", func() interface{} { return new(item.Model) }, func() interface{} { return new(item.Model) }, func() interface{} { return new(item.Filter) }},
 	{"ledger", func() interface{} { return new(ledger.Model) }, func() interface{} { return new(ledger.Model) }, func() interface{} { return new(ledger.Filter) }},
 	{"manage", func() interface{} { return new(manage.Model) }, func() interface{} { return new(manage.Model) }, func() interface{} { return new(manage.Filter) }},
