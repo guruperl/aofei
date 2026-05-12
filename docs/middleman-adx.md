@@ -28,6 +28,28 @@ advertiser: `adv_bidder.adv_id -> adv_campaign.adv_id`,
 `adv_item.campaign_id -> adv_campaign.campaign_id`, and
 `adv_creative.item_id -> adv_item.item_id`.
 
+The same synthetic chain is also the planned inventory eligibility surface.
+Existing advertiser/campaign/item access-control and channel tables already
+express whether demand may serve a publisher or site:
+
+- `adv.access_order` plus `ac(entitytype_id=4, othertype_id=3|31)` controls
+  advertiser-level publisher/site allow or block behavior when campaign and
+  item inherit.
+- `adv_campaign.access_order` plus
+  `ac(entitytype_id=41, othertype_id=3|31)` controls campaign-level
+  publisher/site allow or block behavior when item inherits.
+- `adv_item.access_order`, `adv_item.fl_sitetypes`, and
+  `ac(entitytype_id=42, othertype_id=31)` control item-level site/app
+  eligibility.
+- `ch_belong(entitytype_id=41)` and `ch_ac(entitytype_id=42)` keep the current
+  campaign category and item channel allow/block model.
+
+Because of this, M17/M18 should not add a separate bidder-vs-site ACL table
+unless the existing model proves insufficient. Route groups should select the
+coarse fanout pool for a publisher/site/slot, then runtime eligibility should
+filter each `adv_bidder` through its synthetic item audience rules before the
+request is forwarded downstream.
+
 ## Schema
 
 The middleman tables are:
@@ -48,6 +70,11 @@ Fallback routing will run only after internal campaign matching produces no bid.
 The fanout budget will be the minimum of the incoming OpenRTB `tmax`, the route
 group timeout, and the DSP config default. Late, invalid, inactive, or non-USD
 downstream responses will be discarded.
+
+Route membership alone is not enough to fan out. A bidder must also be active,
+credential-ready, mapped to a valid synthetic reporting chain, and eligible for
+the original upstream publisher/site/slot under the existing ACL and channel
+matching rules.
 
 The first auction integration will preserve incoming bid floors when forwarding
 and apply markup only on the response returned upstream:

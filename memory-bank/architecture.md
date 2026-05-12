@@ -60,8 +60,12 @@ Middleman AdX fallback is schema-defined but not yet active in the bid path.
 Advertiser-owned OpenRTB endpoints live in `adv_bidder`, with optional
 synthetic campaign, item, and creative IDs for existing ledger/report joins.
 Operators will later assign active route groups to publisher/site/slot inventory
-through `mid_route_*` tables. Runtime fanout, route caching, callback proxying,
-and reporting integration remain future milestones.
+through `mid_route_*` tables. The synthetic item/campaign chain is also the
+planned eligibility surface for bidder fanout: existing `ac`, `ch_ac`,
+`ch_belong`, `access_order`, `fl_sitetypes`, and channel matching rules should
+decide whether a bidder may receive the original publisher/site request before a
+downstream call is made. Runtime fanout, route caching, callback proxying, and
+reporting integration remain future milestones.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the

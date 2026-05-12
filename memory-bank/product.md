@@ -30,7 +30,9 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 - Advertisers (`adv`) can own middleman bidder endpoints for future fallback
   exchange fanout. Existing advertiser auth and reporting remain the account
   boundary, while operators retain route, credential, synthetic reporting row,
-  and traffic activation control.
+  and traffic activation control. The synthetic campaign/item chain should also
+  reuse the existing ACL and channel matching model to decide which original
+  publisher/site inventory may be forwarded to a bidder.
 - Matching code turns database state into Redis and spread/static cache
   structures such as `PubMap`, `RAdv`, audience maps, and creative maps.
 - DSP runtime code reads request data, config, cache entries, mutable Redis
@@ -51,8 +53,8 @@ advertiser-owned endpoint and reporting schema boundary:
 - Static publisher, slot, audience, and creative data should be inspectable as
   Redis payloads, spread disk snapshots, and local in-process generations.
 - Middleman fallback should be implemented only after advertiser-owned endpoint,
-  route configuration, synthetic reporting row, and accounting contracts are
-  explicit.
+  route configuration, synthetic reporting row, ACL/channel eligibility, and
+  accounting contracts are explicit.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

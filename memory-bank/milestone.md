@@ -414,4 +414,4 @@ Acceptance:
   middleman tables.
 - Summer registry includes the advertiser-owned bidder endpoint module.
 - Docs and memory bank describe the advertiser-owned endpoint/reporting boundary
-  and future milestone sequence.
+  ACL/channel eligibility reuse, and future milestone sequence.

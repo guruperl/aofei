@@ -47,7 +47,9 @@ skipped. The bid path returns no content only when no impression produces a bid.
 Middleman AdX fallback is not active yet; the M16 schema adds advertiser-owned
 bidder endpoints, route groups, and synthetic reporting identifiers, but
 `ServeBid` still returns no content when local campaign matching produces no
-bid.
+bid. Future fanout should reuse the synthetic campaign/item ACL and channel
+rules to decide which bidder endpoints may receive the original publisher/site
+request.
 
 ## Filtering
 

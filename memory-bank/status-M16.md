@@ -19,6 +19,9 @@ behavior yet.
   - `adv_bidder` can point at synthetic campaign, item, and creative rows.
   - Existing advertiser ledger and daily reporting can later roll up middleman
     spend through `creative_id -> item_id -> campaign_id -> adv_id`.
+  - The synthetic campaign/item chain is also the planned bidder eligibility
+    surface, reusing existing ACL and channel matching instead of a separate
+    bidder/site allowlist.
 
 - `[+]` Route and reporting schema.
   - Added `mid_route_group`, `mid_route_bidder`, and `mid_route_target` for
@@ -31,7 +34,8 @@ behavior yet.
 
 ## Carry Forward
 
-- `[ ]` Build route cache and downstream OpenRTB fanout client in M17.
+- `[ ]` Build route cache, synthetic-item eligibility checks, and downstream
+  OpenRTB fanout client in M17.
 - `[ ]` Integrate fallback auction behavior into `ServeBid` in M18.
 - `[ ]` Add callback proxying, audit, operations, and advertiser reporting
   integration in M19/M20.

@@ -41,6 +41,11 @@ Nil or empty subaudiences generally mean wildcard targeting. Uploaded audiences
 are different: when upload targeting is configured, every configured identifier
 type must be present in the bid and present in the advertiser upload set.
 
+Middleman bidder fallback should reuse this same ACL and channel eligibility
+surface through each bidder's synthetic item. The route group can choose a
+coarse fanout pool, but the synthetic advertiser/campaign/item chain decides
+whether the original publisher/site request is allowed for a specific bidder.
+
 ## Cache Contracts
 
 Runtime matching reads these Redis families:
