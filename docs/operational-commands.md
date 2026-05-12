@@ -75,6 +75,8 @@ Inputs:
 - `AOFEI` config with `nats_url` and `spread`.
 - Cache subjects produced by `cmd/redis-cache -cache=spread` or
   `cmd/redis-cache -cache=all`.
+- Optional Redis/MySQL access from the same `AOFEI` config for startup
+  bootstrap from current Redis static cache state.
 
 Outputs:
 
@@ -86,9 +88,13 @@ Outputs:
 Notes:
 
 - Log subjects are intentionally ignored by this command.
-- `DELETE` payloads remove snapshots.
-- `cleanup` subjects clear the relevant size directory before writing the next
-  snapshot.
+- Cache subjects are received with a NATS tail wildcard, so publisher domains
+  containing dots are valid subject payload keys.
+- File snapshots are written by temp-file plus atomic rename.
+- `__reset__` subjects clear a whole cache family before a full refresh.
+- `DELETE` payloads remove individual snapshots.
+- `cleanup` suffixes are slot-only and clear the relevant size directory before
+  writing the next snapshot.
 
 ## `cmd/ledger`
 

@@ -21,7 +21,8 @@ Malformed JSON returns `400`. Missing required runtime shape returns no content.
 
 `ServeBid` looks up `acl.Pub` by route domain from either:
 
-- local spread files when `Config.IsLocal` is true, or
+- the in-process local static cache backed by spread files when
+  `Config.IsLocal` is true, or
 - Redis `pubmap` otherwise.
 
 `match.NewAttributeForImp` then derives these values per impression:
@@ -37,8 +38,9 @@ Unknown site or slot strings fall back to publisher default site/slot ids.
 ## Candidate Loading
 
 For each impression, the controller loads `match.RAdvs` for the resolved
-`size_id` and `slot_id`. Each candidate contains advertiser, campaign, item,
-creative, cost, weight, and frequency-cap fields.
+`size_id` and `slot_id` from the local static cache or Redis. Each candidate
+contains advertiser, campaign, item, creative, cost, weight, and frequency-cap
+fields.
 
 If no candidates exist for an impression's size/slot pair, that impression is
 skipped. The bid path returns no content only when no impression produces a bid.
@@ -46,7 +48,8 @@ skipped. The bid path returns no content only when no impression produces a bid.
 ## Filtering
 
 Frequency caps are checked first by reading `bothcap:<user_id>` for capped item
-ids. Expired cap entries are deleted from Redis.
+ids. Expired cap entries are deleted from Redis. This mutable cap state remains
+Redis-backed in both Redis and local/spread bid modes.
 
 Audiences are loaded for remaining candidates. The path then:
 
@@ -58,6 +61,11 @@ Audiences are loaded for remaining candidates. The path then:
 Combined predicates cover geo, demographic, user-agent, date/hour, and ACL
 audiences. Nil audience objects are treated as wildcard matches in Redis and
 spread/IO modes.
+
+In local/spread bid mode, requests with no frequency caps and no uploaded
+audience predicates can complete from the in-process static cache without Redis.
+Candidates that require caps or uploaded memberships fail closed when Redis
+mutable state is unavailable.
 
 ## Selection
 
@@ -74,7 +82,7 @@ impression.
 
 ## Creative And Response
 
-The selected creative is loaded from local spread files or Redis `creative`.
+The selected creative is loaded from the local static cache or Redis `creative`.
 `match.Creative.AdM` expands landing, impression, and click tracker URLs and
 returns one of:
 

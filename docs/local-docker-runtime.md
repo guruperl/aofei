@@ -225,9 +225,17 @@ Expected artifact families:
 | `.local/spread/creative/` | Creative-id files. |
 | `.local/spread/slot/<size_id>/` | Slot-id files for each active creative size. |
 
-The spread receiver writes each cache message as a full file snapshot. Slot
-cleanup subjects such as `slot:<size_id>:<slot_id>cleanup` clear the size
-directory before writing the new slot snapshot.
+The spread receiver subscribes with a NATS tail wildcard so cache subjects with
+dotted publisher domains are received. It writes each cache message as a full
+file snapshot using atomic replacement. Full refreshes send `__reset__` family
+subjects before new snapshots, and slot cleanup subjects such as
+`slot:<size_id>:<slot_id>cleanup` clear the size directory before writing the
+new slot snapshot. A cleanup-only subject `slot:<size_id>:cleanup` clears a size
+directory when the refreshed size has no nonempty slots.
+
+On startup, `cmd/spread` also attempts to bootstrap static spread files from
+Redis. This is best effort: if Redis or MySQL is unavailable, the receiver still
+starts and consumes live NATS cache messages.
 
 ## Operational Commands
 

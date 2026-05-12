@@ -31,9 +31,10 @@
    publisher data.
 4. `cmd/redis-cache` reads MySQL through `dsp.Config`, builds `PubMap`, `RAdv`,
    audience, and creative caches, discovers active creative size IDs from the
-   schema, then writes Redis cache entries or publishes spread/NATS messages.
-   `cmd/spread` must be running when spread messages should become
-   `.local/spread/` file snapshots.
+   schema, then replaces Redis cache entries or publishes spread/NATS reset and
+   snapshot messages. `cmd/spread` must be running when spread messages should
+   become `.local/spread/` file snapshots; on startup it best-effort bootstraps
+   those snapshots from Redis when Redis and MySQL are reachable.
 5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
 6. Bid/win/loss/log flows use Redis for runtime state and NATS/spread/log paths

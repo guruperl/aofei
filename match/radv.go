@@ -217,84 +217,37 @@ func DBDeleteRAdvsToRedisSpreadByItemID(ctx context.Context, conn any, db *sql.D
 }
 
 func dbRAdvsToRedisSpreadByItemID(ctx context.Context, how string, conn any, db *sql.DB, itemID uint32, top ...string) error {
-	slotHash := func(hash map[uint32]map[uint32]RAdv, creativeID uint32) error {
-		rows, err := db.QueryContext(ctx, `
-CALL proc_creative(?)`, creativeID)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			w := RAdv{}
-			var pubID, siteID, slotID, sizeID uint32
-			var costType sql.NullString
-			var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
-			var cost sql.NullFloat64
-			err = rows.Scan(&pubID, &siteID, &slotID, &sizeID, &w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
-			if err != nil {
-				return err
-			}
-			if hash[slotID] == nil {
-				hash[slotID] = make(map[uint32]RAdv)
-			}
-			hash[slotID][creativeID] = w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType) // update the row with the latest values
-		}
-		return rows.Err()
+	if how != "Get" && how != "Delete" {
+		return nil
 	}
 
 	rows, err := db.QueryContext(ctx, `
-SELECT DISTINCT creative_id, size_id
-FROM adv_creative v
-INNER JOIN adv_item i USING (item_id)
-INNER JOIN adv_campaign c USING (campaign_id)
-INNER JOIN adv a USING (adv_id)
-WHERE item_id=?
-AND c.active="Yes" AND a.active="Yes"`, itemID)
+	SELECT DISTINCT size_id
+	FROM adv_creative
+	WHERE item_id=?`, itemID)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	ref := make(map[uint32]map[uint32]map[uint32]RAdv)
+	var sizeIDs []uint32
 	for rows.Next() {
-		var creativeID, sizeID uint32
-		if err = rows.Scan(&creativeID, &sizeID); err != nil {
+		var sizeID uint32
+		if err = rows.Scan(&sizeID); err != nil {
 			return err
 		}
-		if _, ok := ref[sizeID]; !ok {
-			ref[sizeID] = make(map[uint32]map[uint32]RAdv)
-		}
-		if err = slotHash(ref[sizeID], creativeID); err != nil {
-			return err
-		}
+		sizeIDs = append(sizeIDs, sizeID)
+	}
+	if err = rows.Err(); err != nil {
+		return err
 	}
 
-	for sizeID, block := range ref {
-		output := make(map[uint32]RAdvs)
-		for slotID, hash := range block {
-			var radvs RAdvs
-			var err error
-			switch t := conn.(type) {
-			case radix.Client:
-				radvs, err = RAdvsFromRedisBySizeIDSlotID(ctx, t, sizeID, slotID)
-			case *nats.Conn:
-				radvs, err = RAdvsFromIOBySizeIDSlotID(top[0], sizeID, slotID)
-			}
-			if err != nil {
-				return err
-			}
-			switch how {
-			case "Get":
-				output[slotID] = radvs.Update(hash)
-			case "Delete":
-				output[slotID] = radvs.Delete(hash)
-			default:
-			}
+	for _, sizeID := range sizeIDs {
+		hash, err := dbRAdvsBySizeID(ctx, db, sizeID)
+		if err != nil {
+			return err
 		}
-		if len(output) == 0 {
-			continue
-		}
-		if err = radvHashToRedisSpreadBySizeID(ctx, conn, output, sizeID); err != nil {
+		if err = radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID); err != nil {
 			return err
 		}
 	}
@@ -304,37 +257,22 @@ AND c.active="Yes" AND a.active="Yes"`, itemID)
 
 // DBGetRAdvsToRedisSpreadBySizeID retrieves RAdvs from the database with given size and inserts them into Redis.
 func DBGetRAdvsToRedisSpreadBySizeID(ctx context.Context, conn interface{}, db *sql.DB, sizeID uint32) error {
-	slotSlice := func(sizeID, slotID uint32) (RAdvs, error) {
-		rows, err := db.QueryContext(ctx, `
-CALL proc_slot(?, ?)`, slotID, sizeID)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		var blocks RAdvs
-		for rows.Next() {
-			w := RAdv{}
-			var costType sql.NullString
-			var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
-			var cost sql.NullFloat64
-			err = rows.Scan(&w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
-			if err != nil {
-				return nil, err
-			}
-			blocks = append(blocks, w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType))
-		}
-		return blocks, rows.Err()
-	}
-
-	rows, err := db.QueryContext(ctx, `
-SELECT t.slot_id
-FROM pub_slot t
-INNER JOIN pub_site s USING (site_id)
-INNER JOIN pub      p USING (pub_id)
-WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
+	hash, err := dbRAdvsBySizeID(ctx, db, sizeID)
 	if err != nil {
 		return err
+	}
+	return radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID)
+}
+
+func dbRAdvsBySizeID(ctx context.Context, db *sql.DB, sizeID uint32) (map[uint32]RAdvs, error) {
+	rows, err := db.QueryContext(ctx, `
+	SELECT t.slot_id
+	FROM pub_slot t
+	INNER JOIN pub_site s USING (site_id)
+	INNER JOIN pub      p USING (pub_id)
+	WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -343,18 +281,41 @@ WHERE p.active="Yes" AND s.active="Yes" AND t.active="Yes"`)
 		var slotID uint32
 		err = rows.Scan(&slotID)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		hash[slotID], err = slotSlice(sizeID, slotID)
+		hash[slotID], err = dbRAdvsBySizeIDSlotID(ctx, db, sizeID, slotID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err = rows.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID)
+	return hash, nil
+}
+
+func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint32) (RAdvs, error) {
+	rows, err := db.QueryContext(ctx, `
+	CALL proc_slot(?, ?)`, slotID, sizeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var blocks RAdvs
+	for rows.Next() {
+		w := RAdv{}
+		var costType sql.NullString
+		var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
+		var cost sql.NullFloat64
+		err = rows.Scan(&w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType))
+	}
+	return blocks, rows.Err()
 }
 
 // radvHashToRedisSpread the size slot cache, used for the 10 minute refresh.
@@ -386,7 +347,16 @@ func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash m
 			return err
 		}
 	}
+	if i == 0 {
+		if t, ok := conn.(*nats.Conn); ok {
+			return publishRAdvsSpreadCleanup(t, sizeID)
+		}
+	}
 	return nil
+}
+
+func publishRAdvsSpreadCleanup(conn *nats.Conn, sizeID uint32) error {
+	return conn.Publish(fmt.Sprintf("%s:%d:cleanup", HashNameSlot, sizeID), nil)
 }
 
 var HashNameSlot = "slot"

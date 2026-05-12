@@ -188,6 +188,10 @@ func redisRead(ctx context.Context, redis radix.Client, sizeIDs []uint32) error 
 }
 
 func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
+	if err := resetRedisStaticCaches(ctx, redis); err != nil {
+		return err
+	}
+
 	log.Printf("new PubMap is written to redis\n")
 	err := pubmap.ToRedis(ctx, redis)
 	if err != nil {
@@ -266,6 +270,12 @@ func spreadRead(top string, sizeIDs []uint32) error {
 }
 
 func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
+	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
+		if err := publishSpreadReset(nc, family); err != nil {
+			return err
+		}
+	}
+
 	log.Printf("new PubMap is written to nats\n")
 	err := pubmap.ToSpread(nc)
 	if err != nil {
@@ -286,13 +296,52 @@ func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.Pu
 		return err
 	}
 
-	log.Printf("retrieve Creatives from DB and write to redis")
+	log.Printf("retrieve Creatives from DB and write to nats")
 	err = match.DBGetCreativesToRedisSpread(ctx, nc, db)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func resetRedisStaticCaches(ctx context.Context, redis radix.Client) error {
+	for _, name := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative} {
+		if err := redis.Do(ctx, radix.Cmd(nil, "DEL", name)); err != nil {
+			return err
+		}
+	}
+	return deleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*")
+}
+
+func deleteRedisKeysByPattern(ctx context.Context, redis radix.Client, pattern string) error {
+	const chunk = 256
+	var keys []string
+	scanner := (radix.ScannerConfig{Command: "SCAN", Pattern: pattern, Count: chunk}).New(redis)
+	for {
+		var key string
+		if !scanner.Next(ctx, &key) {
+			break
+		}
+		keys = append(keys, key)
+		if len(keys) == chunk {
+			if err := redis.Do(ctx, radix.Cmd(nil, "DEL", keys...)); err != nil {
+				return err
+			}
+			keys = keys[:0]
+		}
+	}
+	if err := scanner.Close(); err != nil {
+		return err
+	}
+	if len(keys) > 0 {
+		return redis.Do(ctx, radix.Cmd(nil, "DEL", keys...))
+	}
+	return nil
+}
+
+func publishSpreadReset(nc *nats.Conn, family string) error {
+	return nc.Publish(family+":__reset__", nil)
 }
 
 // pubmapUpdate updates the pubmap with new attribute log

@@ -37,6 +37,27 @@ func TestHandleSpreadMessageWritesSnapshot(t *testing.T) {
 	}
 }
 
+func TestSpreadSubscriptionReceivesNestedSubjects(t *testing.T) {
+	if spreadSubjectPattern != ">" {
+		t.Fatalf("spread subject pattern = %q, want tail wildcard", spreadSubjectPattern)
+	}
+}
+
+func TestHandleSpreadMessageWritesDottedPublisherSubject(t *testing.T) {
+	top := t.TempDir()
+	handled, err := handleSpreadMessage(top, &nats.Msg{
+		Subject: "pubmap:example.com",
+		Data:    []byte("publisher"),
+	})
+	if err != nil {
+		t.Fatalf("handle dotted publisher: %v", err)
+	}
+	if !handled {
+		t.Fatalf("expected dotted publisher subject to be handled")
+	}
+	assertSpreadFile(t, filepath.Join(top, "pubmap", "example.com"), "publisher")
+}
+
 func TestHandleSpreadMessageCleanupSubject(t *testing.T) {
 	top := t.TempDir()
 	path := filepath.Join(top, "slot", "4194368", "10")
@@ -64,6 +85,69 @@ func TestHandleSpreadMessageCleanupSubject(t *testing.T) {
 	}
 	if string(data) != "new" {
 		t.Fatalf("expected new snapshot after cleanup, got %q", data)
+	}
+}
+
+func TestHandleSpreadMessageSlotCleanupOnlySubject(t *testing.T) {
+	top := t.TempDir()
+	path := filepath.Join(top, "slot", "4194368", "10")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("old"), 0644); err != nil {
+		t.Fatalf("write old file: %v", err)
+	}
+
+	handled, err := handleSpreadMessage(top, &nats.Msg{
+		Subject: "slot:4194368:cleanup",
+	})
+	if err != nil {
+		t.Fatalf("handle cleanup only: %v", err)
+	}
+	if !handled {
+		t.Fatalf("expected slot cleanup subject to be handled")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected slot directory cleanup, stat err=%v", err)
+	}
+}
+
+func TestHandleSpreadMessageCleanupSuffixOnlyAppliesToSlots(t *testing.T) {
+	top := t.TempDir()
+	handled, err := handleSpreadMessage(top, &nats.Msg{
+		Subject: "pubmap:examplecleanup",
+		Data:    []byte("publisher"),
+	})
+	if err != nil {
+		t.Fatalf("handle cleanup-suffixed publisher: %v", err)
+	}
+	if !handled {
+		t.Fatalf("expected cleanup-suffixed publisher subject to be handled")
+	}
+	assertSpreadFile(t, filepath.Join(top, "pubmap", "examplecleanup"), "publisher")
+}
+
+func TestHandleSpreadMessageResetSubject(t *testing.T) {
+	top := t.TempDir()
+	path := filepath.Join(top, "creative", "7")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("old"), 0644); err != nil {
+		t.Fatalf("write old file: %v", err)
+	}
+
+	handled, err := handleSpreadMessage(top, &nats.Msg{
+		Subject: "creative:__reset__",
+	})
+	if err != nil {
+		t.Fatalf("handle reset: %v", err)
+	}
+	if !handled {
+		t.Fatalf("expected reset subject to be handled")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected creative reset, stat err=%v", err)
 	}
 }
 

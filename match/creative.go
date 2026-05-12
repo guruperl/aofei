@@ -239,7 +239,7 @@ func CreativeMapFromIO(top string) (map[uint32]*Creative, error) {
 		if err != nil {
 			return nil, err
 		}
-		creatives[creative.SizeID] = creative
+		creatives[uint32(creativeID)] = creative
 	}
 	return creatives, nil
 }

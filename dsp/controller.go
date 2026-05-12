@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
@@ -38,6 +39,8 @@ type Controller struct {
 	Nc      *nats.Conn
 	Logger  *zap.Logger
 	IsLocal bool
+	localMu sync.Mutex
+	local   *localStaticCache
 }
 
 type controllerOptions struct {
@@ -95,6 +98,7 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		C:     c,
 		Redis: redis,
 		DB:    db,
+		local: newLocalStaticCache(),
 	}
 
 	options := applyControllerOptions(opts...)
@@ -264,7 +268,7 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	var monitors match.RAdvs
 	top := self.C.Spread
 	if self.C.IsLocal {
-		monitors, err = match.RAdvsFromIOBySizeIDSlotID(top, attr.SizeID, attr.RPub.SlotID)
+		monitors, err = self.localRAdvs(top, attr.SizeID, attr.RPub.SlotID)
 	} else {
 		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.SizeID, attr.RPub.SlotID)
 	}
@@ -273,6 +277,9 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	}
 	if len(monitors) == 0 {
 		return nil, bidAudit{}, fmt.Errorf("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
+	}
+	if self.Redis == nil && radvsNeedCaps(monitors) {
+		return nil, bidAudit{}, fmt.Errorf("redis mutable state unavailable for frequency caps")
 	}
 
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, attr.UserID)
@@ -285,12 +292,15 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 
 	var audiences match.Audiences
 	if self.C.IsLocal {
-		audiences, err = candidates.AudiencesFromIO(top)
+		audiences, err = self.localAudiences(top, candidates)
 	} else {
 		audiences, err = candidates.AudiencesFromRedis(ctx, self.Redis)
 	}
 	if err != nil {
 		return nil, bidAudit{}, err
+	}
+	if self.Redis == nil && audiencesNeedUploads(audiences) {
+		return nil, bidAudit{}, fmt.Errorf("redis mutable state unavailable for uploaded audiences")
 	}
 
 	radvs, auds, err := self.priorityAudienceMatches(ctx, bid, candidates, audiences, attr)
@@ -316,7 +326,7 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	}
 	var creative *match.Creative
 	if self.C.IsLocal {
-		creative, err = match.CreativeFromIO(top, one.CreativeID)
+		creative, err = self.localCreative(top, one.CreativeID)
 	} else {
 		creative, err = match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
 	}
@@ -326,6 +336,24 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 
 	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, auds[index], bidPrice, self.C.ServerURL)
 	return dspBid, bidAudit{Attr: attr, One: one}, nil
+}
+
+func radvsNeedCaps(radvs match.RAdvs) bool {
+	for _, radv := range radvs {
+		if radv.CapNumber != 0 || radv.ClickNumber != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func audiencesNeedUploads(audiences match.Audiences) bool {
+	for _, aud := range audiences {
+		if aud != nil && aud.UploadAudience != nil && aud.UploadAudience.Uploads != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (self *Controller) priorityAudienceMatches(ctx context.Context, bid *openrtb2.BidRequest, candidates match.RAdvs, audiences match.Audiences, attr *match.Attribute) (match.RAdvs, match.Audiences, error) {
@@ -506,7 +534,7 @@ func (self *Controller) getPub(ctx context.Context, r *http.Request, bid *openrt
 	var err error
 	top := self.C.Spread
 	if self.C.IsLocal {
-		if pubObj, err = acl.PubFromIO(top, pubStr); err == nil && pubObj == nil {
+		if pubObj, err = self.localPub(top, pubStr); err == nil && pubObj == nil {
 			return "", nil, fmt.Errorf("%s not found", pubStr)
 			//pubObj, err = acl.PubFromIO(top, acl.PUBDefault)
 		}

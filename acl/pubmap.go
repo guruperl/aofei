@@ -29,6 +29,9 @@ func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
 			return err
 		}
 	}
+	if len(arr) == 1 {
+		return nil
+	}
 	return conn.Do(ctx, radix.Cmd(nil, "HMSET", arr...))
 }
 

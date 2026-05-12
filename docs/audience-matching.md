@@ -54,12 +54,18 @@ Runtime matching reads these Redis families:
 | `bothcap:<user_id>` | Hash keyed by item id, binary `match.BothCap`. | Tracker callbacks on `/imp` and `/clk`. |
 | `upload:<adv_id>:<marker>` | Redis set of uploaded identifier values. | Upload/admin flows. |
 
-Spread/local snapshot mode mirrors the same data under `.local/spread/`:
+Spread/local snapshot mode mirrors the same static data under `.local/spread/`:
 
 - `pubmap/<domain>`
 - `slot/<size_id>/<slot_id>`
 - `audience/<item_id>`
 - `creative/<creative_id>`
+
+When DSP local mode is enabled, these files are loaded into an in-process static
+cache and reloaded when the spread directory generation changes. Mutable
+frequency caps and uploaded audience sets remain Redis-backed. Local static bids
+that do not use caps or uploaded audiences can proceed without Redis; bids that
+need those mutable families fail closed when Redis is unavailable.
 
 Redis and IO modes treat missing audience entries as wildcard matches. Malformed
 audience payloads still fail matching because they indicate cache corruption.

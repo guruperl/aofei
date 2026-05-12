@@ -2,12 +2,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -17,6 +19,11 @@ import (
 	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"
+)
+
+const (
+	spreadSubjectPattern = ">"
+	spreadResetBase      = "__reset__"
 )
 
 func usage() {
@@ -49,12 +56,15 @@ func main() {
 	if err := os.MkdirAll(top, os.ModePerm); err != nil {
 		log.Fatal(err)
 	}
+	if err := bootstrapSpreadFromRedis(context.Background(), c, top); err != nil {
+		log.Printf("spread bootstrap skipped: %v", err)
+	}
 
 	log.Printf("Listening on [%s]", nc.ConnectedUrl())
 	successchan := make(chan bool)
 	errchan := make(chan error)
 
-	_, err = nc.Subscribe("*", func(m *nats.Msg) {
+	_, err = nc.Subscribe(spreadSubjectPattern, func(m *nats.Msg) {
 		handled, err := handleSpreadMessage(top, m)
 		if err != nil {
 			errchan <- err
@@ -88,11 +98,25 @@ func handleSpreadMessage(top string, m *nats.Msg) (bool, error) {
 		return false, nil
 	}
 
-	if pure, ok := strings.CutSuffix(base, "cleanup"); ok {
-		base = pure
-		if err := os.RemoveAll(filepath.Join(top, dir)); err != nil {
-			return true, err
+	if base == spreadResetBase {
+		return true, resetSpreadDir(top, strings.TrimSuffix(dir, "/"))
+	}
+
+	if strings.HasPrefix(dir, match.HashNameSlot+"/") {
+		pure, ok := strings.CutSuffix(base, "cleanup")
+		if ok {
+			base = pure
+			if err := os.RemoveAll(filepath.Join(top, dir)); err != nil {
+				return true, err
+			}
+			if base == "" {
+				return true, nil
+			}
 		}
+	}
+
+	if base == "" {
+		return false, nil
 	}
 
 	fullPath := filepath.Join(top, dir, base)
@@ -100,10 +124,161 @@ func handleSpreadMessage(top string, m *nats.Msg) (bool, error) {
 		return true, os.RemoveAll(fullPath)
 	}
 
-	if err := os.MkdirAll(filepath.Join(top, dir), os.ModePerm); err != nil {
-		return true, err
-	}
 	return true, writeSnapshot(fullPath, m.Data)
+}
+
+func resetSpreadDir(top, family string) error {
+	if unsafePath(family) {
+		return nil
+	}
+	return os.RemoveAll(filepath.Join(top, family))
+}
+
+func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) error {
+	redis, db, err := c.GetRedisDB(ctx)
+	if err != nil {
+		return err
+	}
+	defer redis.Close()
+	defer db.Close()
+
+	pubmap, err := acl.PubMapFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	if pubmap != nil {
+		if err := resetSpreadDir(top, acl.HashNamePubmap); err != nil {
+			return err
+		}
+		for domain, pub := range pubmap {
+			if unsafePath(domain) {
+				continue
+			}
+			data, err := pub.Pack()
+			if err != nil {
+				return err
+			}
+			if err := writeSnapshot(filepath.Join(top, acl.HashNamePubmap, domain), data); err != nil {
+				return err
+			}
+		}
+	}
+
+	audiences, err := match.AudienceMapFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	if audiences != nil {
+		if err := resetSpreadDir(top, match.HashNameAudience); err != nil {
+			return err
+		}
+		for itemID, audience := range audiences {
+			data, err := audience.Pack()
+			if err != nil {
+				return err
+			}
+			name := strconv.FormatUint(uint64(itemID), 10)
+			if err := writeSnapshot(filepath.Join(top, match.HashNameAudience, name), data); err != nil {
+				return err
+			}
+		}
+	}
+
+	creatives, err := match.CreativeMapFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	if creatives != nil {
+		if err := resetSpreadDir(top, match.HashNameCreative); err != nil {
+			return err
+		}
+		for creativeID, creative := range creatives {
+			data, err := creative.Pack()
+			if err != nil {
+				return err
+			}
+			name := strconv.FormatUint(uint64(creativeID), 10)
+			if err := writeSnapshot(filepath.Join(top, match.HashNameCreative, name), data); err != nil {
+				return err
+			}
+		}
+	}
+
+	sizeIDs, err := match.DBGetActiveCreativeSizeIDs(ctx, db)
+	if err != nil {
+		return err
+	}
+	if err := resetSpreadDir(top, match.HashNameSlot); err != nil {
+		return err
+	}
+	for _, sizeID := range sizeIDs {
+		hash, err := match.RAdvsFromRedisBySizeID(ctx, redis, sizeID)
+		if err != nil {
+			return err
+		}
+		for slotID, radvs := range hash {
+			data, err := radvs.Pack()
+			if err != nil {
+				return err
+			}
+			filename := filepath.Join(top, match.HashIONameRAdvs(sizeID), strconv.FormatUint(uint64(slotID), 10))
+			if err := writeSnapshot(filename, data); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func writeSnapshot(filename string, data []byte) error {
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(dir, ".spread-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if err := syscall.Flock(int(tmp.Fd()), syscall.LOCK_EX); err != nil {
+		tmp.Close()
+		return err
+	}
+	defer func() {
+		if err := syscall.Flock(int(tmp.Fd()), syscall.LOCK_UN); err != nil && !errors.Is(err, os.ErrClosed) {
+			log.Println("Error releasing lock:", err)
+		}
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpName, filename); err != nil {
+		return err
+	}
+	return syncDir(dir)
+}
+
+func syncDir(dir string) error {
+	f, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return f.Sync()
 }
 
 func ignoredLogSubject(subject string) bool {
@@ -143,24 +318,4 @@ func unsafePath(filename string) bool {
 		}
 	}
 	return false
-}
-
-func writeSnapshot(filename string, data []byte) error {
-	w, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		return err
-	}
-	defer w.Close()
-
-	if err := syscall.Flock(int(w.Fd()), syscall.LOCK_EX); err != nil {
-		return err
-	}
-	defer func() {
-		if err := syscall.Flock(int(w.Fd()), syscall.LOCK_UN); err != nil && !errors.Is(err, os.ErrClosed) {
-			log.Println("Error releasing lock:", err)
-		}
-	}()
-
-	_, err = w.Write(data)
-	return err
 }

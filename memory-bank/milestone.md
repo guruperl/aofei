@@ -345,3 +345,26 @@ Acceptance:
 - Each M12 deferred finding is fixed, cancelled with rationale, or carried
   forward with a named owner milestone.
 - Behavior changes include focused tests and updated docs/memory bank entries.
+
+## M14 - Redis And Spread Cache Reliability `[+]`
+
+Harden the Redis/static spread cache path after the post-M13 cache review.
+
+Scope:
+
+- Make spread subscriptions receive cache subjects whose payload keys contain
+  dots, especially publisher domains.
+- Replace in-place spread file writes with atomic snapshot replacement.
+- Let `cmd/spread` bootstrap local files from Redis on startup when Redis/DB are
+  available, so a restarted receiver can recover current static cache state.
+- Make full Redis and spread refreshes remove stale static cache records.
+- Recompute item-level RAdv cache refreshes from MySQL slot state rather than
+  merging against local spread files.
+- Add an in-process local static cache for local/spread bid serving, while
+  keeping caps and uploaded audiences Redis-backed.
+
+Acceptance:
+
+- Focused command/package tests cover spread subject routing, reset/cleanup
+  handling, creative file map keys, and the local bid path.
+- Docs describe the Redis, NATS, file, and in-memory cache roles clearly.
