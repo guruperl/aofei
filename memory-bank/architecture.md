@@ -59,3 +59,14 @@ legacy definers or `eightran_*` auth references.
   sample data.
 - Production deployment notes are historical; the current supported workflow is
   local Docker development.
+- Runtime config parsing needs one validation/defaulting boundary across DSP
+  and Summer/Genelet so missing service blocks fail with actionable errors.
+- Redis, spread, and NATS payloads need typed/versioned contracts and
+  single-writer operational paths instead of direct struct serialization and
+  callback-side file mutation.
+- Summer/Genelet admin SQL needs a whitelisted identifier/query-building seam
+  before request or component metadata is interpolated into statements.
+- Ledger processing needs a transactional, replay-safe unit of work for
+  interval and daily accounting.
+- Production hardening still needs explicit decisions for credentials, CORS,
+  uploads, static file serving, and legacy password hashing.

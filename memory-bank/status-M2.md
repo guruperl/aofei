@@ -111,3 +111,14 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 - `[ ]` Keep the SQL guard specific: fail on explicit `DEFINER=` clauses and
   legacy auth references, while allowing intentional `SQL SECURITY DEFINER`
   syntax when it has no user-bound definer.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Make baseline loading replay-safe. `scripts/aofei-local.sh load`
+  imports SQL into the current database without a reset or duplicate-state
+  guard, so reruns can fail partway through or create confusing local state.
+
+- `[ ]` Convert checked-in active config examples into Docker-safe templates or
+  quarantine them as historical references. `etc/aofei.json` still points at
+  non-Docker Redis/MySQL endpoints and legacy auth, which conflicts with the
+  current local database contract.

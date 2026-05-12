@@ -90,3 +90,21 @@ Goal: Clarify and verify the non-bid operational commands.
 - `[ ]` Replace stringly controller modes with explicit options. Commands pass
   values such as `stop` and `maxmind` into `dsp.NewController`, making service
   startup behavior hard to reason about.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Make ledger writes transactional and replay-safe. Partial failures after
+  inserting `ledger_log` can leave incomplete accounting rows while blocking a
+  later retry for the same interval.
+
+- `[ ]` Treat missing win/loss source logs as retryable missing input. Current
+  ledger statistics return empty data for a missing file and can create a zero
+  interval ledger entry that prevents later reprocessing.
+
+- `[ ]` Increase or configure scanner buffers for JSON log files. Ledger reads
+  win/loss logs with the default `bufio.Scanner` token limit, which can fail on
+  large serialized events.
+
+- `[ ]` Harden the win/loss simulator against no-bid and malformed response
+  shapes. Local simulator code should report missing bid/native tracker data
+  instead of indexing into empty response slices.

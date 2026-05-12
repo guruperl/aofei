@@ -82,3 +82,13 @@ Goal: Make geodata expectations explicit and locally testable.
 
 - `[ ]` Replace remaining panic-style error handling in the IP search path with
   returned errors or documented fatal command behavior.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Make MaxMind data generation atomic. `cmd/maxmind` writes to the
+  configured IP data path directly, so interrupted generation can corrupt the
+  active runtime file.
+
+- `[ ]` Remove the existing-IP-data dependency from generation startup.
+  `cmd/maxmind` still creates a DSP controller before generating data, which
+  loads MaxMind state before the command has produced it.

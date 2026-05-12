@@ -99,3 +99,17 @@ Goal: Prove that cache and message-bus flows work from Docker services.
 - `[ ]` Review spread file writes and cleanup subjects. Cache files are opened
   append-style, and cleanup is encoded as a string suffix rather than a tested
   subject contract.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Prevent NATS callback backpressure in `cmd/nats-client`. Subscription
+  callbacks send to unbuffered success/error channels, so log delivery can block
+  inside the NATS callback path under traffic or errors.
+
+- `[ ]` Synchronize NATS log file rotation and writes. The log consumer mutates
+  shared file handles from the callback path without a lock or single-writer
+  queue, leaving rotation/write races untested.
+
+- `[ ]` Make ignored NATS subjects observable. The wildcard subscription sends
+  success even for unknown subjects, so dropped traffic is indistinguishable
+  from processed request, response, attribute, or win/loss logs.

@@ -77,3 +77,18 @@ notes.
 
 - `[ ]` Add graceful shutdown expectations for server commands. Current command
   review did not find a documented signal/shutdown contract.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Remove active tracked credential-like values and legacy DSNs from config
+  examples and tests, or clearly quarantine them as historical-only fixtures.
+
+- `[ ]` Define a production CORS policy for the admin service. Genelet currently
+  reflects any request `Origin` while allowing credentials.
+
+- `[ ]` Fix static-file path rejection. The static handler writes `404` for
+  paths containing `..` but does not return before calling `ServeFile`.
+
+- `[ ]` Make legacy password hashing an explicit migration decision. Summer
+  login/reset paths still use SHA1-era password hashes that should not be
+  treated as the long-term production auth contract.

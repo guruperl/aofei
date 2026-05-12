@@ -88,3 +88,18 @@ target.
 
 - `[ ]` Add defensive DB-test setup. Some Genelet/Summer tests continue after
   failed config or DB setup and then panic on nil or empty data structures.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Add static correctness checks to the hygiene backlog. Current
+  `GOWORK=off staticcheck -checks=SA* ./...` reports real issues including an
+  invalid JSON tag, unused append result, unchecked `os.Open` before `defer`,
+  ineffective assignments, and ignored test errors.
+
+- `[ ]` Keep callback concurrency under test, not only compile/race smoke.
+  Race compile-only checks pass for DSP, match, NATS client, and spread
+  packages, but they do not exercise NATS callback write/rotation behavior.
+
+- `[ ]` Replace legacy DSN test fixtures with Docker-aware setup or explicit
+  skips. Genelet tests still hard-code legacy MySQL DSNs and some continue
+  after setup failures.

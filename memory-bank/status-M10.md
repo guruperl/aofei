@@ -78,3 +78,17 @@ Goal: Keep the harness useful as the project changes.
 - `[ ]` Define how review findings move from status files into milestone
   closeout notes, so open architecture issues do not remain untriaged after a
   milestone is otherwise completed.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Refresh `.gitignore` for the current command layout. It still references
+  retired `conf/`, `cmd/nats/`, and `cmd/redis/` paths and misses current
+  command binary paths such as `cmd/nats-client/`, `cmd/redis-cache/`, and
+  `cmd/spread/`.
+
+- `[ ]` Add documentation checks for stale command paths and active config
+  examples that reintroduce non-Docker database auth.
+
+- `[ ]` Date future review-finding batches and define a closeout convention so
+  repeated deep reviews can distinguish new findings, carried findings, and
+  resolved findings.

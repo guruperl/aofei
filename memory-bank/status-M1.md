@@ -108,3 +108,17 @@ baseline.
 - `[ ]` Decide the local config contract across DSP, Summer, and Genelet.
   Current tests mix lower-case DSP config JSON with Genelet's `ConnectArray`
   config shape, which makes local runtime verification ambiguous.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Make DSP config defaulting nil-safe. `dsp.NewConfig` dereferences
+  `parsed.Redis` even when a config omits the `redis` block, so minimal configs
+  can panic before validation returns an actionable error.
+
+- `[ ]` Add usage/error handling to the `etc` helper command. `go run ./etc`
+  indexes `os.Args[1]` directly, so missing or unsupported subcommands panic
+  instead of explaining supported setup actions.
+
+- `[ ]` Make `reset-sample` deterministic. The sample loader skips
+  `etc/demand.sql` whenever `adv` already has rows, but the schema baseline can
+  already contain advertiser rows, making sample-demand loading a no-op.

@@ -92,3 +92,21 @@ Goal: Add a reliable local proof that the DSP request path still works.
 - `[ ]` Split bid orchestration into testable units. `ServeBid` currently mixes
   HTTP parsing, pub lookup, geo/user-agent matching, audience checks, fcap,
   creative load, response writing, and NATS logging in one method.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Limit bid request body size before reading. `ServeBid` currently uses
+  `io.ReadAll` on the HTTP body, so public bid traffic can force unbounded
+  memory allocation.
+
+- `[ ]` Decide the audit-log failure contract for accepted bids. `ServeBid`
+  writes the OpenRTB response before publishing request, response, and attribute
+  logs to NATS, so a bidder can receive `200 OK` while audit logs are lost.
+
+- `[ ]` Harden win/loss URL macro expansion for no-bid responses.
+  `dsp.UnpackURLString` assumes `SeatBid[0].Bid[0]` exists and can panic on
+  empty or malformed simulator responses.
+
+- `[ ]` Fix the `WinLoss.BothCap` JSON tag. Staticcheck flags
+  `json:"-,omitempty"` as invalid; use `json:"-"` if the cap should never be
+  serialized.

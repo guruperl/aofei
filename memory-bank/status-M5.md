@@ -95,3 +95,20 @@ Goal: Align admin models, filters, and components with the active Docker schema.
 - `[ ]` Review `cmd/unify` model, storage, and filter registries. The command
   hardcodes duplicated registrations, making missing Summer module coverage
   hard to verify.
+
+### Second Review Pass - 2026-05-12
+
+- `[ ]` Add a central SQL identifier whitelist for Genelet/Summer query
+  builders. Request or component-derived fields, table names, and `_gsql`
+  clauses are currently interpolated into SQL outside a single validation seam.
+
+- `[ ]` Lock down Summer access-control SQL inputs. `summer/ac` uses request
+  `table` and `idname` values directly in `SELECT` and `UPDATE` statements.
+
+- `[ ]` Sanitize admin upload filenames and enforce upload size limits.
+  Multipart handling and creative upload moves use client-provided filenames in
+  filesystem paths without `filepath.Base`/path traversal checks.
+
+- `[ ]` Replace fragile type assertions and header indexing with guarded error
+  paths. Login/logout error handling and forwarded group parsing can panic on
+  ordinary database errors or malformed auth headers.
