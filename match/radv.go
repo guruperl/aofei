@@ -109,6 +109,35 @@ func (self RAdv) updateRow(
 
 type RAdvs []RAdv
 
+// DBGetActiveCreativeSizeIDs returns the active creative sizes that can produce
+// slot RAdv cache entries under the same demand-side filters used by proc_slot.
+func DBGetActiveCreativeSizeIDs(ctx context.Context, db *sql.DB) ([]uint32, error) {
+	rows, err := db.QueryContext(ctx, `
+SELECT DISTINCT v.size_id
+FROM adv_creative v
+INNER JOIN adv_item i USING (item_id)
+INNER JOIN adv_campaign c USING (campaign_id)
+INNER JOIN adv a USING (adv_id)
+WHERE a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
+AND (i.startx <= NOW() OR i.startx IS NULL)
+AND (i.endx >= NOW() OR i.endx IS NULL)
+ORDER BY v.size_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sizeIDs []uint32
+	for rows.Next() {
+		var sizeID uint32
+		if err := rows.Scan(&sizeID); err != nil {
+			return nil, err
+		}
+		sizeIDs = append(sizeIDs, sizeID)
+	}
+	return sizeIDs, rows.Err()
+}
+
 // Pack packs the creatives to binary.
 func (self RAdvs) Pack() ([]byte, error) {
 	buf := new(bytes.Buffer)

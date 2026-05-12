@@ -30,7 +30,10 @@
 3. `etc/demand.sql` plus `go run ./etc pub` can load sample local demand and
    publisher data.
 4. `cmd/redis-cache` reads MySQL through `dsp.Config`, builds `PubMap`, `RAdv`,
-   audience, and creative caches, then writes them to Redis or spread files.
+   audience, and creative caches, discovers active creative size IDs from the
+   schema, then writes Redis cache entries or publishes spread/NATS messages.
+   `cmd/spread` must be running when spread messages should become
+   `.local/spread/` file snapshots.
 5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
 6. Bid/win/loss/log flows use Redis for runtime state and NATS/spread/log paths
@@ -55,14 +58,15 @@ legacy definers or `eightran_*` auth references.
 
 - Full `go test ./...` is not yet the canonical verification target because
   historical Go files moved into `backup/` still appear as a Go package.
-- The Redis/NATS cache and log paths need deeper integration tests with seeded
+- Bid-path Redis cache consumers still need deeper integration tests with seeded
   sample data.
 - Production deployment notes are historical; the current supported workflow is
   local Docker development.
 - Runtime config parsing needs one validation/defaulting boundary across DSP
   and Summer/Genelet so missing service blocks fail with actionable errors.
-- Redis, spread, and NATS payloads need typed/versioned contracts and
-  single-writer operational paths instead of direct struct serialization and
+- Redis and spread cache payloads need typed/versioned contracts instead of
+  direct struct serialization.
+- NATS log consumers need single-writer operational paths instead of
   callback-side file mutation.
 - Summer/Genelet admin SQL needs a whitelisted identifier/query-building seam
   before request or component metadata is interpolated into statements.

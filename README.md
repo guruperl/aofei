@@ -21,6 +21,12 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 ./scripts/aofei-local.sh status
 ```
 
+Run the cache pipeline smoke, including Redis, NATS, and spread artifacts:
+
+```bash
+./scripts/aofei-cache-smoke.sh
+```
+
 The helper starts:
 
 - MySQL `mysql:8.0.41` on `127.0.0.1:3307`

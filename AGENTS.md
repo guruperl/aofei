@@ -57,6 +57,7 @@ same change.
 ./scripts/aofei-local.sh check-sql
 ./scripts/aofei-local.sh diff-schema
 ./scripts/aofei-local.sh install
+./scripts/aofei-cache-smoke.sh
 
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis

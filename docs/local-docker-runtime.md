@@ -77,6 +77,17 @@ not part of M1 runtime verification.
 
 ## Redis Cache
 
+Run the full cache smoke workflow:
+
+```bash
+./scripts/aofei-cache-smoke.sh
+```
+
+The smoke helper resets sample data, flushes Redis, populates Redis, reads Redis
+through application code, starts the spread receiver, publishes spread cache
+messages, runs combined mode, and checks for expected Redis keys and spread
+artifact directories.
+
 Populate Redis from MySQL:
 
 ```bash
@@ -91,6 +102,23 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis -read
 ```
 
+Populate spread/NATS cache messages:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=spread
+```
+
+Populate spread/NATS and Redis in one run:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=all
+```
+
+`-cache` accepts only `redis`, `spread`, or `all`. Unknown values fail before
+cache writes are attempted.
+
 Check Redis directly:
 
 ```bash
@@ -101,6 +129,21 @@ Flush local Redis:
 
 ```bash
 ./scripts/aofei-local.sh redis-flush
+```
+
+Expected Redis cache families after sample population:
+
+| Family | Shape |
+|---|---|
+| `pubmap` | Hash keyed by publisher domain. |
+| `audience` | Hash keyed by item id. |
+| `creative` | Hash keyed by creative id. |
+| `slot:<size_id>` | Hash keyed by slot id; `size_id` is the packed width/height used by creatives. |
+
+Inspect all keys:
+
+```bash
+docker exec aofei-redis redis-cli --scan
 ```
 
 ## NATS
@@ -118,3 +161,32 @@ The generated DSP config points to:
 ```text
 nats://127.0.0.1:4222
 ```
+
+## Spread Artifacts
+
+Spread cache files are local snapshots under the generated DSP config's
+`spread` path, normally:
+
+```text
+.local/spread
+```
+
+Start the receiver before running `-cache=spread` or `-cache=all` when you want
+filesystem artifacts:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
+```
+
+Expected artifact families:
+
+| Directory | Shape |
+|---|---|
+| `.local/spread/pubmap/` | Publisher-domain files. |
+| `.local/spread/audience/` | Item-id files. |
+| `.local/spread/creative/` | Creative-id files. |
+| `.local/spread/slot/<size_id>/` | Slot-id files for each active creative size. |
+
+The spread receiver writes each cache message as a full file snapshot. Slot
+cleanup subjects such as `slot:<size_id>:<slot_id>cleanup` clear the size
+directory before writing the new slot snapshot.

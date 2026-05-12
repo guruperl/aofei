@@ -93,6 +93,21 @@ Goal: Clarify and verify the non-bid operational commands.
 
 ### Second Review Pass - 2026-05-12
 
+- `[ ]` Prevent NATS callback backpressure in `cmd/nats-client`. Subscription
+  callbacks send to unbuffered success/error channels, so log delivery can block
+  inside the NATS callback path under traffic or errors. Moved from M3 because
+  this is operational-log reliability.
+
+- `[ ]` Synchronize NATS log file rotation and writes. The log consumer mutates
+  shared file handles from the callback path without a lock or single-writer
+  queue, leaving rotation/write races untested. Moved from M3 because this is
+  operational-log reliability.
+
+- `[ ]` Make ignored NATS subjects observable. The wildcard subscription sends
+  success even for unknown subjects, so dropped traffic is indistinguishable
+  from processed request, response, attribute, or win/loss logs. Moved from M3
+  because this is operational-log reliability.
+
 - `[ ]` Make ledger writes transactional and replay-safe. Partial failures after
   inserting `ledger_log` can leave incomplete accounting rows while blocking a
   later retry for the same interval.

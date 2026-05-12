@@ -87,6 +87,12 @@ changed.
 
 ## Cache Commands
 
+Run the one-command Docker cache smoke:
+
+```bash
+./scripts/aofei-cache-smoke.sh
+```
+
 Populate Redis from MySQL:
 
 ```bash
@@ -101,18 +107,41 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis -read
 ```
 
-Populate spread files and Redis/NATS-backed paths:
+Populate spread/NATS cache messages:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=spread
+```
+
+Persist spread messages to `.local/spread/` by running the receiver in another
+terminal before `-cache=spread` or `-cache=all`:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/spread
+```
+
+Populate spread/NATS and Redis together:
 
 ```bash
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=all
 ```
 
+Expected Redis cache families are `pubmap`, `audience`, `creative`, and
+`slot:<size_id>` hashes keyed by slot id. Expected spread directories are
+`.local/spread/pubmap/`, `.local/spread/audience/`,
+`.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
+
 ## Verification
 
 Current smoke verification:
 
 ```bash
+bash -n scripts/aofei-cache-smoke.sh
+GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
+GOWORK=off go test ./cmd/spread -run 'Test'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 git diff --check
 ```

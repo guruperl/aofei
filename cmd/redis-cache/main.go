@@ -22,7 +22,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: redis-cache -s=dsp_config -read -update -interval=divider -stamp=stamp\n")
+	fmt.Fprintf(os.Stderr, "usage: redis-cache -s=dsp_config -cache=redis|spread|all -read -update -interval=divider -stamp=stamp\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -42,10 +42,15 @@ func init() {
 	flag.BoolVar(&read, "read", false, "read caches from redis")
 	flag.IntVar(&interval, "interval", 10, "if update, divider in minutes")
 	flag.IntVar(&stamp, "timestamp", 0, "if update, fixed timestamp in minutes")
-	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
+
+	if err := validateCacheMode(cache); err != nil {
+		log.Fatal(err)
+	}
+
 	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
@@ -60,8 +65,7 @@ func main() {
 
 	var top string
 	switch cache {
-	case "redis":
-	default:
+	case "spread", "all":
 		top = c.Spread
 		err = os.MkdirAll(top, 0755)
 		if err != nil {
@@ -69,15 +73,20 @@ func main() {
 		}
 	}
 
+	sizeIDs, err := match.DBGetActiveCreativeSizeIDs(ctx, db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if read {
 		switch cache {
 		case "spread":
-			err = spreadRead(top)
+			err = spreadRead(top, sizeIDs)
 		case "redis":
-			err = redisRead(ctx, redis)
-		default:
-			if err = spreadRead(top); err == nil {
-				err = redisRead(ctx, redis)
+			err = redisRead(ctx, redis, sizeIDs)
+		case "all":
+			if err = spreadRead(top, sizeIDs); err == nil {
+				err = redisRead(ctx, redis, sizeIDs)
 			}
 		}
 		if err != nil {
@@ -99,7 +108,7 @@ func main() {
 	}
 
 	var nc *nats.Conn
-	if cache != "redis" {
+	if cache == "spread" || cache == "all" {
 		nc, err = nats.Connect(c.NatsURL)
 		if err != nil {
 			log.Fatal(err)
@@ -109,12 +118,12 @@ func main() {
 
 	switch cache {
 	case "spread":
-		err = writeToSpread(ctx, nc, db, pubmap)
+		err = writeToSpread(ctx, nc, db, pubmap, sizeIDs)
 	case "redis":
-		err = writeToRedis(ctx, redis, db, pubmap)
-	default:
-		if err = writeToSpread(ctx, nc, db, pubmap); err == nil {
-			err = writeToRedis(ctx, redis, db, pubmap)
+		err = writeToRedis(ctx, redis, db, pubmap, sizeIDs)
+	case "all":
+		if err = writeToSpread(ctx, nc, db, pubmap, sizeIDs); err == nil {
+			err = writeToRedis(ctx, redis, db, pubmap, sizeIDs)
 		}
 	}
 	if err != nil {
@@ -122,7 +131,16 @@ func main() {
 	}
 }
 
-func redisRead(ctx context.Context, redis radix.Client) error {
+func validateCacheMode(cache string) error {
+	switch cache {
+	case "redis", "spread", "all":
+		return nil
+	default:
+		return fmt.Errorf("unknown cache mode %q; expected redis, spread, or all", cache)
+	}
+}
+
+func redisRead(ctx context.Context, redis radix.Client, sizeIDs []uint32) error {
 	log.Printf("reading PubMap from redis\n")
 	pubmap, err := acl.PubMapFromRedis(ctx, redis)
 	if err != nil {
@@ -134,11 +152,9 @@ func redisRead(ctx context.Context, redis radix.Client) error {
 	}
 	fmt.Printf("pubmap:\n%s\n", bs)
 
-	for _, sizeID2 := range [][2]uint16{
-		{64, 64},
-		{100, 100},
-	} {
-		hash, err := match.RAdvsFromRedisBySizeID(ctx, redis, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+	for _, sizeID := range sizeIDs {
+		width, height := match.SizeID1To2(sizeID)
+		hash, err := match.RAdvsFromRedisBySizeID(ctx, redis, sizeID)
 		if err != nil {
 			return err
 		}
@@ -146,7 +162,7 @@ func redisRead(ctx context.Context, redis radix.Client) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("\nRAdvs for sizeID %d x %d:\n%s\n", sizeID2[0], sizeID2[1], bs)
+		fmt.Printf("\nRAdvs for sizeID %d x %d:\n%s\n", width, height, bs)
 	}
 
 	audiences, err := match.AudienceMapFromRedis(ctx, redis)
@@ -171,7 +187,7 @@ func redisRead(ctx context.Context, redis radix.Client) error {
 	return nil
 }
 
-func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap) error {
+func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
 	log.Printf("new PubMap is written to redis\n")
 	err := pubmap.ToRedis(ctx, redis)
 	if err != nil {
@@ -179,11 +195,8 @@ func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap ac
 	}
 
 	log.Printf("retrieve RAdvs from DB and write to redis")
-	for _, sizeID2 := range [][2]uint16{
-		{64, 64},
-		{100, 100},
-	} {
-		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, redis, db, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+	for _, sizeID := range sizeIDs {
+		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, redis, db, sizeID)
 		if err != nil {
 			return err
 		}
@@ -204,7 +217,7 @@ func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap ac
 	return nil
 }
 
-func spreadRead(top string) error {
+func spreadRead(top string, sizeIDs []uint32) error {
 	log.Printf("reading PubMap from IO\n")
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
@@ -216,11 +229,9 @@ func spreadRead(top string) error {
 	}
 	fmt.Printf("pubmap:\n%s\n", bs)
 
-	for _, sizeID2 := range [][2]uint16{
-		{64, 64},
-		{100, 100},
-	} {
-		hash, err := match.RAdvsFromIOBySizeID(top, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+	for _, sizeID := range sizeIDs {
+		width, height := match.SizeID1To2(sizeID)
+		hash, err := match.RAdvsFromIOBySizeID(top, sizeID)
 		if err != nil {
 			return err
 		}
@@ -228,7 +239,7 @@ func spreadRead(top string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("\nRAdvs for sizeID %d x %d:\n%s\n", sizeID2[0], sizeID2[1], bs)
+		fmt.Printf("\nRAdvs for sizeID %d x %d:\n%s\n", width, height, bs)
 	}
 
 	audiences, err := match.AudienceMapFromIO(top)
@@ -254,7 +265,7 @@ func spreadRead(top string) error {
 	return nil
 }
 
-func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap) error {
+func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
 	log.Printf("new PubMap is written to nats\n")
 	err := pubmap.ToSpread(nc)
 	if err != nil {
@@ -262,11 +273,8 @@ func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.Pu
 	}
 
 	log.Printf("retrieve RAdvs from DB and write to nats")
-	for _, sizeID2 := range [][2]uint16{
-		{64, 64},
-		{100, 100},
-	} {
-		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, nc, db, match.SizeID2To1(sizeID2[0], sizeID2[1]))
+	for _, sizeID := range sizeIDs {
+		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, nc, db, sizeID)
 		if err != nil {
 			return err
 		}

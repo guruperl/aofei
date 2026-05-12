@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -29,10 +30,11 @@ var sConf string
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
-	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
+
 	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
@@ -53,55 +55,12 @@ func main() {
 	errchan := make(chan error)
 
 	_, err = nc.Subscribe("*", func(m *nats.Msg) {
-		switch m.Subject {
-		case dsp.SUBJECTRequest:
+		handled, err := handleSpreadMessage(top, m)
+		if err != nil {
+			errchan <- err
 			return
-		case dsp.SUBJECTResponse:
-			return
-		case dsp.SUBJECTAttribute:
-			return
-		case dsp.SUBJECTWinLoss:
-			return
-		default:
 		}
-
-		filename := strings.ReplaceAll(m.Subject, ":", "/")
-		dir, base := filepath.Split(filename)
-		if pure, ok := strings.CutSuffix(base, "cleanup"); ok {
-			base = pure
-			if err := os.RemoveAll(fmt.Sprintf("%s/%s", top, dir)); err != nil {
-				errchan <- err
-				return
-			}
-		}
-		if strings.HasPrefix(dir, acl.HashNamePubmap) ||
-			strings.HasPrefix(dir, match.HashNameAudience) ||
-			strings.HasPrefix(dir, match.HashNameSlot) ||
-			strings.HasPrefix(dir, match.HashNameCreative) {
-			var err error
-			if len(m.Data) == 6 && string(m.Data) == "DELETE" {
-				err = os.RemoveAll(fmt.Sprintf("%s/%s/%s", top, dir, base))
-			} else if err = os.MkdirAll(fmt.Sprintf("%s/%s", top, dir), os.ModePerm); err == nil {
-				var w *os.File
-				if w, err = os.OpenFile(fmt.Sprintf("%s/%s/%s", top, dir, base), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666); err == nil {
-					defer w.Close()
-					// Acquire exclusive lock.
-					// LOCK_NB is not used here, because we want to wait for the lock until it is released by other process.
-					if err = syscall.Flock(int(w.Fd()), syscall.LOCK_EX); err == nil {
-						defer func() {
-							err1 := syscall.Flock(int(w.Fd()), syscall.LOCK_UN)
-							if err1 != nil {
-								log.Println("Error releasing lock:", err1)
-							}
-						}()
-						_, err = w.Write(m.Data)
-					}
-				}
-			}
-			if err != nil {
-				errchan <- err
-				return
-			}
+		if handled {
 			log.Printf("write %s", m.Subject)
 		}
 		successchan <- true
@@ -117,4 +76,91 @@ func main() {
 			log.Printf("error: %v", errs)
 		}
 	}
+}
+
+func handleSpreadMessage(top string, m *nats.Msg) (bool, error) {
+	if ignoredLogSubject(m.Subject) {
+		return false, nil
+	}
+
+	dir, base, ok := spreadSubjectPath(m.Subject)
+	if !ok {
+		return false, nil
+	}
+
+	if pure, ok := strings.CutSuffix(base, "cleanup"); ok {
+		base = pure
+		if err := os.RemoveAll(filepath.Join(top, dir)); err != nil {
+			return true, err
+		}
+	}
+
+	fullPath := filepath.Join(top, dir, base)
+	if string(m.Data) == "DELETE" {
+		return true, os.RemoveAll(fullPath)
+	}
+
+	if err := os.MkdirAll(filepath.Join(top, dir), os.ModePerm); err != nil {
+		return true, err
+	}
+	return true, writeSnapshot(fullPath, m.Data)
+}
+
+func ignoredLogSubject(subject string) bool {
+	switch subject {
+	case dsp.SUBJECTRequest, dsp.SUBJECTResponse, dsp.SUBJECTAttribute, dsp.SUBJECTWinLoss:
+		return true
+	default:
+		return false
+	}
+}
+
+func spreadSubjectPath(subject string) (string, string, bool) {
+	filename := strings.ReplaceAll(subject, ":", "/")
+	if unsafePath(filename) {
+		return "", "", false
+	}
+	dir, base := filepath.Split(filename)
+	if dir == "" || base == "" {
+		return "", "", false
+	}
+	if strings.HasPrefix(dir, acl.HashNamePubmap+"/") ||
+		strings.HasPrefix(dir, match.HashNameAudience+"/") ||
+		strings.HasPrefix(dir, match.HashNameSlot+"/") ||
+		strings.HasPrefix(dir, match.HashNameCreative+"/") {
+		return dir, base, true
+	}
+	return "", "", false
+}
+
+func unsafePath(filename string) bool {
+	if filepath.IsAbs(filename) {
+		return true
+	}
+	for _, part := range strings.Split(filename, "/") {
+		if part == "" || part == "." || part == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+func writeSnapshot(filename string, data []byte) error {
+	w, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	if err := syscall.Flock(int(w.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer func() {
+		if err := syscall.Flock(int(w.Fd()), syscall.LOCK_UN); err != nil && !errors.Is(err, os.ErrClosed) {
+			log.Println("Error releasing lock:", err)
+		}
+	}()
+
+	_, err = w.Write(data)
+	return err
 }

@@ -65,7 +65,7 @@ Acceptance:
 - Docker MySQL schema can be recreated from `etc/step4_init.sql`.
 - Drift between Docker MySQL and the baseline can be detected and reviewed.
 
-## M3 - Redis And NATS Cache Pipeline Reliability `[ ]`
+## M3 - Redis And NATS Cache Pipeline Reliability `[+]`
 
 Prove that cache and message-bus flows work from the Docker services.
 

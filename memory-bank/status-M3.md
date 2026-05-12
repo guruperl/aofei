@@ -1,115 +1,120 @@
 # Status M3 - Redis And NATS Cache Pipeline Reliability
 
-Milestone status: `[ ]` Pending
+Milestone status: `[+]` Completed
 
 Goal: Prove that cache and message-bus flows work from Docker services.
 
 ## Tasks
 
-- `[ ]` Reset the runtime to a known sample state.
+- `[+]` Reset the runtime to a known sample state.
   - Files: `scripts/aofei-local.sh`, `etc/step4_init.sql`, `etc/demand.sql`.
   - Command:
     ```bash
     ./scripts/aofei-local.sh reset-sample
     ./scripts/aofei-local.sh redis-flush
     ```
-  - Acceptance: MySQL sample data exists and Redis starts empty.
+  - Result: sample MySQL data loads deterministically and Redis starts empty.
 
-- `[ ]` Populate Redis cache only.
+- `[+]` Populate Redis cache only.
   - Files: `cmd/redis-cache/main.go`, `acl/*`, `match/*`, `dsp/config.go`.
   - Command:
     ```bash
     GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=redis
     ./scripts/aofei-local.sh redis-status
     ```
-  - Acceptance: Redis DB size is greater than zero and the command exits
-    without NATS dependency.
+  - Result: Redis cache population exits without NATS and writes cache keys.
 
-- `[ ]` Read Redis cache through application code.
+- `[+]` Read Redis cache through application code.
   - Files: `cmd/redis-cache/main.go`, `acl/*`, `match/*`.
   - Command:
     ```bash
     GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=redis -read
     ```
-  - Acceptance: output includes `pubmap`, `Audiences`, and `Creatives`.
+  - Result: output includes `pubmap`, `Audiences`, `Creatives`, and RAdv
+    output for active creative size IDs discovered from MySQL.
 
-- `[ ]` Verify expected Redis key families.
+- `[+]` Verify expected Redis key families.
   - Files: `match/*`, `acl/*`, `docs/local-docker-runtime.md`.
   - Command:
     ```bash
     docker exec aofei-redis redis-cli --scan
     ```
-  - Acceptance: task notes list the expected key prefixes or names for PubMap,
-    RAdv, audience, and creative cache entries.
+  - Result: expected families are documented as `pubmap`, `audience`,
+    `creative`, and `slot:<size_id>` hashes.
 
-- `[ ]` Populate spread/NATS path.
+- `[+]` Populate spread/NATS path.
   - Files: `cmd/redis-cache/main.go`, `cmd/spread/main.go`,
-    `scripts/aofei-local.sh`.
+    `scripts/aofei-cache-smoke.sh`.
   - Command:
     ```bash
-    ./scripts/aofei-local.sh nats-status
-    GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=spread
+    ./scripts/aofei-cache-smoke.sh
     ```
-  - Acceptance: command connects to Docker NATS and writes spread artifacts
-    under the configured local spread directory.
+  - Result: the helper starts `cmd/spread`, publishes spread cache messages to
+    Docker NATS, and verifies `.local/spread/` artifact families.
 
-- `[ ]` Populate combined cache mode.
+- `[+]` Populate combined cache mode.
   - Files: `cmd/redis-cache/main.go`, `docs/local-docker-runtime.md`.
   - Command:
     ```bash
     GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=all
     ```
-  - Acceptance: both spread and Redis writes complete successfully.
+  - Result: combined mode publishes spread/NATS messages and writes Redis.
 
-- `[ ]` Add or update a cache smoke script if repeated commands stay manual.
-  - Files: `scripts/aofei-cache-smoke.sh` or `scripts/aofei-local.sh`,
-    `docs/local-docker-runtime.md`.
-  - Acceptance: one command can reset sample data, populate Redis, inspect cache,
-    and report pass/fail.
+- `[+]` Add or update a cache smoke script if repeated commands stay manual.
+  - Files: `scripts/aofei-cache-smoke.sh`, `docs/local-docker-runtime.md`.
+  - Result: one command resets sample data, populates Redis, inspects cache
+    output, starts spread, publishes spread/all modes, and reports pass/fail.
 
-- `[ ]` Document cache inspection expectations.
+- `[+]` Document cache inspection expectations.
   - Files: `docs/local-docker-runtime.md`, `memory-bank/architecture.md`.
-  - Acceptance: docs explain which commands prove Redis mode, spread mode, and
-    NATS connectivity.
+  - Result: docs explain Redis mode, spread mode, combined mode, expected key
+    families, spread artifact families, and the spread receiver requirement.
 
-- `[ ]` Run M3 verification.
+- `[+]` Run M3 verification.
   - Command:
     ```bash
+    bash -n scripts/aofei-cache-smoke.sh
+    GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
+    GOWORK=off go test ./cmd/spread -run 'Test'
+    ./scripts/aofei-cache-smoke.sh
     ./scripts/aofei-local.sh reset-sample
+    ./scripts/aofei-local.sh redis-flush
     GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=redis
     GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=redis -read
     GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/redis-cache -cache=all
+    GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
     git diff --check
     ```
-  - Acceptance: all commands pass against Docker services.
+  - Result: all commands passed on 2026-05-12.
 
 ## Review Findings
 
-- `[ ]` Validate `cmd/redis-cache -cache` values explicitly. Today any unknown
-  value falls into the combined spread-plus-Redis path, so typos can trigger
-  unexpected writes.
+- `[+]` Validate `cmd/redis-cache -cache` values explicitly. Unknown values now
+  exit nonzero before config loading or cache writes.
 
-- `[ ]` Remove hardcoded RAdv creative sizes from Redis cache population and
-  inspection. The command only handles `64x64` and `100x100` even though
-  creative size is schema-driven.
+- `[+]` Remove hardcoded RAdv creative sizes from Redis cache population and
+  inspection. `cmd/redis-cache` now discovers active creative size IDs from
+  MySQL with active advertiser/campaign/item/creative and item date filters.
 
-- `[ ]` Define a versioned cache payload contract for Redis and spread data.
-  Current gob/binary serialization is tied directly to Go struct layout.
+- `[X]` Define a versioned cache payload contract for Redis and spread data.
+  Deferred from M3 because the current milestone is cache-pipeline reliability,
+  not a wire-format migration. This remains tracked as an architecture gap.
 
-- `[ ]` Review spread file writes and cleanup subjects. Cache files are opened
-  append-style, and cleanup is encoded as a string suffix rather than a tested
-  subject contract.
+- `[+]` Review spread file writes and cleanup subjects. `cmd/spread` now routes
+  subjects through a tested helper, writes full message snapshots, supports
+  `DELETE`, preserves `slot:<size_id>:<slot_id>cleanup`, and ignores log or
+  unsupported subjects.
 
 ### Second Review Pass - 2026-05-12
 
-- `[ ]` Prevent NATS callback backpressure in `cmd/nats-client`. Subscription
-  callbacks send to unbuffered success/error channels, so log delivery can block
-  inside the NATS callback path under traffic or errors.
+- `[X]` Move `cmd/nats-client` callback/backpressure, rotation, and
+  ignored-subject observability findings to M6. These are operational-log
+  reliability issues rather than M3 cache-population requirements.
 
-- `[ ]` Synchronize NATS log file rotation and writes. The log consumer mutates
-  shared file handles from the callback path without a lock or single-writer
-  queue, leaving rotation/write races untested.
+## Milestone Review
 
-- `[ ]` Make ignored NATS subjects observable. The wildcard subscription sends
-  success even for unknown subjects, so dropped traffic is indistinguishable
-  from processed request, response, attribute, or win/loss logs.
+- `[+]` Deep review completed on 2026-05-12. Reviewed explicit cache mode
+  validation, active creative size discovery, Redis/spread RAdv loops, spread
+  snapshot/cleanup/delete/ignore behavior, smoke-script cleanup, and docs.
+  Residual versioned payload contracts remain an architecture gap, and
+  `cmd/nats-client` operational-log findings remain in M6.
