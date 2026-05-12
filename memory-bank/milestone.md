@@ -31,7 +31,7 @@ Acceptance:
 - Historical docs are not lost, but the root README no longer presents legacy
   manual setup as the active workflow.
 
-## M1 - Local Docker Runtime Stabilization `[ ]`
+## M1 - Local Docker Runtime Stabilization `[+]`
 
 Make the Docker-backed development runtime the unquestioned local baseline.
 

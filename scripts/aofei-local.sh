@@ -114,8 +114,6 @@ mysql_root() {
 baseline_sql() {
 	if [ -n "${AOFEI_MYSQL_BASELINE_SQL:-}" ]; then
 		printf '%s\n' "$AOFEI_MYSQL_BASELINE_SQL"
-	elif [ -f "$ROOT/ref.sql" ]; then
-		printf '%s\n' "$ROOT/ref.sql"
 	else
 		printf '%s\n' "$ROOT/etc/step4_init.sql"
 	fi
@@ -145,6 +143,7 @@ generate_configs() {
 		"$ROOT/.local/logs/log_attribute" \
 		"$ROOT/.local/logs/log_winloss" \
 		"$ROOT/.local/spread" \
+		"$ROOT/.local/templates" \
 		"$ROOT/.local/uploads" \
 		"/tmp/aofei-www"
 
@@ -174,7 +173,7 @@ JSON
   "DocumentRoot": "/tmp/aofei-www",
   "UploadURL": "http://localhost:8080/uploads",
   "UploadDir": "$ROOT/.local/uploads",
-  "Template": "$ROOT/tmpls",
+  "Template": "$ROOT/.local/templates",
   "ConnectArray": ["mysql", "$DSN"],
   "Pubrole": "web",
   "Secret": "local-dev-secret"
@@ -272,12 +271,33 @@ load_baseline() {
 
 load_sample() {
 	up
-	local adv_count
-	adv_count="$(mysql_root --database="$DB_NAME" -N -B -e "SELECT COUNT(*) FROM adv;" 2>/dev/null || printf '0')"
-	if [ "$adv_count" = "0" ]; then
+	local sample_count
+	sample_count="$(mysql_root --database="$DB_NAME" -N -B -e "
+SELECT COUNT(*)
+FROM adv a
+WHERE a.adv_id = 1
+  AND a.email = 'advertiser@example.test'
+  AND a.domain = 'default'
+  AND EXISTS (
+    SELECT 1 FROM adv_campaign c
+    WHERE c.adv_id = a.adv_id AND c.campaign_name = 'camp 001'
+  )
+  AND EXISTS (
+    SELECT 1 FROM adv_item i
+    JOIN adv_campaign c ON c.campaign_id = i.campaign_id
+    WHERE c.adv_id = a.adv_id AND i.item_name IN ('default', 'defaultItem1')
+  )
+  AND EXISTS (
+    SELECT 1 FROM adv_creative cr
+    JOIN adv_item i ON i.item_id = cr.item_id
+    JOIN adv_campaign c ON c.campaign_id = i.campaign_id
+    WHERE c.adv_id = a.adv_id AND cr.creative_name = 'creative 001'
+  );
+" 2>/dev/null || printf '0')"
+	if [ "$sample_count" = "0" ]; then
 		mysql_root --database="$DB_NAME" <"$ROOT/etc/demand.sql"
 	else
-		echo "Skipping etc/demand.sql because adv already has ${adv_count} row(s)."
+		echo "Skipping etc/demand.sql because the default sample demand is already present."
 	fi
 	(cd "$ROOT" && GOWORK=off AOFEI="$AOFEI_CONFIG" go run ./etc pub)
 }

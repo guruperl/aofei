@@ -100,9 +100,9 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 
 ## Review Findings
 
-- `[ ]` Make `etc/step4_init.sql` the only baseline loader source. The helper's
-  baseline selection still silently prefers a root `ref.sql` if that file
-  reappears.
+- `[+]` Make `etc/step4_init.sql` the only baseline loader source. The helper's
+  default baseline selection now uses `etc/step4_init.sql`; only the explicit
+  `AOFEI_MYSQL_BASELINE_SQL` override can change the loaded file.
 
 - `[ ]` Add schema-contract coverage for SQL embedded outside the baseline file.
   Queries in `acl`, `match`, `summer`, and operational commands can drift from

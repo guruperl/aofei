@@ -70,6 +70,9 @@ func NewConfig(filename string) (*Config, error) {
 
 	}
 
+	if parsed.Redis == nil {
+		parsed.Redis = &Red{}
+	}
 	if parsed.Redis.Network == "" {
 		parsed.Redis.Network = "tcp"
 	}

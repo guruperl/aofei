@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 
 	"github.com/genelet/winter/acl"
@@ -11,6 +12,22 @@ import (
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		usage(os.Stdout)
+		return
+	}
+
+	if os.Args[1] == "-h" || os.Args[1] == "--help" || os.Args[1] == "help" {
+		usage(os.Stdout)
+		return
+	}
+
+	if os.Args[1] != "pub" {
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
+		usage(os.Stderr)
+		os.Exit(2)
+	}
+
 	config := os.Getenv("AOFEI")
 	if config == "" {
 		config = "etc/aofei.local.json"
@@ -34,15 +51,17 @@ func main() {
 		panic(err)
 	}
 
-	switch os.Args[1] {
-	case "pub":
-		_, err = insertDefaultPub(db)
-	default:
-	}
-
+	_, err = insertDefaultPub(db)
 	if err != nil {
 		panic(err)
 	}
+}
+
+func usage(out *os.File) {
+	fmt.Fprintln(out, "usage: go run ./etc <command>")
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Commands:")
+	fmt.Fprintln(out, "  pub    Insert the default local publisher if it is missing.")
 }
 
 func insertDefaultPub(db *sql.DB) (*acl.Pub, error) {

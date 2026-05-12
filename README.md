@@ -27,6 +27,10 @@ The helper starts:
 - Redis `redis:7-alpine` on `127.0.0.1:6379`
 - NATS `nats:2-alpine` on `127.0.0.1:4222`
 
+`reset-sample` recreates the database, imports `etc/step4_init.sql`, and makes
+the sample publisher/demand state present. The sample demand import is
+idempotent against the current baseline.
+
 Stop the local services without deleting Docker volumes:
 
 ```bash
@@ -60,3 +64,6 @@ workspace's `go.work` does not include this module path.
 
 Do not use legacy `eightran_*` MySQL users in local development. The Docker
 helper creates and uses the `aofei` database user.
+
+`AOFEI` points at the lower-case DSP JSON config. `SUMMER` points at the
+upper-case Summer/Genelet JSON config.

@@ -8,7 +8,7 @@ import (
 )
 
 func TestProcedure(t *testing.T) {
-	db, err := sql.Open("mysql", "eightran:12pass34@tcp(vm0:3306)/gotest")
+	db, err := sql.Open("mysql", "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test")
 	if err != nil {
 		panic(err)
 	}

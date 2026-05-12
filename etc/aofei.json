@@ -1,14 +1,14 @@
 {
-	"document_root" : "/srv/aofei/pzdesign/www",
-	"server_url" : "http://x.w8m.com",
-	"server_port" : "80",
-	"ips" : "/srv/aofei/aofei/etc/maxmind.json",
-	"nats_url" : "nats://localhost:4222",
-	"redis": {"Addr":"vm0","User":"","Pass":""},
-        "connect_array": ["mysql","eightran_goto:12pass34@tcp(vm0)/aofei"],
-	"rpub_map": "/srv/aofei/aofei/.local/rpubmap.json",
-	"log_request": "/srv/aofei/logs/log_request",
-	"log_response": "/srv/aofei/logs/log_response",
-	"log_attribute": "/srv/aofei/logs/log_attribute",
-	"log_winloss": "/srv/aofei/logs/log_winloss"
+	"document_root": "/tmp/aofei-www",
+	"server_url": "http://localhost:8080",
+	"server_port": "8080",
+	"ips": "etc/maxmind.json",
+	"nats_url": "nats://127.0.0.1:4222",
+	"redis": {"Addr": "127.0.0.1:6379", "User": "", "Pass": ""},
+	"connect_array": ["mysql", "aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei?parseTime=true"],
+	"spread": ".local/spread",
+	"log_request": ".local/logs/log_request",
+	"log_response": ".local/logs/log_response",
+	"log_attribute": ".local/logs/log_attribute",
+	"log_winloss": ".local/logs/log_winloss"
 }

@@ -72,8 +72,9 @@ Goal: Keep the harness useful as the project changes.
   files, with allowlisted historical references only where they are explicitly
   labeled.
 
-- `[ ]` Add a guard for stale `ref.sql` references so future database baseline
-  work keeps `etc/step4_init.sql` as the source of truth.
+- `[+]` Add a guard for stale `ref.sql` references so future database baseline
+  work keeps `etc/step4_init.sql` as the source of truth. The helper no longer
+  has an implicit root `ref.sql` fallback.
 
 - `[ ]` Define how review findings move from status files into milestone
   closeout notes, so open architecture issues do not remain untriaged after a

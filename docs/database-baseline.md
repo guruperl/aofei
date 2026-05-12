@@ -32,6 +32,11 @@ Sample data can be added after the baseline:
 ./scripts/aofei-local.sh sample
 ```
 
+The sample loader checks for the default sample advertiser/campaign/item/creative
+instead of using a broad advertiser row count. If those sample records are
+already present, `etc/demand.sql` is skipped and the default publisher helper is
+still run.
+
 Or together:
 
 ```bash

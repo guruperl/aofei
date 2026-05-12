@@ -117,7 +117,7 @@ import (
 	}
 */
 func TestCrudDb(t *testing.T) {
-	db, err := sql.Open("mysql", "eightran:12pass34@(vm0:3306)/gotest?multiStatements=true")
+	db, err := sql.Open("mysql", "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test?multiStatements=true")
 	if err != nil {
 		panic(err)
 	}

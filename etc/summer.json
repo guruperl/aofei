@@ -1,31 +1,31 @@
 {
-    "ProjectRoot" : "/home/disk_user/aofei",
+    "ProjectRoot" : ".",
     "Script"       : "/goto",
-    "ServerURL"   : "https://www.w8m.com",
-    "ServerPort"  : "8888",
-    "DocumentRoot": "/home/disk_user/pzdesign/www",
-    "UploadURL"   : "https://www.w8m.com/uploads",
-    "UploadDir"   : "/home/disk_user/pzdesign/www/uploads",
-    "Template"     : "/home/disk_user/pzdesign/tmpls",
-    "ConnectArray": ["mysql","db_user:db_pass@tcp(db_host)/db_name"],
+    "ServerURL"   : "http://localhost:8080",
+    "ServerPort"  : "8080",
+    "DocumentRoot": "/tmp/aofei-www",
+    "UploadURL"   : "http://localhost:8080/uploads",
+    "UploadDir"   : ".local/uploads",
+    "Template"     : ".local/templates",
+    "ConnectArray": ["mysql","aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei?parseTime=true"],
     "Pubrole": "web",
-    "Secret": "21&*&UGIKSOUbgsdkfw708GOu*Y(Ijsaf3e0dgndfgfjldshnfh4124132",
+    "Secret": "local-dev-secret",
     "Chartags": {
         "e": {
-            "Content_type": "text/html; charset='UTF-8'",
+            "ContentType": "text/html; charset='UTF-8'",
             "Short": "html"
         },
         "g": {
-            "Content_type": "text/html; charset='UTF-8'",
+            "ContentType": "text/html; charset='UTF-8'",
             "Short": "htm"
         },
         "t": {
-            "Content_type": "text/plain; charset='UTF-8'",
+            "ContentType": "text/plain; charset='UTF-8'",
             "Short": "text"
         },
         "json": {
             "Case": 1,
-            "Content_type": "application/json; charset='UTF-8'",
+            "ContentType": "application/json; charset='UTF-8'",
             "Short": "json",
             "challenge": "challenge",
             "logged": "logged",
@@ -35,11 +35,11 @@
     },
     "Blks": {
         "_gmail": {
-            "Address": "smtp_host",
+            "Address": "smtp.example.test:465",
             "Username": "smtp_user",
             "Password": "smtp_pass",
-            "From": "service@w8m.com",
-            "Reply_To": "greetingland@gmail.com"
+            "From": "service@example.test",
+            "Reply_To": "reply@example.test"
         }
     },
     "Errors": {
@@ -54,8 +54,8 @@
             "Id_name": "adv_id",
             "Type_id": 4,
             "Attributes": ["adv_id", "a_email", "a_company", "a_contact", "a_timezone_id"],
-            "Secret": "n,HK(U*HKNcasfdaf 340fdsfds96jdskf dsfwrrpytdsnvalua",
-            "Coding": "faspf 093^&*(HUKk4i 1[rjqwle fd$%^*&()_JLKNLIIOpj ua",
+            "Secret": "adv-local-secret",
+            "Coding": "adv-local-coding",
             "Surface": "gadv",
             "Duration": 86400,
             "MaxAge": 86400,
@@ -78,8 +78,8 @@
             "Id_name": "pub_id",
             "Type_id": 3,
             "Attributes": ["pub_id", "p_email", "p_company", "p_contact", "p_timezone_id"],
-            "Secret": "13123ed%OINK()H%^*&(PIHNdsncxzdlgpwwq;akdsgfhgf f982",
-            "Coding": "(*&*(&(*)sfd fasf 14812 4HJKL BS1312fhdf fd0-41fdf f",
+            "Secret": "pub-local-secret",
+            "Coding": "pub-local-coding",
             "Surface": "gpub",
             "Duration": 86400,
             "MaxAge": 86400,
@@ -102,8 +102,8 @@
             "Id_name": "agent_id",
             "Type_id": 4,
             "Attributes": [ "agent_id", "agent_login", "agent_level" ],
-            "Secret": "982hlqfew (*HGKCYJUILKJ%$ERDTCsdjfIUUO&*(hksdaw*&GYdf",
-            "Coding": "UIadsfk898uierhelt^&*(jksdlgGJOIKRDTCsdjfIUUO&*(hksda",
+            "Secret": "agent-local-secret",
+            "Coding": "agent-local-coding",
             "Surface": "gagent",
             "Duration": 86400,
             "MaxAge": 86400,
@@ -122,8 +122,8 @@
             "Type_id": 1,
             "Attributes": [ "admin_id", "admin_login" ],
             "Is_admin": true,
-            "Secret": "a*&*HYG%$FYLNSXUT89ff23(*&HBSAxtajdIUJ984hfodfw*&GYdf",
-            "Coding": "UIRERsfsdf25915ngWNJKDGBHFDHwdrf093Jd2guy#%$&BHJkgfdg",
+            "Secret": "admin-local-secret",
+            "Coding": "admin-local-coding",
             "Surface": "gadmin",
             "Duration": 86400,
             "MaxAge": 86400,

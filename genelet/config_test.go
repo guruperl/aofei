@@ -45,21 +45,12 @@ func TestConfig(t *testing.T) {
 	if c.ConnectArray[0] != "mysql" {
 		t.Errorf("%s wanted", c.ConnectArray[0])
 	}
-	if c.ConnectArray[1] != "eightran:12pass34@tcp(vm0:3306)/gotest" {
+	if c.ConnectArray[1] != "genelet_test:genelet_pass@tcp(127.0.0.1:3306)/genelet_test" {
 		t.Errorf("%s wanted", c.ConnectArray[1])
 	}
 	if c.ConnectArray[2] != "ccc" {
 		t.Errorf("%s wanted", "ccc")
 	}
-	/*
-	   	if c.Blck["_gmail"]["Address"] != "email-smtp.us-west-2.amazonaws.com:465" {
-	           t.Errorf("%s wanted", "email-smtp.us-west-2.amazonaws.com:465")
-	       }
-	   	if c.Blck["_gmail"]["From"] != "peter@greetingland.com" {
-	   		t.Errorf("%s wanted", "peter@greetingland.com")
-	   	}
-	*/
-
 	char := c.Chartags["json"]
 	if char.ContentType != "application/json; charset=\"UTF-8\"" {
 		t.Errorf("%s wanted", "application/json; charset=\"UTF-8\"")
