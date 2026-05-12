@@ -1,9 +1,9 @@
 package genelet
 
 import (
+	"html/template"
 	"regexp"
 	"testing"
-	"text/template"
 )
 
 func TestTmpl(t *testing.T) {

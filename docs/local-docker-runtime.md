@@ -73,9 +73,10 @@ point at Docker MySQL, Redis, and NATS endpoints created by the helper.
 Generated local DSP config also includes a local-only `tracking_secret` used to
 sign DSP tracker and click redirect URLs.
 
-The generated Summer `Template` path is `.local/templates`. The directory is
-created so config validation has a local path, but admin UI template assets are
-not part of M1 runtime verification.
+The generated Summer `Template` path is the sibling `../pzdesign/tmpls`, and
+`DocumentRoot` points at `../pzdesign/www` for the CSS/JS/image assets those
+templates reference. Override `AOFEI_PZDESIGN_ROOT` when the sibling checkout is
+elsewhere. Generated local uploads and logs remain under `.local/`.
 
 The generated DSP log directories are:
 

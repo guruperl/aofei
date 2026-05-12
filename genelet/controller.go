@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	int_cipher "github.com/delongw/go-int-cipher"

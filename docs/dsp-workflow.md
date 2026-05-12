@@ -45,11 +45,12 @@ fields.
 If no candidates exist for an impression's size/slot pair, that impression is
 skipped. The bid path returns no content only when no impression produces a bid.
 Middleman AdX fallback is not active yet; the M16 schema adds advertiser-owned
-bidder endpoints, route groups, and synthetic reporting identifiers, but
-`ServeBid` still returns no content when local campaign matching produces no
-bid. Future fanout should reuse the synthetic campaign/item ACL and channel
-rules to decide which bidder endpoints may receive the original publisher/site
-request.
+bidder endpoints, route groups, and synthetic reporting identifiers, and M17
+adds the Summer portal/approval flow for endpoint metadata and inactive
+synthetic reporting rows. `ServeBid` still returns no content when local
+campaign matching produces no bid. Future fanout should reuse the synthetic
+campaign/item ACL and channel rules to decide which bidder endpoints may receive
+the original publisher/site request.
 
 ## Filtering
 

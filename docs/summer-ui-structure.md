@@ -55,9 +55,17 @@ role:
 - `pub`: publisher-facing site, slot, access-control, and take-down flows.
 - `agent`: delegated admin flows.
 
-Advertisers can manage owned `adv_bidder` endpoint metadata. Admins remain
-responsible for credential references, synthetic reporting row assignment,
-endpoint activation, and all `mid_route_*` traffic assignment.
+Advertisers can manage owned `adv_bidder` endpoint metadata through
+`/goto/adv/g/bidder?action=topics|startnew|insert|edit|update`. Advertiser
+writes are limited to bidder name, endpoint URL, OpenRTB version, seat, and
+timeout. Credential status and active status are visible but read-only; credential
+refs and synthetic reporting IDs are admin-only.
+
+Admins review bidders through
+`/goto/admin/g/bidder?action=topics|edit|update|approve`. Approval requires a
+credential ref, creates or validates the inactive synthetic campaign/item/
+creative reporting chain, marks the credential active, and activates the bidder.
+Admins remain responsible for all `mid_route_*` traffic assignment.
 
 Filters should add query restrictions through `extra url.Values`, not by
 concatenating request strings into SQL. Models should use Genelet CRUD helpers
@@ -97,6 +105,10 @@ Summer accesses those through typed helper functions so a missing adapter is a
 no-op and a wrong adapter type is an explicit error.
 
 ## Local Usage
+
+HTML templates are tracked in the sibling `../pzdesign/tmpls`; generated local
+Summer config points `Template` at that path and `DocumentRoot` at
+`../pzdesign/www`. The active renderer is Go `html/template`.
 
 Start local services and load sample data:
 

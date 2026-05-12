@@ -11,6 +11,8 @@ Genelet reads the `SUMMER` config through `genelet.NewConfig`. The local helper
 generates `etc/summer.local.json`; checked-in examples live in `etc/summer.json`.
 The config uses upper-case keys such as `ConnectArray`, `Template`,
 `UploadDir`, `ProjectRoot`, `Script`, `Roles`, and `Chartags`.
+The local Summer template path points at the sibling `../pzdesign/tmpls` tree,
+and static UI assets are served from `../pzdesign/www`.
 
 `cmd/unify` usually obtains the database, Redis, NATS, and server defaults from
 the DSP controller, then fills missing Genelet server fields from the DSP
@@ -123,9 +125,10 @@ interpolated.
 
 ## Templates, Uploads, And CORS
 
-HTML responses load templates from `Template/{role}/{object}/{action}.{tag}`
-and shared role templates matching `Template/{role}/*.{tag}`. JSON chartags
-marshal the `Tmpl` payload directly.
+HTML responses are rendered with Go `html/template`. Genelet loads templates
+from `Template/{role}/{object}/{action}.{tag}` and shared role templates
+matching `Template/{role}/*.{tag}`. JSON chartags marshal the `Tmpl` payload
+directly.
 
 Multipart uploads are written under `UploadDir`. Field names must be present,
 field values are bounded, and file names must be clean basenames. Summer may

@@ -70,7 +70,9 @@ Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
 The checked-in Summer config includes `admin`, `adv`, `pub`, and `agent` roles.
 Middleman bidder endpoints use the existing `adv` role through the `adv_bidder`
-module.
+module. HTML templates are tracked in the sibling `../pzdesign/tmpls` tree,
+static UI assets live under `../pzdesign/www`, and generated local Summer config
+points `Template` and `DocumentRoot` at those paths.
 
 Production defaults are `/etc/aofei/aofei.json` and
 `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The production

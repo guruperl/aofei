@@ -1,18 +1,20 @@
 {
   "actions" : {
+    "startnew" : {"groups":["adv"], "options":["no_db","no_method"]},
     "insert" : {"groups":["admin","adv"], "validate":["adv_id","bidder_name","endpoint_url"]},
     "topics" : {"groups":["admin","adv"]},
     "edit" :   {"groups":["admin","adv"], "validate":["bidder_id"]},
     "update" : {"groups":["admin","adv"], "validate":["bidder_id"]},
+    "approve" : {"groups":["admin"], "validate":["bidder_id","credential_ref"]},
     "delete" : {"groups":["admin"], "validate":["bidder_id"]}
   },
 
   "fks" : {
-    "adv" : ["bidder_id", ""]
+    "adv" : ["adv_id", "", "bidder_id", "bidder_md5"]
   },
 
-  "insert_pars" : ["bidder_id","adv_id","synthetic_campaign_id","synthetic_item_id","synthetic_creative_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active","created"],
-  "update_pars" : ["bidder_id","adv_id","synthetic_campaign_id","synthetic_item_id","synthetic_creative_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active"],
+  "insert_pars" : ["adv_id","bidder_name","endpoint_url","openrtb_version","seat","timeout_ms","credential_status","active","created"],
+  "update_pars" : ["bidder_id","bidder_name","endpoint_url","openrtb_version","seat","timeout_ms","credential_ref","credential_status","active"],
   "topics_pars" : ["bidder_id","adv_id","synthetic_campaign_id","synthetic_item_id","synthetic_creative_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active","created"],
   "edit_pars" :   ["bidder_id","adv_id","synthetic_campaign_id","synthetic_item_id","synthetic_creative_id","bidder_name","endpoint_url","openrtb_version","seat","credential_ref","credential_status","timeout_ms","active","created"],
 

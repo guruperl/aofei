@@ -232,7 +232,10 @@ segments are rejected before file serving.
 
 `UploadDir` must be writable by the service user and should be outside the
 static document root unless a separate review approves direct public serving.
-Templates should be read-only to the service user.
+Templates should be read-only to the service user. The local template tree is
+the sibling `pzdesign/tmpls`; production config may point there or to a
+read-only deployed copy. Static UI assets should be served from the matching
+`pzdesign/www` tree or an equivalent deployed asset root.
 
 ## Auth Compatibility
 

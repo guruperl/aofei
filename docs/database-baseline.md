@@ -96,8 +96,9 @@ After `reset && load`, the expected inventory is:
 Middleman AdX schema is present but starts empty. `adv_bidder` stores
 advertiser-owned OpenRTB endpoint metadata and optional synthetic
 campaign/item/creative reporting IDs. `mid_route_*` tables store
-operator-controlled fallback route configuration. Runtime fanout is still
-disabled after M16.
+operator-controlled fallback route configuration. The M17 Summer portal can
+create/edit bidder metadata and admin approval can populate inactive synthetic
+reporting rows, but DSP runtime fanout is still disabled.
 
 ## Updating The Baseline
 

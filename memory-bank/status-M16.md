@@ -34,11 +34,13 @@ behavior yet.
 
 ## Carry Forward
 
-- `[ ]` Build route cache, synthetic-item eligibility checks, and downstream
-  OpenRTB fanout client in M17.
-- `[ ]` Integrate fallback auction behavior into `ServeBid` in M18.
+- `[+]` Build the Summer/Genelet bidder portal and admin approval backend in
+  M17.
+- `[ ]` Complete Summer template modernization in M18.
+- `[ ]` Build route cache, synthetic-item eligibility checks, downstream OpenRTB
+  fanout client, and fallback auction behavior in M19.
 - `[ ]` Add callback proxying, audit, operations, and advertiser reporting
-  integration in M19/M20.
+  integration in M20/M21.
 
 ## Verification
 

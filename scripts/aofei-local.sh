@@ -21,6 +21,7 @@ NATS_CONTAINER="${AOFEI_NATS_CONTAINER:-aofei-nats}"
 NATS_IMAGE="${AOFEI_NATS_IMAGE:-nats:2-alpine}"
 NATS_HOST="${AOFEI_NATS_HOST:-127.0.0.1}"
 NATS_PORT="${AOFEI_NATS_PORT:-4222}"
+PZDESIGN_ROOT="$(cd "${AOFEI_PZDESIGN_ROOT:-$ROOT/../pzdesign}" 2>/dev/null && pwd -P || printf '%s' "${AOFEI_PZDESIGN_ROOT:-$ROOT/../pzdesign}")"
 
 AOFEI_CONFIG="$ROOT/etc/aofei.local.json"
 SUMMER_CONFIG="$ROOT/etc/summer.local.json"
@@ -270,7 +271,6 @@ generate_configs() {
 		"$ROOT/.local/logs/log_attribute" \
 		"$ROOT/.local/logs/log_winloss" \
 		"$ROOT/.local/spread" \
-		"$ROOT/.local/templates" \
 		"$ROOT/.local/uploads" \
 		"/tmp/aofei-www"
 
@@ -299,10 +299,10 @@ JSON
   "ServerURL": "http://localhost:8080",
   "CORSOrigins": [],
   "ServerPort": "8080",
-  "DocumentRoot": "/tmp/aofei-www",
+  "DocumentRoot": "$PZDESIGN_ROOT/www",
   "UploadURL": "http://localhost:8080/uploads",
   "UploadDir": "$ROOT/.local/uploads",
-  "Template": "$ROOT/.local/templates",
+  "Template": "$PZDESIGN_ROOT/tmpls",
   "ConnectArray": ["mysql", "$DSN"],
   "Pubrole": "web",
   "Secret": "local-dev-secret"

@@ -415,3 +415,79 @@ Acceptance:
 - Summer registry includes the advertiser-owned bidder endpoint module.
 - Docs and memory bank describe the advertiser-owned endpoint/reporting boundary
   ACL/channel eligibility reuse, and future milestone sequence.
+
+## M17 - Advertiser Bidder Portal `[+]`
+
+Make `adv_bidder` usable from Summer/Genelet without enabling DSP runtime
+fanout.
+
+Scope:
+
+- Expose advertiser HTML routes for bidder list, new, insert, edit, and update.
+- Expose admin HTML routes for bidder list, edit, update, and approval.
+- Keep JSON routes under `/goto/{role}/json/bidder`.
+- Restrict advertiser writes to safe endpoint metadata and expose credential
+  status plus active status as read-only.
+- Validate bidder endpoint URLs and timeout values before writes.
+- Let admin approval create or validate inactive synthetic reporting rows,
+  store a credential ref, and mark the bidder active.
+- Move active Summer templates to the sibling `../pzdesign/tmpls` tree and point
+  generated local Summer config away from ignored `.local/templates`.
+
+Acceptance:
+
+- Advertisers cannot set credential refs, credential state, activation, or
+  synthetic IDs.
+- Admin approval requires `bidder_id` and `credential_ref`, runs in one DB
+  transaction, creates or validates the synthetic campaign/item/creative chain,
+  and rejects partial or wrong-advertiser synthetic state.
+- DSP bid serving, route cache, downstream OpenRTB fanout, auctions, and
+  callback proxying remain unchanged.
+
+## M18 - Summer Template Modernization `[+]`
+
+Make the sibling `pzdesign` UI tree the active Summer/Genelet template and asset
+source, and move rendering to Go `html/template`.
+
+Scope:
+
+- Use `../pzdesign/tmpls` for Summer HTML templates and `../pzdesign/www` for
+  static UI assets in generated local config.
+- Keep `.g` templates in scope and defer `.e` cleanup.
+- Convert Genelet HTML, login, error, and mail template rendering to
+  `html/template`.
+- Add advertiser and admin bidder `.g` pages to `pzdesign/tmpls`.
+- Add bidder navigation links to the existing advertiser and admin sidebars.
+
+Acceptance:
+
+- All active `.g` action templates in `../pzdesign/tmpls` parse as
+  `html/template`.
+- Bidder advertiser/admin pages render in tests against the sibling template
+  tree when it is present.
+- Existing `.e` template cleanup is explicitly deferred.
+
+## M19 - Middleman Bidder Runtime `[ ]`
+
+Wire approved bidders into fallback runtime after local campaign matching
+returns no bid.
+
+Scope:
+
+- Build the route/bidder cache from `adv_bidder` plus `mid_route_*`.
+- Require active route group, active route bidder, active credential-ready
+  bidder, valid synthetic chain, route match, and synthetic item ACL/channel
+  eligibility before fanout.
+- Fan out downstream OpenRTB requests within the minimum of request `tmax`,
+  route timeout, and DSP config timeout.
+- Discard late, invalid, inactive, and non-USD responses.
+- Aggregate surviving responses by price, apply route/bidder margin, and return
+  the best upstream bid only after local no-bid fallback.
+
+Acceptance:
+
+- Approved bidders are considered only through configured routes and existing
+  ACL/channel eligibility.
+- Local campaign bids still win before any fallback fanout.
+- No callback proxying, win/loss reconciliation, or middleman reporting changes
+  are introduced until later milestones.

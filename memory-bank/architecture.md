@@ -59,13 +59,16 @@
 Middleman AdX fallback is schema-defined but not yet active in the bid path.
 Advertiser-owned OpenRTB endpoints live in `adv_bidder`, with optional
 synthetic campaign, item, and creative IDs for existing ledger/report joins.
-Operators will later assign active route groups to publisher/site/slot inventory
-through `mid_route_*` tables. The synthetic item/campaign chain is also the
-planned eligibility surface for bidder fanout: existing `ac`, `ch_ac`,
-`ch_belong`, `access_order`, `fl_sitetypes`, and channel matching rules should
-decide whether a bidder may receive the original publisher/site request before a
-downstream call is made. Runtime fanout, route caching, callback proxying, and
-reporting integration remain future milestones.
+Summer/Genelet exposes advertiser-safe endpoint metadata forms and admin review
+and approval forms. Approval creates a missing inactive synthetic chain or
+validates an existing complete same-advertiser chain, then marks the bidder
+credential active and the bidder active. Operators will later assign active
+route groups to publisher/site/slot inventory through `mid_route_*` tables. The
+synthetic item/campaign chain is also the planned eligibility surface for bidder
+fanout: existing `ac`, `ch_ac`, `ch_belong`, `access_order`, `fl_sitetypes`, and
+channel matching rules should decide whether a bidder may receive the original
+publisher/site request before a downstream call is made. Runtime fanout, route
+caching, callback proxying, and reporting integration remain future milestones.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the
@@ -84,6 +87,9 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
 - `etc/aofei.json` and `etc/summer.json` are checked-in examples.
 - `etc/aofei.local.json` and `etc/summer.local.json` are generated local files
   and must remain ignored.
+- Summer/Genelet UI templates live in the sibling `../pzdesign/tmpls` tree, and
+  static UI assets live under `../pzdesign/www`; generated local Summer config
+  points `Template` and `DocumentRoot` at those paths.
 - Production configs default to `/etc/aofei/aofei.json` and
   `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`.
 - `etc/maxmind.json` is the active MaxMind config reference.

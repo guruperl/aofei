@@ -23,6 +23,9 @@ It also writes local ignored configs:
 - `etc/aofei.local.json`
 - `etc/summer.local.json`
 
+The generated Summer config points `Template` at the sibling `../pzdesign/tmpls`
+tree and `DocumentRoot` at `../pzdesign/www`.
+
 ## 2) Rebuild the database from the baseline
 
 ```sh
@@ -35,8 +38,8 @@ also strips any dump definers during import and removes historical `eightran`
 users from the Docker server. `load` exits before import if the target database
 already has schema objects, so use `reset` before replaying the baseline.
 The baseline now includes empty middleman AdX tables for advertiser-owned bidder
-endpoints and route configuration. Runtime fanout remains disabled until later
-middleman milestones.
+endpoints and route configuration. The M17 Summer portal can manage and approve
+bidder endpoint metadata, but runtime fanout remains disabled until M18+.
 
 For a one-shot reset with sample helpers:
 

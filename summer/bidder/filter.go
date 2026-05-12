@@ -1,7 +1,10 @@
 package bidder
 
 import (
+	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 
 	"github.com/genelet/winter/summer"
 )
@@ -9,6 +12,11 @@ import (
 type Filter struct {
 	summer.Filter
 }
+
+const (
+	defaultTimeoutMS = 100
+	maxTimeoutMS     = 5000
+)
 
 func (self *Filter) Preset() error {
 	if err := self.Filter.Preset(); err != nil {
@@ -24,6 +32,86 @@ func (self *Filter) Preset() error {
 		ARGS.Del("credential_status")
 		ARGS.Del("active")
 	}
+	return validateEndpointFields(self.R.Form, self.Action)
+}
+
+func validateEndpointFields(form url.Values, action string) error {
+	if action != "insert" && action != "update" {
+		return nil
+	}
+	if err := validateEndpointURL(form, action); err != nil {
+		return err
+	}
+	return normalizeTimeout(form, action)
+}
+
+func validateEndpointURL(form url.Values, action string) error {
+	raw, ok := form["endpoint_url"]
+	if !ok {
+		return nil
+	}
+	endpoint := ""
+	if len(raw) > 0 {
+		endpoint = raw[0]
+	}
+	if endpoint == "" {
+		if action == "insert" {
+			return fmt.Errorf("endpoint_url is required")
+		}
+		return nil
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil || !parsed.IsAbs() || parsed.Host == "" {
+		return fmt.Errorf("endpoint_url must be an absolute http or https URL")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("endpoint_url must use http or https")
+	}
+	if parsed.User != nil {
+		return fmt.Errorf("endpoint_url must not contain user info")
+	}
+	if host := parsed.Hostname(); host == "" {
+		return fmt.Errorf("endpoint_url must include a host")
+	} else if ip := net.ParseIP(host); ip == nil && !validEndpointHostname(host) {
+		return fmt.Errorf("endpoint_url host is invalid")
+	}
+	return nil
+}
+
+func validEndpointHostname(host string) bool {
+	for _, r := range host {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '-' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func normalizeTimeout(form url.Values, action string) error {
+	raw, ok := form["timeout_ms"]
+	if !ok {
+		if action == "insert" {
+			form.Set("timeout_ms", strconv.Itoa(defaultTimeoutMS))
+		}
+		return nil
+	}
+	timeout := ""
+	if len(raw) > 0 {
+		timeout = raw[0]
+	}
+	if timeout == "" {
+		if action == "insert" {
+			form.Set("timeout_ms", strconv.Itoa(defaultTimeoutMS))
+		}
+		return nil
+	}
+	n, err := strconv.Atoi(timeout)
+	if err != nil || n <= 0 || n > maxTimeoutMS {
+		return fmt.Errorf("timeout_ms must be between 1 and %d", maxTimeoutMS)
+	}
+	form.Set("timeout_ms", strconv.Itoa(n))
 	return nil
 }
 
@@ -63,6 +151,4 @@ var operatorFields = []string{
 	"synthetic_item_id",
 	"synthetic_creative_id",
 	"credential_ref",
-	"credential_status",
-	"active",
 }

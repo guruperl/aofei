@@ -1,8 +1,9 @@
 # Middleman AdX
 
 Middleman AdX fallback is the planned path for bid requests that do not match a
-local campaign. The current M16 implementation establishes the advertiser-owned
-bidder endpoint and route schema only; bid serving still returns
+local campaign. M16 established the advertiser-owned bidder endpoint and route
+schema, and M17 adds the Summer/Genelet portal plus admin approval for endpoint
+metadata and inactive synthetic reporting rows. Bid serving still returns
 `204 No Content` when no local campaign produces a bid.
 
 ## Account Boundary
@@ -11,10 +12,13 @@ Downstream bidder endpoints are owned by advertisers (`adv`). A downstream
 partner uses the existing advertiser login and account tooling instead of a
 separate Summer/Genelet role.
 
-Advertiser users can manage their own `adv_bidder` endpoint metadata and, in a
-later milestone, view middleman results through advertiser reports. Operators
-manage credential references, endpoint activation, route groups, inventory
-assignment, and margin settings. Secrets are not stored in MySQL;
+Advertiser users can manage safe `adv_bidder` endpoint metadata and, in a later
+milestone, view middleman results through advertiser reports. Their writable
+fields are bidder name, endpoint URL, OpenRTB version, seat, and timeout.
+Advertisers can see credential status and active status, but cannot set
+credential refs, synthetic reporting IDs, or activation. Operators manage
+credential references, endpoint activation, route groups, inventory assignment,
+and margin settings. Secrets are not stored in MySQL;
 `adv_bidder.credential_ref` points to environment-managed secret material.
 
 Each `adv_bidder` may reference synthetic campaign, item, and creative rows.
@@ -27,6 +31,11 @@ Operator tooling must ensure the synthetic IDs form one chain owned by the same
 advertiser: `adv_bidder.adv_id -> adv_campaign.adv_id`,
 `adv_item.campaign_id -> adv_campaign.campaign_id`, and
 `adv_creative.item_id -> adv_item.item_id`.
+
+M17 approval creates the chain when all three synthetic IDs are empty, reuses an
+existing complete chain after same-advertiser validation, and rejects partial
+synthetic state. Created synthetic campaign, item, and creative rows are
+inactive so they cannot become local demand.
 
 The same synthetic chain is also the planned inventory eligibility surface.
 Existing advertiser/campaign/item access-control and channel tables already
@@ -44,11 +53,21 @@ express whether demand may serve a publisher or site:
 - `ch_belong(entitytype_id=41)` and `ch_ac(entitytype_id=42)` keep the current
   campaign category and item channel allow/block model.
 
-Because of this, M17/M18 should not add a separate bidder-vs-site ACL table
-unless the existing model proves insufficient. Route groups should select the
-coarse fanout pool for a publisher/site/slot, then runtime eligibility should
-filter each `adv_bidder` through its synthetic item audience rules before the
-request is forwarded downstream.
+Because of this, M18+ should not add a separate bidder-vs-site ACL table unless
+the existing model proves insufficient. Route groups should select the coarse
+fanout pool for a publisher/site/slot, then runtime eligibility should filter
+each `adv_bidder` through its synthetic item audience rules before the request
+is forwarded downstream.
+
+## Summer Portal
+
+Tracked Summer UI templates live in the sibling `../pzdesign/tmpls` tree. The
+HTML routes are:
+
+- Advertiser: `/goto/adv/g/bidder?action=topics|startnew|insert|edit|update`
+- Admin: `/goto/admin/g/bidder?action=topics|edit|update|approve`
+
+JSON routes remain available under `/goto/{role}/json/bidder`.
 
 ## Schema
 
@@ -90,8 +109,12 @@ If no downstream bid survives validation and markup checks, the response remains
 
 - M16: advertiser-owned endpoint schema, synthetic reporting IDs, route tables,
   docs.
-- M17: route cache and OpenRTB downstream client.
-- M18: fallback auction integration.
-- M19: callback proxying, audit, and operations.
-- M20: advertiser and operator reporting using synthetic campaign/item/creative
+- M17: Summer/Genelet bidder portal, advertiser-safe writes, admin approval, and
+  synthetic reporting chain creation.
+- M18: Summer template modernization on `../pzdesign/tmpls`, `html/template`,
+  and bidder page integration.
+- M19: route cache, synthetic eligibility checks, downstream OpenRTB client, and
+  fallback auction integration after local no-bid.
+- M20: callback proxying, audit, and operations.
+- M21: advertiser and operator reporting using synthetic campaign/item/creative
   rows.
