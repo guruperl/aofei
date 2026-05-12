@@ -32,6 +32,12 @@ Run the cache pipeline smoke, including Redis, NATS, and spread artifacts:
 ./scripts/aofei-cache-smoke.sh
 ```
 
+Run the canonical package verification gate from this repository:
+
+```bash
+GOWORK=off go test ./...
+```
+
 Review operational command prerequisites, invocations, outputs, and known
 blockers:
 
@@ -105,10 +111,14 @@ Install the package command binaries:
 ## Development Notes
 
 Use `GOWORK=off` for package commands from this repository. The parent
-workspace's `go.work` does not include this module path.
+workspace's `go.work` does not include this module path, so plain
+`go list ./...` fails from this checkout unless the parent workspace is changed.
 
 Do not use legacy `eightran_*` MySQL users in local development. The Docker
 helper creates and uses the `aofei` database user.
 
 `AOFEI` points at the lower-case DSP JSON config. `SUMMER` points at the
 upper-case Summer/Genelet JSON config.
+
+Docker smoke checks, admin DB checks, schema drift checks, and staticcheck are
+useful local follow-ups, but the package gate is `GOWORK=off go test ./...`.

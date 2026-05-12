@@ -13,12 +13,7 @@ func TestFilter(t *testing.T) {
 	filter.Action = "insert"
 	filter.Component = "slot"
 
-	var err error
-	//filter.Base.C = genelet.NewConfig("../../etc/summer.local.json")
-	filter.Base.C, err = genelet.NewConfig("../../etc/summer.local.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	filter.Base.C = testSummerConfig(t)
 	fks := filter.Fks
 	actions := filter.Actions
 	if fks["pub"][0] != "site_id" {

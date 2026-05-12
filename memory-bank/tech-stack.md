@@ -7,7 +7,8 @@
 - `go.mod`: Go 1.22 with toolchain 1.23.5
 
 Use `GOWORK=off` for local commands from this repository. The parent `go.work`
-currently does not include this module path.
+currently does not include this module path, and plain `go list ./...` fails
+from this checkout under that parent workspace.
 
 ## Core Dependencies
 
@@ -183,7 +184,16 @@ assets are absent. Details live in `docs/maxmind-runtime.md`.
 
 ## Verification
 
-Current smoke verification:
+Canonical package verification:
+
+```bash
+GOWORK=off go test ./...
+```
+
+`GOWORK=off go list ./...` should not include `github.com/genelet/winter/backup`;
+historical Go helpers in `backup/` carry the `ignore` build tag.
+
+Useful non-gating local checks:
 
 ```bash
 bash -n scripts/aofei-cache-smoke.sh
@@ -195,6 +205,7 @@ GOWORK=off go test ./cmd/spread -run 'Test'
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
 GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
+GOWORK=off staticcheck -checks=SA* ./...
 git diff --check
 ```
 
@@ -213,9 +224,8 @@ Schema baseline verification:
 ./scripts/aofei-local.sh diff-schema
 ```
 
-`go test ./...` is a milestone target, not yet a clean baseline, because
-historical Go files under `backup/` still need to be excluded from normal
-package discovery or moved under a non-package history layout.
+Docker smoke/admin/schema checks and staticcheck are documented follow-ups, but
+they are not M8 package-gate blockers.
 
 ## External Requirements
 

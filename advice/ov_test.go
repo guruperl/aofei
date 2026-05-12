@@ -43,7 +43,7 @@ func TestOVString(t *testing.T) {
 		in  DeviceOSV
 		out string
 	}{
-		{OVersionUnknown, "Unknown"},
+		{OVersionUnknown, "All"},
 		{OVersion1, "1"},
 		{OVersion2, "2"},
 		{OVersion3, "3"},
@@ -64,6 +64,7 @@ func TestOVString(t *testing.T) {
 		{OVersion18, "18"},
 		{OVersion19, "19"},
 		{OVersion20, "20"},
+		{DeviceOSV(99), "Unknown"},
 	}
 	for _, tt := range tests {
 		if got := tt.in.String(); got != tt.out {

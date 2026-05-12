@@ -1,7 +1,6 @@
 package summer
 
 import (
-	"database/sql"
 	"net/url"
 	"testing"
 
@@ -9,14 +8,8 @@ import (
 )
 
 func TestModelExternal(t *testing.T) {
-	c, err := genelet.NewConfig("../etc/summer.local.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openSummerTestDB(t)
+	defer db.Close()
 
 	model := new(Model)
 	model.DB = db
@@ -67,7 +60,7 @@ func TestModelExternal(t *testing.T) {
 	args["company"] = []string{"b_company"}
 
 	args["id"] = []string{"160"}
-	err = model.Insert(extra...)
+	err := model.Insert(extra...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,14 +148,7 @@ func TestModelExternal(t *testing.T) {
 	}
 */
 func TestModelSummer(t *testing.T) {
-	c, err := genelet.NewConfig("../etc/summer.local.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openSummerTestDB(t)
 	defer db.Close()
 
 	model := new(Model)
@@ -181,7 +167,7 @@ func TestModelSummer(t *testing.T) {
 	model.EditPars = []string{"slot_id", "site_id", "slot_name", "qa_device", "qa_position", "fl_expnd", "channel_order", "created", "active"}
 
 	args["slot_id"] = []string{"25"}
-	err = model.Edit(extra...)
+	err := model.Edit(extra...)
 
 	if err != nil {
 		t.Fatal(err)

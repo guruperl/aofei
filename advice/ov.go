@@ -41,6 +41,8 @@ const (
 
 func (self DeviceOSV) String() string {
 	switch self {
+	case OVersionUnknown:
+		return "All"
 	case OVersion1:
 		return "1"
 	case OVersion2:
@@ -103,9 +105,8 @@ func (self DeviceOSV) String() string {
 		return "30"
 	case Oversion31:
 		return "31"
-	default:
 	}
-	return "All"
+	return "Unknown"
 }
 
 func ParseOVersion(full string) DeviceOSV {

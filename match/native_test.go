@@ -2,12 +2,13 @@ package match
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 // TestRequestStringToNativeFromat parse the strings of using adm.json to native types
 func TestRequestStringToNativeFromat(t *testing.T) {
-	bs, err := os.ReadFile("sample_native.json")
+	bs, err := os.ReadFile(filepath.Join("..", "etc", "samples", "sample_native.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +29,7 @@ func TestRequestStringToNativeFromat(t *testing.T) {
 		t.Errorf("%#v", req.Assets[1])
 	}
 
-	bs, err = os.ReadFile("sample_adm.json")
+	bs, err = os.ReadFile(filepath.Join("..", "etc", "samples", "sample_adm.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,10 +62,21 @@ func TestRequestStringToNativeFromat(t *testing.T) {
 		t.Errorf("%#v", nat.ImpTrackers[0])
 	}
 
-	str, err := nat.AdM("landing url", "failback url", []string{"https://hiveads.example-dsp-bid.com/receiver/impression/400DD1F2BDFAA27563A2D51736911100148?win_price=0.5&client=40&supply=221&campaign=4198&group=12610&ad=89941&creative=7615"}, nil)
+	impTrackers := []string{"https://hiveads.example-dsp-bid.com/receiver/impression/400DD1F2BDFAA27563A2D51736911100148?win_price=0.5&client=40&supply=221&campaign=4198&group=12610&ad=89941&creative=7615"}
+	str, err := nat.AdM("landing url", "failback url", impTrackers, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Errorf("%s", nat.Link.URL)
-	t.Errorf("%s", str)
+	roundTrip, err := UnpackAdm([]byte(str))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roundTrip.Link.URL != "landing url" ||
+		roundTrip.Link.Fallback != "failback url" ||
+		roundTrip.ImpTrackers[0] != impTrackers[0] {
+		t.Fatalf("round-trip adm mismatch: %#v", roundTrip)
+	}
+	if len(roundTrip.Link.Clicktrackers) != 0 {
+		t.Fatalf("round-trip click trackers = %#v; want none", roundTrip.Link.Clicktrackers)
+	}
 }

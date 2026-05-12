@@ -1,7 +1,6 @@
 package weight
 
 import (
-	"database/sql"
 	"net/url"
 	"testing"
 
@@ -9,14 +8,7 @@ import (
 )
 
 func TestModel(t *testing.T) {
-	c, err := genelet.NewConfig("../../etc/summer.local.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openSummerTestDB(t)
 	defer db.Close()
 	var weightCount int
 	if err := db.QueryRow("SELECT COUNT(*) FROM pub_weight").Scan(&weightCount); err != nil {
@@ -42,7 +34,7 @@ func TestModel(t *testing.T) {
 	model.SetDefaults(args, &lists, &other, storage)
 
 	args["slot_id"] = []string{"125"}
-	err = model.Topics(extra...)
+	err := model.Topics(extra...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -48,7 +48,7 @@ func TestOSString(t *testing.T) {
 		in  DeviceOS
 		out string
 	}{
-		{OSUnknown, "Unknown"},
+		{OSUnknown, "All"},
 		{OSAndroid, "Android"},
 		{OSAppleTV, "AppleTV"},
 		{OSAsha, "Asha"},
@@ -73,6 +73,7 @@ func TestOSString(t *testing.T) {
 		{OSWebOS, "webOS"},
 		{OSWindows, "Windows"},
 		{OSWindowsPhone, "Windows Phone"},
+		{DeviceOS(99), "Unknown"},
 	}
 	for _, tt := range tests {
 		if got := tt.in.String(); got != tt.out {

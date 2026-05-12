@@ -1,7 +1,6 @@
 package pub
 
 import (
-	"database/sql"
 	"net/url"
 	"testing"
 
@@ -10,14 +9,8 @@ import (
 )
 
 func TestModel(t *testing.T) {
-	c, err := genelet.NewConfig("../../etc/summer.local.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := openSummerTestDB(t)
+	defer db.Close()
 
 	comp := genelet.NewComponent("component.json")
 	addressComp := genelet.NewComponent("../address/component.json")
@@ -60,7 +53,7 @@ func TestModel(t *testing.T) {
 	args["company"] = []string{"b_company"}
 
 	args["id"] = []string{"160"}
-	err = model.Insert(extra...)
+	err := model.Insert(extra...)
 	if err != nil {
 		t.Fatal(err)
 	}

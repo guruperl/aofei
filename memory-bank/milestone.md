@@ -190,7 +190,7 @@ Result:
 - Asset-backed lookup tests skip explicitly when `etc/GeoLite2-City.mmdb` or
   `etc/qq-pz.dat` is absent; compile and pure utility tests remain local-safe.
 
-## M8 - Full Repository Test Hygiene `[ ]`
+## M8 - Full Repository Test Hygiene `[+]`
 
 Move from scoped smoke checks to a clean repository-level verification target.
 
@@ -203,9 +203,22 @@ Scope:
 
 Acceptance:
 
-- `GOWORK=off go test ./...` is either clean or replaced by an explicitly
-  justified canonical test command.
+- `GOWORK=off go test ./...` is clean and is the canonical package verification
+  command.
 - The root README and `AGENTS.md` point to the same verification target.
+
+Result:
+
+- Historical Go helpers under `backup/` are build-ignored and no longer appear
+  in `GOWORK=off go list ./...`.
+- Advice enum tests now treat zero values as wildcard `"All"` and invalid
+  out-of-range values as `"Unknown"` where the stringers support it.
+- Native fixture tests read from `etc/samples/` and assert `Native.AdM`
+  round-trip behavior instead of emitting debug failures.
+- Summer/Genelet DB-backed tests skip cleanly when generated local config is
+  absent or the configured DB cannot be reached; malformed configs still fail.
+- Staticcheck, Docker smoke/admin checks, and schema drift checks remain
+  documented non-gating follow-ups for M8.
 
 ## M9 - Production Deployment Runbook `[ ]`
 

@@ -76,8 +76,9 @@ legacy definers or `eightran_*` auth references.
 
 ## Known Architecture Gaps
 
-- Full `go test ./...` is not yet the canonical verification target because
-  historical Go files moved into `backup/` still appear as a Go package.
+- The parent `go.work` still does not include this module path, so repository
+  package commands require `GOWORK=off` unless that workspace is intentionally
+  changed.
 - Production deployment notes are historical; the current supported workflow is
   local Docker development.
 - Runtime config parsing needs one validation/defaulting boundary across DSP
