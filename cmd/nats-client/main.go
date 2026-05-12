@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/genelet/winter/dsp"
 	"github.com/nats-io/nats.go"
@@ -26,15 +27,15 @@ func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
 	flag.IntVar(&interval, "interval", 10, "Log divider in minutes")
-	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
 	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	nc, err := nats.Connect(c.NatsURL, nats.ReconnectWait(20))
+	nc, err := nats.Connect(c.NatsURL, nats.ReconnectWait(20*time.Second))
 	if err != nil {
 		log.Fatal(err)
 	}

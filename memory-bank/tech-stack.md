@@ -144,6 +144,25 @@ Expected Redis cache families are `pubmap`, `audience`, `creative`, and
 `.local/spread/pubmap/`, `.local/spread/audience/`,
 `.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
 
+## Operational Commands
+
+Active local operational command contracts are documented in
+`docs/operational-commands.md`.
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/nats-client -interval=10
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -daily -timestamp=YYYY-MM-DD
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/exchange.example.test win
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
+```
+
+Generated log directories are `.local/logs/log_request/`,
+`.local/logs/log_response/`, `.local/logs/log_attribute/`, and
+`.local/logs/log_winloss/`. `cmd/maxmind` is buildable and inventoried in M6;
+full external City `.mmdb` validation remains M7 scope.
+
 ## Verification
 
 Current smoke verification:
@@ -151,6 +170,8 @@ Current smoke verification:
 ```bash
 bash -n scripts/aofei-cache-smoke.sh
 GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
+GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
+GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
 GOWORK=off go test ./cmd/spread -run 'Test'
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
 GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'

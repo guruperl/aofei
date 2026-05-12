@@ -30,6 +30,17 @@ Run the cache pipeline smoke, including Redis, NATS, and spread artifacts:
 ./scripts/aofei-cache-smoke.sh
 ```
 
+Review operational command prerequisites, invocations, outputs, and known
+blockers:
+
+```bash
+GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
+```
+
+See [docs/operational-commands.md](docs/operational-commands.md) for the local
+contracts for `cmd/ledger`, `cmd/nats-client`, `cmd/winloss`, `cmd/spread`, and
+`cmd/maxmind`.
+
 Run the bid-path smoke after `reset-sample` and Redis cache population. It uses
 `etc/samples/sample_bid.json`, the generated local DSP config, and Docker Redis
 to exercise `dsp.Controller.ServeBid` through `httptest`.
@@ -74,6 +85,9 @@ Install the package command binaries:
   runtime commands and generated config notes.
 - [docs/database-baseline.md](docs/database-baseline.md): schema baseline and
   drift rules.
+- [docs/operational-commands.md](docs/operational-commands.md): local
+  operational command contracts for logs, ledger, spread, win/loss simulation,
+  and MaxMind inventory.
 - [docs/dsp-architecture.zh.md](docs/dsp-architecture.zh.md): historical DSP
   architecture note in Chinese.
 - [docs/legacy-operations.md](docs/legacy-operations.md): historical manual

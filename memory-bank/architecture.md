@@ -38,6 +38,9 @@
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
 6. Bid/win/loss/log flows use Redis for runtime state and NATS/spread/log paths
    for message and log transport.
+7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
+   interval files, and `cmd/ledger` consumes `winloss.<stamp>` files into
+   interval and daily ledger tables.
 
 ## Admin Runtime Boundary
 
@@ -53,6 +56,9 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
   and must remain ignored.
 - `etc/maxmind.json` is the active MaxMind config reference.
 - `conf/` is no longer active and should not be recreated.
+- Operational commands use the generated `AOFEI` config. `cmd/ledger`,
+  `cmd/winloss`, and `cmd/maxmind` disable controller NATS and MaxMind startup
+  explicitly when they only need database/config access.
 
 ## Database Boundary
 
@@ -71,11 +77,7 @@ legacy definers or `eightran_*` auth references.
   and Summer/Genelet so missing service blocks fail with actionable errors.
 - Redis and spread cache payloads need typed/versioned contracts instead of
   direct struct serialization.
-- NATS log consumers need single-writer operational paths instead of
-  callback-side file mutation.
 - Summer/Genelet admin SQL needs a whitelisted identifier/query-building seam
   before request or component metadata is interpolated into statements.
-- Ledger processing needs a transactional, replay-safe unit of work for
-  interval and daily accounting.
 - Production hardening still needs explicit decisions for credentials, CORS,
   uploads, static file serving, and legacy password hashing.

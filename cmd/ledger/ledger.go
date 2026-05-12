@@ -10,12 +10,29 @@ import (
 	"bufio"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/genelet/winter/dsp"
 )
+
+const maxLedgerLogLineBytes = 8 * 1024 * 1024
+
+var ErrMissingInput = errors.New("missing input")
+
+type MissingInputError struct {
+	Path string
+}
+
+func (self *MissingInputError) Error() string {
+	return fmt.Sprintf("%v: %s", ErrMissingInput, self.Path)
+}
+
+func (self *MissingInputError) Unwrap() error {
+	return ErrMissingInput
+}
 
 type Ledger struct {
 	DB         *sql.DB
@@ -110,7 +127,7 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.current)
 	fh, err := os.Open(name)
 	if err != nil && os.IsNotExist(err) {
-		return nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, &MissingInputError{Path: name}
 	} else if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -120,13 +137,14 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 	creatives := make(map[uint32][3]uint32)
 
 	scanner := bufio.NewScanner(fh)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLedgerLogLineBytes)
 	for scanner.Scan() {
 		var wl dsp.WinLoss
 		if err := json.Unmarshal(scanner.Bytes(), &wl); err != nil {
 			return nil, nil, nil, nil, nil, err
 		}
 		slotID := wl.RPub.SlotID
-		creativeID := wl.RAdv.ItemID
+		creativeID := wl.RAdv.CreativeID
 		var found bool
 		switch wl.Status {
 		case dsp.StatusTrackImp:
@@ -178,6 +196,12 @@ func (self *Ledger) StatisticsToLedger() error {
 // clis is a map of slot_id to creative_id to clicks
 // spes is a map of slot_id to creative_id to spend
 func insertLedger(db *sql.DB, myDay string, slots map[uint32][2]uint32, creatives map[uint32][3]uint32, imps, clis map[uint32]map[uint32]int, spes map[uint32]map[uint32]float32) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	insLog := `INSERT INTO ledger_log (timely, created) VALUES (?, NOW())`
 	insPub := `INSERT INTO ledger_pub (log_id, slot_id, site_id, pub_id) VALUES (?,?,?,?)`
 	insAdv := `INSERT INTO ledger_adv (log_id, creative_id, item_id, campaign_id, adv_id) VALUES (?,?,?,?,?)`
@@ -207,9 +231,8 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	laIds := make(map[uint32]int64)
 
 	var res sql.Result
-	var err error
 
-	if res, err = db.Exec(insLog, myDay); err != nil {
+	if res, err = tx.Exec(insLog, myDay); err != nil {
 		return err
 	}
 	if logID, err = res.LastInsertId(); err != nil {
@@ -218,7 +241,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	for slotID, ids := range slots {
 		var lpID int64
-		if res, err = db.Exec(insPub, logID, slotID, ids[0], ids[1]); err != nil {
+		if res, err = tx.Exec(insPub, logID, slotID, ids[0], ids[1]); err != nil {
 			return err
 		}
 		if lpID, err = res.LastInsertId(); err != nil {
@@ -229,7 +252,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	for creativeID, ids := range creatives {
 		var laID int64
-		if res, err = db.Exec(insAdv, logID, creativeID, ids[0], ids[1], ids[2]); err != nil {
+		if res, err = tx.Exec(insAdv, logID, creativeID, ids[0], ids[1], ids[2]); err != nil {
 			return err
 		}
 		if laID, err = res.LastInsertId(); err != nil {
@@ -249,7 +272,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			if !ok1 && !ok2 && !ok3 {
 				continue
 			}
-			if _, err = db.Exec(insPubAdv, lpID, laID, i, c, s); err != nil {
+			if _, err = tx.Exec(insPubAdv, lpID, laID, i, c, s); err != nil {
 				return err
 			}
 			is += i
@@ -258,17 +281,17 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		}
 	}
 
-	if _, err = db.Exec(updPub, logID); err != nil {
+	if _, err = tx.Exec(updPub, logID); err != nil {
 		return err
 	}
-	if _, err = db.Exec(updAdv, logID); err != nil {
+	if _, err = tx.Exec(updAdv, logID); err != nil {
 		return err
 	}
-	if _, err = db.Exec(updLog, is, cs, ss, logID); err != nil {
+	if _, err = tx.Exec(updLog, is, cs, ss, logID); err != nil {
 		return err
 	}
 
-	_, err = db.Exec(`
+	if _, err = tx.Exec(`
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT total_balance_id, imps, clis, spend
@@ -276,8 +299,10 @@ INNER JOIN (
 	INNER JOIN pub p USING (pub_id)
 	WHERE l.log_id=?
 ) tmp ON (b.balance_id=tmp.total_balance_id)
-SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, logID)
-	return err
+SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, logID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // InsertDaily aggregates daily data of the previous day, or the given day into daily ledger.
@@ -305,7 +330,7 @@ FROM ledger_log
 WHERE DATE(timely)=? GROUP BY daily`
 	insPub := `
 INSERT INTO daily_pub (log_id, slot_id, site_id, pub_id, imps, clis, spend)
-SELECT dl.log_id, tmp.slot_id, tmp.site_id, tmp.pub_id, tmp.tmp.imps, tmp.clis, tmp.spend
+SELECT dl.log_id, tmp.slot_id, tmp.site_id, tmp.pub_id, tmp.imps, tmp.clis, tmp.spend
 FROM (
 	SELECT ANY_VALUE(DATE(timely)) AS daily, slot_id, ANY_VALUE(site_id) AS site_id, ANY_VALUE(pub_id) AS pub_id, SUM(p.imps) AS imps, SUM(p.clis) AS clis, SUM(p.spend) AS spend
 	FROM ledger_pub p
@@ -315,7 +340,7 @@ FROM (
 INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 	insAdv := `
 INSERT INTO daily_adv (log_id, creative_id, item_id, campaign_id, adv_id, imps, clis, spend)
-SELECT dl.log_id, tmp.creative_id, tmp.item_id, tmp.campaign_id, tmp.adv_id, tmp.tmp.imps, tmp.clis, tmp.spend
+SELECT dl.log_id, tmp.creative_id, tmp.item_id, tmp.campaign_id, tmp.adv_id, tmp.imps, tmp.clis, tmp.spend
 FROM (
 	SELECT ANY_VALUE(DATE(timely)) AS daily, creative_id, ANY_VALUE(item_id) AS item_id, ANY_VALUE(campaign_id) AS campaign_id, ANY_VALUE(adv_id) AS adv_id, SUM(a.imps) AS imps, SUM(a.clis) AS clis, SUM(a.spend) AS spend
 	FROM ledger_adv a
@@ -340,20 +365,26 @@ INNER JOIN daily_adv da ON (tmp.creative_id=da.creative_id)
 INNER JOIN daily_log lda ON (da.log_id=lda.log_id)
 WHERE ldp.daily=? AND lda.daily=?`
 
-	if _, err := db.Exec(insLog, myDay); err != nil {
+	tx, err := db.Begin()
+	if err != nil {
 		return err
 	}
-	if _, err := db.Exec(insPub, myDay); err != nil {
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(insLog, myDay); err != nil {
 		return err
 	}
-	if _, err := db.Exec(insAdv, myDay); err != nil {
+	if _, err := tx.Exec(insPub, myDay); err != nil {
 		return err
 	}
-	if _, err := db.Exec(insPubAdv, myDay, myDay, myDay); err != nil {
+	if _, err := tx.Exec(insAdv, myDay); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(insPubAdv, myDay, myDay, myDay); err != nil {
 		return err
 	}
 
-	_, err = db.Exec(`
+	if _, err = tx.Exec(`
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT daily_balance_id, l.imps, l.clis, l.spend
@@ -362,6 +393,8 @@ INNER JOIN (
 	INNER JOIN daily_log dl USING (log_id)
 	WHERE dl.daily=?
 ) tmp ON (b.balance_id=tmp.daily_balance_id)
-SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, myDay)
-	return err
+SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, myDay); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

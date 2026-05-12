@@ -27,12 +27,12 @@ func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
 	flag.StringVar(&city, "city", "/media/GeoLite2-City.mmdb", "Maxmind city mmdb file")
-	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
 	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf, "maxmind")
+	sc, err := dsp.NewControllerWithOptions(ctx, sConf, dsp.WithoutNATS(), dsp.WithoutMaxMind())
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -30,12 +30,12 @@ func init() {
 	flag.IntVar(&interval, "interval", 10, "Divider in minutes")
 	flag.StringVar(&stamp, "timestamp", "", "optional. it is MySQL day if daily is set, or 7 digit unix timestamp in minutes")
 	flag.BoolVar(&daily, "daily", false, "If set, it will insert daily ledger")
-	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
 	ctx := context.Background()
-	sc, err := dsp.NewController(ctx, sConf, "stop")
+	sc, err := dsp.NewControllerWithOptions(ctx, sConf, dsp.WithoutNATS(), dsp.WithoutMaxMind())
 	if err != nil {
 		log.Fatal(err)
 	}

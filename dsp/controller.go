@@ -40,7 +40,43 @@ type Controller struct {
 	IsLocal bool
 }
 
+type controllerOptions struct {
+	nats    bool
+	maxmind bool
+}
+
+// ControllerOption configures optional external services for a Controller.
+type ControllerOption func(*controllerOptions)
+
+// WithoutNATS disables the Controller's NATS connection.
+func WithoutNATS() ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.nats = false
+	}
+}
+
+// WithoutMaxMind disables loading the MaxMind IP search data.
+func WithoutMaxMind() ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.maxmind = false
+	}
+}
+
 func NewController(ctx context.Context, filename string, offline ...string) (*Controller, error) {
+	if len(offline) == 0 {
+		return NewControllerWithOptions(ctx, filename)
+	}
+	switch offline[0] {
+	case "nats":
+		return NewControllerWithOptions(ctx, filename, WithoutMaxMind())
+	case "maxmind":
+		return NewControllerWithOptions(ctx, filename, WithoutNATS())
+	default:
+		return NewControllerWithOptions(ctx, filename, WithoutNATS(), WithoutMaxMind())
+	}
+}
+
+func NewControllerWithOptions(ctx context.Context, filename string, opts ...ControllerOption) (*Controller, error) {
 	c, err := NewConfig(filename)
 	if err != nil {
 		return nil, err
@@ -55,7 +91,8 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 		DB:    db,
 	}
 
-	if len(offline) == 0 || offline[0] == "nats" {
+	options := applyControllerOptions(opts...)
+	if options.nats {
 		nc, err := nats.Connect(c.NatsURL, nats.ReconnectWait(10*time.Second))
 		if err != nil {
 			return nil, err
@@ -63,7 +100,7 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 		controller.Nc = nc
 	}
 
-	if len(offline) == 0 || offline[0] == "maxmind" {
+	if options.maxmind {
 		ips, err := maxmind.LoadIPData(c.Ips)
 		if err != nil {
 			return nil, err
@@ -72,6 +109,14 @@ func NewController(ctx context.Context, filename string, offline ...string) (*Co
 	}
 
 	return controller, nil
+}
+
+func applyControllerOptions(opts ...ControllerOption) controllerOptions {
+	options := controllerOptions{nats: true, maxmind: true}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	return options
 }
 
 // Close closes the Controller.

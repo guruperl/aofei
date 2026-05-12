@@ -130,7 +130,7 @@ Result:
 - Stale slot/weight schema assumptions were corrected; larger Genelet
   query-builder hardening remains tracked as future architecture work.
 
-## M6 - Ledger, Logs, And Operational Commands `[ ]`
+## M6 - Ledger, Logs, And Operational Commands `[+]`
 
 Clarify and verify the non-bid operational commands.
 
@@ -146,6 +146,22 @@ Acceptance:
 - Each active operational command has a documented local invocation or a clearly
   recorded blocker.
 - Log and ledger flows do not require production credentials.
+
+Result:
+
+- `docs/operational-commands.md` documents local prerequisites, invocations,
+  outputs, and M6/M7 blockers for `cmd/ledger`, `cmd/nats-client`,
+  `cmd/winloss`, `cmd/spread`, and `cmd/maxmind`.
+- DSP controller startup now has typed options for disabling NATS and MaxMind;
+  ledger, win/loss simulation, and MaxMind inventory commands use those options
+  instead of string modes.
+- NATS log consumption uses a copied-message queue and a single writer loop for
+  file handles and rotation.
+- Ledger interval and daily writes are transactional, missing win/loss files are
+  retryable missing-input errors, and win/loss statistics aggregate demand by
+  creative id.
+- Win/loss simulation validates no-bid and malformed native tracker responses
+  before indexing response slices.
 
 ## M7 - MaxMind And Geo Runtime `[ ]`
 

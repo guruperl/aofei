@@ -75,6 +75,18 @@ The generated Summer `Template` path is `.local/templates`. The directory is
 created so config validation has a local path, but admin UI template assets are
 not part of M1 runtime verification.
 
+The generated DSP log directories are:
+
+```text
+.local/logs/log_request
+.local/logs/log_response
+.local/logs/log_attribute
+.local/logs/log_winloss
+```
+
+These directories are created by `up`, ignored by git, and used by
+`cmd/nats-client` and `cmd/ledger`.
+
 ## Admin Tests
 
 Run the Summer/Genelet admin compatibility checks against Docker MySQL:
@@ -216,3 +228,19 @@ Expected artifact families:
 The spread receiver writes each cache message as a full file snapshot. Slot
 cleanup subjects such as `slot:<size_id>:<slot_id>cleanup` clear the size
 directory before writing the new slot snapshot.
+
+## Operational Commands
+
+The active M6 command contracts live in
+[operational-commands.md](operational-commands.md). In short:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/nats-client
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss win
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
+```
+
+`cmd/maxmind` is inventoried and build-verified in M6. Validation of the
+external City `.mmdb` payload remains M7 scope.
