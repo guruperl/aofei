@@ -9,7 +9,7 @@ import (
 )
 
 func TestModelExternal(t *testing.T) {
-	c, err := genelet.NewConfig("../conf/summer.json")
+	c, err := genelet.NewConfig("../etc/summer.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestModelExternal(t *testing.T) {
 	}
 */
 func TestModelSummer(t *testing.T) {
-	c, err := genelet.NewConfig("../conf/summer.json")
+	c, err := genelet.NewConfig("../etc/summer.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}

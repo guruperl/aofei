@@ -14,8 +14,8 @@ func TestFilter(t *testing.T) {
 	filter.Component = "slot"
 
 	var err error
-	//filter.Base.C = genelet.NewConfig("../../../conf/config.json")
-	filter.Base.C, err = genelet.NewConfig("../../../conf/summer.json")
+	//filter.Base.C = genelet.NewConfig("../../etc/summer.local.json")
+	filter.Base.C, err = genelet.NewConfig("../../etc/summer.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}

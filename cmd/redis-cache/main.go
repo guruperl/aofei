@@ -98,11 +98,14 @@ func main() {
 		}
 	}
 
-	nc, err := nats.Connect(c.NatsURL)
-	if err != nil {
-		log.Fatal(err)
+	var nc *nats.Conn
+	if cache != "redis" {
+		nc, err = nats.Connect(c.NatsURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer nc.Drain()
 	}
-	defer nc.Drain()
 
 	switch cache {
 	case "spread":

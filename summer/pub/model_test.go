@@ -9,7 +9,7 @@ import (
 )
 
 func TestModel(t *testing.T) {
-	c, err := genelet.NewConfig("../../../conf/config.json")
+	c, err := genelet.NewConfig("../../etc/summer.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}

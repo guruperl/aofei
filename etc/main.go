@@ -11,26 +11,32 @@ import (
 )
 
 func main() {
-	control, err := dsp.NewController(context.Background(), "../conf/aofei.json", "never")
+	config := os.Getenv("AOFEI")
+	if config == "" {
+		config = "etc/aofei.local.json"
+		if _, err := os.Stat(config); err != nil {
+			config = "../etc/aofei.local.json"
+		}
+	}
+	cfg, err := dsp.NewConfig(config)
 	if err != nil {
 		panic(err)
 	}
-	db := control.DB
+
+	db, err := sql.Open(cfg.ConnectArray[0], cfg.ConnectArray[1])
+	if err != nil {
+		panic(err)
+	}
 	defer db.Close()
 
 	ctx := context.Background()
+	if err = db.PingContext(ctx); err != nil {
+		panic(err)
+	}
 
 	switch os.Args[1] {
 	case "pub":
 		_, err = insertDefaultPub(db)
-	case "channel":
-		err = doChannel(ctx, db)
-	case "geography":
-		if err = doCountry(ctx, db); err == nil {
-			if err = doState(ctx, db); err == nil {
-				err = doCity(ctx, db)
-			}
-		}
 	default:
 	}
 
@@ -44,5 +50,8 @@ func insertDefaultPub(db *sql.DB) (*acl.Pub, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pubMap.DBAddNew(db, acl.PUBDefault, "", "", "")
+	if pub, ok := pubMap[acl.PUBDefault]; ok {
+		return pub, nil
+	}
+	return acl.AddPub(db, acl.PUBDefault)
 }

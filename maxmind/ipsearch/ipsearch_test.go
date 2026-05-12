@@ -15,18 +15,18 @@ import (
 /*
 // make a PZ ip dat file
 func TestDatabase(t *testing.T) {
-	c := pzutil.NewConfig("../../conf/gotest.conf")
+	c := pzutil.NewConfig("../../backup/gotest.conf")
 	db, err := sql.Open(c.Db[0], c.Db[1])
 	defer db.Close();
 	if err != nil { t.Fatal(err); }
-	err = DatabaseToDat(db, "../../conf/qq-pz.dat");
+	err = DatabaseToDat(db, "../../etc/qq-pz.dat");
 	if err != nil { t.Fatal(err); }
 }
 */
 
 func TestIpsearch(t *testing.T) {
-	//p, err := LoadIpData("../../conf/qqzeng-ip-utf8.dat");
-	p, err := LoadIPData("../conf/qq-pz.dat")
+	//p, err := LoadIpData("../../etc/qqzeng-ip-utf8.dat");
+	p, err := LoadIPData("../../etc/qq-pz.dat")
 	if err != nil {
 		t.Fatal(err)
 	}

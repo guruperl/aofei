@@ -8,7 +8,7 @@ import (
 )
 
 func TestIpsearch(t *testing.T) {
-	//p, err := LoadIPData("../conf/qqzeng-ip-utf8.dat");
+	//p, err := LoadIPData("../etc/qqzeng-ip-utf8.dat");
 	p, err := LoadIPData("../etc/GeoLite2-City.mmdb")
 	if err != nil {
 		t.Fatal(err)

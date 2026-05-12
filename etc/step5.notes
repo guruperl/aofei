@@ -1,107 +1,90 @@
-# 0) generate two configuration files
-$ cp aofei.json ../etc/
-$ cp summer.json ../etc/
-# and edit them
+# Step 5: local Docker runtime after step4_init.sql
 
-# 1) create the first demand sample
-$ mysql -ueightran_goto -p12pass34 -h vm0 aofei  < demand.sql
+`step4_init.sql` is the active baseline dump. It is based on the live `aofei`
+snapshot and has been sanitized so Docker MySQL does not require the historical
+`eightran_*` database users or dump definers.
 
-# 2) generate default pubmap in database
-$ go run *.go pub
+## 1) Start local infrastructure
 
-# 3) generate executables
-go install github.com/genelet/winter/cmd/ledger
-go install github.com/genelet/winter/cmd/maxmind
-go install github.com/genelet/winter/cmd/nats-client
-go install github.com/genelet/winter/cmd/redis-cache
-go install github.com/genelet/winter/cmd/unify
-go install github.com/genelet/winter/cmd/winloss
-go install github.com/genelet/winter/cmd/spread
+From the repository root:
 
-# 4) generate the maxmind country and region file for parsing 
-$ export AOFEI=/srv/aofei/aofei/conf/aofei.json
-$ maxmind
+```sh
+scripts/aofei-local.sh up
+```
 
-# 5) generate the pubmap and demand caches in redis, plus pubmap in conf
-$ redis-cache
+This starts:
 
-# 6) spread is nats program to receive caches as local files. It is running as systemd
-[Unit]
-Description=spread service
-After=aofei.service
+- MySQL: `aofei-mysql` on `127.0.0.1:3307`
+- Redis: `aofei-redis` on `127.0.0.1:6379`
+- NATS: `aofei-nats` on `127.0.0.1:4222`
 
-[Service]
-Type=simple
-Environment=AOFEI=/srv/aofei/aofei/conf/aofei.json
-StandardOutput=append:/srv/aofei/logs/spread.log
-StandardError=append:/srv/aofei/logs/spread.log
-ExecStart=/srv/aofei/go/bin/spread
-Restart=on-failure
+It also writes local ignored configs:
 
-[Install]
-WantedBy=multi-user.target
+- `etc/aofei.local.json`
+- `etc/summer.local.json`
 
+## 2) Rebuild the database from the baseline
 
-# 6) nats-cliet to receive nats logs info the stamped logs. It is running as systemd
-# /etc/systemd/system/nats-client.service:
-[Unit]
-Description=nats-client service
-After=aofei.service
+```sh
+scripts/aofei-local.sh reset
+scripts/aofei-local.sh load
+```
 
-[Service]
-Type=simple
-Environment=AOFEI=/srv/aofei/aofei/conf/aofei.json
-StandardOutput=append:/srv/aofei/logs/nats-client.log
-StandardError=append:/srv/aofei/logs/nats-client.log
-ExecStart=/srv/aofei/aofei/cmd/nats/nats-client -interval=10
-Restart=on-failure
-#User=peter
-#Group=peter
+`load` imports `etc/step4_init.sql` into the Docker MySQL database. The script
+also strips any dump definers during import and removes historical `eightran`
+users from the Docker server.
 
-[Install]
-WantedBy=multi-user.target
+For a one-shot reset with sample helpers:
 
-# FYI, nats-server.service 
-[Unit]
-Description=nats-server service
-After=network-online.target
-Before=spread.service nats-client.service
+```sh
+scripts/aofei-local.sh reset-sample
+```
 
-[Service]
-Type=simple
-ExecStart=/srv/aofei/go/bin/nats-server
+`sample` only imports `etc/demand.sql` when the advertiser table is empty. The
+current `step4_init.sql` already includes live sample rows, so this usually just
+ensures the default publisher exists.
 
-[Install]
-WantedBy=multi-user.target
+## 3) Populate caches
 
+Redis cache only:
 
-# 7) run the unify program as systemd web server
+```sh
+GOWORK=off AOFEI=$PWD/etc/aofei.local.json go run ./cmd/redis-cache -cache=redis
+```
 
-[Unit]
-Description=Aofei DSP service
-After=nats-server.service
+NATS/spread publishing:
 
-[Service]
-Type=simple
-Environment=SUMMER=/srv/aofei/aofei/conf/summer.json AOFEI=/srv/aofei/aofei/conf/aofei.json
-StandardOutput=append:/srv/aofei/logs/unify.log
-StandardError=append:/srv/aofei/logs/unify.log
-ExecStart=/srv/aofei/aofei/cmd/unify/unify
+```sh
+GOWORK=off AOFEI=$PWD/etc/aofei.local.json go run ./cmd/redis-cache -cache=spread
+```
 
-[Install]
-WantedBy=multi-user.target
+Read Redis cache contents:
 
+```sh
+GOWORK=off AOFEI=$PWD/etc/aofei.local.json go run ./cmd/redis-cache -read
+```
 
-# 8) edit cronjob to run simulations and 10 minute jobs
+## 4) Useful status and cleanup commands
 
-# simulate adx request
-* * * * * cd /srv/aofei/aofei/etc/samples; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test; curl --data @sample_bid.json --request POST http://x.w8m.com/bid/exchange.example.test
-# simulate ads reply
-* * * * * winloss -bid /bid/exchange.example.test >> /srv/aofei/logs/adx.log 2>&1
-# here are the cron jobs to run redis-cache and ledger
-5,15,25,35,45,55 * * * * redis-cache -update -interval=10 >> /srv/aofei/logs/redis.cache 2>&1
-# run ledger every 10 minutes, here 10 is the same as nats-client in systemd
-1,11,21,31,41,51 * * * * ledger -interval=10 >> /srv/aofei/logs/ledger.minutes 2>&1
-# run daily kedger
-18 0 * * * ledger -daily >> /srv/aofei/logs/ledger.daily 2>&1
+```sh
+scripts/aofei-local.sh status
+scripts/aofei-local.sh redis-status
+scripts/aofei-local.sh nats-status
+scripts/aofei-local.sh redis-flush
+scripts/aofei-local.sh down
+```
 
+`down` stops MySQL, Redis, and NATS without deleting Docker volumes.
+
+## 5) Running services locally
+
+Use the generated config paths:
+
+```sh
+export AOFEI=$PWD/etc/aofei.local.json
+export SUMMER=$PWD/etc/summer.local.json
+```
+
+Then run the relevant commands directly with `go run` or installed binaries.
+The old systemd service examples and pre-step4 migration files are historical
+material and have been moved to `backup/`.
