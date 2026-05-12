@@ -72,6 +72,14 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
   `cmd/winloss`, and `cmd/maxmind` disable controller NATS and MaxMind startup
   explicitly when they only need database/config access.
 
+## Cache Boundary
+
+The multiple-cache split is documented in
+[docs/multiple-cache.md](../docs/multiple-cache.md). Static publisher, slot,
+audience, and creative data is local and generation-swapped in memory for
+local/spread bid serving. Redis remains the shared mutable-state backend for
+frequency caps, uploaded audience sets, and future counters.
+
 ## Database Boundary
 
 `etc/step4_init.sql` is the source-of-truth baseline for local MySQL. When Docker
