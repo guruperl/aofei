@@ -24,9 +24,12 @@ NATS_PORT="${AOFEI_NATS_PORT:-4222}"
 
 AOFEI_CONFIG="$ROOT/etc/aofei.local.json"
 SUMMER_CONFIG="$ROOT/etc/summer.local.json"
+SCHEMA_DIR="$ROOT/.local/schema"
+CURRENT_SCHEMA="$SCHEMA_DIR/aofei.schema.sql"
 DSN="${DB_USER}:${DB_PASS}@tcp(${HOST}:${PORT})/${DB_NAME}?parseTime=true"
 REDIS_ADDR="${REDIS_HOST}:${REDIS_PORT}"
 NATS_URL="nats://${NATS_HOST}:${NATS_PORT}"
+DIFF_SCHEMA_DB=""
 
 usage() {
 	cat <<'USAGE'
@@ -39,6 +42,9 @@ Commands:
   sample        Import etc/demand.sql and run the default pub generator.
   reset-sample  Run reset, load, and sample.
   status        Show MySQL/Redis/NATS status and database object counts.
+  check-sql     Check etc/step4_init.sql for dump definers and legacy auth.
+  dump-schema   Dump normalized current Docker MySQL schema to .local/schema/.
+  diff-schema   Diff current Docker MySQL schema against etc/step4_init.sql.
   install       Install local Go command binaries.
   down          Stop MySQL, Redis, and NATS without deleting data.
   mysql-up      Start only the Docker MySQL container.
@@ -111,6 +117,21 @@ mysql_root() {
 	docker exec -e MYSQL_PWD="$ROOT_PASSWORD" -i "$CONTAINER" mysql -uroot "$@"
 }
 
+mysql_dump_schema() {
+	local schema_name="$1"
+	docker exec -e MYSQL_PWD="$ROOT_PASSWORD" "$CONTAINER" \
+		mysqldump -uroot \
+		--no-data \
+		--routines \
+		--triggers \
+		--events \
+		--single-transaction \
+		--skip-comments \
+		--set-gtid-purged=OFF \
+		--column-statistics=0 \
+		"$schema_name"
+}
+
 baseline_sql() {
 	if [ -n "${AOFEI_MYSQL_BASELINE_SQL:-}" ]; then
 		printf '%s\n' "$AOFEI_MYSQL_BASELINE_SQL"
@@ -129,10 +150,116 @@ SQL
 
 import_sql_without_definers() {
 	local source_sql="$1"
+	local target_db="${2:-$DB_NAME}"
 	sed -E \
 		-e 's%/\*!50017 DEFINER=`[^`]+`@`[^`]+`\*/ %%g' \
 		-e 's%DEFINER=`[^`]+`@`[^`]+` %%g' \
-		"$source_sql" | mysql_root --database="$DB_NAME"
+		"$source_sql" | mysql_root --database="$target_db"
+}
+
+schema_object_count() {
+	mysql_root -N -B -e "
+SELECT
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${DB_NAME}') +
+  (SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = '${DB_NAME}') +
+  (SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = '${DB_NAME}') +
+  (SELECT COUNT(*) FROM information_schema.events WHERE event_schema = '${DB_NAME}');
+"
+}
+
+check_sql() {
+	local source_sql="$ROOT/etc/step4_init.sql"
+	local failed=0
+
+	if [ ! -f "$source_sql" ]; then
+		echo "Baseline SQL not found: $source_sql" >&2
+		return 1
+	fi
+
+	if grep -Eni 'DEFINER[[:space:]]*=' "$source_sql"; then
+		echo "Baseline SQL contains explicit dump definers. Remove DEFINER= clauses from $source_sql." >&2
+		failed=1
+	fi
+
+	if grep -Eni 'eightran' "$source_sql"; then
+		echo "Baseline SQL contains legacy eightran auth references. Remove them from $source_sql." >&2
+		failed=1
+	fi
+
+	if [ "$failed" -ne 0 ]; then
+		return 1
+	fi
+
+	echo "Baseline SQL guard passed: $source_sql"
+}
+
+normalize_schema_dump() {
+	local source_dump="$1"
+	local target_dump="$2"
+	local source_schema="$3"
+
+	sed -E \
+		-e '/^--/d' \
+		-e '/^\/\*!999999\\- enable the sandbox mode \*\//d' \
+		-e 's/ AUTO_INCREMENT=[0-9]+//g' \
+		-e 's%/\*![0-9]+ DEFINER=`[^`]+`@`[^`]+` SQL SECURITY DEFINER \*/%/*!50013 SQL SECURITY DEFINER */%g' \
+		-e 's%/\*![0-9]+ DEFINER=`[^`]+`@`[^`]+`\*/ %%g' \
+		-e 's%DEFINER=`[^`]+`@`[^`]+` %%g' \
+		-e "s/\`${source_schema}\`/\`${DB_NAME}\`/g" \
+		"$source_dump" >"$target_dump"
+}
+
+write_schema_dump() {
+	local schema_name="$1"
+	local target_dump="$2"
+	local raw_dump
+
+	mkdir -p "$SCHEMA_DIR"
+	raw_dump="$(mktemp)"
+	if mysql_dump_schema "$schema_name" >"$raw_dump"; then
+		normalize_schema_dump "$raw_dump" "$target_dump" "$schema_name"
+		rm -f "$raw_dump"
+	else
+		rm -f "$raw_dump"
+		return 1
+	fi
+}
+
+dump_schema() {
+	mysql_up
+	write_schema_dump "$DB_NAME" "$CURRENT_SCHEMA"
+	echo "Wrote normalized schema dump: $CURRENT_SCHEMA"
+}
+
+cleanup_diff_schema() {
+	if [ -n "$DIFF_SCHEMA_DB" ]; then
+		mysql_root -e "DROP DATABASE IF EXISTS \`${DIFF_SCHEMA_DB}\`;" >/dev/null 2>&1 || true
+	fi
+}
+
+diff_schema() {
+	mysql_up
+	check_sql
+
+	local source_sql="$ROOT/etc/step4_init.sql"
+	local baseline_schema="$SCHEMA_DIR/aofei.baseline.schema.sql"
+	local current_schema="$SCHEMA_DIR/aofei.current.schema.sql"
+
+	DIFF_SCHEMA_DB="${DB_NAME}_baseline_check_$$"
+	trap cleanup_diff_schema EXIT
+
+	mysql_root <<SQL
+DROP DATABASE IF EXISTS \`${DIFF_SCHEMA_DB}\`;
+CREATE DATABASE \`${DIFF_SCHEMA_DB}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+SQL
+	import_sql_without_definers "$source_sql" "$DIFF_SCHEMA_DB"
+
+	write_schema_dump "$DIFF_SCHEMA_DB" "$baseline_schema"
+	write_schema_dump "$DB_NAME" "$current_schema"
+
+	if diff -u "$baseline_schema" "$current_schema"; then
+		echo "Schemas match: $source_sql and Docker database ${DB_NAME}."
+	fi
 }
 
 generate_configs() {
@@ -265,6 +392,12 @@ load_baseline() {
 		echo "Baseline SQL not found: $source_sql" >&2
 		return 1
 	fi
+	local object_count
+	object_count="$(schema_object_count)"
+	if [ "${object_count:-0}" != "0" ]; then
+		echo "Database ${DB_NAME} already has ${object_count} schema objects; run './scripts/aofei-local.sh reset' before load." >&2
+		return 1
+	fi
 	import_sql_without_definers "$source_sql"
 	drop_legacy_users
 }
@@ -320,6 +453,12 @@ WHERE table_schema = '${DB_NAME}';
 SELECT COUNT(*) AS routines_count
 FROM information_schema.routines
 WHERE routine_schema = '${DB_NAME}';
+SELECT COUNT(*) AS triggers_count
+FROM information_schema.triggers
+WHERE trigger_schema = '${DB_NAME}';
+SELECT COUNT(*) AS events_count
+FROM information_schema.events
+WHERE event_schema = '${DB_NAME}';
 SELECT COUNT(*) AS adv_count FROM adv;
 SELECT COUNT(*) AS pub_count FROM pub;
 SQL
@@ -449,6 +588,15 @@ case "${1:-}" in
 		;;
 	status)
 		status
+		;;
+	check-sql)
+		check_sql
+		;;
+	dump-schema)
+		dump_schema
+		;;
+	diff-schema)
+		diff_schema
 		;;
 	install)
 		install_commands

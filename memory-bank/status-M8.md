@@ -51,6 +51,12 @@ target.
   - Acceptance: one command runs local smoke checks, Go compile checks, and
     whitespace checks.
 
+- `[ ]` Add schema-contract coverage for SQL embedded outside the baseline
+  file.
+  - Files: `acl/`, `match/`, `summer/`, operational commands.
+  - Acceptance: repository verification catches embedded SQL drift against the
+    active Docker schema, or clearly documents scoped exclusions.
+
 - `[ ]` Verify parent workspace behavior.
   - Files: `go.mod`, parent `go.work` if intentionally changed.
   - Command:

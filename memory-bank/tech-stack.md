@@ -37,6 +37,9 @@ Main helper:
 ./scripts/aofei-local.sh sample
 ./scripts/aofei-local.sh reset-sample
 ./scripts/aofei-local.sh status
+./scripts/aofei-local.sh check-sql
+./scripts/aofei-local.sh dump-schema
+./scripts/aofei-local.sh diff-schema
 ./scripts/aofei-local.sh install
 ./scripts/aofei-local.sh down
 ```
@@ -58,6 +61,29 @@ SUMMER="$PWD/etc/summer.local.json"
 ```
 
 These files are local artifacts and are ignored by git.
+
+## Schema Baseline Commands
+
+`etc/step4_init.sql` is the active schema and baseline-data contract. The local
+helper keeps schema stewardship commands under the same Docker workflow:
+
+```bash
+./scripts/aofei-local.sh check-sql
+./scripts/aofei-local.sh dump-schema
+./scripts/aofei-local.sh diff-schema
+```
+
+`check-sql` rejects explicit `DEFINER=` clauses and legacy `eightran` auth
+references in `etc/step4_init.sql`. `dump-schema` writes a normalized current
+Docker schema to ignored `.local/schema/aofei.schema.sql`. `diff-schema`
+rebuilds a temporary database from `etc/step4_init.sql`, normalizes both dumps,
+diffs baseline against the current Docker schema, and drops the temporary
+database on exit.
+
+When schema changes are intentional, update `etc/step4_init.sql`, rebuild with
+`reset && load`, run `check-sql` and `diff-schema`, and update
+`docs/database-baseline.md` plus the memory bank if the inventory or workflow
+changed.
 
 ## Cache Commands
 
@@ -89,6 +115,13 @@ Current smoke verification:
 ```bash
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 git diff --check
+```
+
+Schema baseline verification:
+
+```bash
+./scripts/aofei-local.sh check-sql
+./scripts/aofei-local.sh diff-schema
 ```
 
 `go test ./...` is a milestone target, not yet a clean baseline, because

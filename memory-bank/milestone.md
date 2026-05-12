@@ -48,7 +48,7 @@ Acceptance:
   sample data, populate Redis, and report service status.
 - No active workflow depends on `conf/` or `eightran_*` credentials.
 
-## M2 - Schema Baseline Stewardship `[ ]`
+## M2 - Schema Baseline Stewardship `[+]`
 
 Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 

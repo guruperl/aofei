@@ -32,7 +32,8 @@ scripts/aofei-local.sh load
 
 `load` imports `etc/step4_init.sql` into the Docker MySQL database. The script
 also strips any dump definers during import and removes historical `eightran`
-users from the Docker server.
+users from the Docker server. `load` exits before import if the target database
+already has schema objects, so use `reset` before replaying the baseline.
 
 For a one-shot reset with sample helpers:
 
@@ -40,11 +41,33 @@ For a one-shot reset with sample helpers:
 scripts/aofei-local.sh reset-sample
 ```
 
-`sample` only imports `etc/demand.sql` when the advertiser table is empty. The
-current `step4_init.sql` already includes live sample rows, so this usually just
+`sample` only imports `etc/demand.sql` when the default sample
+advertiser/campaign/item/creative set is missing. The current
+`step4_init.sql` already includes those sample demand rows, so this usually just
 ensures the default publisher exists.
 
-## 3) Populate caches
+## 3) Steward the schema baseline
+
+Check the baseline SQL for prohibited dump definers and legacy auth:
+
+```sh
+scripts/aofei-local.sh check-sql
+```
+
+Dump the normalized current Docker schema:
+
+```sh
+scripts/aofei-local.sh dump-schema
+```
+
+Compare the current Docker schema to a fresh database rebuilt from
+`etc/step4_init.sql`:
+
+```sh
+scripts/aofei-local.sh diff-schema
+```
+
+## 4) Populate caches
 
 Redis cache only:
 
@@ -64,7 +87,7 @@ Read Redis cache contents:
 GOWORK=off AOFEI=$PWD/etc/aofei.local.json go run ./cmd/redis-cache -read
 ```
 
-## 4) Useful status and cleanup commands
+## 5) Useful status and cleanup commands
 
 ```sh
 scripts/aofei-local.sh status
@@ -76,7 +99,7 @@ scripts/aofei-local.sh down
 
 `down` stops MySQL, Redis, and NATS without deleting Docker volumes.
 
-## 5) Running services locally
+## 6) Running services locally
 
 Use the generated config paths:
 
