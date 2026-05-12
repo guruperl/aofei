@@ -368,3 +368,28 @@ Acceptance:
 - Focused command/package tests cover spread subject routing, reset/cleanup
   handling, creative file map keys, and the local bid path.
 - Docs describe the Redis, NATS, file, and in-memory cache roles clearly.
+
+## M15 - DSP Serving Hardening `[+]`
+
+Resolve the post-M14 DSP serving review findings without reopening M14.
+
+Scope:
+
+- Sign DSP-generated tracker and click URLs and require valid signatures for
+  click redirects and cap mutations.
+- Remove request-path filesystem generation checks from local static cache
+  reads.
+- Make frequency-cap refresh atomic while preserving Redis key and payload
+  shape.
+- Move request/response/attribute audit publishing off the request goroutine.
+- Preserve creative URL query parameters and repeated values during macro
+  replacement.
+- Clean the focused staticcheck finding in DSP tests.
+
+Acceptance:
+
+- Focused tests cover signed click redirect acceptance/rejection, local static
+  cache read behavior, async audit queue drops, repeated-query macro expansion,
+  and cap refresh behavior.
+- Measurement, workflow, cache, audience, and memory-bank docs describe the new
+  serving contracts.

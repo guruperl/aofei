@@ -311,21 +311,29 @@ func applyMacro(str string, macroStandard, macroCustom map[string]string) (strin
 		return "", err
 	}
 	args := url.Values{}
-	for k, v := range u.Query() {
-		if len(v) != 1 {
-			continue
+	for k, values := range u.Query() {
+		replaced := make([]string, len(values))
+		for i, v := range values {
+			replaced[i] = replaceMacroValue(v, macroStandard, macroCustom)
 		}
-		switch v[0] {
-		case `${AUCTION_ID}`, `${AUCTION_BID_ID}`, `${AUCTION_IMP_ID}`, `${AUCTION_SEAT_ID}`, `${AUCTION_AD_ID}`, `${AUCTION_PRICE}`, `${AUCTION_CURRENCY}`:
-			args.Set(k, macroStandard[v[0]])
-		default:
-			if replacement, ok := macroCustom[v[0]]; ok {
-				args.Set(k, replacement)
-			} else {
-				args.Set(k, v[0])
-			}
-		}
+		args[k] = replaced
 	}
 	u.RawQuery = args.Encode()
 	return u.String(), nil
+}
+
+func replaceMacroValue(value string, macroStandard, macroCustom map[string]string) string {
+	if replacement, ok := macroStandard[value]; ok {
+		return replacement
+	}
+	if replacement, ok := macroCustom[value]; ok {
+		return replacement
+	}
+	for macro, replacement := range macroStandard {
+		value = strings.ReplaceAll(value, macro, replacement)
+	}
+	for macro, replacement := range macroCustom {
+		value = strings.ReplaceAll(value, macro, replacement)
+	}
+	return value
 }

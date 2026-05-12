@@ -41,6 +41,7 @@ type Controller struct {
 	IsLocal bool
 	localMu sync.Mutex
 	local   *localStaticCache
+	audit   *auditPublisher
 }
 
 type controllerOptions struct {
@@ -100,6 +101,11 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		DB:    db,
 		local: newLocalStaticCache(),
 	}
+	if c.IsLocal {
+		if err := controller.ReloadLocalStaticCache(); err != nil {
+			return nil, err
+		}
+	}
 
 	options := applyControllerOptions(opts...)
 	if options.nats {
@@ -108,6 +114,7 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 			return nil, err
 		}
 		controller.Nc = nc
+		controller.audit = newAuditPublisher(nc, defaultAuditQueueSize)
 	}
 
 	if options.maxmind {
@@ -131,6 +138,9 @@ func applyControllerOptions(opts ...ControllerOption) controllerOptions {
 
 // Close closes the Controller.
 func (self *Controller) Close() {
+	if self.audit != nil {
+		self.audit.Close()
+	}
 	if self.Redis != nil {
 		self.Redis.Close()
 	}
@@ -334,7 +344,8 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 		return nil, bidAudit{}, err
 	}
 
-	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, auds[index], bidPrice, self.C.ServerURL)
+	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, auds[index], bidPrice, self.C.ServerURL).
+		WithTrackingSecret(self.C.TrackingSecret)
 	return dspBid, bidAudit{Attr: attr, One: one}, nil
 }
 
@@ -408,15 +419,16 @@ func (self *Controller) publishBidAudit(bidStr, rspnStr []byte, attr *match.Attr
 }
 
 func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAudit) error {
-	if self.Nc == nil {
+	if self.Nc == nil && self.audit == nil {
 		return nil
 	}
-	if err := self.Nc.Publish(SUBJECTRequest, bidStr); err != nil {
-		return err
+	publisher := self.audit
+	if publisher == nil {
+		publisher = newAuditPublisher(self.Nc, defaultAuditQueueSize)
+		self.audit = publisher
 	}
-	if err := self.Nc.Publish(SUBJECTResponse, rspnStr); err != nil {
-		return err
-	}
+	publisher.Enqueue(SUBJECTRequest, bidStr)
+	publisher.Enqueue(SUBJECTResponse, rspnStr)
 	for _, audit := range audits {
 		if audit.Attr == nil {
 			continue
@@ -429,11 +441,8 @@ func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAud
 		if err != nil {
 			return err
 		}
-		if err := self.Nc.Publish(SUBJECTAttribute, bs); err != nil {
-			return err
-		}
+		publisher.Enqueue(SUBJECTAttribute, bs)
 	}
-	self.Nc.Flush()
 	return nil
 }
 
@@ -456,7 +465,7 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if status == StatusTrackClk {
-		if target, ok, err := clickRedirectTarget(r.URL.Query()); err != nil {
+		if target, ok, err := self.clickRedirectTarget(r.URL.Query()); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		} else if ok {
@@ -478,7 +487,7 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func clickRedirectTarget(args url.Values) (string, bool, error) {
+func (self *Controller) clickRedirectTarget(args url.Values) (string, bool, error) {
 	target := args.Get("redirect")
 	if target == "" {
 		return "", false, nil
@@ -498,7 +507,17 @@ func clickRedirectTarget(args url.Values) (string, bool, error) {
 			return "", true, fmt.Errorf("click redirect missing %s", key)
 		}
 	}
+	if err := validateTrackingSignature(self.trackingSecret(), "/clk", args); err != nil {
+		return "", true, err
+	}
 	return u.String(), true, nil
+}
+
+func (self *Controller) trackingSecret() string {
+	if self == nil || self.C == nil {
+		return ""
+	}
+	return self.C.TrackingSecret
 }
 
 // serverStatus sends the win, loss, impression and click trackers, refresh cap, and notify the NATS server.
@@ -528,12 +547,13 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	}
 
 	price, err := strconv.ParseFloat(args.Get("auction_price"), 64)
-	if err != nil {
+	if err == nil {
+		wl.RAdv.Cost = float32(price)
+		if v := args.Get("auction_currency"); v == "USD" {
+			wl.RAdv.CostType = 1
+		}
+	} else if status == StatusTrackClk || status == StatusTrackImp {
 		return err
-	}
-	wl.RAdv.Cost = float32(price)
-	if v := args.Get("auction_currency"); v == "USD" {
-		wl.RAdv.CostType = 1
 	}
 
 	switch status {
@@ -541,6 +561,9 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		u := args.Get("cap")
 		if u == "" {
 			break
+		}
+		if err := validateTrackingSignature(self.trackingSecret(), status.path(), args); err != nil {
+			return err
 		}
 		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
 			var bid bidID
@@ -559,6 +582,21 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		return err
 	}
 	return self.publishWinLoss(bs)
+}
+
+func (self Status) path() string {
+	switch self {
+	case StatusWin:
+		return "/win"
+	case StatusLoss:
+		return "/loss"
+	case StatusTrackImp:
+		return "/imp"
+	case StatusTrackClk:
+		return "/clk"
+	default:
+		return ""
+	}
 }
 
 // getPub returns the publisher string and object from the bid request

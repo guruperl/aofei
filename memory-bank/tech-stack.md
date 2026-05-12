@@ -59,9 +59,12 @@ Environment variables:
 ```bash
 AOFEI="$PWD/etc/aofei.local.json"
 SUMMER="$PWD/etc/summer.local.json"
+TRACKING_SECRET="..."
 ```
 
 These files are local artifacts and are ignored by git.
+`tracking_secret` in the DSP config signs generated `/imp` and `/clk` tracking
+URLs; when omitted, `TRACKING_SECRET` is used as the fallback.
 
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
@@ -220,6 +223,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
 GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 GOWORK=off staticcheck -checks=SA* ./...
+GOWORK=off staticcheck ./dsp ./match ./acl ./uploaded ./cmd/spread ./cmd/winloss ./cmd/unify ./cmd/redis-cache
 git diff --check
 ```
 

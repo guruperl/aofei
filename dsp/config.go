@@ -21,20 +21,21 @@ type Red struct {
 }
 
 type Config struct {
-	DocumentRoot string   `json:"document_root"`
-	ServerURL    string   `json:"server_url"`
-	ServerPort   string   `json:"server_port"`
-	HhLock       string   `json:"hhlock,omitempty"`
-	Ips          string   `json:"ips,omitempty"`
-	Redis        *Red     `json:"redis,omitempty"`
-	NatsURL      string   `json:"nats_url,omitempty"`
-	ConnectArray []string `json:"connect_array,omitempty"`
-	Spread       string   `json:"spread,omitempty"`
-	IsLocal      bool     `json:"is_local,omitempty"`
-	LogRequest   string   `json:"log_request,omitempty"`
-	LogResponse  string   `json:"log_response,omitempty"`
-	LogAttribute string   `json:"log_attribute,omitempty"`
-	LogWinLoss   string   `json:"log_winloss,omitempty"`
+	DocumentRoot   string   `json:"document_root"`
+	ServerURL      string   `json:"server_url"`
+	ServerPort     string   `json:"server_port"`
+	HhLock         string   `json:"hhlock,omitempty"`
+	Ips            string   `json:"ips,omitempty"`
+	Redis          *Red     `json:"redis,omitempty"`
+	NatsURL        string   `json:"nats_url,omitempty"`
+	TrackingSecret string   `json:"tracking_secret,omitempty"`
+	ConnectArray   []string `json:"connect_array,omitempty"`
+	Spread         string   `json:"spread,omitempty"`
+	IsLocal        bool     `json:"is_local,omitempty"`
+	LogRequest     string   `json:"log_request,omitempty"`
+	LogResponse    string   `json:"log_response,omitempty"`
+	LogAttribute   string   `json:"log_attribute,omitempty"`
+	LogWinLoss     string   `json:"log_winloss,omitempty"`
 }
 
 func NewConfig(filename string) (*Config, error) {
@@ -98,6 +99,9 @@ func NewConfig(filename string) (*Config, error) {
 
 	if parsed.NatsURL == "" {
 		parsed.NatsURL = "nats://localhost:4222"
+	}
+	if parsed.TrackingSecret == "" {
+		parsed.TrackingSecret = os.Getenv("TRACKING_SECRET")
 	}
 
 	return parsed, nil

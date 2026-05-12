@@ -79,7 +79,9 @@ production as-is.
 Production secrets and live connection values are injected by deployment
 tooling or root-owned config/environment files. Do not commit database
 passwords, Redis credentials, SMTP credentials, session secrets, OAuth secrets,
-or cloud keys.
+tracking secrets, or cloud keys. DSP tracking URLs use `tracking_secret` in
+`AOFEI`, or the `TRACKING_SECRET` environment fallback, to sign click redirect
+and cap-mutation tracker payloads.
 
 Summer/Genelet CORS is exact-origin only. `ServerURL` is allowed by default, and
 additional browser origins must be listed in `CORSOrigins`; other non-empty

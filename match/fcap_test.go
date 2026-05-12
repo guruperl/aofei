@@ -1,8 +1,11 @@
 package match
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	"github.com/mediocregopher/radix/v4"
 )
 
 // TestFcap tests the Fcap struct.
@@ -59,5 +62,47 @@ func TestBothCapRefreshExpiredImpAndClick(t *testing.T) {
 	}
 	if !bothcap.Cli.GetStart().Equal(when) {
 		t.Fatalf("Cli.GetStart() = %s, want %s", bothcap.Cli.GetStart(), when)
+	}
+}
+
+func TestMustRefreshBothCapConcurrent(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client, err := (radix.PoolConfig{Size: 4}).New(ctx, "tcp", "127.0.0.1:6379")
+	if err != nil {
+		t.Skipf("Redis unavailable for concurrent cap test: %v", err)
+	}
+	defer client.Close()
+
+	pid := "fcap-concurrent-test"
+	itemID := uint32(123)
+	key := HashNameBothCap(pid)
+	if err := client.Do(ctx, radix.Cmd(nil, "DEL", key)); err != nil {
+		t.Fatal(err)
+	}
+
+	when := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			errs <- MustRefreshBothCap(ctx, client, when, pid, itemID, Cap{CapPeriod: 60}, true, false)
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var data []byte
+	if err := client.Do(ctx, radix.Cmd(&data, "HGET", key, "123")); err != nil {
+		t.Fatal(err)
+	}
+	bothcap, err := UnpackBothCap(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bothcap.Imp.Total != 2 {
+		t.Fatalf("Imp.Total = %d, want 2", bothcap.Imp.Total)
 	}
 }

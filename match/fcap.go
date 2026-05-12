@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -13,8 +14,11 @@ import (
 )
 
 const (
-	FCAPStartYear = 2025
+	FCAPStartYear         = 2025
+	bothCapRefreshRetries = 8
 )
+
+var ErrBothCapRefreshConflict = errors.New("bothcap refresh conflict")
 
 // Fcap is frequecy cap class
 // Total is total number of access since the starting time
@@ -145,29 +149,78 @@ func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, 
 	if !isImp && !isCli {
 		return nil
 	}
-	var data []byte
+	if conn == nil {
+		return fmt.Errorf("redis client is nil")
+	}
 	key := HashNameBothCap(pid)
 	itemIDStr := fmt.Sprintf("%d", itemID)
-	err := conn.Do(ctx, radix.Cmd(&data, "HGET", key, itemIDStr))
-	if err != nil {
-		return err
-	}
+	for attempt := 0; attempt < bothCapRefreshRetries; attempt++ {
+		var retry bool
+		err := conn.Do(ctx, radix.WithConn(key, func(ctx context.Context, redisConn radix.Conn) (err error) {
+			if err = redisConn.Do(ctx, radix.Cmd(nil, "WATCH", key)); err != nil {
+				return err
+			}
+			watching := true
+			defer func() {
+				if err != nil && watching {
+					_ = redisConn.Do(ctx, radix.Cmd(nil, "UNWATCH"))
+				}
+			}()
 
-	var bothcap BothCap
-	if len(data) > 0 {
-		bothcap, err = UnpackBothCap(data)
+			var data []byte
+			if err = redisConn.Do(ctx, radix.Cmd(&data, "HGET", key, itemIDStr)); err != nil {
+				return err
+			}
+
+			var bothcap BothCap
+			if len(data) > 0 {
+				bothcap, err = UnpackBothCap(data)
+				if err != nil {
+					return err
+				}
+			} else {
+				bothcap = NewBothCap(when)
+			}
+			bothcap.Refresh(when, RAdv{Cap: cap}, isImp, isCli)
+
+			packed, err := bothcap.Pack()
+			if err != nil {
+				return err
+			}
+			if err = redisConn.Do(ctx, radix.Cmd(nil, "MULTI")); err != nil {
+				return err
+			}
+			inMulti := true
+			defer func() {
+				if err != nil && inMulti {
+					_ = redisConn.Do(ctx, radix.Cmd(nil, "DISCARD"))
+				}
+			}()
+			if err = redisConn.Do(ctx, radix.Cmd(nil, "HSET", key, itemIDStr, string(packed))); err != nil {
+				return err
+			}
+			var result []int
+			execResult := radix.Maybe{Rcv: &result}
+			if err = redisConn.Do(ctx, radix.Cmd(&execResult, "EXEC")); err != nil {
+				inMulti = false
+				watching = false
+				return err
+			}
+			inMulti = false
+			watching = false
+			if execResult.Null {
+				retry = true
+			}
+			return nil
+		}))
 		if err != nil {
 			return err
 		}
-	} else {
-		bothcap = NewBothCap(when)
+		if !retry {
+			return nil
+		}
 	}
-	bothcap.Refresh(when, RAdv{Cap: cap}, isImp, isCli)
-
-	if data, err = bothcap.Pack(); err == nil {
-		err = conn.Do(ctx, radix.Cmd(nil, "HSET", key, itemIDStr, string(data)))
-	}
-	return err
+	return ErrBothCapRefreshConflict
 }
 
 func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcaps map[uint32]BothCap) error {

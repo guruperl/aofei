@@ -7,6 +7,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
+	t.Setenv("TRACKING_SECRET", "env-secret")
 	configFile := filepath.Join(t.TempDir(), "sample.json")
 	content := []byte(`{
 		"document_root": "/tmp/www",
@@ -40,6 +41,9 @@ func TestConfig(t *testing.T) {
 	}
 	if c.Redis.Addr != "localhost:6379" {
 		t.Errorf("Redis.Addr = %q, want localhost:6379", c.Redis.Addr)
+	}
+	if c.TrackingSecret != "env-secret" {
+		t.Errorf("TrackingSecret = %q, want env fallback", c.TrackingSecret)
 	}
 }
 

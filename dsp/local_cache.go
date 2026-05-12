@@ -6,19 +6,17 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/match"
 )
 
 type localStaticCache struct {
-	mu         sync.RWMutex
-	generation time.Time
-	pubmap     acl.PubMap
-	radvs      map[uint32]map[uint32]match.RAdvs
-	audiences  map[uint32]*match.Audience
-	creatives  map[uint32]*match.Creative
+	mu        sync.RWMutex
+	pubmap    acl.PubMap
+	radvs     map[uint32]map[uint32]match.RAdvs
+	audiences map[uint32]*match.Audience
+	creatives map[uint32]*match.Creative
 }
 
 func newLocalStaticCache() *localStaticCache {
@@ -36,9 +34,6 @@ func (self *Controller) localStaticCache() *localStaticCache {
 
 func (self *Controller) localPub(top, pubStr string) (*acl.Pub, error) {
 	cache := self.localStaticCache()
-	if err := cache.ensure(top); err != nil {
-		return nil, err
-	}
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 	return cache.pubmap[pubStr], nil
@@ -46,9 +41,6 @@ func (self *Controller) localPub(top, pubStr string) (*acl.Pub, error) {
 
 func (self *Controller) localRAdvs(top string, sizeID, slotID uint32) (match.RAdvs, error) {
 	cache := self.localStaticCache()
-	if err := cache.ensure(top); err != nil {
-		return nil, err
-	}
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 	if cache.radvs[sizeID] == nil {
@@ -59,9 +51,6 @@ func (self *Controller) localRAdvs(top string, sizeID, slotID uint32) (match.RAd
 
 func (self *Controller) localAudiences(top string, candidates match.RAdvs) (match.Audiences, error) {
 	cache := self.localStaticCache()
-	if err := cache.ensure(top); err != nil {
-		return nil, err
-	}
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 	audiences := make(match.Audiences, len(candidates))
@@ -73,9 +62,6 @@ func (self *Controller) localAudiences(top string, candidates match.RAdvs) (matc
 
 func (self *Controller) localCreative(top string, creativeID uint32) (*match.Creative, error) {
 	cache := self.localStaticCache()
-	if err := cache.ensure(top); err != nil {
-		return nil, err
-	}
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 	creative := cache.creatives[creativeID]
@@ -85,25 +71,14 @@ func (self *Controller) localCreative(top string, creativeID uint32) (*match.Cre
 	return creative, nil
 }
 
-func (c *localStaticCache) ensure(top string) error {
-	gen, err := localCacheGeneration(top)
-	if err != nil {
-		return err
+func (self *Controller) ReloadLocalStaticCache() error {
+	if self.C == nil {
+		return fmt.Errorf("controller config is nil")
 	}
+	return self.localStaticCache().load(self.C.Spread)
+}
 
-	c.mu.RLock()
-	if !gen.After(c.generation) && c.pubmap != nil {
-		c.mu.RUnlock()
-		return nil
-	}
-	c.mu.RUnlock()
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !gen.After(c.generation) && c.pubmap != nil {
-		return nil
-	}
-
+func (c *localStaticCache) load(top string) error {
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
 		return err
@@ -130,57 +105,13 @@ func (c *localStaticCache) ensure(top string) error {
 	if creatives == nil {
 		creatives = make(map[uint32]*match.Creative)
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.pubmap = pubmap
 	c.audiences = audiences
 	c.creatives = creatives
 	c.radvs = radvs
-	c.generation = gen
 	return nil
-}
-
-func localCacheGeneration(top string) (time.Time, error) {
-	var latest time.Time
-	if info, err := os.Stat(top); err == nil && info.ModTime().After(latest) {
-		latest = info.ModTime()
-	} else if err != nil && !os.IsNotExist(err) {
-		return latest, err
-	}
-	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
-		root := filepath.Join(top, family)
-		info, err := os.Stat(root)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return latest, err
-		}
-		if info.ModTime().After(latest) {
-			latest = info.ModTime()
-		}
-		if family != match.HashNameSlot {
-			continue
-		}
-		err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if !d.IsDir() {
-				return nil
-			}
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-			if info.ModTime().After(latest) {
-				latest = info.ModTime()
-			}
-			return nil
-		})
-		if err != nil {
-			return latest, err
-		}
-	}
-	return latest, nil
 }
 
 func localRAdvsFromIO(top string) (map[uint32]map[uint32]match.RAdvs, error) {

@@ -99,6 +99,9 @@ creative failback as the direct fallback URL. Banner iframe markup does not wrap
 arbitrary HTML or iframe content; banner creatives that want DSP click redirect
 measurement must include `{CLICK_URL}` in the creative content URL/template.
 `{LANDING_URL}` remains available as the direct advertiser destination.
+Creative URL macro expansion preserves existing query parameters, repeated
+query values, empty values, and non-macro values while replacing supported
+macros per query value.
 
 `dsp.DSP.NewBid` creates one OpenRTB bid per served impression with:
 
@@ -111,9 +114,10 @@ measurement must include `{CLICK_URL}` in the creative content URL/template.
 - bundle and categories from the matched ACL audience,
 - width and height from creative size.
 
-`ServeBid` groups bids by campaign seat. Audit events are published to NATS
-after the response body is written: request and response once, and one
-attribute event per served impression.
+`ServeBid` groups bids by campaign seat. Audit events are enqueued after the
+response body is written: request and response once, and one attribute event per
+served impression. A bounded background publisher sends them to NATS best
+effort and counts queue drops.
 
 ## Win, Loss, Impression, And Click
 
@@ -123,12 +127,16 @@ unpacks demand and supply identifiers from query parameters, parses
 available.
 
 For `/imp` and `/clk`, the handler also unpacks cap state and refreshes Redis
-frequency caps for the user/item pair.
+frequency caps for the user/item pair. Cap refresh uses Redis `WATCH`/`MULTI`/
+`EXEC` with bounded retry so concurrent tracker callbacks update the existing
+`bothcap:<user_id>` binary payload atomically.
 
 When `/clk` receives a valid HTTP(S) `redirect` query parameter and the normal
 packed tracking fields, it records the click best-effort and returns `302` to
-that target. Without `redirect`, `/clk` remains a tracking-only endpoint and
-returns no content.
+that target. The redirect URL must carry a valid HMAC `sig` generated from the
+full concrete `/clk` query payload, including `redirect`; unsigned or modified
+redirects return `400`. Without `redirect`, `/clk` remains a tracking-only
+endpoint and returns no content.
 
 ## Known Workflow Boundaries
 
@@ -137,3 +145,5 @@ returns no content.
 - Redis remains the shared mutable-state backend. Redis mode can also serve
   static cache reads, while local/spread mode serves static publisher, slot,
   audience, and creative data from in-process snapshots backed by spread files.
+  Local snapshots are loaded at controller startup and refreshed through the
+  explicit reload hook; request handlers read the current in-memory snapshot.

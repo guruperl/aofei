@@ -8,15 +8,16 @@ import (
 )
 
 type DSP struct {
-	bid       *openrtb2.BidRequest
-	impIndex  int
-	attribute *match.Attribute
-	one       match.RAdv
-	bothcap   *match.BothCap
-	creative  *match.Creative
-	audience  *match.Audience
-	bidPrice  float32
-	serverURL string
+	bid            *openrtb2.BidRequest
+	impIndex       int
+	attribute      *match.Attribute
+	one            match.RAdv
+	bothcap        *match.BothCap
+	creative       *match.Creative
+	audience       *match.Audience
+	bidPrice       float32
+	serverURL      string
+	trackingSecret string
 }
 
 // NewDSP creates a new DSP instance.
@@ -56,6 +57,11 @@ func NewDSPForImp(
 		serverURL: serverURL,
 		bothcap:   bothcap,
 	}
+}
+
+func (self *DSP) WithTrackingSecret(secret string) *DSP {
+	self.trackingSecret = secret
+	return self
 }
 
 // impID returns the impID of the bid.
@@ -148,7 +154,7 @@ func (self *DSP) WinLoss(StatusBid Status) *WinLoss {
 		self.impID(),
 		self.adID(),
 		self.serverURL,
-	)
+	).WithTrackingSecret(self.trackingSecret)
 }
 
 func (self *DSP) billableRAdv() match.RAdv {

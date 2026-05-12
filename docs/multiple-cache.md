@@ -49,12 +49,17 @@ static lookups from memory.
 `dsp.Controller` local/spread mode now uses an in-process static cache:
 
 - Publisher, slot candidate, audience, and creative reads are served from Go
-  maps between generations.
-- Directory mtimes form the local reload generation.
+  maps without request-path filesystem checks.
+- The initial snapshot is loaded at controller startup when `is_local=true`.
+- Later refreshes use the explicit local static-cache reload hook after spread
+  files have been replaced.
 - Missing audience entries remain wildcard matches.
 - Bids with no caps/uploads can complete without Redis.
 - Bids that require frequency caps or uploaded audience membership fail closed
   when Redis mutable state is unavailable.
+- Frequency-cap refresh keeps the existing `bothcap:<user_id>` hash and binary
+  `BothCap` payload, but writes through a Redis optimistic transaction so
+  concurrent `/imp` and `/clk` callbacks do not lose increments.
 
 ## Hardware Affinity Option
 
@@ -79,10 +84,9 @@ based on the longest active cap period.
 
 After static data is local, the first bottleneck depends on traffic mix.
 
-No-cap/no-upload traffic will likely be limited by CPU, allocations, Go GC, and
-NATS audit publishing. Work here includes lower-allocation OpenRTB parsing,
-candidate pruning, asynchronous audit queues, and NATS publish batching/drop
-metrics.
+No-cap/no-upload traffic will likely be limited by CPU, allocations, and Go GC.
+Work here includes lower-allocation OpenRTB parsing, candidate pruning, and
+audit queue observability.
 
 Cap-heavy traffic with Redis caps will likely be limited by Redis mutable-state
 latency and throughput. Work here includes local affinity cap mode, local
@@ -99,11 +103,10 @@ memory. Work here includes immutable local membership indexes, sharded hash
 sets, Bloom filters with Redis confirmation, or compressed bitmap files loaded
 into memory.
 
-NATS audit/log publishing can still affect bid p99 if request handlers publish
-or flush synchronously. Analytical logs should use bounded local queues,
-background publishers, batch writes on dedicated log nodes, and drop counters.
-Core NATS is acceptable for best-effort analytics; use JetStream only if replay
-or durability becomes a product requirement.
+NATS request/response/attribute audit publishing now uses a bounded local queue
+and background publisher with drop counters. Core NATS is acceptable for
+best-effort analytics; use JetStream only if replay or durability becomes a
+product requirement.
 
 Cache reloads can cause CPU and IO spikes during full snapshot decode and map
 swap. Work here includes typed/versioned payloads, incremental generation

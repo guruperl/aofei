@@ -62,10 +62,17 @@ Spread/local snapshot mode mirrors the same static data under `.local/spread/`:
 - `creative/<creative_id>`
 
 When DSP local mode is enabled, these files are loaded into an in-process static
-cache and reloaded when the spread directory generation changes. Mutable
-frequency caps and uploaded audience sets remain Redis-backed. Local static bids
-that do not use caps or uploaded audiences can proceed without Redis; bids that
-need those mutable families fail closed when Redis is unavailable.
+cache at controller startup and refreshed through the explicit reload hook.
+Request handlers read the current immutable in-memory snapshot and do not stat
+or walk spread files. Mutable frequency caps and uploaded audience sets remain
+Redis-backed. Local static bids that do not use caps or uploaded audiences can
+proceed without Redis; bids that need those mutable families fail closed when
+Redis is unavailable.
+
+Frequency-cap callbacks keep the existing `bothcap:<user_id>` hash shape and
+binary `match.BothCap` payload. `/imp` and `/clk` cap mutations require valid
+DSP tracking signatures and refresh Redis through `WATCH`/`MULTI`/`EXEC` with
+bounded retry to avoid lost updates under concurrent callbacks.
 
 Redis and IO modes treat missing audience entries as wildcard matches. Malformed
 audience payloads still fail matching because they indicate cache corruption.

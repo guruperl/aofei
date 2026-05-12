@@ -5,6 +5,13 @@
 Resolve the post-M13 findings around Redis/static spread cache correctness,
 local file IO, and local-mode bid-path cache reads.
 
+## Carry-Forward Notes
+
+- `[+]` 2026-05-12: The post-review concern about request-path filesystem
+  generation checks in the local static cache was carried into M15 and resolved
+  there by loading snapshots at controller startup and refreshing them through
+  an explicit reload hook.
+
 ## Completed
 
 - `[+]` Spread subscription now uses the NATS tail wildcard `>` so subjects with

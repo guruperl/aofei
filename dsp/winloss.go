@@ -28,17 +28,18 @@ const (
 // ${AUCTION_SEAT_ID} ID of the bidder seat;for whom the bid was made.
 // ${AUCTION_AD_ID} ID of the ad markup the bidder wishes to serve; from bid.adid attribute.
 type WinLoss struct {
-	Status       `json:"status,omitempty"`
-	Current      time.Time `json:"current,omitempty"`
-	match.RPub   `json:"rpub,omitempty"`
-	match.RAdv   `json:"radv,omitempty"`
-	BothCap      *match.BothCap `json:"-"`
-	Seat         string         `json:"seat,omitempty"`
-	AuctionID    string         `json:"auction_id,omitempty"`
-	AuctionBidID string         `json:"auction_bid_id,omitempty"`
-	AuctionImpID string         `json:"auction_imp_id,omitempty"`
-	AuctionAdID  string         `json:"auction_ad_id,omitempty"`
-	serverURL    string
+	Status         `json:"status,omitempty"`
+	Current        time.Time `json:"current,omitempty"`
+	match.RPub     `json:"rpub,omitempty"`
+	match.RAdv     `json:"radv,omitempty"`
+	BothCap        *match.BothCap `json:"-"`
+	Seat           string         `json:"seat,omitempty"`
+	AuctionID      string         `json:"auction_id,omitempty"`
+	AuctionBidID   string         `json:"auction_bid_id,omitempty"`
+	AuctionImpID   string         `json:"auction_imp_id,omitempty"`
+	AuctionAdID    string         `json:"auction_ad_id,omitempty"`
+	serverURL      string
+	trackingSecret string
 }
 
 // NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.
@@ -65,6 +66,11 @@ func NewWinLoss(
 	}
 }
 
+func (self *WinLoss) WithTrackingSecret(secret string) *WinLoss {
+	self.trackingSecret = secret
+	return self
+}
+
 // Macro returns the replacement macro hash
 func (self *WinLoss) Macro() map[string]string {
 	return map[string]string{
@@ -80,47 +86,53 @@ func (self *WinLoss) Macro() map[string]string {
 
 // NURL returns the notification URL for the win/loss notification.
 func (self *WinLoss) NURL() string {
-	return self.serverURL + "/win?" + self.PackURLString()
+	return self.trackerURL("/win", false, "")
 }
 
 // LURL returns the loss URL for the win/loss notification.
 func (self *WinLoss) LURL() string {
-	return self.serverURL + "/loss?" + self.PackURLString()
+	return self.trackerURL("/loss", false, "")
 }
 
 // ImpURL returns the impression URL for the win/loss notification.
 func (self *WinLoss) ImpURL() string {
-	return self.serverURL + "/imp?" + self.PackURLString(true)
+	return self.trackerURL("/imp", true, "")
 }
 
 // ClkURL returns the click URL for the win/loss notification.
 func (self *WinLoss) ClkURL() string {
-	return self.serverURL + "/clk?" + self.PackURLString(true)
+	return self.trackerURL("/clk", true, "")
 }
 
 // ClkRedirectURL returns a click URL that records the click and then redirects
 // to the already-rendered advertiser landing URL.
 func (self *WinLoss) ClkRedirectURL(landing string) string {
-	u := self.ClkURL()
 	if landing == "" {
-		return u
+		return self.ClkURL()
 	}
-	parsed, err := url.Parse(u)
-	if err != nil {
-		return u
+	return self.trackerURL("/clk", true, landing)
+}
+
+func (self *WinLoss) trackerURL(path string, tracking bool, redirect string) string {
+	args := self.packURLValues(tracking)
+	if redirect != "" {
+		args.Set("redirect", redirect)
 	}
-	args := parsed.Query()
-	args.Set("redirect", landing)
-	parsed.RawQuery = args.Encode()
-	return parsed.String()
+	addTrackingSignature(self.trackingSecret, path, args)
+	return self.serverURL + path + "?" + args.Encode()
 }
 
 // PackURLString returns the URL query string of the win/loss notification.
 func (self *WinLoss) PackURLString(tracking ...bool) string {
+	useTracking := len(tracking) > 0 && tracking[0]
+	return self.packURLValues(useTracking).Encode()
+}
+
+func (self *WinLoss) packURLValues(tracking bool) url.Values {
 	status := self.Status
 	args := url.Values{}
 	// seatid and adid are not used in the URL
-	if status == StatusTrackClk || status == StatusTrackImp || (len(tracking) > 0 && tracking[0]) {
+	if status == StatusTrackClk || status == StatusTrackImp || tracking {
 		args.Set("auction_id", self.AuctionID)
 		args.Set("auction_bid_id", self.AuctionBidID)
 		args.Set("auction_imp_id", self.AuctionImpID)
@@ -142,7 +154,7 @@ func (self *WinLoss) PackURLString(tracking ...bool) string {
 	supply, _ := self.RPub.PackString()
 	args.Set("supply", supply)
 
-	return args.Encode()
+	return args
 }
 
 // UnpackURLString returns the WinLoss instance from the URL query string.

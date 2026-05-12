@@ -38,10 +38,15 @@
 5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
 6. Bid/win/loss/log flows use Redis for mutable runtime state and NATS/spread/log
-   paths for message and log transport. Local/spread bid mode reads static cache
-   snapshots through an in-process memory cache backed by spread files. OpenRTB
-   bid requests are matched per impression; response bids are grouped by
-   campaign seat. Native click links use `/clk` as a best-effort tracking
+   paths for message and log transport. Local/spread bid mode loads static
+   cache snapshots into memory at controller startup and through an explicit
+   reload hook; request handlers read only the current in-memory snapshot.
+   OpenRTB bid requests are matched per impression; response bids are grouped
+   by campaign seat. DSP-generated `/imp` and `/clk` tracker URLs are HMAC
+   signed over concrete query payloads, and click redirects plus cap mutations
+   require valid signatures. `/win` and `/loss` remain analytics callbacks with
+   signatures over immutable packed fields so exchange auction macros can still
+   be resolved by the exchange. Native click links use `/clk` as a tracking
    redirect with a direct advertiser fallback; banner creatives opt into the
    same redirect through `{CLICK_URL}`.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
@@ -50,6 +55,11 @@
 8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
    regenerates the configured MaxMind runtime JSON without loading the existing
    geodata file first.
+
+Request, response, and attribute audit messages are best-effort analytics.
+`dsp.Controller` enqueues them to a bounded in-process queue after writing the
+HTTP bid response, and a background publisher sends them to core NATS without
+request-path flushes.
 
 ## Admin Runtime Boundary
 
@@ -80,9 +90,12 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
 
 The multiple-cache split is documented in
 [docs/multiple-cache.md](../docs/multiple-cache.md). Static publisher, slot,
-audience, and creative data is local and generation-swapped in memory for
+audience, and creative data is local and snapshot-swapped in memory for
 local/spread bid serving. Redis remains the shared mutable-state backend for
-frequency caps, uploaded audience sets, and future counters.
+frequency caps, uploaded audience sets, and future counters. Frequency-cap
+tracker updates keep the `bothcap:<user_id>` hash and binary `BothCap` payload,
+but refresh through Redis optimistic transactions to avoid concurrent lost
+updates.
 
 ## Database Boundary
 

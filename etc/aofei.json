@@ -4,6 +4,7 @@
 	"server_port": "8080",
 	"ips": "etc/maxmind.json",
 	"nats_url": "nats://127.0.0.1:4222",
+	"tracking_secret": "local-dev-tracking-secret",
 	"redis": {"Addr": "127.0.0.1:6379", "User": "", "Pass": ""},
 	"connect_array": ["mysql", "aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei?parseTime=true"],
 	"spread": ".local/spread",

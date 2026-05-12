@@ -281,6 +281,7 @@ generate_configs() {
   "server_port": "8080",
   "ips": "$ROOT/etc/maxmind.json",
   "nats_url": "$NATS_URL",
+  "tracking_secret": "local-dev-tracking-secret",
   "redis": {"Addr": "$REDIS_ADDR", "User": "", "Pass": ""},
   "connect_array": ["mysql", "$DSN"],
   "spread": "$ROOT/.local/spread",

@@ -41,6 +41,13 @@ them. Tracker prices use the same selected USD eCPM value returned in
 `Bid.price`, so ledger spend follows the served bid price rather than the raw
 item cost field.
 
+DSP-generated measurement URLs include an HMAC `sig` when `tracking_secret` or
+`TRACKING_SECRET` is configured. `/imp` and `/clk` signatures cover the full
+concrete query payload, including `redirect` on click URLs. `/win` and `/loss`
+sign only immutable packed demand/supply fields so exchanges can still replace
+auction macros. Click redirects and Redis cap mutations require a valid
+signature; unsigned or modified redirect URLs return `400`.
+
 Current tracker embedding is format-dependent: native and native-video markup
 include `/imp` trackers and use `/clk` as a redirecting primary link. Banner
 iframe markup embeds `/imp` pixels and only uses `/clk` when creative content
@@ -59,8 +66,11 @@ The bid path publishes these NATS subjects after a successful HTTP response:
 | `attribute` | `match.AttributePlus` JSON, one per served impression | `cmd/nats-client` writes `log_attribute/attribute.<stamp>`. |
 | `winloss` | `dsp.WinLoss` JSON | `cmd/nats-client` writes `log_winloss/winloss.<stamp>`. |
 
-Audit publish is best effort after the bid response is sent. If NATS is missing
-or publish fails, the accepted bidder response is not rolled back.
+Audit publish is best effort after the bid response is sent. Request, response,
+and attribute audit messages are enqueued to a bounded in-process queue and
+published by a background worker without flushing in the HTTP request goroutine.
+If NATS is missing, the queue is full, or publish fails, the accepted bidder
+response is not rolled back.
 
 `cmd/spread` ignores the four log subjects and handles only cache/spread
 subjects.
@@ -74,7 +84,8 @@ subjects.
 
 Bare `StatusWin` and `StatusLoss` events are written to the win/loss log when
 callbacks arrive, but current ledger statistics do not count them as delivery or
-spend.
+spend. Win/loss callbacks are analytics only; unresolved or unsigned auction
+price macros are not spend authority.
 
 ## Known Measurement Gaps
 
@@ -89,5 +100,7 @@ spend.
 - Multi-impression requests can produce partial responses. Impressions skipped
   for targeting, unsupported currency, or missing cache entries have no bid and
   no attribute audit record.
-- Unsupported or unresolved `auction_price` values cause win/loss status
-  handling to return a bad request.
+- Unsupported or unresolved `auction_price` values still cause `/imp` and
+  `/clk` tracking status handling to return a bad request because those paths
+  can mutate caps and feed ledger delivery. `/win` and `/loss` remain analytics
+  callbacks.

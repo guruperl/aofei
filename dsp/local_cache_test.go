@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/genelet/winter/match"
 	"github.com/genelet/winter/uploaded"
@@ -55,6 +54,9 @@ func TestLocalStaticCacheReloadsGeneration(t *testing.T) {
 	controller := &Controller{C: &Config{Spread: top, IsLocal: true}}
 
 	writeCreativeSnapshot(t, top, 7, &match.Creative{CreativeName: "old", SizeID: 300250})
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
 	creative, err := controller.localCreative(top, 7)
 	if err != nil {
 		t.Fatal(err)
@@ -64,8 +66,17 @@ func TestLocalStaticCacheReloadsGeneration(t *testing.T) {
 	}
 
 	writeCreativeSnapshot(t, top, 7, &match.Creative{CreativeName: "new", SizeID: 300250})
-	touchDirMTime(t, filepath.Join(top, match.HashNameCreative), controller.local.generation.Add(time.Second))
+	creative, err = controller.localCreative(top, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if creative.CreativeName != "old" {
+		t.Fatalf("creative name = %q, want old until explicit reload", creative.CreativeName)
+	}
 
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
 	creative, err = controller.localCreative(top, 7)
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +109,9 @@ func TestServeBidLocalStaticCacheRequiresRedisForCaps(t *testing.T) {
 		Cost:     2,
 		Cap:      match.Cap{CapNumber: 1, CapPeriod: 60},
 	}})
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
 
 	bid := localBidRequest("USD", "USD")
 	bid.Imp = bid.Imp[:1]
@@ -113,6 +127,9 @@ func TestServeBidLocalStaticCacheRequiresRedisForUploads(t *testing.T) {
 	writeAudienceSnapshot(t, controller.C.Spread, 1000, &match.Audience{
 		UploadAudience: &uploaded.UploadAudience{Uploads: uint32(1 << uploaded.UploadUserID)},
 	})
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
 
 	bid := localBidRequest("USD", "USD")
 	bid.Imp = bid.Imp[:1]
@@ -133,13 +150,6 @@ func writeAudienceSnapshot(t *testing.T, top string, itemID uint32, audience *ma
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func touchDirMTime(t *testing.T, dir string, when time.Time) {
-	t.Helper()
-	if err := os.Chtimes(dir, when, when); err != nil {
 		t.Fatal(err)
 	}
 }

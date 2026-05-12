@@ -87,10 +87,14 @@ func newLocalBidPathController(t *testing.T) *Controller {
 	writeCreativeSnapshot(t, top, 10000, &match.Creative{CreativeContent: "https://cdn.example/one.html", SizeID: sizeOne})
 	writeCreativeSnapshot(t, top, 20000, &match.Creative{CreativeContent: "https://cdn.example/two.html", SizeID: sizeTwo})
 
-	return &Controller{
-		C:      &Config{Spread: top, IsLocal: true, ServerURL: "https://dsp.example"},
+	controller := &Controller{
+		C:      &Config{Spread: top, IsLocal: true, ServerURL: "https://dsp.example", TrackingSecret: "test-secret"},
 		Logger: zap.NewNop(),
 	}
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
+	return controller
 }
 
 func localBidRequest(curOne, curTwo string) *openrtb2.BidRequest {
