@@ -244,9 +244,15 @@ func CreativeMapFromIO(top string) (map[uint32]*Creative, error) {
 	return creatives, nil
 }
 
+// LandingURL returns the advertiser destination after supported macro
+// expansion. It is used by the DSP click redirect wrapper.
+func (self *Creative) LandingURL(macroStandard, macroCustom map[string]string) (string, error) {
+	return applyMacro(self.Landing, macroStandard, macroCustom)
+}
+
 func (self *Creative) AdM(attr *Attribute, impTracker, clickTracker string, macroStandard, macroCustom map[string]string) (string, error) {
 	impTrackers := []string{impTracker}
-	clickTrackers := []string{clickTracker}
+	var clickTrackers []string
 	for _, v := range self.ImpTrackers {
 		item, err := applyMacro(v, macroStandard, macroCustom)
 		if err != nil {
@@ -262,16 +268,18 @@ func (self *Creative) AdM(attr *Attribute, impTracker, clickTracker string, macr
 		clickTrackers = append(clickTrackers, item)
 	}
 
-	landing, _ := applyMacro(self.Landing, macroStandard, macroCustom)
+	landing, _ := self.LandingURL(macroStandard, macroCustom)
+	failback, _ := applyMacro(self.Failback, macroStandard, macroCustom)
+	content := applyBannerMacros(self.CreativeContent, clickTracker, landing)
 
 	w, h := SizeID1To2(self.SizeID)
 	if attr.NativeFormat != nil {
-		return DefaultImgNative(self.CreativeContent, self.CreativeName, w, h).AdM(landing, self.Failback, impTrackers, clickTrackers)
+		return DefaultImgNative(content, self.CreativeName, w, h).AdM(clickTracker, failback, impTrackers, clickTrackers)
 	} else if attr.IsVideo {
-		return DefaultVideoNative(self.CreativeContent).AdM(landing, self.Failback, impTrackers, clickTrackers)
+		return DefaultVideoNative(content).AdM(clickTracker, failback, impTrackers, clickTrackers)
 	}
 
-	return bannerAdM(self.CreativeContent, w, h, impTrackers), nil
+	return bannerAdM(content, w, h, impTrackers), nil
 }
 
 func bannerAdM(src string, w, h uint16, impTrackers []string) string {
@@ -285,8 +293,19 @@ func bannerAdM(src string, w, h uint16, impTrackers []string) string {
 	return adm
 }
 
+func applyBannerMacros(content, clickURL, landingURL string) string {
+	content = strings.ReplaceAll(content, "{CLICK_URL}", clickURL)
+	content = strings.ReplaceAll(content, "${CLICK_URL}", clickURL)
+	content = strings.ReplaceAll(content, "{LANDING_URL}", landingURL)
+	content = strings.ReplaceAll(content, "${LANDING_URL}", landingURL)
+	return content
+}
+
 // applyMacro applies the macro to the URL.
 func applyMacro(str string, macroStandard, macroCustom map[string]string) (string, error) {
+	if str == "" {
+		return "", nil
+	}
 	u, err := url.Parse(str)
 	if err != nil {
 		return "", err
@@ -300,7 +319,11 @@ func applyMacro(str string, macroStandard, macroCustom map[string]string) (strin
 		case `${AUCTION_ID}`, `${AUCTION_BID_ID}`, `${AUCTION_IMP_ID}`, `${AUCTION_SEAT_ID}`, `${AUCTION_AD_ID}`, `${AUCTION_PRICE}`, `${AUCTION_CURRENCY}`:
 			args.Set(k, macroStandard[v[0]])
 		default:
-			args.Set(k, macroCustom[v[0]])
+			if replacement, ok := macroCustom[v[0]]; ok {
+				args.Set(k, replacement)
+			} else {
+				args.Set(k, v[0])
+			}
 		}
 	}
 	u.RawQuery = args.Encode()

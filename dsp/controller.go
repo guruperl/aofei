@@ -455,12 +455,50 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if status == StatusTrackClk {
+		if target, ok, err := clickRedirectTarget(r.URL.Query()); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		} else if ok {
+			if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
+				if self.Logger != nil {
+					self.Logger.Sugar().Infof("click tracking skipped before redirect: %v", err)
+				}
+			}
+			http.Redirect(w, r, target, http.StatusFound)
+			return
+		}
+	}
+
 	if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func clickRedirectTarget(args url.Values) (string, bool, error) {
+	target := args.Get("redirect")
+	if target == "" {
+		return "", false, nil
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		return "", true, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", true, fmt.Errorf("invalid click redirect scheme")
+	}
+	if u.Host == "" {
+		return "", true, fmt.Errorf("invalid click redirect host")
+	}
+	for _, key := range []string{"auction_id", "auction_bid_id", "auction_imp_id", "auction_price", "demand", "supply"} {
+		if args.Get(key) == "" {
+			return "", true, fmt.Errorf("click redirect missing %s", key)
+		}
+	}
+	return u.String(), true, nil
 }
 
 // serverStatus sends the win, loss, impression and click trackers, refresh cap, and notify the NATS server.

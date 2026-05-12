@@ -31,7 +31,9 @@ grouped into `SeatBid` entries by campaign seat. `dsp.WinLoss` builds:
 - `lurl`: `/loss` with OpenRTB auction macros for the exchange to replace.
 - impression tracker URL: `/imp` embedded in native markup and banner
   impression pixels.
-- click tracker URL: `/clk` embedded in native markup.
+- click redirect URL: `/clk?...&redirect=<advertiser-url>` embedded as the
+  primary native click link and available to banner creatives through
+  `{CLICK_URL}`.
 
 Tracker URLs are generated with concrete auction values and cap state. Win and
 loss URLs intentionally use standard auction macros until the exchange resolves
@@ -40,8 +42,11 @@ them. Tracker prices use the same selected USD eCPM value returned in
 item cost field.
 
 Current tracker embedding is format-dependent: native and native-video markup
-include `/imp` and `/clk` tracker URLs, while banner iframe markup embeds
-`/imp` pixels only and does not rewrite click behavior.
+include `/imp` trackers and use `/clk` as a redirecting primary link. Banner
+iframe markup embeds `/imp` pixels and only uses `/clk` when creative content
+opts in with the `{CLICK_URL}` macro. `/clk` records best-effort click state and
+redirects only when the normal tracking fields are present and the `redirect`
+target is valid HTTP(S).
 
 ## NATS And Log Flow
 

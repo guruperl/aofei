@@ -98,6 +98,23 @@ func (self *WinLoss) ClkURL() string {
 	return self.serverURL + "/clk?" + self.PackURLString(true)
 }
 
+// ClkRedirectURL returns a click URL that records the click and then redirects
+// to the already-rendered advertiser landing URL.
+func (self *WinLoss) ClkRedirectURL(landing string) string {
+	u := self.ClkURL()
+	if landing == "" {
+		return u
+	}
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return u
+	}
+	args := parsed.Query()
+	args.Set("redirect", landing)
+	parsed.RawQuery = args.Encode()
+	return parsed.String()
+}
+
 // PackURLString returns the URL query string of the win/loss notification.
 func (self *WinLoss) PackURLString(tracking ...bool) string {
 	status := self.Status

@@ -162,8 +162,12 @@ func (self *DSP) billableRAdv() match.RAdv {
 func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 	macroStandard := winloss.Macro()
 	macroCustom := self.Macro()
+	landing, err := self.creative.LandingURL(macroStandard, macroCustom)
+	if err != nil {
+		return openrtb2.Bid{}, err
+	}
 
-	adm, err := self.creative.AdM(self.attribute, winloss.ImpURL(), winloss.ClkURL(), macroStandard, macroCustom)
+	adm, err := self.creative.AdM(self.attribute, winloss.ImpURL(), winloss.ClkRedirectURL(landing), macroStandard, macroCustom)
 	if err != nil {
 		return openrtb2.Bid{}, err
 	}

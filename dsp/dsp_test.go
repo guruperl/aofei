@@ -1,6 +1,8 @@
 package dsp
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -111,5 +113,83 @@ func TestWinLossUsesSelectedBidPrice(t *testing.T) {
 	}
 	if got := winloss.Macro()[`${AUCTION_PRICE}`]; got != "2.000" {
 		t.Fatalf("macro auction price = %q, want selected bid price", got)
+	}
+}
+
+func TestWinLossClickRedirectURL(t *testing.T) {
+	winloss := NewWinLoss(
+		StatusBid,
+		time.Now(),
+		match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
+		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cost: 1.25, CostType: 2},
+		nil,
+		"5",
+		"auction",
+		"bid",
+		"imp",
+		"7",
+		"https://dsp.example",
+	)
+
+	clickURL := winloss.ClkRedirectURL("https://advertiser.example/landing?a=1&b=2")
+	parsed, err := url.Parse(clickURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Path != "/clk" {
+		t.Fatalf("click path = %q, want /clk", parsed.Path)
+	}
+	if got := parsed.Query().Get("redirect"); got != "https://advertiser.example/landing?a=1&b=2" {
+		t.Fatalf("redirect = %q, want advertiser landing", got)
+	}
+}
+
+func TestServeWinLossClickRedirectsAfterTracking(t *testing.T) {
+	winloss := NewWinLoss(
+		StatusBid,
+		time.Now(),
+		match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
+		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cost: 1.25, CostType: 2},
+		nil,
+		"5",
+		"auction",
+		"bid",
+		"imp",
+		"7",
+		"https://dsp.example",
+	)
+	u, err := url.Parse(winloss.ClkRedirectURL("https://advertiser.example/landing"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, u.RequestURI(), nil)
+	rr := httptest.NewRecorder()
+
+	(&Controller{}).ServeWinLoss(rr, req)
+	if rr.Code != http.StatusFound {
+		t.Fatalf("ServeWinLoss status = %d, want %d: %s", rr.Code, http.StatusFound, rr.Body.String())
+	}
+	if got := rr.Header().Get("Location"); got != "https://advertiser.example/landing" {
+		t.Fatalf("redirect location = %q, want advertiser landing", got)
+	}
+}
+
+func TestServeWinLossRejectsInvalidClickRedirect(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/clk?redirect=javascript:alert(1)", nil)
+	rr := httptest.NewRecorder()
+
+	(&Controller{}).ServeWinLoss(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("ServeWinLoss status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestServeWinLossRejectsClickRedirectWithoutTrackingPayload(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/clk?redirect=https://advertiser.example/landing", nil)
+	rr := httptest.NewRecorder()
+
+	(&Controller{}).ServeWinLoss(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("ServeWinLoss status = %d, want %d", rr.Code, http.StatusBadRequest)
 	}
 }

@@ -94,6 +94,12 @@ Native is preferred when an impression offers multiple formats, followed by
 video, then banner. App inventory no longer forces native markup; app banner
 inventory returns banner markup.
 
+Native markup uses a DSP `/clk` redirect URL as the primary native link and the
+creative failback as the direct fallback URL. Banner iframe markup does not wrap
+arbitrary HTML or iframe content; banner creatives that want DSP click redirect
+measurement must include `{CLICK_URL}` in the creative content URL/template.
+`{LANDING_URL}` remains available as the direct advertiser destination.
+
 `dsp.DSP.NewBid` creates one OpenRTB bid per served impression with:
 
 - bid id derived from request time, creative id, and impression index,
@@ -118,6 +124,11 @@ available.
 
 For `/imp` and `/clk`, the handler also unpacks cap state and refreshes Redis
 frequency caps for the user/item pair.
+
+When `/clk` receives a valid HTTP(S) `redirect` query parameter and the normal
+packed tracking fields, it records the click best-effort and returns `302` to
+that target. Without `redirect`, `/clk` remains a tracking-only endpoint and
+returns no content.
 
 ## Known Workflow Boundaries
 

@@ -37,9 +37,13 @@
    those snapshots from Redis when Redis and MySQL are reachable.
 5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
-6. Bid/win/loss/log flows use Redis for runtime state and NATS/spread/log paths
-   for message and log transport. OpenRTB bid requests are matched per
-   impression; response bids are grouped by campaign seat.
+6. Bid/win/loss/log flows use Redis for mutable runtime state and NATS/spread/log
+   paths for message and log transport. Local/spread bid mode reads static cache
+   snapshots through an in-process memory cache backed by spread files. OpenRTB
+   bid requests are matched per impression; response bids are grouped by
+   campaign seat. Native click links use `/clk` as a best-effort tracking
+   redirect with a direct advertiser fallback; banner creatives opt into the
+   same redirect through `{CLICK_URL}`.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files, and `cmd/ledger` consumes `winloss.<stamp>` files into
    interval and daily ledger tables.
