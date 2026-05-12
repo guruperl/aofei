@@ -15,7 +15,7 @@ Docker MySQL use.
 - It should include tables, views, routines, triggers, and baseline data needed
   by the local package.
 - It must not contain explicit legacy MySQL definers.
-- It must not require or recreate `eightran_*` users.
+- It must not require or recreate legacy named MySQL users.
 - Local Docker auth is created by `scripts/aofei-local.sh`.
 
 ## Reset And Load
@@ -55,8 +55,8 @@ Guard the checked-in baseline against legacy dump metadata:
 ./scripts/aofei-local.sh check-sql
 ```
 
-This fails on explicit `DEFINER=` clauses and `eightran` references, while
-allowing `SQL SECURITY DEFINER` syntax that has no user-bound definer.
+This fails on explicit `DEFINER=` clauses and legacy account-name references,
+while allowing `SQL SECURITY DEFINER` syntax that has no user-bound definer.
 
 Dump the current Docker MySQL schema:
 

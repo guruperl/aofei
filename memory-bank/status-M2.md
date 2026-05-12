@@ -76,7 +76,7 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
     ```bash
     ./scripts/aofei-local.sh check-sql
     ```
-  - Result: command fails on explicit `DEFINER=` clauses or `eightran`
+  - Result: command fails on explicit `DEFINER=` clauses or legacy account-name
     references, while allowing `SQL SECURITY DEFINER`.
 
 - `[+]` Document the intentional schema-change workflow.

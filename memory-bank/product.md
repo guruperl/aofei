@@ -47,8 +47,8 @@ modify:
 
 ## Non-Goals
 
-- Restoring old `conf/` runtime patterns.
-- Using or documenting legacy `eightran_*` credentials as active auth.
+- Restoring old root config directory runtime patterns.
+- Using or documenting legacy named database credentials as active auth.
 - Building production deployment automation before local harness correctness is
   settled.
 - Treating moved historical files in `backup/` as active source inputs.

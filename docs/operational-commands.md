@@ -8,7 +8,8 @@ use the Docker-generated DSP config:
 export AOFEI="$PWD/etc/aofei.local.json"
 ```
 
-Do not use `conf/` or legacy MySQL credentials for these commands.
+Do not use the retired root config directory or legacy MySQL credentials for
+these commands.
 
 ## Common Prerequisites
 

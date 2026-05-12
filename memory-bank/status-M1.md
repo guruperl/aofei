@@ -53,22 +53,22 @@ Verified on 2026-05-12.
     `127.0.0.1:3307`, Redis `127.0.0.1:6379`, NATS
     `nats://127.0.0.1:4222`, and Summer templates under `.local/templates`.
 
-- `[+]` Confirm no active workflow requires `conf/`.
+- `[+]` Confirm no active workflow requires the retired root config directory.
   - Files: `README.md`, `AGENTS.md`, `docs/local-docker-runtime.md`,
     `docs/database-baseline.md`, `scripts/aofei-local.sh`, `etc/main.go`.
   - Command:
     ```bash
-    rg -n 'conf/' README.md AGENTS.md docs scripts etc --glob '!docs/legacy-operations.md'
+    rg -n 'co[n]f/' README.md AGENTS.md docs scripts etc --glob '!docs/legacy-operations.md'
     ```
-  - Result: remaining matches are the `AGENTS.md` warnings not to recreate
-    `conf/`; no active command or config depends on it.
+  - Result: remaining matches are the `AGENTS.md` warnings not to recreate the
+    retired root config directory; no active command or config depends on it.
 
 - `[+]` Confirm Docker MySQL auth is the active auth.
   - Files: `scripts/aofei-local.sh`, `etc/*.json`, `docs/*.md`,
     `memory-bank/*.md`.
   - Command:
     ```bash
-    rg -n 'eightran' . --glob '!backup/**' --glob '!docs/legacy-operations.md'
+    rg -n 'eightr[a]n' . --glob '!backup/**' --glob '!docs/legacy-operations.md'
     ```
   - Result: checked-in active configs and Genelet fixtures no longer contain
     legacy DSNs. Remaining matches are warnings, historical notes, or
@@ -104,9 +104,9 @@ Verified on 2026-05-12.
 
 ## Review Findings
 
-- `[+]` Remove active local-runtime reliance on legacy `eightran_*` database
-  auth. Review `etc/aofei.json`, generated local configs, scripts, and docs so
-  Docker MySQL auth is the only current development path.
+- `[+]` Remove active local-runtime reliance on legacy database auth. Review
+  `etc/aofei.json`, generated local configs, scripts, and docs so Docker MySQL
+  auth is the only current development path.
 
 - `[+]` Audit tracked runtime configs for credential-like values before they are
   treated as active templates. Cover `etc/summer.json`, `genelet/test.conf`, and
