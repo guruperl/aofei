@@ -5,7 +5,6 @@ import (
 	"math"
 	"math/rand"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -175,7 +174,11 @@ func (self *Model) Topics(extra ...url.Values) error {
 	} else {
 		fields = self.TopicsHashpars
 	}
-	err := self.TopicsHashOrder(self.LISTS, fields, self.GetOrderString(), extra...)
+	order, err := self.GetOrderStringChecked()
+	if err != nil {
+		return err
+	}
+	err = self.TopicsHashOrder(self.LISTS, fields, order, extra...)
 	if err != nil {
 		return err
 	}
@@ -385,6 +388,12 @@ func (self *Model) Delete(extra ...url.Values) error {
 }
 
 func (self *Model) Existing(table string, field string, val interface{}) error {
+	if err := ValidateSQLIdentifier("table", table); err != nil {
+		return err
+	}
+	if err := ValidateSQLIdentifier("field", field); err != nil {
+		return err
+	}
 	hash := make(map[string]interface{})
 	err := self.GetSQL(hash, "SELECT "+field+" FROM "+table+" WHERE "+field+"=? LIMIT 1", val)
 	if err != nil {
@@ -427,6 +436,14 @@ func (self *Model) Randomid(table string, field string, m ...interface{}) error 
 }
 
 func (self *Model) GetOrderString() string {
+	order, err := self.GetOrderStringChecked()
+	if err != nil {
+		return ""
+	}
+	return order
+}
+
+func (self *Model) GetOrderStringChecked() (string, error) {
 	ARGS := self.ARGS
 	var column string
 	if ARGS.Get(self.SORTBY) == "" {
@@ -439,15 +456,15 @@ func (self *Model) GetOrderString() string {
 		column = ARGS.Get(self.SORTBY)
 	}
 
-	matched, err := regexp.MatchString("\\.", column)
-	if self.CurrentTables != nil && err == nil && matched {
-		if !strings.Contains(column, `.`) {
-			if self.CurrentTables[0].Alias != "" {
-				column = self.CurrentTables[0].Alias + "." + column
-			} else {
-				column = self.CurrentTables[0].Name + "." + column
-			}
+	if self.CurrentTables != nil && !strings.Contains(column, `.`) {
+		if self.CurrentTables[0].Alias != "" {
+			column = self.CurrentTables[0].Alias + "." + column
+		} else {
+			column = self.CurrentTables[0].Name + "." + column
 		}
+	}
+	if err := ValidateSQLOrderBy(column); err != nil {
+		return "", err
 	}
 	order := "ORDER BY " + column
 	if ARGS.Get(self.SORTREVERSE) != "" {
@@ -457,7 +474,7 @@ func (self *Model) GetOrderString() string {
 	if ARGS.Get(self.ROWCOUNT) != "" {
 		rowcount, err := strconv.Atoi(ARGS.Get(self.ROWCOUNT))
 		if err != nil {
-			return ""
+			return "", err
 		}
 		pageno := 1
 		if ARGS.Get(self.PAGENO) == "" {
@@ -465,17 +482,16 @@ func (self *Model) GetOrderString() string {
 		} else {
 			pageno, err = strconv.Atoi(ARGS.Get(self.PAGENO))
 			if err != nil {
-				return ""
+				return "", err
 			}
+		}
+		if rowcount < 1 || pageno < 1 {
+			return "", Err(1071, "rowcount and pageno must be positive")
 		}
 		order += " LIMIT " + strconv.Itoa(rowcount) + " OFFSET " + strconv.Itoa((pageno-1)*rowcount)
 	}
 
-	matched, err = regexp.MatchString("[;'\"]", order)
-	if err != nil || matched {
-		return ""
-	}
-	return order
+	return order, nil
 }
 
 func (self *Model) another_object(page map[string]interface{}, args url.Values, lists *[]map[string]interface{}, other *map[string]interface{}) (interface{}, string, string, error) {
@@ -488,8 +504,12 @@ func (self *Model) another_object(page map[string]interface{}, args url.Values, 
 		return nil, "", "", Err(2013, "No stored "+model)
 	}
 
-	Invoke0(p, "SetDefaults", args, lists, other, self.Storage)
-	Invoke0(p, "SetDB", self.DB)
+	if err := InvokeVoid(p, "SetDefaults", args, lists, other, self.Storage); err != nil {
+		return nil, "", "", err
+	}
+	if err := InvokeVoid(p, "SetDB", self.DB); err != nil {
+		return nil, "", "", err
+	}
 
 	action := page["action"].(string)
 	return p, strings.Title(action), model + "_" + action, nil
@@ -538,15 +558,12 @@ func (self *Model) CallOnce(page map[string]interface{}, extra ...url.Values) er
 	}
 
 	if extra != nil {
-		ret := Invoke(p, action, next_extra)[0].Interface()
-		if ret != nil {
-			return ret.(error)
-		}
+		err = InvokeError(p, action, next_extra)
 	} else {
-		ret := Invoke(p, action)[0].Interface()
-		if ret != nil {
-			return ret.(error)
-		}
+		err = InvokeError(p, action)
+	}
+	if err != nil {
+		return err
 	}
 
 	if len(lists) > 0 {
@@ -618,9 +635,8 @@ func (self *Model) CallNextpage(page map[string]interface{}, extra ...url.Values
 		}
 		nextextra := make(url.Values)
 		x := strings.ToUpper(action[:1]) + action[1:]
-		ret := Invoke(p, x, next_extra, nextextra)[0].Interface()
-		if ret != nil {
-			return ret.(error)
+		if err := InvokeError(p, x, next_extra, nextextra); err != nil {
+			return err
 		}
 
 		if len(lists) > 0 {

@@ -23,6 +23,9 @@ func TestConfig(t *testing.T) {
 	if c.Script != "bb" {
 		t.Errorf("%s wanted", "bb")
 	}
+	if len(c.CORSOrigins) != 1 || c.CORSOrigins[0] != "https://admin.example.test" {
+		t.Errorf("%v wanted", c.CORSOrigins)
+	}
 	if c.Pubrole != "cc" {
 		t.Errorf("%s wanted", "cc")
 	}

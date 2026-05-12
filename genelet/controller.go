@@ -1,7 +1,6 @@
 package genelet
 
 import (
-	"bufio"
 	"bytes"
 	"database/sql"
 	"encoding/json"
@@ -32,14 +31,49 @@ type Controller struct {
 }
 
 func (self *Controller) staticPage(w http.ResponseWriter, r *http.Request) {
-	if strings.Contains(r.URL.Path, `..`) {
+	if self.C == nil || self.C.DocumentRoot == "" {
 		http.NotFound(w, r)
+		return
 	}
+	if strings.Contains(r.URL.Path, "..") {
+		http.NotFound(w, r)
+		return
+	}
+	root, err := filepath.Abs(self.C.DocumentRoot)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	cleanPath := filepath.Clean("/" + r.URL.Path)
+	target, err := filepath.Abs(filepath.Join(root, strings.TrimPrefix(cleanPath, "/")))
+	if err != nil || (target != root && !strings.HasPrefix(target, root+string(filepath.Separator))) {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, target)
+}
 
+func (self *Controller) corsAllowed(origin string) bool {
+	if origin == "" {
+		return true
+	}
 	c := self.C
-	url := r.URL
-
-	http.ServeFile(w, r, c.DocumentRoot+url.Path)
+	if c == nil {
+		return false
+	}
+	if server, err := url.Parse(c.ServerURL); err == nil && server.Scheme != "" && server.Host != "" {
+		if origin == server.Scheme+"://"+server.Host {
+			return true
+		}
+	} else if origin == c.ServerURL {
+		return true
+	}
+	for _, allowed := range c.CORSOrigins {
+		if allowed != "" && origin == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 func (self *Controller) loginPage(base *Base) {
@@ -85,7 +119,11 @@ func (self *Controller) loginPage(base *Base) {
 	}
 
 	glog.Infof("%s %#v", "ticket error: ", err)
-	gerr := err.(Gerror)
+	gerr, ok := asGerror(err)
+	if !ok {
+		http.Error(base.W, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if gerr.Code < 1000 {
 		base.SendStatusPage(gerr.Code, gerr.Errstr)
 		return
@@ -174,11 +212,22 @@ func (self *Controller) checkForm(r *http.Request, dir string) error {
 			}
 
 			fieldName := part.FormName()
+			if fieldName == "" {
+				part.Close()
+				return Err(1010, "empty multipart field name")
+			}
 			fileName := part.FileName()
 			if fileName == "" {
-				scanner := bufio.NewScanner(part)
-				scanner.Scan()
-				form.Add(fieldName, scanner.Text())
+				var b bytes.Buffer
+				if _, err := io.Copy(&b, io.LimitReader(part, maxUploadBytes+1)); err != nil {
+					part.Close()
+					return err
+				}
+				if b.Len() > maxUploadBytes {
+					part.Close()
+					return Err(1010, "multipart field too large")
+				}
+				form.Add(fieldName, b.String())
 			} else {
 				cleanName := filepath.Base(fileName)
 				if cleanName != fileName || cleanName == "." || cleanName == string(filepath.Separator) {
@@ -216,6 +265,11 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	length := len(c.Script)
 
 	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Add("Vary", "Origin")
+		if !self.corsAllowed(origin) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Max-Age", "1728000")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -295,7 +349,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		glog.Infof("start logout")
 		err = gate.HandleLogout()
 		if err != nil {
-			gate.SendStatusPage(err.(Gerror).Code, err.(Gerror).Errstr)
+			gerr, ok := asGerror(err)
+			if !ok {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			gate.SendStatusPage(gerr.Code, gerr.Errstr)
 			glog.Infof("end logout")
 		}
 		return
@@ -305,7 +364,12 @@ func (self *Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = gate.Forbid()
 		if err != nil {
 			glog.Infof("forbidden %v", err)
-			gate.SendStatusPage(err.(Gerror).Code, err.(Gerror).Errstr)
+			gerr, ok := asGerror(err)
+			if !ok {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			gate.SendStatusPage(gerr.Code, gerr.Errstr)
 			return
 		}
 	}
@@ -375,7 +439,9 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 
 	lists := make([]map[string]interface{}, 0)
 	other := make(map[string]interface{})
-	Invoke0(model, "SetDefaults", ARGS, &lists, &other, self.Storage)
+	if err := InvokeVoid(model, "SetDefaults", ARGS, &lists, &other, self.Storage); err != nil {
+		return err
+	}
 
 	action := ARGS.Get(c.ActionName)
 	if action == "" {
@@ -388,15 +454,27 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		ARGS.Set("_gid_url", r.Header.Get("X-Forwarded-ID"))
 	}
 	glog.Infof("action: %s", action)
-	Invoke0(filter, "SetAll", base, action, obj, &other)
-	ret := Invoke(filter, "GetAll")
-	if ret[0].Interface() == nil {
+	if err := InvokeVoid(filter, "SetAll", base, action, obj, &other); err != nil {
+		return err
+	}
+	ret, err := TryInvoke(filter, "GetAll")
+	if err != nil {
+		return err
+	}
+	if len(ret) != 2 || ret[0].Interface() == nil {
 		return Err(404)
 	}
-	actionHash := ret[0].Interface().(map[string][]string)
+	actionHash, ok := ret[0].Interface().(map[string][]string)
+	if !ok {
+		return Err(1051, "GetAll returned invalid action map")
+	}
 	fk := make([]string, 0)
 	if ret[1].Interface() != nil {
-		fk = ret[1].Interface().([]string)
+		var ok bool
+		fk, ok = ret[1].Interface().([]string)
+		if !ok {
+			return Err(1051, "GetAll returned invalid foreign-key list")
+		}
 	}
 	parts := strings.Split(r.RequestURI, "/")
 	parts[3] = "json"
@@ -434,8 +512,11 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		cipherSet(role.Attributes[0], h.Get("X-Forwarded-User"))
 		if len(role.Attributes) > 1 {
 			groups := strings.Split(h.Get("X-Forwarded-Group"), "|")
-			for i := 0; i < len(groups); i++ {
-				cipherSet(role.Attributes[i+1], groups[i])
+			if len(groups) != len(role.Attributes)-1 {
+				return Err(401, "forwarded group count mismatch")
+			}
+			for i := 1; i < len(role.Attributes); i++ {
+				cipherSet(role.Attributes[i], groups[i-1])
 			}
 		}
 	}
@@ -455,9 +536,9 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	}
 
 	glog.Infof("preset")
-	err := Invoke(filter, "Preset")[0].Interface()
+	err = InvokeError(filter, "Preset")
 	if err != nil {
-		return err.(error)
+		return err
 	}
 
 	glog.Infof("validation")
@@ -472,22 +553,24 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 
 	options, ok := actionHash["options"]
 	if !ok || !Grep(options, "no_db") {
-		Invoke0(model, "SetDB", self.DB)
+		if err := InvokeVoid(model, "SetDB", self.DB); err != nil {
+			return err
+		}
 	}
 
 	nextextra := make(url.Values)
 	glog.Infof("before")
-	err = Invoke(filter, "Before", model, extra, nextextra)[0].Interface()
+	err = InvokeError(filter, "Before", model, extra, nextextra)
 	if err != nil {
-		return err.(error)
+		return err
 	}
 
 	if !ok && !Grep(options, "no_method") {
 		x := strings.ToUpper(action[:1]) + action[1:]
 		glog.Infof("call model")
-		err := Invoke(model, x, extra, nextextra)[0].Interface()
+		err := InvokeError(model, x, extra, nextextra)
 		if err != nil {
-			return err.(error)
+			return err
 		}
 		glog.Infof("call model OK")
 	}
@@ -498,9 +581,9 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 	}
 
 	glog.Infof("after")
-	err = Invoke(filter, "After", model)[0].Interface()
+	err = InvokeError(filter, "After", model)
 	if err != nil {
-		return err.(error)
+		return err
 	}
 
 	glog.Infof("call blocks")
@@ -551,6 +634,17 @@ func (self *Controller) Handle(obj string, base Base, method string) error {
 		}
 	}
 	return er
+}
+
+func asGerror(err error) (Gerror, bool) {
+	if err == nil {
+		return Gerror{}, false
+	}
+	g, ok := err.(Gerror)
+	if ok {
+		return g, true
+	}
+	return Gerror{}, false
 }
 
 func (self *Controller) assignFK(who string, fk []string, ARGS url.Values, extra url.Values) error {

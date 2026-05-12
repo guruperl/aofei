@@ -22,24 +22,136 @@ import (
 )
 
 func Invoke0(any interface{}, name string, args ...interface{}) {
-	inputs := make([]reflect.Value, len(args))
-	for i, _ := range args {
-		inputs[i] = reflect.ValueOf(args[i])
-	}
-	if method := reflect.ValueOf(any).MethodByName(name); method.IsValid() {
-		method.Call(inputs)
-	}
+	_, _ = TryInvoke(any, name, args...)
 }
 
 func Invoke(any interface{}, name string, args ...interface{}) []reflect.Value {
+	out, err := TryInvoke(any, name, args...)
+	if err != nil {
+		return []reflect.Value{reflect.ValueOf(err)}
+	}
+	return out
+}
+
+func InvokeVoid(any interface{}, name string, args ...interface{}) error {
+	out, err := TryInvoke(any, name, args...)
+	if err != nil {
+		return err
+	}
+	if len(out) != 0 {
+		return Err(1051, name+" returned values where none were expected")
+	}
+	return nil
+}
+
+func InvokeError(any interface{}, name string, args ...interface{}) error {
+	out, err := TryInvoke(any, name, args...)
+	if err != nil {
+		return err
+	}
+	if len(out) != 1 {
+		return Err(1051, name+" must return one error value")
+	}
+	if out[0].Kind() == reflect.Interface && out[0].IsNil() {
+		return nil
+	}
+	if out[0].Kind() == reflect.Ptr && out[0].IsNil() {
+		return nil
+	}
+	if out[0].Interface() == nil {
+		return nil
+	}
+	err, ok := out[0].Interface().(error)
+	if !ok {
+		return Err(1051, name+" did not return an error")
+	}
+	return err
+}
+
+func TryInvoke(any interface{}, name string, args ...interface{}) (out []reflect.Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = Err(1051, fmt.Sprintf("%s panicked during dispatch: %v", name, r))
+			out = nil
+		}
+	}()
+	if any == nil {
+		return nil, Err(1051, name+" dispatch target is nil")
+	}
+	method := reflect.ValueOf(any).MethodByName(name)
+	if !method.IsValid() {
+		return nil, Err(1051, name+" method does not exist")
+	}
+	methodType := method.Type()
+	fixedArgs := methodType.NumIn()
+	if methodType.IsVariadic() {
+		fixedArgs--
+		if len(args) < fixedArgs {
+			return nil, Err(1051, fmt.Sprintf("%s expects at least %d args, got %d", name, fixedArgs, len(args)))
+		}
+	} else if methodType.NumIn() != len(args) {
+		return nil, Err(1051, fmt.Sprintf("%s expects %d args, got %d", name, methodType.NumIn(), len(args)))
+	}
 	inputs := make([]reflect.Value, len(args))
-	for i, _ := range args {
-		inputs[i] = reflect.ValueOf(args[i])
+	for i := range args {
+		want := methodType.In(i)
+		if methodType.IsVariadic() && i >= fixedArgs {
+			want = methodType.In(methodType.NumIn() - 1).Elem()
+		}
+		value, err := dispatchArgValue(reflect.ValueOf(args[i]), want)
+		if err != nil {
+			return nil, Err(1051, fmt.Sprintf("%s arg %d: %s", name, i, err.Error()))
+		}
+		inputs[i] = value
 	}
-	if method := reflect.ValueOf(any).MethodByName(name); method.IsValid() {
-		return method.Call(inputs)
+	return method.Call(inputs), nil
+}
+
+func dispatchArgValue(value reflect.Value, want reflect.Type) (reflect.Value, error) {
+	if !value.IsValid() {
+		return reflect.Zero(want), nil
 	}
-	return []reflect.Value{reflect.ValueOf(Err(400))}
+	if value.Type().AssignableTo(want) {
+		return value, nil
+	}
+	if value.Type().ConvertibleTo(want) {
+		return value.Convert(want), nil
+	}
+	if nested, ok := embeddedAssignable(value, want); ok {
+		return nested, nil
+	}
+	return reflect.Value{}, fmt.Errorf("%s is not assignable to %s", value.Type(), want)
+}
+
+func embeddedAssignable(value reflect.Value, want reflect.Type) (reflect.Value, bool) {
+	if value.Kind() == reflect.Interface && !value.IsNil() {
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Ptr || value.IsNil() || value.Elem().Kind() != reflect.Struct {
+		return reflect.Value{}, false
+	}
+	value = value.Elem()
+	valueType := value.Type()
+	for i := 0; i < value.NumField(); i++ {
+		fieldInfo := valueType.Field(i)
+		if !fieldInfo.Anonymous {
+			continue
+		}
+		field := value.Field(i)
+		candidates := []reflect.Value{field}
+		if field.CanAddr() {
+			candidates = append(candidates, field.Addr())
+		}
+		for _, candidate := range candidates {
+			if candidate.IsValid() && candidate.Type().AssignableTo(want) {
+				return candidate, true
+			}
+			if nested, ok := embeddedAssignable(candidate, want); ok {
+				return nested, true
+			}
+		}
+	}
+	return reflect.Value{}, false
 }
 
 func Interface2String(v interface{}) string {

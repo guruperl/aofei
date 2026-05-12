@@ -3,7 +3,6 @@ package genelet
 import (
 	"database/sql"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -33,36 +32,77 @@ func NewCrud(db *sql.DB, table string, tables []Table) *Crud {
 }
 
 func TableString(currentTables []Table) string {
+	sql, _ := TableStringSafe(currentTables)
+	return sql
+}
+
+func TableStringSafe(currentTables []Table) (string, error) {
 	sql := ""
 	for i, table := range currentTables {
+		if err := ValidateSQLIdentifier("table", table.Name); err != nil {
+			return "", err
+		}
 		name := table.Name
 		if table.Alias != "" {
+			if err := ValidateSQLIdentifier("alias", table.Alias); err != nil {
+				return "", err
+			}
 			name += " " + table.Alias
 		}
 		if i == 0 {
 			sql = name
 		} else if table.Using != "" {
+			switch table.Type {
+			case "INNER", "LEFT", "RIGHT", "FULL", "CROSS":
+			default:
+				return "", Err(1071, "invalid SQL join type "+table.Type)
+			}
+			if err := ValidateSQLIdentifier("join field", table.Using); err != nil {
+				return "", err
+			}
 			sql += "\n" + table.Type + " JOIN " + name + " USING (" + table.Using + ")"
 		} else {
+			switch table.Type {
+			case "INNER", "LEFT", "RIGHT", "FULL", "CROSS":
+			default:
+				return "", Err(1071, "invalid SQL join type "+table.Type)
+			}
+			if err := ValidateSQLJoinCondition(table.On); err != nil {
+				return "", err
+			}
 			sql += "\n" + table.Type + " JOIN " + name + " ON (" + table.On + ")"
 		}
 	}
 
-	return sql
+	return sql, nil
 }
 
 func SelectLabelString(selectPars interface{}) (string, []string) {
+	sql, labels, _ := SelectLabelStringSafe(selectPars)
+	return sql, labels
+}
+
+func SelectLabelStringSafe(selectPars interface{}) (string, []string, error) {
 	select_labels := make([]string, 0)
 	sql := ""
 	switch selectPars.(type) {
 	case []string:
 		for _, v := range selectPars.([]string) {
+			if err := ValidateSQLQualifiedIdentifier("select field", v); err != nil {
+				return "", nil, err
+			}
 			select_labels = append(select_labels, v)
 		}
 		sql = strings.Join(select_labels, ", ")
 	case map[string]string:
 		i := 0
 		for key, val := range selectPars.(map[string]string) {
+			if err := ValidateSQLSelectExpression(key); err != nil {
+				return "", nil, err
+			}
+			if err := ValidateSQLIdentifier("select label", val); err != nil {
+				return "", nil, err
+			}
 			if i == 0 {
 				sql = key
 			} else {
@@ -73,26 +113,42 @@ func SelectLabelString(selectPars interface{}) (string, []string) {
 		}
 	default:
 		sql = selectPars.(string)
+		if err := ValidateSQLSelectExpression(sql); err != nil {
+			return "", nil, err
+		}
 		select_labels = append(select_labels, sql)
 	}
-	return sql, select_labels
+	return sql, select_labels, nil
 }
 
 func SelectConditionString(extra url.Values, table ...string) (string, []interface{}) {
+	sql, values, _ := SelectConditionStringSafe(extra, table...)
+	return sql, values
+}
+
+func SelectConditionStringSafe(extra url.Values, table ...string) (string, []interface{}, error) {
 	sql := ""
 	values := make([]interface{}, 0)
 	i := 0
 	for field, value := range extra {
+		if strings.HasSuffix(field, "_gsql") {
+			return "", nil, Err(1071, "raw _gsql conditions are not allowed")
+		}
 		if i > 0 {
 			sql += " AND "
 		}
 		sql += "("
 
 		if table != nil && table[0] != "" {
-			match, err := regexp.MatchString("\\.", field)
-			if err == nil && !match {
+			if err := ValidateSQLIdentifier("table", table[0]); err != nil {
+				return "", nil, err
+			}
+			if !strings.Contains(field, ".") {
 				field = table[0] + "." + field
 			}
+		}
+		if err := ValidateSQLQualifiedIdentifier("condition field", field); err != nil {
+			return "", nil, err
 		}
 		n := len(value)
 		if n > 1 {
@@ -101,27 +157,31 @@ func SelectConditionString(extra url.Values, table ...string) (string, []interfa
 				values = append(values, v)
 			}
 		} else if n == 1 {
-			if field[(len(field)-5):] == "_gsql" {
-				sql += value[0]
-			} else {
-				sql += field + " =?"
-				values = append(values, value[0])
-			}
+			sql += field + " =?"
+			values = append(values, value[0])
 		}
 		sql += ")"
 		i++
 	}
 
-	return sql, values
+	return sql, values, nil
 }
 
 func SingleConditionString(keyname interface{}, ids []interface{}, extra ...url.Values) (string, []interface{}) {
+	sql, values, _ := SingleConditionStringSafe(keyname, ids, extra...)
+	return sql, values
+}
+
+func SingleConditionStringSafe(keyname interface{}, ids []interface{}, extra ...url.Values) (string, []interface{}, error) {
 	sql := ""
 	extraValues := make([]interface{}, 0)
 
 	switch keyname.(type) {
 	case []string:
 		for i, item := range keyname.([]string) {
+			if err := ValidateSQLQualifiedIdentifier("key field", item); err != nil {
+				return "", nil, err
+			}
 			val := ids[i]
 			if i == 0 {
 				sql = "("
@@ -142,6 +202,9 @@ func SingleConditionString(keyname interface{}, ids []interface{}, extra ...url.
 		}
 		sql += ")"
 	case string:
+		if err := ValidateSQLQualifiedIdentifier("key field", keyname.(string)); err != nil {
+			return "", nil, err
+		}
 		n := len(ids)
 		if n > 1 {
 			sql = "(" + keyname.(string) + " IN (" + strings.Join(strings.Split(strings.Repeat("?", n), ""), ",") + "))"
@@ -154,7 +217,10 @@ func SingleConditionString(keyname interface{}, ids []interface{}, extra ...url.
 	}
 
 	if extra != nil && len(extra) > 0 {
-		s, arr := SelectConditionString(extra[0])
+		s, arr, err := SelectConditionStringSafe(extra[0])
+		if err != nil {
+			return "", nil, err
+		}
 		if s != "" {
 			sql += " AND " + s
 			for _, v := range arr {
@@ -163,7 +229,7 @@ func SingleConditionString(keyname interface{}, ids []interface{}, extra ...url.
 		}
 	}
 
-	return sql, extraValues
+	return sql, extraValues, nil
 }
 
 func (self *Crud) InsertHash(fieldValues url.Values) error {
@@ -175,9 +241,15 @@ func (self *Crud) ReplaceHash(fieldValues url.Values) error {
 }
 
 func (self *Crud) insertHash_(how string, fieldValues url.Values) error {
+	if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+		return err
+	}
 	fields := make([]string, 0)
 	values := make([]interface{}, 0)
 	for k, v := range fieldValues {
+		if err := ValidateSQLIdentifier("field", k); err != nil {
+			return err
+		}
 		fields = append(fields, k)
 		values = append(values, v[0])
 	}
@@ -191,10 +263,16 @@ func (self *Crud) UpdateHash(fieldValues url.Values, keyname interface{}, ids []
 }
 
 func (self *Crud) UpdateHashNulls(fieldValues url.Values, keyname interface{}, ids []interface{}, empties []string, extra ...url.Values) error {
+	if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+		return err
+	}
 	fields := make([]string, 0)
 	field0 := make([]string, 0)
 	values := make([]interface{}, 0)
 	for k, v := range fieldValues {
+		if err := ValidateSQLIdentifier("field", k); err != nil {
+			return err
+		}
 		fields = append(fields, k)
 		field0 = append(field0, k+"=?")
 		values = append(values, v[0])
@@ -215,10 +293,16 @@ func (self *Crud) UpdateHashNulls(fieldValues url.Values, keyname interface{}, i
 				continue
 			}
 		}
+		if err := ValidateSQLIdentifier("field", v); err != nil {
+			return err
+		}
 		sql += ", " + v + "=NULL"
 	}
 
-	where, extraValues := SingleConditionString(keyname, ids, extra...)
+	where, extraValues, err := SingleConditionStringSafe(keyname, ids, extra...)
+	if err != nil {
+		return err
+	}
 	if where != "" {
 		sql += "\nWHERE " + where
 	}
@@ -230,9 +314,18 @@ func (self *Crud) UpdateHashNulls(fieldValues url.Values, keyname interface{}, i
 }
 
 func (self *Crud) InsupdTable(fieldValues url.Values, keyname string, uniques []string, s_hash *string) error {
+	if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+		return err
+	}
+	if err := ValidateSQLIdentifier("field", keyname); err != nil {
+		return err
+	}
 	s := "SELECT " + keyname + " FROM " + self.CurrentTable + "\nWHERE "
 	v := make([]interface{}, 0)
 	for i, val := range uniques {
+		if err := ValidateSQLIdentifier("field", val); err != nil {
+			return err
+		}
 		if i > 0 {
 			s += " AND "
 		}
@@ -270,6 +363,9 @@ func (self *Crud) InsupdTable(fieldValues url.Values, keyname string, uniques []
 }
 
 func (self *Crud) InsupdHash(fieldValues url.Values, upd_fieldValues url.Values, keyname interface{}, uniques []string, s_hash *string) error {
+	if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+		return err
+	}
 	var ks []string
 	switch keyname.(type) {
 	case []string:
@@ -277,9 +373,15 @@ func (self *Crud) InsupdHash(fieldValues url.Values, upd_fieldValues url.Values,
 	default:
 		ks = []string{keyname.(string)}
 	}
+	if err := ValidateSQLIdentifierList("field", ks); err != nil {
+		return err
+	}
 	s := "SELECT " + strings.Join(ks, ",") + " FROM " + self.CurrentTable + "\nWHERE "
 	v := make([]interface{}, 0)
 	for i, val := range uniques {
+		if err := ValidateSQLIdentifier("field", val); err != nil {
+			return err
+		}
 		if i > 0 {
 			s += " AND "
 		}
@@ -319,8 +421,14 @@ func (self *Crud) InsupdHash(fieldValues url.Values, upd_fieldValues url.Values,
 }
 
 func (self *Crud) DeleteHash(keyname interface{}, ids []interface{}, extra ...url.Values) error {
+	if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+		return err
+	}
 	sql := "DELETE FROM " + self.CurrentTable
-	where, extraValues := SingleConditionString(keyname, ids, extra...)
+	where, extraValues, err := SingleConditionStringSafe(keyname, ids, extra...)
+	if err != nil {
+		return err
+	}
 	if where != "" {
 		sql += "\nWHERE " + where
 	}
@@ -329,9 +437,18 @@ func (self *Crud) DeleteHash(keyname interface{}, ids []interface{}, extra ...ur
 }
 
 func (self *Crud) EditHash(lists *[]map[string]interface{}, selectPars interface{}, keyname interface{}, ids []interface{}, extra ...url.Values) error {
-	sql, select_labels := SelectLabelString(selectPars)
+	if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+		return err
+	}
+	sql, select_labels, err := SelectLabelStringSafe(selectPars)
+	if err != nil {
+		return err
+	}
 	sql = "SELECT " + sql + "\nFROM " + self.CurrentTable
-	where, extraValues := SingleConditionString(keyname, ids, extra...)
+	where, extraValues, err := SingleConditionStringSafe(keyname, ids, extra...)
+	if err != nil {
+		return err
+	}
 	if where != "" {
 		sql += "\nWHERE " + where
 	}
@@ -344,20 +461,33 @@ func (self *Crud) TopicsHash(lists *[]map[string]interface{}, selectPars interfa
 }
 
 func (self *Crud) TopicsHashOrder(lists *[]map[string]interface{}, selectPars interface{}, order string, extra ...url.Values) error {
-	sql, select_labels := SelectLabelString(selectPars)
+	sql, select_labels, err := SelectLabelStringSafe(selectPars)
+	if err != nil {
+		return err
+	}
 	table := ""
 	if len(self.CurrentTables) > 0 {
-		sql = "SELECT " + sql + "\nFROM " + TableString(self.CurrentTables)
+		tables, err := TableStringSafe(self.CurrentTables)
+		if err != nil {
+			return err
+		}
+		sql = "SELECT " + sql + "\nFROM " + tables
 		table = self.CurrentTables[0].Alias
 		if table == "" {
 			table = self.CurrentTables[0].Name
 		}
 	} else {
+		if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+			return err
+		}
 		sql = "SELECT " + sql + "\nFROM " + self.CurrentTable
 	}
 
 	if len(extra) > 0 {
-		where, values := SelectConditionString(extra[0], table)
+		where, values, err := SelectConditionStringSafe(extra[0], table)
+		if err != nil {
+			return err
+		}
 		if where != "" {
 			sql += "\nWHERE " + where
 		}
@@ -374,20 +504,33 @@ func (self *Crud) TopicsHashOrder(lists *[]map[string]interface{}, selectPars in
 }
 
 func (self *Crud) TotalHash(hash map[string]interface{}, label string, extra ...url.Values) error {
+	if err := ValidateSQLIdentifier("label", label); err != nil {
+		return err
+	}
 	table := ""
 	sql := "SELECT COUNT(*) FROM "
 	if self.CurrentTables != nil {
-		sql += TableString(self.CurrentTables)
+		tables, err := TableStringSafe(self.CurrentTables)
+		if err != nil {
+			return err
+		}
+		sql += tables
 		table = self.CurrentTables[0].Alias
 		if table == "" {
 			table = self.CurrentTables[0].Name
 		}
 	} else {
+		if err := ValidateSQLIdentifier("table", self.CurrentTable); err != nil {
+			return err
+		}
 		sql += self.CurrentTable
 	}
 
 	if len(extra) > 0 {
-		where, values := SelectConditionString(extra[0], table)
+		where, values, err := SelectConditionStringSafe(extra[0], table)
+		if err != nil {
+			return err
+		}
 		if where != "" {
 			sql += "\nWHERE " + where
 		}

@@ -2,6 +2,7 @@ package genelet
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 )
 
@@ -37,14 +38,21 @@ type Component struct {
 }
 
 func NewComponent(filename string) *Component {
-	var parsed *Component
-	content, err := os.ReadFile(filename)
+	parsed, err := LoadComponent(filename)
 	if err != nil {
 		panic(err)
 	}
-	err = json.Unmarshal(content, &parsed)
+	return parsed
+}
+
+func LoadComponent(filename string) (*Component, error) {
+	var parsed Component
+	content, err := os.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("load component %q: %w", filename, err)
+	}
+	if err := json.Unmarshal(content, &parsed); err != nil {
+		return nil, fmt.Errorf("parse component %q: %w", filename, err)
 	}
 
 	if parsed.Sortby == "" {
@@ -74,6 +82,9 @@ func NewComponent(filename string) *Component {
 	if parsed.TotalForce == 0 {
 		parsed.TotalForce = 1
 	}
+	if err := ValidateComponent(&parsed); err != nil {
+		return nil, fmt.Errorf("validate component %q: %w", filename, err)
+	}
 
-	return parsed
+	return &parsed, nil
 }

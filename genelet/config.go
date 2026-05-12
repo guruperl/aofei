@@ -66,6 +66,7 @@ type Config struct {
 	Pubrole        string
 	Secret         string
 	ServerURL      string
+	CORSOrigins    []string
 	UploadURL      string
 	ServerPort     string
 	DocumentRoot   string
