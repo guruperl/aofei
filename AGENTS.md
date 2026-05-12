@@ -95,6 +95,10 @@ maintained in [memory-bank/tech-stack.md](memory-bank/tech-stack.md).
   unit once implementation begins.
 - Treat each section in [memory-bank/milestone.md](memory-bank/milestone.md) as
   a review unit.
+- After the last task in a milestone is complete, run a deep code review of the
+  milestone before closing it.
+- After the milestone review is complete and required verification passes, make
+  a git commit for the milestone changes.
 - Check [evolution/](evolution/) after a major review, milestone, or boundary
   change. Add a new version only when product direction, architecture boundary,
   milestone target, or public/private contract direction materially changes.
