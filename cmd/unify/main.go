@@ -13,32 +13,9 @@ import (
 
 	"github.com/genelet/winter/dsp"
 	"github.com/genelet/winter/genelet"
+	"github.com/genelet/winter/summer/registry"
 	_ "github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
-
-	"github.com/genelet/winter/summer/ac"
-	"github.com/genelet/winter/summer/address"
-	"github.com/genelet/winter/summer/adv"
-	"github.com/genelet/winter/summer/agent"
-	"github.com/genelet/winter/summer/alipay"
-	"github.com/genelet/winter/summer/attrname"
-	"github.com/genelet/winter/summer/balance"
-	"github.com/genelet/winter/summer/campaign"
-	"github.com/genelet/winter/summer/cc"
-	"github.com/genelet/winter/summer/chac"
-	"github.com/genelet/winter/summer/channel"
-	"github.com/genelet/winter/summer/cheque"
-	"github.com/genelet/winter/summer/creative"
-	"github.com/genelet/winter/summer/item"
-	"github.com/genelet/winter/summer/ledger"
-	"github.com/genelet/winter/summer/manage"
-	"github.com/genelet/winter/summer/payment"
-	"github.com/genelet/winter/summer/pub"
-	"github.com/genelet/winter/summer/site"
-	"github.com/genelet/winter/summer/slot"
-	"github.com/genelet/winter/summer/targetname"
-	"github.com/genelet/winter/summer/wechat"
-	"github.com/genelet/winter/summer/weight"
 )
 
 func usage() {
@@ -122,27 +99,25 @@ func main() {
 }
 
 func getGenelet(fn string, logger *zap.Logger) (*genelet.Controller, error) {
-	models := map[string]interface{}{
-		"agent": new(agent.Model), "manage": new(manage.Model), "payment": new(payment.Model), "alipay": new(alipay.Model), "wechat": new(wechat.Model), "cheque": new(cheque.Model), "cc": new(cc.Model), "ac": new(ac.Model), "address": new(address.Model), "adv": new(adv.Model), "attrname": new(attrname.Model), "campaign": new(campaign.Model), "chac": new(chac.Model), "channel": new(channel.Model), "balance": new(balance.Model), "ledger": new(ledger.Model), "creative": new(creative.Model), "item": new(item.Model), "pub": new(pub.Model), "site": new(site.Model), "slot": new(slot.Model), "targetname": new(targetname.Model), "weight": new(weight.Model),
-	}
-
-	storage := map[string]interface{}{
-		"agent": new(agent.Model), "manage": new(manage.Model), "payment": new(payment.Model), "alipay": new(alipay.Model), "wechat": new(wechat.Model), "cheque": new(cheque.Model), "cc": new(cc.Model), "ac": new(ac.Model), "address": new(address.Model), "adv": new(adv.Model), "attrname": new(attrname.Model), "campaign": new(campaign.Model), "chac": new(chac.Model), "channel": new(channel.Model), "balance": new(balance.Model), "ledger": new(ledger.Model), "creative": new(creative.Model), "item": new(item.Model), "pub": new(pub.Model), "site": new(site.Model), "slot": new(slot.Model), "targetname": new(targetname.Model), "weight": new(weight.Model),
-	}
-
-	filters := map[string]interface{}{
-		"agent": new(agent.Filter), "manage": new(manage.Filter), "payment": new(payment.Filter), "alipay": new(alipay.Filter), "wechat": new(wechat.Filter), "cheque": new(cheque.Filter), "cc": new(cc.Filter), "ac": new(ac.Filter), "address": new(address.Filter), "adv": new(adv.Filter), "attrname": new(attrname.Filter), "campaign": new(campaign.Filter), "chac": new(chac.Filter), "channel": new(channel.Filter), "balance": new(balance.Filter), "ledger": new(ledger.Filter), "creative": new(creative.Filter), "item": new(item.Filter), "pub": new(pub.Filter), "site": new(site.Filter), "slot": new(slot.Filter), "targetname": new(targetname.Filter), "weight": new(weight.Filter),
-	}
-
 	c, err := genelet.NewConfig(fn)
 	if err != nil {
 		return nil, err
 	}
-	for k := range models {
-		comp := genelet.NewComponent(c.ProjectRoot + "/summer/" + k + "/component.json")
-		genelet.Invoke0(models[k], "Initialize", comp, logger)
-		genelet.Invoke0(storage[k], "Initialize", comp, logger)
-		genelet.Invoke0(filters[k], "Initialize", comp, logger)
+	models, storage, filters := registry.Build()
+	for _, entry := range registry.Entries {
+		comp, err := genelet.LoadComponent(c.ProjectRoot + "/summer/" + entry.Name + "/component.json")
+		if err != nil {
+			return nil, err
+		}
+		if err := genelet.InvokeVoid(models[entry.Name], "Initialize", comp, logger); err != nil {
+			return nil, err
+		}
+		if err := genelet.InvokeVoid(storage[entry.Name], "Initialize", comp, logger); err != nil {
+			return nil, err
+		}
+		if err := genelet.InvokeVoid(filters[entry.Name], "Initialize", comp, logger); err != nil {
+			return nil, err
+		}
 	}
 
 	return &genelet.Controller{

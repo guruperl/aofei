@@ -133,6 +133,55 @@ var LARGES = map[string][]map[string]interface{}{
 	},
 }
 
+func LargeOptions(name string) []map[string]interface{} {
+	source := LARGES[name]
+	out := make([]map[string]interface{}, 0, len(source))
+	for _, item := range source {
+		clone := make(map[string]interface{}, len(item)+1)
+		for k, v := range item {
+			clone[k] = v
+		}
+		out = append(out, clone)
+	}
+	return out
+}
+
+func storageNATS(storage map[string]interface{}) (*nats.Conn, bool, error) {
+	raw, ok := storage["Nc"]
+	if !ok || raw == nil {
+		return nil, false, nil
+	}
+	nc, ok := raw.(*nats.Conn)
+	if !ok {
+		return nil, false, fmt.Errorf("storage Nc has type %T, want *nats.Conn", raw)
+	}
+	return nc, true, nil
+}
+
+func storageRedis(storage map[string]interface{}) (radix.Client, bool, error) {
+	raw, ok := storage["Redis"]
+	if !ok || raw == nil {
+		return nil, false, nil
+	}
+	client, ok := raw.(radix.Client)
+	if !ok {
+		return nil, false, fmt.Errorf("storage Redis has type %T, want radix.Client", raw)
+	}
+	return client, true, nil
+}
+
+func storageSpreadRoot(storage map[string]interface{}) (string, error) {
+	raw, ok := storage["Spread"]
+	if !ok || raw == nil {
+		return "", nil
+	}
+	top, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("storage Spread has type %T, want string", raw)
+	}
+	return top, nil
+}
+
 func SetSizeID(args url.Values) error {
 	if args.Get("w") == "" || args.Get("h") == "" {
 		return fmt.Errorf("w or h is empty")
@@ -240,7 +289,7 @@ func (self *Filter) AfterItemSet(name, str string) []map[string]interface{} {
 	}
 
 	lists := make([]map[string]interface{}, 0)
-	for _, item := range LARGES[name] {
+	for _, item := range LargeOptions(name) {
 		if Grep(values, item["which"].(string)) {
 			item["selected"] = true
 		} else {
@@ -288,13 +337,17 @@ func (self *Filter) After(model *Model) error {
 			par = []string{"creative_id", ARGS.Get("creative_id")}
 		default:
 		}
-		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
-			if err := match.DBGetCreativesToRedisSpread(ctx, nc.(*nats.Conn), model.DB, par...); err != nil {
+		if nc, ok, err := storageNATS(model.Storage); err != nil {
+			return err
+		} else if ok {
+			if err := match.DBGetCreativesToRedisSpread(ctx, nc, model.DB, par...); err != nil {
 				return err
 			}
 		}
-		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
-			if err := match.DBGetCreativesToRedisSpread(ctx, redis.(radix.Client), model.DB, par...); err != nil {
+		if redis, ok, err := storageRedis(model.Storage); err != nil {
+			return err
+		} else if ok {
+			if err := match.DBGetCreativesToRedisSpread(ctx, redis, model.DB, par...); err != nil {
 				return err
 			}
 		}
@@ -318,11 +371,15 @@ func (self *Filter) After(model *Model) error {
 	if obj == "targetname" && action == "insert" {
 		aud, err := match.DBGetAudience(model.DB, itemID)
 		if err == nil && aud != nil {
-			if nc, ok := model.Storage["Nc"]; ok && nc != nil {
-				err = aud.ToSpread(nc.(*nats.Conn), itemID)
+			if nc, ok, storageErr := storageNATS(model.Storage); storageErr != nil {
+				return storageErr
+			} else if ok {
+				err = aud.ToSpread(nc, itemID)
 			}
-			if redis, ok := model.Storage["Redis"]; ok && redis != nil {
-				err = aud.ToRedis(ctx, redis.(radix.Client), itemID)
+			if redis, ok, storageErr := storageRedis(model.Storage); storageErr != nil {
+				return storageErr
+			} else if ok {
+				err = aud.ToRedis(ctx, redis, itemID)
 			}
 		}
 		if err != nil {
@@ -332,21 +389,28 @@ func (self *Filter) After(model *Model) error {
 
 	if who == "admin" && obj == "item" && action == "update" {
 		var err error
-		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
-			top := model.Storage["Spread"].(string)
+		if nc, ok, storageErr := storageNATS(model.Storage); storageErr != nil {
+			return storageErr
+		} else if ok {
+			top, storageErr := storageSpreadRoot(model.Storage)
+			if storageErr != nil {
+				return storageErr
+			}
 			switch ARGS.Get("how") {
 			case "Get":
-				err = match.DBGetRAdvsToRedisSpreadByItemID(ctx, nc.(*nats.Conn), model.DB, itemID, top)
+				err = match.DBGetRAdvsToRedisSpreadByItemID(ctx, nc, model.DB, itemID, top)
 			case "Delete":
-				err = match.DBDeleteRAdvsToRedisSpreadByItemID(ctx, nc.(*nats.Conn), model.DB, itemID, top)
+				err = match.DBDeleteRAdvsToRedisSpreadByItemID(ctx, nc, model.DB, itemID, top)
 			}
 		}
-		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+		if redis, ok, storageErr := storageRedis(model.Storage); storageErr != nil {
+			return storageErr
+		} else if ok {
 			switch ARGS.Get("how") {
 			case "Get":
-				err = match.DBGetRAdvsToRedisSpreadByItemID(ctx, redis.(radix.Client), model.DB, itemID)
+				err = match.DBGetRAdvsToRedisSpreadByItemID(ctx, redis, model.DB, itemID)
 			case "Delete":
-				err = match.DBDeleteRAdvsToRedisSpreadByItemID(ctx, redis.(radix.Client), model.DB, itemID)
+				err = match.DBDeleteRAdvsToRedisSpreadByItemID(ctx, redis, model.DB, itemID)
 			}
 		}
 		if err != nil {
@@ -359,11 +423,15 @@ func (self *Filter) After(model *Model) error {
 		if err != nil {
 			return fmt.Errorf("failed to get pub: %s", err.Error())
 		}
-		if nc, ok := model.Storage["Nc"]; ok && nc != nil {
-			err = pub.ToSpread(nc.(*nats.Conn), domain)
+		if nc, ok, storageErr := storageNATS(model.Storage); storageErr != nil {
+			return storageErr
+		} else if ok {
+			err = pub.ToSpread(nc, domain)
 		}
-		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
-			err = pub.ToRedis(ctx, redis.(radix.Client), domain)
+		if redis, ok, storageErr := storageRedis(model.Storage); storageErr != nil {
+			return storageErr
+		} else if ok {
+			err = pub.ToRedis(ctx, redis, domain)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to update pub of %s: %s", domain, err.Error())
@@ -398,13 +466,14 @@ func (self *Filter) After(model *Model) error {
 		if err != nil {
 			return err
 		}
-		if redis, ok := model.Storage["Redis"]; ok && redis != nil {
+		if redis, ok, storageErr := storageRedis(model.Storage); storageErr != nil {
+			return storageErr
+		} else if ok {
 			fn, err := os.Open(dest)
 			if err != nil {
 				return err
 			}
 			defer fn.Close()
-			conn := redis.(radix.Client)
 			id := uint32(advID)
 			scanner := bufio.NewScanner(fn)
 			i := 0
@@ -416,7 +485,7 @@ func (self *Filter) After(model *Model) error {
 				if line == "" {
 					continue
 				}
-				err = uploaded.UploadSingle(ctx, conn, id, marker, line)
+				err = uploaded.UploadSingle(ctx, redis, id, marker, line)
 				if err != nil {
 					return err
 				}

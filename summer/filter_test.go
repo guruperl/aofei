@@ -31,3 +31,21 @@ func TestFilter(t *testing.T) {
 		t.Errorf("%v\n", filter.R.Form)
 	}
 }
+
+func TestAfterItemSetDoesNotMutateLargeOptions(t *testing.T) {
+	filter := &Filter{}
+	original := LARGES["language"][0]["selected"]
+
+	options := filter.AfterItemSet("language", "ZH")
+	if len(options) == 0 {
+		t.Fatal("AfterItemSet returned no options")
+	}
+	options[0]["selected"] = "changed"
+
+	if got := LARGES["language"][0]["selected"]; got != original {
+		t.Fatalf("LARGES mutated: got %#v, want %#v", got, original)
+	}
+	if _, ok := LARGES["language"][0]["label_chinese"]; ok {
+		t.Fatal("LARGES gained request-specific translated label")
+	}
+}

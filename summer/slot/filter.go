@@ -77,11 +77,11 @@ func (self *Filter) After(model *Model) error {
 
 	if action == "startnew" {
 		for _, name := range []string{"language", "device", "position"} {
-			other["qa_"+name] = summer.LARGES[name]
+			other["qa_"+name] = summer.LargeOptions(name)
 			summer.TranslateOne(other["qa_"+name], "label", "label_chinese")
 		}
 		for _, name := range []string{"mime", "creative", "expnd"} {
-			other["fl_"+name] = summer.LARGES[name]
+			other["fl_"+name] = summer.LargeOptions(name)
 			summer.TranslateOne(other["fl_"+name], "label", "label_chinese")
 		}
 		summer.TranslateOne(other["channel_topics"], "channel_name", "channel_name_g")
