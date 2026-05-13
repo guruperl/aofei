@@ -33,6 +33,7 @@ type Config struct {
 	Spread                      string   `json:"spread,omitempty"`
 	IsLocal                     bool     `json:"is_local,omitempty"`
 	MiddlemanEnabled            bool     `json:"middleman_enabled,omitempty"`
+	MiddlemanAlwaysEnabled      bool     `json:"middleman_always_enabled,omitempty"`
 	MiddlemanTimeoutMS          int      `json:"middleman_timeout_ms,omitempty"`
 	MiddlemanMaxBiddersPerImp   int      `json:"middleman_max_bidders_per_imp,omitempty"`
 	MiddlemanExchangeDomain     string   `json:"middleman_exchange_domain,omitempty"`

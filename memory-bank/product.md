@@ -65,6 +65,9 @@ advertiser-owned endpoint and reporting schema boundary:
 - Retryable downstream middleman callback forwarding failures are queued
   durably after `/mid/*` callbacks and retried by a singleton operations
   command; `/bid` remains cache/Redis-only and does not write MySQL retry rows.
+- `trigger_mode='Always'` middleman auction expansion is gated by
+  `middleman_always_enabled`; when enabled, eligible marked-up middleman bids
+  compete with local bids by effective CPM.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

@@ -5,6 +5,7 @@ go 1.22
 toolchain go1.23.5
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/IncSW/geoip2 v0.1.3
 	github.com/delongw/go-int-cipher v0.0.0-20151122132803-cb275de15ba8
 	github.com/go-sql-driver/mysql v1.8.1

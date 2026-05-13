@@ -619,7 +619,7 @@ Acceptance:
 - Retry execution forwards downstream only and does not republish win/loss or
   billable delivery records.
 
-## M25 - Middleman Auction Expansion `[ ]`
+## M25 - Middleman Auction Expansion `[+]`
 
 Allow explicitly gated middleman fanout to compete with local bids after M24 is
 closed and reviewed.
@@ -640,14 +640,12 @@ Acceptance:
   callback-proxy controls continue to apply.
 - Mixed local and middleman winners can be returned in one OpenRTB response.
 
-## Post-M24 Middleman Backlog
+## Post-M25 Middleman Backlog
 
-These items remain intentionally outside M24:
+These items remain intentionally outside M25:
 
 - Add spread/local snapshots for middleman bidder routes if `cmd/unify` should
   support middleman fallback without Redis static-cache reads.
-- Complete M25 `trigger_mode='Always'` runtime behavior when operators need
-  downstream fanout even when local campaigns can bid.
 - Add real invoicing/payment execution from `daily_mid` settlement facts.
 - Keep arbitrary downstream markup impression/click rewriting closed unless a
   future reporting requirement makes cooperative click notify insufficient.

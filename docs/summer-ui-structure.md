@@ -106,10 +106,11 @@ Spread -> string spread root
 Summer accesses those through typed helper functions so a missing adapter is a
 no-op and a wrong adapter type is an explicit error.
 
-Middleman route edits write MySQL only. They do not refresh `middleman:routes`
-from the UI or from `cmd/unify`; the singleton `cmd/redis-cache -cache=redis|all`
-job remains responsible for publishing route changes to Redis, with
-`cmd/redis-cache -cache=routes` available for route-only refresh. The
+Middleman route edits write MySQL only. They do not refresh `middleman:routes:v2`
+or legacy `middleman:routes` from the UI or from `cmd/unify`; the singleton
+`cmd/redis-cache -cache=redis|all` job remains responsible for publishing route
+changes to Redis, with `cmd/redis-cache -cache=routes` available for route-only
+refresh. The
 `midroute` topics and health actions show Redis route-cache freshness and route
 configuration health, but they do not execute cache refreshes or read credential
 secret values.

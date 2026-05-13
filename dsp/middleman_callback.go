@@ -555,21 +555,22 @@ func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value 
 	}
 	target, status, code, lastErr := self.forwardMiddlemanCallback(ctx, raw, value, prices)
 	if midcallback.RetryableForward(status, code) {
-		if err := self.enqueueMiddlemanCallbackRetry(ctx, value, source, target, prices, status, code, lastErr); err != nil {
-			if self.Logger != nil {
-				self.Logger.Sugar().Warnf("middleman callback retry enqueue failed: %v", err)
-			}
+		queued, err := self.enqueueMiddlemanCallbackRetry(ctx, value, source, target, prices, status, code, lastErr)
+		if err != nil && self.Logger != nil {
+			self.Logger.Sugar().Warnf("middleman callback retry enqueue failed: %v", err)
 		}
-		_ = self.callbackStore().ClearNotify(ctx, value.Token, source)
+		if !queued {
+			_ = self.callbackStore().ClearNotify(ctx, value.Token, source)
+		}
 	}
 	return status, code, nil
 }
 
-func (self *Controller) enqueueMiddlemanCallbackRetry(ctx context.Context, value middlemanCallbackContext, source, target string, prices middlemanPrices, status string, code int, lastErr string) error {
+func (self *Controller) enqueueMiddlemanCallbackRetry(ctx context.Context, value middlemanCallbackContext, source, target string, prices middlemanPrices, status string, code int, lastErr string) (bool, error) {
 	if self == nil || self.DB == nil || target == "" {
-		return nil
+		return false, nil
 	}
-	return midcallback.Enqueue(ctx, self.DB, midcallback.Failure{
+	err := midcallback.Enqueue(ctx, self.DB, midcallback.Failure{
 		Token:         value.Token,
 		Source:        source,
 		CallbackURL:   target,
@@ -586,6 +587,7 @@ func (self *Controller) enqueueMiddlemanCallbackRetry(ctx context.Context, value
 		HTTPStatus:    code,
 		LastError:     middlemanForwardError(status, code, lastErr),
 	})
+	return err == nil, err
 }
 
 func middlemanForwardError(status string, code int, lastErr string) string {

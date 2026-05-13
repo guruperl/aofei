@@ -104,9 +104,10 @@ and cap-mutation tracker payloads.
 
 Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
 When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
-`middleman_max_bidders_per_imp` deliberately. Middleman callback proxying also
-requires `tracking_secret`, Redis, and a public `middleman_callback_base_url`
-that points back to the `cmd/unify` HTTP service; set
+`middleman_max_bidders_per_imp` deliberately. `trigger_mode='Always'` route
+fanout is ignored unless `middleman_always_enabled` is also true. Middleman
+callback proxying also requires `tracking_secret`, Redis, and a public
+`middleman_callback_base_url` that points back to the `cmd/unify` HTTP service; set
 `middleman_callback_ttl_seconds` and `middleman_callback_timeout_ms` according
 to exchange callback latency expectations. Each active bidder
 `credential_ref` names an environment variable visible to `cmd/unify`; its
@@ -306,9 +307,10 @@ Smoke checks:
 
 - `cmd/unify` listens on `ServerPort` and serves expected admin/static paths.
 - DSP bid endpoint returns the expected local or staging fixture response.
-- Redis contains `pubmap`, `audience`, `creative`, `middleman:routes`, and
-  `slot:<size_id>` cache families after cache population when Redis
-  static-cache mode or middleman fallback is used.
+- Redis contains `pubmap`, `audience`, `creative`, `middleman:routes:v2`,
+  fallback-only legacy `middleman:routes`, and `slot:<size_id>` cache families
+  after cache population when Redis static-cache mode or middleman fallback is
+  used.
 - `cmd/redis-cache -cache=routes -read` shows current route-cache metadata when
   middleman routes are used.
 - The middleman callback retry timer runs on one operations node and can read

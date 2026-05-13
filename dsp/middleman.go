@@ -20,8 +20,9 @@ import (
 )
 
 type middlemanFallbackImp struct {
-	Index int
-	Attr  *match.Attribute
+	Index        int
+	Attr         *match.Attribute
+	TriggerModes []string
 }
 
 type middlemanCandidate struct {
@@ -110,10 +111,6 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 	winners := make([]middlemanDownstreamBid, 0, len(best))
 	for _, imp := range fallbackImps {
 		if selected, ok := best[imp.Index]; ok {
-			if err := self.prepareMiddlemanCallback(ctx, bid, &selected); err != nil {
-				glog.Infof("middleman bidder %d callback setup failed: %v", selected.Entry.BidderID, err)
-				continue
-			}
 			winners = append(winners, selected)
 		}
 	}
@@ -168,6 +165,9 @@ func middlemanCandidatesForImp(cache *match.MiddlemanRouteCache, fallback middle
 		if !entry.Eligible(fallback.Attr) {
 			continue
 		}
+		if !middlemanTriggerAllowed(entry.TriggerMode, fallback.TriggerModes) {
+			continue
+		}
 		candidate := middlemanCandidate{ImpIndex: fallback.Index, Attr: fallback.Attr, Entry: entry}
 		current, ok := bestByBidder[entry.BidderID]
 		if !ok || middlemanCandidateLess(candidate, current) {
@@ -185,6 +185,21 @@ func middlemanCandidatesForImp(cache *match.MiddlemanRouteCache, fallback middle
 		candidates = candidates[:maxBidders]
 	}
 	return candidates
+}
+
+func middlemanTriggerAllowed(entryMode string, allowed []string) bool {
+	if entryMode == "" {
+		entryMode = "Fallback"
+	}
+	if len(allowed) == 0 {
+		return entryMode == "Fallback"
+	}
+	for _, mode := range allowed {
+		if mode == entryMode {
+			return true
+		}
+	}
+	return false
 }
 
 func middlemanCandidateLess(a, b middlemanCandidate) bool {

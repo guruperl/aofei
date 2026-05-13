@@ -97,25 +97,31 @@ Route targets may point at existing publisher entities: `3=pub`,
 
 ## Runtime Contract
 
-M20 enables per-impression fallback behind `middleman_enabled`. Local campaign
-bids still win first. Only impressions that local campaign matching cannot fill
-are considered for downstream fanout. Route group `trigger_mode='Always'` is not
-active in M20.
+Middleman runtime remains behind `middleman_enabled`. `Fallback` route groups
+fan out only for impressions that local campaign matching cannot fill. M25 adds
+`Always` route behavior behind the separate `middleman_always_enabled` gate,
+default false. When that gate is off, `Always` routes are ignored at runtime.
+When it is on, matching `Always` routes may fan out even for impressions where
+local campaigns produced a bid.
 
 Operators manage `mid_route_group`, `mid_route_bidder`, and `mid_route_target`
 through the admin `midroute` Summer/Genelet UI. The bidder route cache is
-Redis-only under `middleman:routes`. The singleton
-`cmd/redis-cache -cache=redis|all|routes` job builds it from active
-`adv_bidder`, `mid_route_group`, `mid_route_bidder`, and `mid_route_target`
-rows. `cmd/unify` does not refresh this cache after route edits.
+Redis-only. M25 runtimes prefer `middleman:routes:v2`, while the legacy
+`middleman:routes` key remains fallback-only for M24 rolling-deploy safety. The
+singleton `cmd/redis-cache -cache=redis|all|routes` job builds both keys from
+active `adv_bidder`, `mid_route_group`, `mid_route_bidder`, and
+`mid_route_target` rows. `cmd/unify` does not refresh this cache after route
+edits.
 
-The route cache remains version 1 JSON. M24 adds optional metadata to the
-payload: generation time, entry count, source, route-table high-water timestamp,
-and a checksum over route entries. Older version-1 payloads without metadata
-remain readable, but freshness is reported as unknown. The admin `midroute`
-topics page and JSON output expose the Redis metadata beside the current MySQL
-route high-water timestamp. The admin UI is visibility-only; operators still run
-the singleton cache command on the cache node to publish route changes.
+M24 version-1 route payloads added optional metadata: generation time, entry
+count, source, route-table high-water timestamp, and a checksum over route
+entries. M25 writes version-2 payloads with `trigger_mode` under
+`middleman:routes:v2`; older version-1 payloads without metadata or trigger
+mode remain readable, and a missing trigger mode is treated as `Fallback`. The
+admin `midroute` topics page and JSON output expose preferred-key Redis metadata
+beside the current MySQL route high-water timestamp. The admin UI is
+visibility-only; operators still run the singleton cache command on the cache
+node to publish route changes.
 
 `midroute?action=health` reports active route groups with no active targets or
 route bidders, active route bidders whose downstream bidder is inactive or not
@@ -136,8 +142,8 @@ example `{"Authorization":"Bearer ..."}`. Hop-by-hop headers such as `Host`,
 The forwarded OpenRTB request preserves the original request fields and full
 impression list. It overrides `ext.request_domain` with
 `middleman_exchange_domain` and does not add user profile enrichment yet. The
-auction accepts downstream bids only for impressions that local campaign
-matching did not fill.
+auction accepts downstream bids only for impressions eligible under the selected
+route trigger mode.
 
 The fanout budget is the minimum of remaining nonzero incoming OpenRTB `tmax`
 after local matching, group timeout, bidder or route-bidder timeout, and
@@ -151,11 +157,19 @@ and apply markup only on the response returned upstream:
 upstream_price = downstream_price + max(downstream_price * margin_pct, min_margin_cpm)
 ```
 
-If no downstream bid survives validation and markup checks, the response remains
-`204 No Content`.
+If no downstream bid survives validation and markup checks, `Fallback`
+impressions remain no-bid and `Always` impressions keep their local winner when
+one exists.
 
 The upstream bid keeps downstream ad markup, but uses the approved synthetic
 campaign and creative IDs for `seat`, `cid`, `crid`, and `adid`.
+
+M25 chooses one final winner per impression. Local matching still runs first.
+For `Always` route candidates, marked-up middleman bids compete with local bids
+on effective CPM. If the middleman bid is higher, the response uses the
+synthetic reporting IDs and M21 callback proxying. If the local bid is higher or
+price comparison is unsafe, the local bid remains the winner and existing local
+callback and ledger behavior are preserved.
 
 M21 keeps Aofei in the OpenRTB callback path for selected middleman winners.
 After the final per-impression winner is selected, `cmd/unify` stores a
@@ -202,10 +216,13 @@ auction, route, bidder, price, and currency context to retry after the Redis
 callback context expires. Missing URLs, invalid URLs, duplicate notifications,
 and HTTP 4xx responses other than 429 are not queued.
 
-The singleton `cmd/mid-callback-retry` command processes due retry rows with
+The singleton `cmd/mid-callback-retry` command claims due rows as `Processing`
+before forwarding, then marks them `Succeeded`, `Retrying`, or `Abandoned` with
 bounded attempts and exponential backoff. It forwards downstream callbacks only;
 it does not republish win/loss or delivery records, so ledger counts remain
-idempotent.
+idempotent. Once a retryable `/mid/*` failure is durably queued, duplicate
+exchange callbacks remain suppressed by the Redis notify key and are not
+enqueued again.
 
 Forwarded requests still preserve the full original impression list and add
 cooperative click notify URLs under `ext.aofei_middleman.click_notify_urls`.
@@ -230,11 +247,12 @@ markup.
   targets; route-cache refresh remains a singleton `cmd/redis-cache` job.
 - M24: route-cache freshness/health visibility, route-only cache refresh, and
   durable retry for retryable downstream callback forwards.
+- M25: gated `trigger_mode='Always'` fanout and effective-CPM winner selection
+  between local and middleman bids.
 
-## Post-M24 Backlog
+## Post-M25 Backlog
 
-The live middleman TODOs after M24 are optional spread/local route snapshots,
-`trigger_mode='Always'` runtime behavior, and real invoicing/payment execution
-from settlement facts. Arbitrary downstream `adm` impression/click rewriting
-remains closed unless a future reporting requirement makes cooperative click
-notify insufficient.
+The live middleman TODOs after M25 are optional spread/local route snapshots and
+real invoicing/payment execution from settlement facts. Arbitrary downstream
+`adm` impression/click rewriting remains closed unless a future reporting
+requirement makes cooperative click notify insufficient.

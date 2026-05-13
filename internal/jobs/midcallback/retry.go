@@ -90,22 +90,20 @@ INSERT INTO mid_callback_retry
 	 attempts, next_attempt_at, status, last_http_status, last_error, created, updated)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'Pending', ?, ?, NOW(), NOW())
 ON DUPLICATE KEY UPDATE
-	callback_url=VALUES(callback_url),
-	bidder_id=VALUES(bidder_id),
-	group_id=VALUES(group_id),
-	route_bidder_id=VALUES(route_bidder_id),
-	target_id=VALUES(target_id),
-	auction_id=VALUES(auction_id),
-	imp_id=VALUES(imp_id),
-	auction_bid_id=VALUES(auction_bid_id),
-	charge_price=VALUES(charge_price),
-	pay_price=VALUES(pay_price),
-	currency=VALUES(currency),
-	next_attempt_at=IF(status IN ('Succeeded', 'Abandoned'), next_attempt_at, VALUES(next_attempt_at)),
-	status=IF(status IN ('Succeeded', 'Abandoned'), status, 'Pending'),
-	last_http_status=VALUES(last_http_status),
-	last_error=VALUES(last_error),
-	updated=NOW()`,
+	callback_url=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), callback_url, VALUES(callback_url)),
+	bidder_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), bidder_id, VALUES(bidder_id)),
+	group_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), group_id, VALUES(group_id)),
+	route_bidder_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), route_bidder_id, VALUES(route_bidder_id)),
+	target_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), target_id, VALUES(target_id)),
+	auction_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), auction_id, VALUES(auction_id)),
+	imp_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), imp_id, VALUES(imp_id)),
+	auction_bid_id=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), auction_bid_id, VALUES(auction_bid_id)),
+	charge_price=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), charge_price, VALUES(charge_price)),
+	pay_price=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), pay_price, VALUES(pay_price)),
+	currency=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), currency, VALUES(currency)),
+	last_http_status=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), last_http_status, VALUES(last_http_status)),
+	last_error=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), last_error, VALUES(last_error)),
+	updated=IF(status IN ('Processing', 'Succeeded', 'Abandoned'), updated, NOW())`,
 		failure.Token, failure.Source, failure.CallbackURL, failure.BidderID, failure.GroupID,
 		failure.RouteBidderID, failure.TargetID, failure.AuctionID, failure.ImpID,
 		failure.AuctionBidID, failure.ChargePrice, failure.PayPrice, failure.Currency,
@@ -118,7 +116,11 @@ func Run(ctx context.Context, db *sql.DB, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("database is nil")
 	}
 	opts = opts.withDefaults()
-	rows, err := dueRows(ctx, db, opts.Limit, opts.MaxAttempts)
+	rowSelector := claimDueRows
+	if opts.DryRun {
+		rowSelector = dueRows
+	}
+	rows, err := rowSelector(ctx, db, opts.Limit, opts.MaxAttempts)
 	if err != nil {
 		return Result{}, err
 	}
@@ -186,6 +188,76 @@ LIMIT ?`, maxAttempts, limit)
 	return out, rows.Err()
 }
 
+func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int) ([]Row, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	rows, err := tx.QueryContext(ctx, `
+	SELECT retry_id, token, source, callback_url, attempts
+	FROM mid_callback_retry
+	WHERE status IN ('Pending', 'Retrying')
+	  AND next_attempt_at <= NOW()
+	  AND attempts < ?
+	ORDER BY next_attempt_at ASC, retry_id ASC
+	LIMIT ?
+	FOR UPDATE`, maxAttempts, limit)
+	if err != nil {
+		return nil, err
+	}
+	var out []Row
+	for rows.Next() {
+		var row Row
+		if err := rows.Scan(&row.RetryID, &row.Token, &row.Source, &row.CallbackURL, &row.Attempts); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		committed = true
+		return out, nil
+	}
+
+	ids := make([]any, 0, len(out))
+	placeholders := ""
+	for i, row := range out {
+		if i != 0 {
+			placeholders += ","
+		}
+		placeholders += "?"
+		ids = append(ids, row.RetryID)
+	}
+	_, err = tx.ExecContext(ctx, `
+	UPDATE mid_callback_retry
+	SET status='Processing', updated=NOW()
+	WHERE retry_id IN (`+placeholders+`)`, ids...)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return out, nil
+}
+
 func forward(ctx context.Context, raw string, opts Options) (string, int, string) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -215,25 +287,25 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 
 func markSucceeded(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int) error {
 	_, err := db.ExecContext(ctx, `
-UPDATE mid_callback_retry
-SET status='Succeeded', attempts=?, last_http_status=?, last_error=NULL, updated=NOW()
-WHERE retry_id=?`, attempts, nullableHTTPStatus(code), retryID)
+	UPDATE mid_callback_retry
+	SET status='Succeeded', attempts=?, last_http_status=?, last_error=NULL, updated=NOW()
+	WHERE retry_id=? AND status='Processing'`, attempts, nullableHTTPStatus(code), retryID)
 	return err
 }
 
 func markRetrying(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int, lastErr string, next time.Time) error {
 	_, err := db.ExecContext(ctx, `
-UPDATE mid_callback_retry
-SET status='Retrying', attempts=?, next_attempt_at=?, last_http_status=?, last_error=?, updated=NOW()
-WHERE retry_id=?`, attempts, next.UTC(), nullableHTTPStatus(code), nullableError(lastErr), retryID)
+	UPDATE mid_callback_retry
+	SET status='Retrying', attempts=?, next_attempt_at=?, last_http_status=?, last_error=?, updated=NOW()
+	WHERE retry_id=? AND status='Processing'`, attempts, next.UTC(), nullableHTTPStatus(code), nullableError(lastErr), retryID)
 	return err
 }
 
 func markAbandoned(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int, lastErr string) error {
 	_, err := db.ExecContext(ctx, `
-UPDATE mid_callback_retry
-SET status='Abandoned', attempts=?, last_http_status=?, last_error=?, updated=NOW()
-WHERE retry_id=?`, attempts, nullableHTTPStatus(code), nullableError(lastErr), retryID)
+	UPDATE mid_callback_retry
+	SET status='Abandoned', attempts=?, last_http_status=?, last_error=?, updated=NOW()
+	WHERE retry_id=? AND status='Processing'`, attempts, nullableHTTPStatus(code), nullableError(lastErr), retryID)
 	return err
 }
 

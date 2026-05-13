@@ -41,7 +41,8 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
 
-This refresh also compiles `middleman:routes` for enabled middleman fallback.
+This refresh also compiles `middleman:routes:v2` for M25 middleman routing and
+the fallback-only legacy `middleman:routes` key for M24 rolling-deploy safety.
 Run it only from the dedicated cache-maintenance node; `cmd/unify` does not
 refresh bidder routes itself. After operators edit route groups, route bidders,
 or route targets in Summer, run this refresh before expecting HTTP workers to
@@ -124,7 +125,8 @@ Outputs:
 - `.local/spread/slot/<size_id>/`
 
 Middleman bidder routes are not spread snapshots. They remain Redis-only under
-`middleman:routes`.
+`middleman:routes:v2`, with `middleman:routes` kept as a fallback-only legacy
+key.
 
 Notes:
 
@@ -216,7 +218,8 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 Inputs:
 
 - Docker MySQL from `AOFEI`.
-- Due rows in `mid_callback_retry` with status `Pending` or `Retrying`.
+- Due rows in `mid_callback_retry` with status `Pending` or `Retrying`; process
+  mode claims rows as `Processing` before downstream forwarding.
 
 Outputs:
 

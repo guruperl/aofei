@@ -105,7 +105,7 @@ func templateCacheOther() map[string]interface{} {
 
 func templateCacheStatus() map[string]interface{} {
 	return map[string]interface{}{
-		"cache_key":              "middleman:routes",
+		"cache_key":              "middleman:routes:v2",
 		"cache_status":           "fresh",
 		"cache_generated_at":     "2026-05-13T00:00:00Z",
 		"cache_entry_count":      int64(1),

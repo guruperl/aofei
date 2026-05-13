@@ -58,7 +58,8 @@ Runtime matching reads these Redis families:
 | `slot:<size_id>` | Hash keyed by slot id, binary `match.RAdvs`. | `cmd/redis-cache` from active creatives and slots. |
 | `audience` | Hash keyed by item id, gob-encoded `match.Audience`. | `cmd/redis-cache` from active item targeting. |
 | `creative` | Hash keyed by creative id, gob-encoded `match.Creative`. | `cmd/redis-cache` from active creatives. |
-| `middleman:routes` | Versioned JSON route/bidder cache with synthetic ACL payloads. | `cmd/redis-cache -cache=redis` from active `adv_bidder` and `mid_route_*` rows. |
+| `middleman:routes:v2` | Preferred M25 JSON route/bidder cache with trigger mode and synthetic ACL payloads. | `cmd/redis-cache -cache=redis` from active `adv_bidder` and `mid_route_*` rows. |
+| `middleman:routes` | Legacy fallback-only JSON route/bidder cache for rolling deploys. | Written by the same cache job. |
 | `bothcap:<user_id>` | Hash keyed by item id, binary `match.BothCap`. | Tracker callbacks on `/imp` and `/clk`. |
 | `upload:<adv_id>:<marker>` | Redis set of uploaded identifier values. | Upload/admin flows. |
 
@@ -101,9 +102,9 @@ The current bid path applies filters in this order:
 6. If no uploaded direct match exists, run combined audience predicates.
 7. Pick a candidate using bid-floor/cost/weight math.
 8. Load the creative and render response markup.
-9. For impressions with no local bid, optionally run middleman fallback from
-   `middleman:routes`, filtering each bidder through synthetic ACL/channel
-   eligibility before any downstream OpenRTB call.
+9. Optionally run middleman routing from `middleman:routes:v2`, filtering each
+   bidder through trigger mode and synthetic ACL/channel eligibility before any
+   downstream OpenRTB call.
 
 `Audience.Has` evaluates geo, demo, user-agent, date/hour, and ACL predicates.
 If a candidate has no audience object, both Redis and spread/IO modes treat it

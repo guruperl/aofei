@@ -289,7 +289,7 @@ func WriteToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.Pu
 }
 
 func ResetRedisStaticCaches(ctx context.Context, redis radix.Client) error {
-	for _, name := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameMiddlemanRoutes} {
+	for _, name := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameMiddlemanRoutes, match.HashNameMiddlemanRoutesV2} {
 		if err := redis.Do(ctx, radix.Cmd(nil, "DEL", name)); err != nil {
 			return err
 		}

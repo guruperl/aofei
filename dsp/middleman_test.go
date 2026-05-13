@@ -42,6 +42,115 @@ func TestMiddlemanCandidatesDedupAndCap(t *testing.T) {
 	}
 }
 
+func TestMiddlemanCandidatesTriggerModes(t *testing.T) {
+	cache := &match.MiddlemanRouteCache{
+		Version: match.MiddlemanRouteCacheVersion,
+		Entries: []match.MiddlemanRouteEntry{
+			{TargetID: 1, RouteBidderID: 1, BidderID: 1, TriggerMode: "Fallback", RouteBidderPriority: 10, TargetPriority: 1},
+			{TargetID: 2, RouteBidderID: 2, BidderID: 2, TriggerMode: "Always", RouteBidderPriority: 20, TargetPriority: 1},
+		},
+	}
+	attr := &match.Attribute{RPub: match.RPub{PubID: 10, SiteID: 20, SlotID: 30, SizeID: 4194368}, ACL: &acl.ACL{SiteType: acl.SiteTypeWeb}}
+
+	fallbackOnly := middlemanCandidatesForImp(cache, middlemanFallbackImp{Index: 0, Attr: attr}, 5)
+	if len(fallbackOnly) != 1 || fallbackOnly[0].Entry.BidderID != 1 {
+		t.Fatalf("fallback candidates = %#v, want only fallback bidder", fallbackOnly)
+	}
+
+	alwaysOnly := middlemanCandidatesForImp(cache, middlemanFallbackImp{Index: 0, Attr: attr, TriggerModes: []string{"Always"}}, 5)
+	if len(alwaysOnly) != 1 || alwaysOnly[0].Entry.BidderID != 2 {
+		t.Fatalf("always candidates = %#v, want only always bidder", alwaysOnly)
+	}
+
+	both := middlemanCandidatesForImp(cache, middlemanFallbackImp{Index: 0, Attr: attr, TriggerModes: []string{"Fallback", "Always"}}, 5)
+	if len(both) != 2 {
+		t.Fatalf("both candidates = %#v, want both trigger modes", both)
+	}
+}
+
+func TestChooseMiddlemanWinnerByEffectiveCPM(t *testing.T) {
+	local := bidWinner{ImpIndex: 0, EffectiveCPM: 2.0, Comparable: true, Local: true}
+	low := middlemanDownstreamBid{ImpIndex: 0, Seat: "mid", Bid: openrtb2.Bid{ImpID: "imp", Price: 1.9}}
+	if _, replace := chooseMiddlemanWinner(local, true, low); replace {
+		t.Fatal("lower middleman bid replaced local winner")
+	}
+
+	high := middlemanDownstreamBid{ImpIndex: 0, Seat: "mid", Bid: openrtb2.Bid{ImpID: "imp", Price: 2.1}}
+	winner, replace := chooseMiddlemanWinner(local, true, high)
+	if !replace || winner.Local || winner.Bid.Price != 2.1 {
+		t.Fatalf("winner = %#v replace=%v, want middleman", winner, replace)
+	}
+
+	unsafeLocal := bidWinner{ImpIndex: 0, Local: true}
+	if _, replace := chooseMiddlemanWinner(unsafeLocal, true, high); replace {
+		t.Fatal("middleman replaced unsafe local winner")
+	}
+}
+
+func TestMaterializeBidWinnersSupportsMixedLocalAndMiddleman(t *testing.T) {
+	store := newMemoryMiddlemanCallbackStore()
+	controller := &Controller{
+		C: &Config{
+			ServerURL:                "http://aofei.example",
+			TrackingSecret:           "test-secret",
+			MiddlemanCallbackBaseURL: "http://aofei.example",
+		},
+		middlemanStore: store,
+	}
+	bid := &openrtb2.BidRequest{
+		ID: "req",
+		Imp: []openrtb2.Imp{
+			{ID: "local-imp"},
+			{ID: "mid-imp"},
+		},
+	}
+	local := bidWinner{
+		ImpIndex:      0,
+		Seat:          "local-seat",
+		Bid:           openrtb2.Bid{ID: "local-bid", ImpID: "local-imp", Price: 1.2},
+		Audit:         bidAudit{Attr: &match.Attribute{}, One: match.RAdv{Demand: match.Demand{CampaignID: 10}}},
+		ResponseBidID: "local-response",
+		Comparable:    true,
+		Local:         true,
+	}
+	mid := middlemanDownstreamBid{
+		ImpIndex:           1,
+		Seat:               "mid-seat",
+		Bid:                openrtb2.Bid{ID: "mid-bid", ImpID: "mid-imp", Price: 2.2},
+		Audit:              bidAudit{Attr: &match.Attribute{}, One: match.RAdv{Demand: match.Demand{CampaignID: 20}}},
+		ResponseBidID:      "mid-response",
+		Entry:              match.MiddlemanRouteEntry{BidderID: 7},
+		DownstreamBidPrice: 2.0,
+		UpstreamBidPrice:   2.2,
+	}
+	midWinner, replace := chooseMiddlemanWinner(bidWinner{}, false, mid)
+	if !replace {
+		t.Fatal("middleman should win empty impression")
+	}
+	seatOrder, seatBids, audits, responseBidID := controller.materializeBidWinners(
+		context.Background(),
+		bid,
+		map[int]bidWinner{0: local, 1: midWinner},
+		map[int]bidWinner{0: local},
+		nil,
+	)
+	if responseBidID != "local-response" {
+		t.Fatalf("response bid id = %q, want first local response", responseBidID)
+	}
+	if len(seatOrder) != 2 || seatOrder[0] != "local-seat" || seatOrder[1] != "mid-seat" {
+		t.Fatalf("seat order = %#v", seatOrder)
+	}
+	if len(seatBids["local-seat"]) != 1 || len(seatBids["mid-seat"]) != 1 {
+		t.Fatalf("seat bids = %#v", seatBids)
+	}
+	if seatBids["mid-seat"][0].NURL == "" || seatBids["mid-seat"][0].LURL == "" {
+		t.Fatalf("middleman callbacks were not proxied: %#v", seatBids["mid-seat"][0])
+	}
+	if len(audits) != 2 || audits[0].One.CampaignID != 10 || audits[1].One.CampaignID != 20 {
+		t.Fatalf("audits = %#v", audits)
+	}
+}
+
 func TestMiddlemanRequestExtAndPreservesImps(t *testing.T) {
 	raw := []byte(`{"id":"req-1","imp":[{"id":"imp-1"},{"id":"imp-2"}],"ext":{"request_domain":"old.example","kept":true},"vendor_unknown":{"x":1}}`)
 	body, err := middlemanRequestBodyForAssignment(raw, "aofei.example")

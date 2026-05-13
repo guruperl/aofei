@@ -189,7 +189,8 @@ Expected Redis cache families after sample population:
 | `pubmap` | Hash keyed by publisher domain. |
 | `audience` | Hash keyed by item id. |
 | `creative` | Hash keyed by creative id. |
-| `middleman:routes` | Versioned JSON bidder route cache; empty when no active routes exist. |
+| `middleman:routes:v2` | Preferred M25 JSON bidder route cache; empty when no active routes exist. |
+| `middleman:routes` | Legacy fallback-only JSON bidder route cache for rolling deploys. |
 | `slot:<size_id>` | Hash keyed by slot id; `size_id` is the packed width/height used by creatives. |
 
 Inspect all keys:

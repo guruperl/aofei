@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	HashNameMiddlemanRoutes = "middleman:routes"
+	HashNameMiddlemanRoutes   = "middleman:routes"
+	HashNameMiddlemanRoutesV2 = "middleman:routes:v2"
 
-	MiddlemanRouteCacheVersion = 1
+	MiddlemanRouteCacheLegacyVersion = 1
+	MiddlemanRouteCacheVersion       = 2
 )
 
 type MiddlemanRouteCache struct {
@@ -36,6 +38,7 @@ type MiddlemanRouteCacheMetadata struct {
 type MiddlemanRouteEntry struct {
 	TargetID            uint32           `json:"target_id"`
 	GroupID             uint32           `json:"group_id"`
+	TriggerMode         string           `json:"trigger_mode,omitempty"`
 	RouteBidderID       uint32           `json:"route_bidder_id"`
 	BidderID            uint32           `json:"bidder_id"`
 	AdvID               uint32           `json:"adv_id"`
@@ -137,7 +140,7 @@ func DBGetMiddlemanRouteCache(ctx context.Context, db *sql.DB) (*MiddlemanRouteC
 	rows, err := db.QueryContext(ctx, `
 SELECT
 	t.target_id, t.entitytype_id, t.entity_id, t.size_id, t.priority,
-	g.group_id, g.total_timeout_ms, g.margin_pct, g.min_margin_cpm,
+	g.group_id, g.trigger_mode, g.total_timeout_ms, g.margin_pct, g.min_margin_cpm,
 	rb.route_bidder_id, rb.priority, rb.timeout_ms, rb.margin_pct, rb.min_margin_cpm,
 	b.bidder_id, b.adv_id, b.synthetic_campaign_id, b.synthetic_item_id,
 	b.synthetic_creative_id, b.endpoint_url, b.openrtb_version, b.seat,
@@ -152,7 +155,6 @@ INNER JOIN adv_item i ON (i.item_id=b.synthetic_item_id AND i.campaign_id=c.camp
 INNER JOIN adv_creative v ON (v.creative_id=b.synthetic_creative_id AND v.item_id=i.item_id)
 WHERE t.active='Yes'
   AND g.active='Yes'
-  AND g.trigger_mode='Fallback'
   AND rb.active='Yes'
   AND b.active='Yes'
   AND b.credential_status='Active'
@@ -174,7 +176,7 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 		var routeMargin, routeMinMargin sql.NullFloat64
 		if err := rows.Scan(
 			&e.TargetID, &entityType, &entityID, &sizeID, &e.TargetPriority,
-			&e.GroupID, &e.GroupTimeoutMS, &e.GroupMarginPct, &e.GroupMinMarginCPM,
+			&e.GroupID, &e.TriggerMode, &e.GroupTimeoutMS, &e.GroupMarginPct, &e.GroupMinMarginCPM,
 			&e.RouteBidderID, &e.RouteBidderPriority, &routeTimeout, &routeMargin, &routeMinMargin,
 			&e.BidderID, &e.AdvID, &e.SyntheticCampaignID, &e.SyntheticItemID,
 			&e.SyntheticCreativeID, &e.EndpointURL, &e.OpenRTBVersion, &seat,
@@ -268,29 +270,53 @@ SELECT DATE_FORMAT(MAX(updated), '%Y-%m-%dT%H:%i:%sZ') FROM (
 }
 
 func (c *MiddlemanRouteCache) ToRedis(ctx context.Context, conn radix.Client) error {
+	return c.ToRedisKey(ctx, conn, HashNameMiddlemanRoutesV2)
+}
+
+func (c *MiddlemanRouteCache) ToRedisKey(ctx context.Context, conn radix.Client, key string) error {
 	data, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	return conn.Do(ctx, radix.Cmd(nil, "SET", HashNameMiddlemanRoutes, string(data)))
+	return conn.Do(ctx, radix.Cmd(nil, "SET", key, string(data)))
 }
 
 func MiddlemanRouteCacheFromRedis(ctx context.Context, conn radix.Client) (*MiddlemanRouteCache, error) {
+	cache, err := middlemanRouteCacheFromRedisKey(ctx, conn, HashNameMiddlemanRoutesV2)
+	if err != nil {
+		return nil, err
+	}
+	if cache != nil {
+		return cache, nil
+	}
+	cache, err = middlemanRouteCacheFromRedisKey(ctx, conn, HashNameMiddlemanRoutes)
+	if err != nil {
+		return nil, err
+	}
+	if cache != nil {
+		return cache, nil
+	}
+	return &MiddlemanRouteCache{Version: MiddlemanRouteCacheVersion}, nil
+}
+
+func middlemanRouteCacheFromRedisKey(ctx context.Context, conn radix.Client, key string) (*MiddlemanRouteCache, error) {
 	var data []byte
-	if err := conn.Do(ctx, radix.Cmd(&data, "GET", HashNameMiddlemanRoutes)); err != nil {
+	if err := conn.Do(ctx, radix.Cmd(&data, "GET", key)); err != nil {
 		return nil, err
 	}
 	if len(data) == 0 {
-		return &MiddlemanRouteCache{Version: MiddlemanRouteCacheVersion}, nil
+		return nil, nil
 	}
 	var cache MiddlemanRouteCache
 	if err := json.Unmarshal(data, &cache); err != nil {
 		return nil, err
 	}
-	if cache.Version != MiddlemanRouteCacheVersion {
-		return nil, fmt.Errorf("middleman route cache version %d, want %d", cache.Version, MiddlemanRouteCacheVersion)
+	switch cache.Version {
+	case MiddlemanRouteCacheVersion, MiddlemanRouteCacheLegacyVersion:
+		return &cache, nil
+	default:
+		return nil, fmt.Errorf("middleman route cache version %d, want %d or %d", cache.Version, MiddlemanRouteCacheVersion, MiddlemanRouteCacheLegacyVersion)
 	}
-	return &cache, nil
 }
 
 func DBGetMiddlemanRoutesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
@@ -298,7 +324,36 @@ func DBGetMiddlemanRoutesToRedis(ctx context.Context, conn radix.Client, db *sql
 	if err != nil {
 		return err
 	}
+	if err := cache.legacyFallbackCache().ToRedisKey(ctx, conn, HashNameMiddlemanRoutes); err != nil {
+		return err
+	}
 	return cache.ToRedis(ctx, conn)
+}
+
+func (c *MiddlemanRouteCache) legacyFallbackCache() *MiddlemanRouteCache {
+	legacy := &MiddlemanRouteCache{Version: MiddlemanRouteCacheLegacyVersion, Entries: make([]MiddlemanRouteEntry, 0)}
+	if c == nil {
+		return legacy
+	}
+	for _, entry := range c.Entries {
+		if entry.TriggerMode != "" && entry.TriggerMode != "Fallback" {
+			continue
+		}
+		entry.TriggerMode = ""
+		legacy.Entries = append(legacy.Entries, entry)
+	}
+	legacy.Metadata = &MiddlemanRouteCacheMetadata{
+		GeneratedAt:      time.Now().UTC().Format(time.RFC3339),
+		EntryCount:       len(legacy.Entries),
+		Source:           "mysql-legacy",
+		RouteDBHighWater: "",
+		Checksum:         legacy.RouteChecksum(),
+	}
+	if c.Metadata != nil {
+		legacy.Metadata.GeneratedAt = c.Metadata.GeneratedAt
+		legacy.Metadata.RouteDBHighWater = c.Metadata.RouteDBHighWater
+	}
+	return legacy
 }
 
 func EntityPointer(entityType, entityID uint32) (*uint8, *uint32) {

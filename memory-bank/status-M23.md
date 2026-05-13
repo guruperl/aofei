@@ -51,8 +51,8 @@ cache data, and the singleton `cmd/redis-cache` job refreshes that cache.
   cache-node ownership.
 - `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
   middleman routes are still Redis-only runtime cache data.
-- `[ ]` `trigger_mode='Always'` remains schema/UI-visible but runtime-inactive;
-  bid fanout still uses `Fallback` after local no-bid.
+- `[+]` `trigger_mode='Always'` runtime behavior moved to M25 and is
+  implemented behind `middleman_always_enabled`.
 - `[+]` Durable callback retry queues moved to M24 and are implemented for
   retryable downstream post-auction callback forwarding failures.
 - `[ ]` Real invoicing/payment execution remains future settlement work.

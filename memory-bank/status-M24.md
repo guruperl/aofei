@@ -10,8 +10,8 @@ changing auction winner selection or adding MySQL work to `/bid`.
 
 - `[+]` Route-only cache command.
   - Added `cmd/redis-cache -cache=routes` and `-cache=routes -read`.
-  - Route-only mode updates or reads `middleman:routes` without rebuilding
-    publisher, demand, audience, creative, or spread cache families.
+  - Route-only mode updates or reads middleman route cache keys without
+    rebuilding publisher, demand, audience, creative, or spread cache families.
 
 - `[+]` Route-cache metadata.
   - Added optional version-1 JSON metadata with generation time, entry count,
@@ -38,6 +38,9 @@ changing auction winner selection or adding MySQL work to `/bid`.
     forwarding failures: network/request errors, HTTP 429, and HTTP 5xx.
   - Missing URLs, invalid URLs, duplicate callbacks, and HTTP 4xx responses
     other than 429 are not queued.
+  - Retryable failures keep the notify idempotency key after a durable retry row
+    is recorded, so duplicate exchange callbacks do not re-forward downstream.
+  - Retry processing claims due rows as `Processing` before forwarding.
   - Retry processing forwards downstream only and does not republish win/loss
     or billable delivery records.
 
@@ -54,7 +57,8 @@ changing auction winner selection or adding MySQL work to `/bid`.
 
 - `[ ]` Spread/local snapshots for bidder routes remain deferred; middleman
   routes are still Redis-only runtime cache data.
-- `[ ]` `trigger_mode='Always'` remains runtime-inactive until M25.
+- `[+]` `trigger_mode='Always'` runtime behavior moved to M25 and is
+  implemented behind `middleman_always_enabled`.
 - `[ ]` Real invoicing/payment execution remains future settlement work.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a
   non-goal unless future reporting requires reopening it.

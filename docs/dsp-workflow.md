@@ -43,18 +43,20 @@ contains advertiser, campaign, item, creative, cost, weight, and frequency-cap
 fields.
 
 If no candidates exist for an impression's size/slot pair, that impression is
-eligible for middleman fallback when `middleman_enabled` is true. Local campaign
-bids still win first. Only impressions that local matching cannot fill are
-forwarded to downstream bidders selected from the Redis `middleman:routes`
-cache. Candidate bidders must match an active route and pass the synthetic item
+eligible for middleman fallback when `middleman_enabled` is true. `Fallback`
+routes only fan out for local no-bid impressions. `Always` routes can also fan
+out for locally filled impressions when `middleman_always_enabled` is true.
+Candidate bidders must match an active route and pass the synthetic item
 ACL/channel check for the original publisher/site/slot.
 
 Middleman fanout forwards the full original request shape to each selected
 bidder and overrides `ext.request_domain` with `middleman_exchange_domain`. The
-auction only accepts downstream bids for impressions that local matching did not
-fill. It does not add user/profile enrichment yet. Credential references
-resolve to environment variables containing JSON header maps; no secret
-material is stored in MySQL or Redis.
+auction accepts downstream bids only for impressions eligible under the selected
+route trigger mode. Marked-up `Always` bids compete with local bids on effective
+CPM; unsafe local price comparisons keep the local winner. It does not add
+user/profile enrichment yet. Credential references resolve to environment
+variables containing JSON header maps; no secret material is stored in MySQL or
+Redis.
 
 For final middleman winners, callback metadata is stored in Redis and returned
 `nurl`, `lurl`, and optional `burl` fields are replaced with signed `/mid/*`

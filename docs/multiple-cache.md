@@ -24,13 +24,17 @@ Static bid-serving data is local:
 
 Middleman bidder routes are Redis static data in M20:
 
-- `middleman:routes` stores a versioned JSON payload compiled from active
-  `adv_bidder` and `mid_route_*` rows, including synthetic item ACL payloads.
+- `middleman:routes:v2` stores the preferred M25 versioned JSON payload
+  compiled from active `adv_bidder` and `mid_route_*` rows, including trigger
+  mode and synthetic item ACL payloads. `middleman:routes` remains a legacy
+  fallback-only key for M24 rolling-deploy compatibility.
 - It is populated by the singleton `cmd/redis-cache -cache=redis|all|routes`
   job. Route-only mode leaves the other cache families untouched.
 - M24 route payloads include additive metadata for generated time, entry count,
   source, route DB high-water timestamp, and checksum. Older version-1 payloads
   without metadata are still readable with unknown freshness.
+- M25 route payloads include `trigger_mode`; older entries without it are
+  treated as `Fallback`.
 - It is not mirrored into spread/local snapshots yet.
 
 Disk snapshots under `.local/spread/` are the durable local recovery format, not
@@ -41,8 +45,9 @@ static lookups from memory.
 
 `cmd/redis-cache` now treats full refreshes as replacement operations:
 
-- Redis mode deletes `pubmap`, `audience`, `creative`, `middleman:routes`, and
-  existing `slot:*` keys before repopulating static cache state.
+- Redis mode deletes `pubmap`, `audience`, `creative`, `middleman:routes:v2`,
+  legacy `middleman:routes`, and existing `slot:*` keys before repopulating
+  static cache state.
 - Spread mode publishes `__reset__` family subjects before publishing new
   snapshots.
 - Item-level RAdv refreshes recompute affected creative sizes from MySQL slot

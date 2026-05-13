@@ -441,7 +441,7 @@ func (self *Model) loadRouteCacheStatus() error {
 		return nil
 	}
 	status := map[string]interface{}{
-		"cache_key":    match.HashNameMiddlemanRoutes,
+		"cache_key":    match.HashNameMiddlemanRoutesV2,
 		"cache_status": "unknown",
 	}
 	currentHighWater, err := match.DBGetMiddlemanRouteHighWater(context.Background(), self.DB)

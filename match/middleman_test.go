@@ -83,6 +83,33 @@ func TestMiddlemanRouteCacheMetadataIsAdditive(t *testing.T) {
 	}
 }
 
+func TestMiddlemanRouteLegacyFallbackCacheExcludesAlways(t *testing.T) {
+	cache := &MiddlemanRouteCache{
+		Version: MiddlemanRouteCacheVersion,
+		Entries: []MiddlemanRouteEntry{
+			{TargetID: 1, GroupID: 1, RouteBidderID: 1, BidderID: 1, TriggerMode: "Fallback"},
+			{TargetID: 2, GroupID: 2, RouteBidderID: 2, BidderID: 2, TriggerMode: "Always"},
+		},
+		Metadata: &MiddlemanRouteCacheMetadata{
+			GeneratedAt:      "2026-05-13T00:00:00Z",
+			RouteDBHighWater: "2026-05-13T00:00:00Z",
+		},
+	}
+	legacy := cache.legacyFallbackCache()
+	if legacy.Version != MiddlemanRouteCacheLegacyVersion {
+		t.Fatalf("legacy version = %d, want %d", legacy.Version, MiddlemanRouteCacheLegacyVersion)
+	}
+	if len(legacy.Entries) != 1 || legacy.Entries[0].TargetID != 1 {
+		t.Fatalf("legacy entries = %#v, want only fallback entry", legacy.Entries)
+	}
+	if legacy.Entries[0].TriggerMode != "" {
+		t.Fatalf("legacy trigger mode = %q, want omitted fallback mode", legacy.Entries[0].TriggerMode)
+	}
+	if legacy.Metadata == nil || legacy.Metadata.EntryCount != 1 || legacy.Metadata.RouteDBHighWater == "" {
+		t.Fatalf("legacy metadata = %#v", legacy.Metadata)
+	}
+}
+
 func TestMiddlemanRouteEntrySpecificity(t *testing.T) {
 	slotType, slotID := EntityPointer(32, 333)
 	siteType, siteID := EntityPointer(31, 222)

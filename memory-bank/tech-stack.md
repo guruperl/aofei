@@ -67,11 +67,12 @@ These files are local artifacts and are ignored by git.
 URLs; when omitted, `TRACKING_SECRET` is used as the fallback.
 Middleman fallback is controlled by `middleman_enabled`,
 `middleman_timeout_ms`, `middleman_max_bidders_per_imp`, and
-`middleman_exchange_domain`. Middleman callback proxying is controlled by
-`middleman_callback_ttl_seconds`, `middleman_callback_timeout_ms`, and
-`middleman_callback_base_url`; it requires `tracking_secret` and Redis. Bidder
-`credential_ref` values name environment variables containing JSON outbound
-header maps for downstream OpenRTB calls.
+`middleman_exchange_domain`. `trigger_mode='Always'` fanout also requires
+`middleman_always_enabled`; the default is false. Middleman callback proxying is
+controlled by `middleman_callback_ttl_seconds`, `middleman_callback_timeout_ms`,
+and `middleman_callback_base_url`; it requires `tracking_secret` and Redis.
+Bidder `credential_ref` values name environment variables containing JSON
+outbound header maps for downstream OpenRTB calls.
 
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
@@ -191,11 +192,11 @@ used, keep `cmd/spread` running on nodes whose local disk snapshots should be
 updated from NATS messages.
 
 Expected Redis cache families are `pubmap`, `audience`, `creative`,
-`middleman:routes`, and `slot:<size_id>` hashes keyed by slot id. Expected
-spread directories are
+`middleman:routes:v2`, fallback-only legacy `middleman:routes`, and
+`slot:<size_id>` hashes keyed by slot id. Expected spread directories are
 `.local/spread/pubmap/`, `.local/spread/audience/`,
 `.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
-`middleman:routes` is Redis-only in M20 and is populated by the singleton
+Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
 
 ## Operational Commands
