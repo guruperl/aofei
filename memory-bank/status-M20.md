@@ -39,10 +39,10 @@ campaign matching cannot fill an impression.
 
 - `[+]` Callback proxying and downstream win/loss reconciliation were forwarded
   to M21 and completed there.
-- `[ ]` Middleman advertiser/operator reporting was forwarded through M21 and
-  remains M22.
-- `[ ]` Spread/local snapshots for bidder routes remain deferred; M20 route cache
-  is Redis-only.
+- `[+]` Middleman advertiser/operator reporting was forwarded through M21 and
+  completed in M22.
+- `[ ]` Spread/local snapshots for bidder routes remain deferred after M23; the
+  middleman route cache is still Redis-only.
 
 ## Verification
 

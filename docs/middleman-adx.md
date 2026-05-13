@@ -66,8 +66,15 @@ HTML routes are:
 
 - Advertiser: `/goto/adv/g/bidder?action=topics|startnew|insert|edit|update`
 - Admin: `/goto/admin/g/bidder?action=topics|edit|update|approve`
+- Admin routes:
+  `/goto/admin/g/midroute?action=topics|startnew|insert|edit|update|delete`
+- Admin route bidders:
+  `/goto/admin/g/midroute?action=bidders|startnewBidder|insertBidder|editBidder|updateBidder|deleteBidder`
+- Admin route targets:
+  `/goto/admin/g/midroute?action=targets|startnewTarget|insertTarget|editTarget|updateTarget|deleteTarget`
 
-JSON routes remain available under `/goto/{role}/json/bidder`.
+JSON routes remain available under `/goto/{role}/json/bidder` and
+`/goto/admin/json/midroute`.
 
 ## Schema
 
@@ -92,10 +99,12 @@ bids still win first. Only impressions that local campaign matching cannot fill
 are considered for downstream fanout. Route group `trigger_mode='Always'` is not
 active in M20.
 
-The bidder route cache is Redis-only under `middleman:routes`. The singleton
+Operators manage `mid_route_group`, `mid_route_bidder`, and `mid_route_target`
+through the admin `midroute` Summer/Genelet UI. The bidder route cache is
+Redis-only under `middleman:routes`. The singleton
 `cmd/redis-cache -cache=redis|all` job builds it from active `adv_bidder`,
 `mid_route_group`, `mid_route_bidder`, and `mid_route_target` rows. `cmd/unify`
-does not refresh this cache.
+does not refresh this cache after route edits.
 
 Route membership alone is not enough to fan out. A bidder must also be active,
 credential-ready, mapped to a valid synthetic reporting chain, and eligible for
@@ -187,3 +196,14 @@ markup.
   reconciliation.
 - M22: advertiser pay-side reports and admin charge/pay/margin settlement views
   from middleman callback metadata.
+- M23: admin route-operations UI for route groups, route bidders, and route
+  targets; route-cache refresh remains a singleton `cmd/redis-cache` job.
+
+## Post-M23 Backlog
+
+The live middleman TODOs after M23 are route cache rollout automation beyond the
+singleton `cmd/redis-cache` job, optional spread/local route snapshots,
+`trigger_mode='Always'` runtime behavior, durable downstream callback retry
+queues, and real invoicing/payment execution from settlement facts. Arbitrary
+downstream `adm` impression/click rewriting remains closed unless a future
+reporting requirement makes cooperative click notify insufficient.

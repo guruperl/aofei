@@ -118,6 +118,12 @@ complete `log_winloss` stream. Advertiser middleman reports use pay-side spend
 from `daily_mid`; admin settlement reports use charge, pay, and margin from
 `daily_mid`.
 
+Operators manage middleman route groups, route bidders, and traffic targets in
+Summer at `/goto/admin/g/midroute?action=topics`. Route edits update MySQL only;
+run the singleton `cmd/redis-cache -cache=redis` or `-cache=all` refresh on the
+dedicated cache node before expecting `cmd/unify` workers to use the new route
+state.
+
 Summer/Genelet CORS is exact-origin only. `ServerURL` is allowed by default, and
 additional browser origins must be listed in `CORSOrigins`; other non-empty
 `Origin` values receive HTTP 403 before routing.

@@ -31,9 +31,10 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   fanout. Existing advertiser auth and reporting remain the account boundary.
   Advertisers can create and edit safe endpoint metadata in Summer/Genelet,
   while operators retain route, credential, synthetic reporting row, and traffic
-  activation control. The synthetic campaign/item chain reuses the existing ACL
-  and channel matching model to decide which original publisher/site inventory
-  may be forwarded to a bidder.
+  activation control. Operators manage route groups, route bidders, and traffic
+  targets through the admin Summer/Genelet `midroute` UI. The synthetic
+  campaign/item chain reuses the existing ACL and channel matching model to
+  decide which original publisher/site inventory may be forwarded to a bidder.
 - Matching code turns database state into Redis and spread/static cache
   structures such as `PubMap`, `RAdv`, audience maps, and creative maps.
 - DSP runtime code reads request data, config, cache entries, mutable Redis

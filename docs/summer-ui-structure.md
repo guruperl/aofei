@@ -65,7 +65,9 @@ Admins review bidders through
 `/goto/admin/g/bidder?action=topics|edit|update|approve`. Approval requires a
 credential ref, creates or validates the inactive synthetic campaign/item/
 creative reporting chain, marks the credential active, and activates the bidder.
-Admins remain responsible for all `mid_route_*` traffic assignment.
+Admins assign middleman traffic through
+`/goto/admin/g/midroute?action=topics`, with nested route-bidder and
+route-target actions for `mid_route_bidder` and `mid_route_target`.
 
 Filters should add query restrictions through `extra url.Values`, not by
 concatenating request strings into SQL. Models should use Genelet CRUD helpers
@@ -103,6 +105,10 @@ Spread -> string spread root
 
 Summer accesses those through typed helper functions so a missing adapter is a
 no-op and a wrong adapter type is an explicit error.
+
+Middleman route edits write MySQL only. They do not refresh `middleman:routes`
+from the UI or from `cmd/unify`; the singleton `cmd/redis-cache -cache=redis|all`
+job remains responsible for publishing route changes to Redis.
 
 ## Local Usage
 

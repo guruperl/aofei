@@ -563,3 +563,47 @@ Acceptance:
 - Admin reports expose charge/pay/margin and route dimensions.
 - Bid fanout, callback proxying, durable callback retries, and arbitrary markup
   rewriting remain unchanged.
+
+## M23 - Middleman Route Operations UI `[+]`
+
+Make middleman route assignment operable from Summer/Genelet without changing
+bid runtime behavior or cache refresh ownership.
+
+Scope:
+
+- Add an admin-only Summer/Genelet `midroute` module for route-group CRUD.
+- Add nested admin actions for `mid_route_bidder` membership and optional
+  bidder timeout/margin overrides.
+- Add nested admin actions for `mid_route_target` global, publisher, site,
+  slot, and optional size assignment.
+- Validate route knobs before writes: fallback/always trigger mode, bounded
+  timeouts, bounded margins, active flags, target entity pairs, and nullable
+  optional overrides.
+- Add server-rendered Go `html/template` pages in `../pzdesign/tmpls`.
+
+Acceptance:
+
+- Operators can create and edit active route groups, attach approved bidders,
+  and assign traffic targets without direct SQL edits.
+- `cmd/unify` still reads route state only through the Redis
+  `middleman:routes` cache; it does not refresh route cache data.
+- `cmd/redis-cache -cache=redis|all` remains the singleton route-cache refresh
+  path after route edits.
+- M23 does not add spread route snapshots, durable callback retries, real
+  settlement execution, arbitrary markup rewriting, or `Always` fanout runtime.
+
+## Post-M23 Middleman Backlog
+
+These items remain intentionally outside the completed M21-M23 milestones:
+
+- Add an operator-owned route cache refresh workflow beyond the singleton
+  manual/scheduled `cmd/redis-cache` run, if route edits need faster rollout.
+- Add spread/local snapshots for middleman bidder routes if `cmd/unify` should
+  support middleman fallback without Redis static-cache reads.
+- Implement `trigger_mode='Always'` runtime behavior if operators need
+  downstream fanout even when local campaigns can bid.
+- Add durable callback retry queues for downstream notification forwarding if
+  Redis TTL idempotency plus synchronous forwarding is not reliable enough.
+- Add real invoicing/payment execution from `daily_mid` settlement facts.
+- Keep arbitrary downstream markup impression/click rewriting closed unless a
+  future reporting requirement makes cooperative click notify insufficient.

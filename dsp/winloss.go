@@ -138,13 +138,13 @@ func (self *WinLoss) trackerURL(path string, tracking bool, redirect string) str
 		args.Set("redirect", redirect)
 	}
 	addTrackingSignature(self.trackingSecret, path, args)
-	return self.serverURL + path + "?" + args.Encode()
+	return self.serverURL + path + "?" + encodeOpenRTBMacroQuery(args)
 }
 
 // PackURLString returns the URL query string of the win/loss notification.
 func (self *WinLoss) PackURLString(tracking ...bool) string {
 	useTracking := len(tracking) > 0 && tracking[0]
-	return self.packURLValues(useTracking).Encode()
+	return encodeOpenRTBMacroQuery(self.packURLValues(useTracking))
 }
 
 func (self *WinLoss) packURLValues(tracking bool) url.Values {

@@ -36,13 +36,13 @@ charge/pay/margin settlement views without changing bidder runtime behavior.
 
 ## Carry Forward
 
-- `[ ]` Spread/local snapshots for bidder routes remain deferred; middleman
-  routes are still Redis-only runtime cache data.
-- `[ ]` Arbitrary downstream markup impression/click rewrite remains out of
-  scope unless a future reporting requirement justifies it.
-- `[ ]` Durable callback retry queues are not part of M22.
+- `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
+  middleman routes are still Redis-only runtime cache data.
+- `[ ]` Durable callback retry queues remain post-M23 reliability work.
 - `[ ]` Real invoicing/payment execution remains out of scope; M22 produces
   reportable settlement facts only.
+- `[X]` Arbitrary downstream markup impression/click rewrite remains a
+  non-goal unless a future reporting requirement justifies reopening it.
 
 ## Verification
 

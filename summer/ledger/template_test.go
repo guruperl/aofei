@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/genelet/winter/genelet"
@@ -72,8 +73,12 @@ func TestMiddlemanLedgerTemplatesRender(t *testing.T) {
 				Other:   other,
 				Success: true,
 			}
-			if _, err := page.Get_page(parsed); err != nil {
+			rendered, err := page.Get_page(parsed)
+			if err != nil {
 				t.Fatal(err)
+			}
+			if strings.Contains(rendered, "%!f") {
+				t.Fatalf("template rendered invalid float formatting: %s", rendered)
 			}
 		})
 	}
@@ -103,7 +108,7 @@ func templateAdvMiddlemanBidder() map[string]interface{} {
 		"spend":       0.95,
 		"imps":        10,
 		"clis":        1,
-		"cpm":         95.0,
+		"cpm":         nil,
 		"cpc":         0.95,
 		"ctr":         0.1,
 	}
@@ -132,7 +137,7 @@ func templateAdminMiddlemanHour() map[string]interface{} {
 		"charge_spend":   1.20,
 		"pay_spend":      0.95,
 		"margin_spend":   0.25,
-		"margin_rate":    0.2083,
+		"margin_rate":    nil,
 		"forward_errors": 0,
 	}
 }

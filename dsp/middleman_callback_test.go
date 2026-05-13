@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,6 +196,11 @@ func TestPrepareMiddlemanCallbackRewritesBidAndStoresContext(t *testing.T) {
 	if selected.Bid.NURL == "" || selected.Bid.LURL == "" || selected.Bid.BURL == "" {
 		t.Fatalf("proxied callbacks were not installed: %#v", selected.Bid)
 	}
+	for _, raw := range []string{selected.Bid.NURL, selected.Bid.BURL, selected.Bid.LURL} {
+		if !strings.Contains(raw, "auction_price=${AUCTION_PRICE}") || !strings.Contains(raw, "auction_currency=${AUCTION_CURRENCY}") {
+			t.Fatalf("proxied callback did not preserve literal macros: %s", raw)
+		}
+	}
 	u, err := url.Parse(selected.Bid.NURL)
 	if err != nil {
 		t.Fatal(err)
@@ -216,6 +222,24 @@ func TestPrepareMiddlemanCallbackRewritesBidAndStoresContext(t *testing.T) {
 	}
 	if clickToken != token {
 		t.Fatalf("click token = %q, want %q", clickToken, token)
+	}
+}
+
+func TestEncodeOpenRTBMacroQueryPreservesLiteralMacros(t *testing.T) {
+	values := url.Values{}
+	values.Set("auction_price", `${AUCTION_PRICE}`)
+	values.Set("auction_currency", `${AUCTION_CURRENCY}`)
+	values.Set("redirect", "https://example.test/click?x=1&y=2")
+
+	got := encodeOpenRTBMacroQuery(values)
+	if !strings.Contains(got, "auction_price=${AUCTION_PRICE}") {
+		t.Fatalf("auction price macro was encoded: %s", got)
+	}
+	if !strings.Contains(got, "auction_currency=${AUCTION_CURRENCY}") {
+		t.Fatalf("auction currency macro was encoded: %s", got)
+	}
+	if strings.Contains(got, "x=1&y=2") {
+		t.Fatalf("non-macro redirect was not query-escaped: %s", got)
 	}
 }
 

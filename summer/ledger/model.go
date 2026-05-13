@@ -113,7 +113,7 @@ GROUP BY FLOOR(UNIX_TIMESTAMP(timely) / 3600)`,
 		`SELECT DATE_FORMAT(MIN(l.timely), '%H:%i') AS hours,
 SUM(m.wins) AS wins, SUM(m.losses) AS losses, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
 SUM(m.charge_spend) AS charge_spend, SUM(m.pay_spend) AS pay_spend, SUM(m.margin_spend) AS margin_spend,
-(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0)) AS margin_rate,
+COALESCE(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0), 0) AS margin_rate,
 SUM(m.forward_ok) AS forward_ok, SUM(m.forward_duplicate) AS forward_duplicate,
 SUM(m.forward_missing + m.forward_error + m.forward_http_error + m.forward_invalid) AS forward_errors
 FROM ledger_mid m
@@ -152,9 +152,9 @@ func (self *Model) TopicsMidTopBidders(extra ...url.Values) error {
 		return self.SelectSQL(self.LISTS,
 			`SELECT m.bidder_id, b.bidder_name, m.adv_id,
 SUM(m.pay_spend) AS spend, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
-(SUM(m.pay_spend)*1000/NULLIF(SUM(m.imps),0)) AS cpm,
-(SUM(m.pay_spend)/NULLIF(SUM(m.clis),0)) AS cpc,
-(SUM(m.clis)/NULLIF(SUM(m.imps),0)) AS ctr
+COALESCE(SUM(m.pay_spend)*1000/NULLIF(SUM(m.imps),0), 0) AS cpm,
+COALESCE(SUM(m.pay_spend)/NULLIF(SUM(m.clis),0), 0) AS cpc,
+COALESCE(SUM(m.clis)/NULLIF(SUM(m.imps),0), 0) AS ctr
 FROM daily_mid m
 INNER JOIN daily_log l USING (log_id)
 LEFT JOIN adv_bidder b USING (bidder_id)
@@ -167,7 +167,7 @@ ORDER BY spend DESC LIMIT ?`,
 		`SELECT m.bidder_id, b.bidder_name, ANY_VALUE(m.adv_id) AS adv_id,
 SUM(m.wins) AS wins, SUM(m.losses) AS losses, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
 SUM(m.charge_spend) AS charge_spend, SUM(m.pay_spend) AS pay_spend, SUM(m.margin_spend) AS margin_spend,
-(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0)) AS margin_rate,
+COALESCE(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0), 0) AS margin_rate,
 SUM(m.forward_missing + m.forward_error + m.forward_http_error + m.forward_invalid) AS forward_errors
 FROM daily_mid m
 INNER JOIN daily_log l USING (log_id)
@@ -187,9 +187,9 @@ func (self *Model) TopicsMidTopSlots(extra ...url.Values) error {
 	return self.SelectSQL(self.LISTS,
 		`SELECT m.slot_id, s.slot_name, ANY_VALUE(m.site_id) AS site_id, ANY_VALUE(m.pub_id) AS pub_id,
 SUM(m.pay_spend) AS spend, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
-(SUM(m.pay_spend)*1000/NULLIF(SUM(m.imps),0)) AS cpm,
-(SUM(m.pay_spend)/NULLIF(SUM(m.clis),0)) AS cpc,
-(SUM(m.clis)/NULLIF(SUM(m.imps),0)) AS ctr
+COALESCE(SUM(m.pay_spend)*1000/NULLIF(SUM(m.imps),0), 0) AS cpm,
+COALESCE(SUM(m.pay_spend)/NULLIF(SUM(m.clis),0), 0) AS cpc,
+COALESCE(SUM(m.clis)/NULLIF(SUM(m.imps),0), 0) AS ctr
 FROM daily_mid m
 INNER JOIN daily_log l USING (log_id)
 LEFT JOIN pub_slot s USING (slot_id)
@@ -205,7 +205,7 @@ func (self *Model) TopicsMidTopRoutes(extra ...url.Values) error {
 		`SELECT m.group_id, g.group_name, m.route_bidder_id, m.target_id,
 SUM(m.wins) AS wins, SUM(m.losses) AS losses, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
 SUM(m.charge_spend) AS charge_spend, SUM(m.pay_spend) AS pay_spend, SUM(m.margin_spend) AS margin_spend,
-(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0)) AS margin_rate,
+COALESCE(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0), 0) AS margin_rate,
 SUM(m.forward_missing + m.forward_error + m.forward_http_error + m.forward_invalid) AS forward_errors
 FROM daily_mid m
 INNER JOIN daily_log l USING (log_id)
@@ -222,7 +222,7 @@ func (self *Model) TopicsMidTopPublishers(extra ...url.Values) error {
 		`SELECT m.pub_id, p.email AS pub_email, ANY_VALUE(m.site_id) AS site_id, ANY_VALUE(m.slot_id) AS slot_id,
 SUM(m.wins) AS wins, SUM(m.losses) AS losses, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
 SUM(m.charge_spend) AS charge_spend, SUM(m.pay_spend) AS pay_spend, SUM(m.margin_spend) AS margin_spend,
-(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0)) AS margin_rate,
+COALESCE(SUM(m.margin_spend)/NULLIF(SUM(m.charge_spend),0), 0) AS margin_rate,
 SUM(m.forward_missing + m.forward_error + m.forward_http_error + m.forward_invalid) AS forward_errors
 FROM daily_mid m
 INNER JOIN daily_log l USING (log_id)

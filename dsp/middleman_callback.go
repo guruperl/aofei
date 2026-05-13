@@ -276,7 +276,7 @@ func (self *Controller) middlemanProxyURL(path, token string) (string, error) {
 	if err := addMiddlemanSignature(self.trackingSecret(), path, args); err != nil {
 		return "", err
 	}
-	return base + path + "?" + args.Encode(), nil
+	return base + path + "?" + encodeOpenRTBMacroQuery(args), nil
 }
 
 func (self *Controller) middlemanClickProxyURL(requestToken, impID string) (string, error) {
@@ -291,6 +291,22 @@ func (self *Controller) middlemanClickProxyURL(requestToken, impID string) (stri
 		return "", err
 	}
 	return base + "/mid/click?" + args.Encode(), nil
+}
+
+func encodeOpenRTBMacroQuery(args url.Values) string {
+	encoded := args.Encode()
+	for _, macro := range []string{
+		`${AUCTION_ID}`,
+		`${AUCTION_BID_ID}`,
+		`${AUCTION_IMP_ID}`,
+		`${AUCTION_SEAT_ID}`,
+		`${AUCTION_AD_ID}`,
+		`${AUCTION_PRICE}`,
+		`${AUCTION_CURRENCY}`,
+	} {
+		encoded = strings.ReplaceAll(encoded, url.QueryEscape(macro), macro)
+	}
+	return encoded
 }
 
 func (self *Controller) prepareMiddlemanCallback(ctx context.Context, bid *openrtb2.BidRequest, selected *middlemanDownstreamBid) error {

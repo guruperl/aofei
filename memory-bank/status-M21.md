@@ -49,11 +49,11 @@ reporting.
 
 - `[+]` Advertiser/operator reporting using middleman price metadata completed
   in M22.
-- `[ ]` Spread/local snapshots for bidder routes remain deferred; middleman
-  routes are still Redis-only runtime cache data.
-- `[ ]` Arbitrary downstream markup impression/click rewrite remains out of
-  scope unless a future reporting requirement justifies it.
-- `[ ]` Durable callback retry queues are not part of M21.
+- `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
+  middleman routes are still Redis-only runtime cache data.
+- `[ ]` Durable callback retry queues remain post-M23 reliability work.
+- `[X]` Arbitrary downstream markup impression/click rewrite remains a
+  non-goal unless a future reporting requirement justifies reopening it.
 
 ## Verification
 

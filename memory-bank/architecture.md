@@ -69,15 +69,18 @@ advertiser-safe endpoint metadata forms and admin review and approval forms.
 Approval creates a missing inactive synthetic chain or validates an existing
 complete same-advertiser chain, then marks the bidder credential active and the
 bidder active. Operators assign active route groups to publisher/site/slot
-inventory through `mid_route_*` tables. The Redis `middleman:routes` cache
-contains active route/bidder entries and synthetic item ACL payloads; the bid
-path uses it only for local no-bid impressions. Selected middleman winners
-create Redis callback context under `middleman:cb:<token>` and return signed
-`/mid/win`, `/mid/loss`, and optional `/mid/bill` URLs. `burl` is the preferred
-billable event and win is the billable fallback only when no `burl` exists.
-Downstream callbacks receive net payable auction prices; Aofei logs charge-side
-prices through the synthetic chain and middleman-specific charge/pay/margin
-facts through `ledger_mid` and `daily_mid`.
+inventory through the admin `midroute` Summer module, which writes the
+`mid_route_*` tables. The Redis `middleman:routes` cache contains active
+route/bidder entries and synthetic item ACL payloads; the bid path uses it only
+for local no-bid impressions. Route edits do not refresh the cache from
+`cmd/unify`; the singleton `cmd/redis-cache -cache=redis|all` job remains the
+cache publication path. Selected middleman winners create Redis callback
+context under `middleman:cb:<token>` and return signed `/mid/win`, `/mid/loss`,
+and optional `/mid/bill` URLs. `burl` is the preferred billable event and win is
+the billable fallback only when no `burl` exists. Downstream callbacks receive
+net payable auction prices; Aofei logs charge-side prices through the synthetic
+chain and middleman-specific charge/pay/margin facts through `ledger_mid` and
+`daily_mid`.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the

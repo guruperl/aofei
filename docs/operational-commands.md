@@ -42,7 +42,9 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 
 This refresh also compiles `middleman:routes` for enabled middleman fallback.
 Run it only from the dedicated cache-maintenance node; `cmd/unify` does not
-refresh bidder routes itself.
+refresh bidder routes itself. After operators edit route groups, route bidders,
+or route targets in Summer, run this refresh before expecting HTTP workers to
+use the new route state.
 
 - Generated log directories live under `.local/logs/` and are ignored by git:
   `.local/logs/log_request/`, `.local/logs/log_response/`,
@@ -106,8 +108,8 @@ Outputs:
 - `.local/spread/creative/`
 - `.local/spread/slot/<size_id>/`
 
-Middleman bidder routes are not spread snapshots in M20. They remain Redis-only
-under `middleman:routes`.
+Middleman bidder routes are not spread snapshots. They remain Redis-only under
+`middleman:routes`.
 
 Notes:
 
