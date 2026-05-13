@@ -100,7 +100,9 @@ tooling or root-owned config/environment files. Do not commit database
 passwords, Redis credentials, SMTP credentials, session secrets, OAuth secrets,
 tracking secrets, or cloud keys. DSP tracking URLs use `tracking_secret` in
 `AOFEI`, or the `TRACKING_SECRET` environment fallback, to sign click redirect
-and cap-mutation tracker payloads.
+win/loss, middleman callback, and cap-mutation tracker payloads. Set
+`tracking_signature_ttl_seconds` to bound callback replay; the default is
+86400 seconds.
 
 Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
 When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
@@ -109,7 +111,9 @@ fanout is ignored unless `middleman_always_enabled` is also true. Middleman
 callback proxying also requires `tracking_secret`, Redis, and a public
 `middleman_callback_base_url` that points back to the `cmd/unify` HTTP service; set
 `middleman_callback_ttl_seconds` and `middleman_callback_timeout_ms` according
-to exchange callback latency expectations. Each active bidder
+to exchange callback latency expectations. Downstream callback URLs are rejected
+when they resolve to loopback, private, link-local, unspecified, multicast, or
+rebinding targets. Each active bidder
 `credential_ref` names an environment variable visible to `cmd/unify`; its
 value must be a JSON object of outbound HTTP headers. Do not put those header
 values in MySQL, Redis, or checked-in config files.

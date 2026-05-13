@@ -68,6 +68,79 @@ func TestConfig(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsTruncatedConnectArray(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "bad.json")
+	content := []byte(`{
+		"server_url": "http://localhost",
+		"connect_array": ["mysql"]
+	}`)
+	if err := os.WriteFile(configFile, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewConfig(configFile); err == nil {
+		t.Fatal("expected truncated connect_array to fail")
+	}
+}
+
+func TestConfigValidateBidRequiresTrackingSecret(t *testing.T) {
+	t.Setenv("TRACKING_SECRET", "")
+	configFile := filepath.Join(t.TempDir(), "sample.json")
+	content := []byte(`{
+		"server_url": "http://localhost",
+		"connect_array": ["mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"]
+	}`)
+	if err := os.WriteFile(configFile, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewConfig(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Validate(ConfigModeBid); err == nil {
+		t.Fatal("expected bid validation to require tracking_secret")
+	}
+}
+
+func TestConfigValidateModes(t *testing.T) {
+	c := &Config{
+		ServerURL:                   "http://localhost",
+		TrackingSecret:              "secret",
+		TrackingSignatureTTLSeconds: 86400,
+		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
+		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
+		NatsURL:                     "nats://127.0.0.1:4222",
+		Spread:                      "/tmp/spread",
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanCallbackBaseURL:    "http://localhost",
+	}
+	for _, mode := range []ConfigMode{
+		ConfigModeBid,
+		ConfigModeCache,
+		ConfigModeLedger,
+		ConfigModeRetry,
+		ConfigModeSpread,
+		ConfigModeMaxMind,
+		ConfigModeNATS,
+	} {
+		if err := c.Validate(mode); err != nil {
+			t.Fatalf("Validate(%s) = %v", mode, err)
+		}
+	}
+
+	badNATS := *c
+	badNATS.NatsURL = "://bad"
+	if err := badNATS.Validate(ConfigModeNATS); err == nil {
+		t.Fatal("expected invalid nats_url to fail NATS mode")
+	}
+
+	noSpread := *c
+	noSpread.Spread = ""
+	if err := noSpread.Validate(ConfigModeSpread); err == nil {
+		t.Fatal("expected empty spread path to fail spread mode")
+	}
+}
+
 func TestLocalConfigSmoke(t *testing.T) {
 	configPath, ok := os.LookupEnv("AOFEI")
 	if !ok || configPath == "" {

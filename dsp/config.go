@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -29,6 +31,7 @@ type Config struct {
 	Redis                       *Red     `json:"redis,omitempty"`
 	NatsURL                     string   `json:"nats_url,omitempty"`
 	TrackingSecret              string   `json:"tracking_secret,omitempty"`
+	TrackingSignatureTTLSeconds int      `json:"tracking_signature_ttl_seconds,omitempty"`
 	ConnectArray                []string `json:"connect_array,omitempty"`
 	Spread                      string   `json:"spread,omitempty"`
 	IsLocal                     bool     `json:"is_local,omitempty"`
@@ -45,6 +48,20 @@ type Config struct {
 	LogAttribute                string   `json:"log_attribute,omitempty"`
 	LogWinLoss                  string   `json:"log_winloss,omitempty"`
 }
+
+type ConfigMode string
+
+const (
+	ConfigModeBid      ConfigMode = "bid"
+	ConfigModeCache    ConfigMode = "cache"
+	ConfigModeLedger   ConfigMode = "ledger"
+	ConfigModeRetry    ConfigMode = "retry"
+	ConfigModeSpread   ConfigMode = "spread"
+	ConfigModeMaxMind  ConfigMode = "maxmind"
+	ConfigModeNATS     ConfigMode = "nats"
+	ConfigModeDatabase ConfigMode = "database"
+	ConfigModeRedis    ConfigMode = "redis"
+)
 
 func NewConfig(filename string) (*Config, error) {
 	parsed := new(Config)
@@ -111,6 +128,9 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.TrackingSecret == "" {
 		parsed.TrackingSecret = os.Getenv("TRACKING_SECRET")
 	}
+	if parsed.TrackingSignatureTTLSeconds <= 0 {
+		parsed.TrackingSignatureTTLSeconds = int(defaultTrackingSignatureTTL.Seconds())
+	}
 	if parsed.MiddlemanTimeoutMS <= 0 {
 		parsed.MiddlemanTimeoutMS = 100
 	}
@@ -130,7 +150,96 @@ func NewConfig(filename string) (*Config, error) {
 		parsed.MiddlemanCallbackBaseURL = parsed.ServerURL
 	}
 
+	if err := parsed.Validate(); err != nil {
+		return nil, err
+	}
 	return parsed, nil
+}
+
+func (self *Config) Validate(modes ...ConfigMode) error {
+	if self == nil {
+		return fmt.Errorf("config is nil")
+	}
+	if len(self.ConnectArray) < 2 {
+		return fmt.Errorf("connect_array must contain driver and DSN")
+	}
+	if strings.TrimSpace(self.ConnectArray[0]) == "" {
+		return fmt.Errorf("connect_array driver is empty")
+	}
+	if strings.TrimSpace(self.ConnectArray[1]) == "" {
+		return fmt.Errorf("connect_array DSN is empty")
+	}
+	if self.Redis == nil {
+		return fmt.Errorf("redis config is missing")
+	}
+	if self.Redis.Network == "" {
+		return fmt.Errorf("redis network is empty")
+	}
+	if self.Redis.Network != "tcp" && self.Redis.Network != "unix" {
+		return fmt.Errorf("redis network %q is invalid", self.Redis.Network)
+	}
+	if self.Redis.Addr == "" {
+		return fmt.Errorf("redis addr is empty")
+	}
+	if self.Redis.Network == "tcp" {
+		if _, _, err := net.SplitHostPort(self.Redis.Addr); err != nil {
+			return fmt.Errorf("redis addr %q must be host:port: %w", self.Redis.Addr, err)
+		}
+	}
+	if self.TrackingSignatureTTLSeconds <= 0 {
+		return fmt.Errorf("tracking_signature_ttl_seconds must be positive")
+	}
+	if self.MiddlemanCallbackTTLSeconds <= 0 {
+		return fmt.Errorf("middleman_callback_ttl_seconds must be positive")
+	}
+	if self.MiddlemanCallbackTimeoutMS <= 0 {
+		return fmt.Errorf("middleman_callback_timeout_ms must be positive")
+	}
+
+	needNATS := false
+	needTracking := false
+	needSpread := false
+	for _, mode := range modes {
+		switch mode {
+		case ConfigModeBid:
+			needNATS = true
+			needTracking = true
+		case ConfigModeSpread, ConfigModeNATS:
+			needNATS = true
+		case ConfigModeCache, ConfigModeLedger, ConfigModeRetry, ConfigModeMaxMind, ConfigModeDatabase, ConfigModeRedis:
+		default:
+			return fmt.Errorf("unknown config validation mode %q", mode)
+		}
+		if mode == ConfigModeSpread {
+			needSpread = true
+		}
+	}
+	if needTracking && strings.TrimSpace(self.TrackingSecret) == "" {
+		return fmt.Errorf("tracking_secret is required")
+	}
+	if needNATS {
+		u, err := url.Parse(self.NatsURL)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("nats_url is invalid")
+		}
+	}
+	if needSpread && strings.TrimSpace(self.Spread) == "" {
+		return fmt.Errorf("spread path is required")
+	}
+	if self.MiddlemanEnabled {
+		base := self.MiddlemanCallbackBaseURL
+		if base == "" {
+			base = self.ServerURL
+		}
+		u, err := url.Parse(base)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("middleman_callback_base_url is invalid")
+		}
+		if strings.TrimSpace(self.TrackingSecret) == "" {
+			return fmt.Errorf("tracking_secret is required when middleman is enabled")
+		}
+	}
+	return nil
 }
 
 func serverURLHost(raw string) string {
@@ -153,7 +262,10 @@ func serverURLHost(raw string) string {
 
 // GetRedisDB returns the Redis conn and database handler
 func (self *Config) GetRedisDB(ctx context.Context) (radix.Client, *sql.DB, error) {
-	db, err := sql.Open(self.ConnectArray[0], self.ConnectArray[1])
+	if err := self.Validate(ConfigModeDatabase, ConfigModeRedis); err != nil {
+		return nil, nil, err
+	}
+	db, err := self.OpenDB(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -172,6 +284,23 @@ func (self *Config) GetRedisDB(ctx context.Context) (radix.Client, *sql.DB, erro
 		return nil, nil, err
 	}
 	return redis, db, nil
+}
+
+func (self *Config) OpenDB(ctx context.Context) (*sql.DB, error) {
+	if err := self.Validate(ConfigModeDatabase); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open(self.ConnectArray[0], self.ConnectArray[1])
+	if err != nil {
+		return nil, err
+	}
+	if ctx != nil {
+		if err := db.PingContext(ctx); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
+	return db, nil
 }
 
 type Stamp struct {

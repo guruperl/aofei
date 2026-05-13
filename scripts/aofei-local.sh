@@ -282,6 +282,7 @@ generate_configs() {
   "ips": "$ROOT/etc/maxmind.json",
   "nats_url": "$NATS_URL",
   "tracking_secret": "local-dev-tracking-secret",
+  "tracking_signature_ttl_seconds": 86400,
   "middleman_enabled": false,
   "middleman_always_enabled": false,
   "middleman_timeout_ms": 100,

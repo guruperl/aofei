@@ -101,7 +101,9 @@ store middleman callback-derived reporting facts for advertiser pay-side reports
 and admin charge/pay/margin settlement views. `mid_callback_retry` stores
 auditable retry rows for retryable downstream middleman callback forwarding
 failures without foreign keys so rows remain inspectable if route or bidder rows
-are later removed.
+are later removed. Retry workers set `claimed_at` while processing rows; stale
+`Processing` rows whose claim age exceeds the retry worker stale threshold are
+eligible for reclaim.
 
 ## Updating The Baseline
 

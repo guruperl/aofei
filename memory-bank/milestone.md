@@ -641,6 +641,33 @@ Acceptance:
   callback-proxy controls continue to apply.
 - Mixed local and middleman winners can be returned in one OpenRTB response.
 
+## M26 - Middle-Term Review `[ ]`
+
+Track and remediate the independent deep code quality and architecture review
+without reopening completed milestones.
+
+Scope:
+
+- Turn the independent review into an explicit status backlog covering security,
+  reliability, configuration, cache compatibility, operations, observability,
+  testing seams, schema hygiene, and documentation gaps.
+- Prioritize callback signature/replay hardening, SSRF protection, config
+  validation, callback retry recovery, and singleton operations safety.
+- Record historical lineage to earlier milestones where issues belong
+  conceptually, while keeping M26 as the active remediation milestone.
+- Keep reviewed non-issues documented so future reviews do not re-triage the
+  same false positives.
+
+Acceptance:
+
+- `memory-bank/status-M26.md` lists every independent-review finding with
+  status, affected area, disposition, and verification expectation.
+- Critical and high findings have clear remediation ordering.
+- Findings tied to M21-M25, M19, M11/M18, pzdesign, or architecture gaps are
+  classified without reopening those closed milestones.
+- Future fixes are implemented as focused changes with tests and verification
+  recorded in `status-M26.md`.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

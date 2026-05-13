@@ -46,6 +46,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := c.Validate(dsp.ConfigModeSpread); err != nil {
+		log.Fatal(err)
+	}
 	nc, err := nats.Connect(c.NatsURL)
 	if err != nil {
 		log.Fatal(err)

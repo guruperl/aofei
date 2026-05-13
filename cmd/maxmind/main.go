@@ -12,9 +12,9 @@ import (
 	"os"
 	"path/filepath"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/maxmind"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 func usage() {
@@ -54,10 +54,10 @@ func run(ctx context.Context, configPath, cityPath string) error {
 	if c.Ips == "" {
 		return errors.New("DSP config ips path is empty")
 	}
-	if len(c.ConnectArray) < 2 {
-		return errors.New("DSP config connect_array must contain driver and DSN")
+	if err := c.Validate(dsp.ConfigModeMaxMind); err != nil {
+		return err
 	}
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
+	db, err := c.OpenDB(ctx)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

@@ -2,6 +2,8 @@ package dsp
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -62,6 +64,70 @@ func TestServeStatusRequiresSignatureForCapMutation(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected unsigned cap mutation to fail")
+	}
+}
+
+func TestServeWinLossRequiresSignature(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/win?auction_bid_id=bid", nil)
+	rr := httptest.NewRecorder()
+	(&Controller{C: &Config{TrackingSecret: "test-secret"}}).ServeWinLoss(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want bad request", rr.Code)
+	}
+}
+
+func TestServeWinLossPublishesWinOnce(t *testing.T) {
+	winloss := NewWinLoss(
+		StatusBid,
+		time.Now(),
+		match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
+		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cost: 1.25, CostType: 2},
+		nil,
+		"5",
+		"auction",
+		"bid",
+		"imp",
+		"7",
+		"https://dsp.example",
+	).WithTrackingSecret("test-secret")
+	u, err := url.Parse(winloss.NURL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	q.Set("auction_id", "auction")
+	q.Set("auction_bid_id", "bid")
+	q.Set("auction_imp_id", "imp")
+	q.Set("auction_price", "1.25")
+	q.Set("auction_currency", "USD")
+	u.RawQuery = q.Encode()
+
+	seen := false
+	published := 0
+	controller := &Controller{
+		C: &Config{TrackingSecret: "test-secret"},
+		trackingNotifyOnce: func(_ context.Context, _ Status, _ string, _ time.Duration) (bool, error) {
+			if seen {
+				return false, nil
+			}
+			seen = true
+			return true, nil
+		},
+		publishWinLossFunc: func(_ []byte) error {
+			published++
+			return nil
+		},
+	}
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodGet, u.RequestURI(), nil)
+		rr := httptest.NewRecorder()
+		controller.ServeWinLoss(rr, req)
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+		}
+	}
+	if published != 1 {
+		t.Fatalf("published = %d, want one", published)
 	}
 }
 

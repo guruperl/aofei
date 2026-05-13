@@ -185,22 +185,23 @@ returned callback fields with signed Aofei proxy URLs:
 Billing authority is `burl` first. When a downstream bid has `burl`, `/mid/bill`
 is the billable event. When a downstream bid does not have `burl`, `/mid/win`
 is the billable fallback. Billable middleman events are idempotent through
-`middleman:bill:<token>`.
+`middleman:bill:<token>`, and duplicate `/mid/win` or `/mid/loss` notifications
+do not republish win/loss records.
 
 M21 records both sides of the middleman price:
 
 ```text
-charge_price = upstream callback auction_price capped at upstream returned bid price,
-               or upstream returned bid price when the callback price is absent
+charge_price = upstream returned bid price stored in the Redis callback context
 pay_price = min(downstream_bid_price, max(0, charge_price - margin_cpm))
 margin_cpm = upstream returned bid price - downstream bid price
 ```
 
-Downstream callbacks receive the net payable price in their
-`${AUCTION_PRICE}` macro. Winloss logs store charge price in the existing
-`RAdv.Cost` field so the legacy ledger can count charge-side CPM delivery, and
-store downstream bid, upstream bid, pay price, margin, callback source, and
-forward status in middleman metadata.
+Incoming middleman `auction_price` and `auction_currency` query parameters are
+not trusted for ledger math. Downstream callbacks receive the net payable price
+in their `${AUCTION_PRICE}` macro. Winloss logs store charge price in the
+existing `RAdv.Cost` field so the legacy ledger can count charge-side CPM
+delivery, and store downstream bid, upstream bid, pay price, margin, callback
+source, and forward status in middleman metadata.
 
 M22 consumes that metadata in `cmd/ledger`. `ledger_mid` and `daily_mid`
 preserve bidder, route, synthetic demand, and publisher dimensions. Advertiser
@@ -215,6 +216,11 @@ row in `mid_callback_retry` with the expanded downstream URL and enough
 auction, route, bidder, price, and currency context to retry after the Redis
 callback context expires. Missing URLs, invalid URLs, duplicate notifications,
 and HTTP 4xx responses other than 429 are not queued.
+
+M26 signs middleman proxy URLs with `sig_ts` and rejects expired callbacks.
+Downstream callback forwarding validates expanded callback URLs before the HTTP
+request and rejects loopback, private, link-local, unspecified, multicast, and
+DNS-rebinding targets. The retry command applies the same URL guard.
 
 The singleton `cmd/mid-callback-retry` command claims due rows as `Processing`
 before forwarding, then marks them `Succeeded`, `Retrying`, or `Abandoned` with

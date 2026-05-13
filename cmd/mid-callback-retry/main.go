@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -47,14 +46,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	db, err := sql.Open(c.ConnectArray[0], c.ConnectArray[1])
+	if err := c.Validate(dsp.ConfigModeRetry); err != nil {
+		log.Fatal(err)
+	}
+	db, err := c.OpenDB(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	if err := db.PingContext(ctx); err != nil {
-		log.Fatal(err)
-	}
 
 	result, err := midcallback.Run(ctx, db, midcallback.Options{
 		Limit:       limit,

@@ -2,10 +2,8 @@ package dsp
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +15,7 @@ import (
 	"time"
 
 	"github.com/guruperl/aofei/internal/jobs/midcallback"
+	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -201,6 +200,13 @@ func (self *Controller) middlemanCallbackTimeout() time.Duration {
 	return time.Duration(self.C.MiddlemanCallbackTimeoutMS) * time.Millisecond
 }
 
+func (self *Controller) trackingSignatureTTL() time.Duration {
+	if self == nil || self.C == nil || self.C.TrackingSignatureTTLSeconds <= 0 {
+		return defaultTrackingSignatureTTL
+	}
+	return time.Duration(self.C.TrackingSignatureTTLSeconds) * time.Second
+}
+
 func (self *Controller) middlemanCallbackBaseURL() string {
 	if self == nil || self.C == nil {
 		return ""
@@ -224,12 +230,13 @@ func addMiddlemanSignature(secret, path string, args url.Values) error {
 	if secret == "" {
 		return fmt.Errorf("tracking signature secret is not configured")
 	}
+	args.Set(trackingSignatureTimestampParam, strconv.FormatInt(time.Now().Unix(), 10))
 	signable := middlemanSignableValues(path, args)
 	args.Set(trackingSignatureParam, signTrackingValues(secret, path, signable))
 	return nil
 }
 
-func validateMiddlemanSignature(secret, path string, args url.Values) error {
+func validateMiddlemanSignature(secret, path string, args url.Values, ttl time.Duration) error {
 	if secret == "" {
 		return fmt.Errorf("tracking signature secret is not configured")
 	}
@@ -237,17 +244,12 @@ func validateMiddlemanSignature(secret, path string, args url.Values) error {
 	if got == "" {
 		return fmt.Errorf("tracking signature missing")
 	}
-	signable := middlemanSignableValues(path, args)
-	want := signTrackingValues(secret, path, signable)
-	gotBytes, err := hex.DecodeString(got)
-	if err != nil {
-		return fmt.Errorf("tracking signature malformed")
-	}
-	wantBytes, err := hex.DecodeString(want)
-	if err != nil {
+	if err := validateTrackingSignatureTimestamp(args, ttl); err != nil {
 		return err
 	}
-	if !hmac.Equal(gotBytes, wantBytes) {
+	signable := middlemanSignableValues(path, args)
+	want := signTrackingValues(secret, path, signable)
+	if !equalHexSignature(got, want) {
 		return fmt.Errorf("tracking signature invalid")
 	}
 	return nil
@@ -262,6 +264,7 @@ func middlemanSignableValues(path string, args url.Values) url.Values {
 	default:
 		out.Set("t", args.Get("t"))
 	}
+	out.Set(trackingSignatureTimestampParam, args.Get(trackingSignatureTimestampParam))
 	return out
 }
 
@@ -397,7 +400,7 @@ func (self *Controller) ServeMiddlemanCallback(w http.ResponseWriter, r *http.Re
 }
 
 func (self *Controller) serveMiddlemanClick(ctx context.Context, args url.Values) error {
-	if err := validateMiddlemanSignature(self.trackingSecret(), "/mid/click", args); err != nil {
+	if err := validateMiddlemanSignature(self.trackingSecret(), "/mid/click", args, self.trackingSignatureTTL()); err != nil {
 		return err
 	}
 	requestToken := args.Get("rt")
@@ -413,12 +416,12 @@ func (self *Controller) serveMiddlemanClick(ctx context.Context, args url.Values
 	if err != nil {
 		return err
 	}
-	prices := value.reconciledPrices("")
+	prices := value.reconciledPrices()
 	return self.publishMiddlemanWinLoss(StatusTrackClk, value, "click", prices, "none", 0)
 }
 
 func (self *Controller) serveMiddlemanStatus(ctx context.Context, path string, args url.Values) error {
-	if err := validateMiddlemanSignature(self.trackingSecret(), path, args); err != nil {
+	if err := validateMiddlemanSignature(self.trackingSecret(), path, args, self.trackingSignatureTTL()); err != nil {
 		return err
 	}
 	token := args.Get("t")
@@ -429,13 +432,16 @@ func (self *Controller) serveMiddlemanStatus(ctx context.Context, path string, a
 	if err != nil {
 		return err
 	}
-	prices := value.reconciledPrices(args.Get("auction_price"))
+	prices := value.reconciledPrices()
 
 	switch path {
 	case "/mid/win":
 		status, code, err := self.forwardMiddlemanCallbackOnce(ctx, value, "win", value.DownstreamNURL, prices)
 		if err != nil {
 			return err
+		}
+		if status == "duplicate" {
+			return nil
 		}
 		if err := self.publishMiddlemanWinLoss(StatusWin, value, "win", prices, status, code); err != nil {
 			return err
@@ -468,6 +474,9 @@ func (self *Controller) serveMiddlemanStatus(ctx context.Context, path string, a
 		status, code, err := self.forwardMiddlemanCallbackOnce(ctx, value, "loss", value.DownstreamLURL, prices)
 		if err != nil {
 			return err
+		}
+		if status == "duplicate" {
+			return nil
 		}
 		return self.publishMiddlemanWinLoss(StatusLoss, value, "loss", prices, status, code)
 	default:
@@ -527,13 +536,10 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 	return self.publishWinLoss(data)
 }
 
-func (value middlemanCallbackContext) reconciledPrices(rawAuctionPrice string) middlemanPrices {
+func (value middlemanCallbackContext) reconciledPrices() middlemanPrices {
 	charge := value.UpstreamBidPrice
-	if parsed, err := strconv.ParseFloat(rawAuctionPrice, 64); err == nil && parsed > 0 {
-		charge = parsed
-		if value.UpstreamBidPrice > 0 && charge > value.UpstreamBidPrice {
-			charge = value.UpstreamBidPrice
-		}
+	if charge < 0 {
+		charge = 0
 	}
 	pay := charge - value.MarginCPM
 	if pay < 0 {
@@ -608,6 +614,9 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 	if err != nil {
 		return "", "invalid_url", 0, err.Error()
 	}
+	if err := self.validateMiddlemanCallbackTarget(ctx, target); err != nil {
+		return target, "invalid_url", 0, err.Error()
+	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, self.middlemanCallbackTimeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, target, nil)
@@ -616,7 +625,7 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 	}
 	client := self.client
 	if client == nil {
-		client = http.DefaultClient
+		client = safehttp.NewCallbackClient(nil)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -628,6 +637,16 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 		return target, "http_error", resp.StatusCode, resp.Status
 	}
 	return target, "ok", resp.StatusCode, ""
+}
+
+func (self *Controller) validateMiddlemanCallbackTarget(ctx context.Context, target string) error {
+	if self != nil && self.callbackURLGuard != nil {
+		return self.callbackURLGuard(ctx, target)
+	}
+	if self != nil && self.client != nil {
+		return nil
+	}
+	return safehttp.ValidateCallbackURL(ctx, target)
 }
 
 func expandMiddlemanCallbackURL(raw string, value middlemanCallbackContext, prices middlemanPrices) (string, error) {

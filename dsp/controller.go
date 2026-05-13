@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/maxmind"
 )
@@ -45,6 +46,8 @@ type Controller struct {
 	audit              *auditPublisher
 	client             *http.Client
 	middlemanStore     middlemanCallbackStore
+	callbackURLGuard   func(context.Context, string) error
+	trackingNotifyOnce func(context.Context, Status, string, time.Duration) (bool, error)
 	publishWinLossFunc func([]byte) error
 }
 
@@ -128,6 +131,9 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 	if err != nil {
 		return nil, err
 	}
+	if err := c.Validate(ConfigModeBid); err != nil {
+		return nil, err
+	}
 	redis, db, err := c.GetRedisDB(ctx)
 	if err != nil {
 		return nil, err
@@ -137,7 +143,10 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		Redis:  redis,
 		DB:     db,
 		local:  newLocalStaticCache(),
-		client: http.DefaultClient,
+		client: safehttp.NewCallbackClient(nil),
+		callbackURLGuard: func(ctx context.Context, raw string) error {
+			return safehttp.ValidateCallbackURL(ctx, raw)
+		},
 	}
 	if c.IsLocal {
 		if err := controller.ReloadLocalStaticCache(); err != nil {
@@ -732,7 +741,21 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		if err != nil {
 			return err
 		}
+	case StatusWin, StatusLoss:
+		if err := validateTrackingSignature(self.trackingSecret(), status.path(), args, self.trackingSignatureTTL()); err != nil {
+			return err
+		}
 	default:
+	}
+
+	if status == StatusWin || status == StatusLoss {
+		first, err := self.setTrackingNotifyOnce(ctx, status, wl.AuctionBidID)
+		if err != nil {
+			return err
+		}
+		if !first {
+			return nil
+		}
 	}
 
 	bs, err := json.Marshal(wl)
@@ -740,6 +763,25 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		return err
 	}
 	return self.publishWinLoss(bs)
+}
+
+func (self *Controller) setTrackingNotifyOnce(ctx context.Context, status Status, auctionBidID string) (bool, error) {
+	if auctionBidID == "" {
+		return true, nil
+	}
+	if self != nil && self.trackingNotifyOnce != nil {
+		return self.trackingNotifyOnce(ctx, status, auctionBidID, self.trackingSignatureTTL())
+	}
+	if self == nil || self.Redis == nil {
+		return true, nil
+	}
+	var result string
+	err := self.Redis.Do(ctx, radix.Cmd(&result, "SET", trackingNotifyKey(status, auctionBidID), "1", "EX", strconv.Itoa(ttlSeconds(self.trackingSignatureTTL())), "NX"))
+	return result == "OK", err
+}
+
+func trackingNotifyKey(status Status, auctionBidID string) string {
+	return "tracking:notify:" + status.path() + ":" + url.PathEscape(auctionBidID)
 }
 
 func (self Status) path() string {

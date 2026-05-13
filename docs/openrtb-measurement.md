@@ -45,12 +45,16 @@ them. Tracker prices use the same selected USD eCPM value returned in
 `Bid.price`, so ledger spend follows the served bid price rather than the raw
 item cost field.
 
-DSP-generated measurement URLs include an HMAC `sig` when `tracking_secret` or
-`TRACKING_SECRET` is configured. `/imp` and `/clk` signatures cover the full
-concrete query payload, including `redirect` on click URLs. `/win` and `/loss`
-sign only immutable packed demand/supply fields so exchanges can still replace
-auction macros. Click redirects and Redis cap mutations require a valid
-signature; unsigned or modified redirect URLs return `400`.
+DSP-generated measurement URLs include HMAC `sig` and Unix-second `sig_ts`
+parameters when `tracking_secret` or `TRACKING_SECRET` is configured. `sig_ts`
+must be present, inside `tracking_signature_ttl_seconds`, and part of the
+signature. `/imp` and `/clk` signatures cover the full concrete query payload,
+including `redirect` on click URLs. `/win` and `/loss` sign immutable packed
+demand/supply fields and `sig_ts` so exchanges can still replace auction macros.
+Click redirects, win/loss notifications, and Redis cap mutations require a
+valid non-expired signature; unsigned, expired, or modified URLs return `400`.
+Duplicate `/win` and `/loss` notifications for the same auction bid are
+short-circuited for the signature TTL when Redis is available.
 
 Current tracker embedding is format-dependent: native and native-video markup
 include `/imp` trackers and use `/clk` as a redirecting primary link. Banner

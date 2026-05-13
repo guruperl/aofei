@@ -60,14 +60,14 @@ func TestRunClaimsDueRowsBeforeForwarding(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*FOR UPDATE`).
-		WithArgs(5, 10).
+		WithArgs(5, sqlmock.AnyArg(), sqlmock.AnyArg(), 10).
 		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
 			AddRow(uint64(7), "tok", "win", downstream.URL+"/win", 0))
-	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
-		WithArgs(uint64(7)).
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
+		WithArgs(sqlmock.AnyArg(), uint64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
-	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Succeeded', attempts=\?, last_http_status=\?, last_error=NULL, updated=NOW\(\)\s+WHERE retry_id=\? AND status='Processing'`).
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Succeeded', attempts=\?, claimed_at=NULL, last_http_status=\?, last_error=NULL, updated=NOW\(\)\s+WHERE retry_id=\? AND status='Processing'`).
 		WithArgs(1, http.StatusNoContent, uint64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -94,8 +94,8 @@ func TestRunDryRunDoesNotClaimRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry\s+WHERE status IN \('Pending', 'Retrying'\).*LIMIT \?`).
-		WithArgs(5, 10).
+	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry\s+WHERE attempts < \?.*status = 'Processing'.*LIMIT \?`).
+		WithArgs(5, sqlmock.AnyArg(), sqlmock.AnyArg(), 10).
 		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
 			AddRow(uint64(7), "tok", "win", "https://downstream.example/win", 0))
 
@@ -105,6 +105,45 @@ func TestRunDryRunDoesNotClaimRows(t *testing.T) {
 	}
 	if result.Selected != 1 || result.Succeeded != 0 || result.Retrying != 0 || result.Abandoned != 0 {
 		t.Fatalf("dry-run result = %#v", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunReclaimsStaleProcessingRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*status = 'Processing'.*FOR UPDATE`).
+		WithArgs(5, now, now.Add(-10*time.Minute), 10).
+		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
+			AddRow(uint64(9), "tok", "win", "http://127.0.0.1/win", 4))
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
+		WithArgs(now, uint64(9)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Abandoned', attempts=\?, claimed_at=NULL, last_http_status=\?, last_error=\?, updated=NOW\(\)\s+WHERE retry_id=\? AND status='Processing'`).
+		WithArgs(5, nil, sqlmock.AnyArg(), uint64(9)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	result, err := Run(context.Background(), db, Options{
+		Limit:       10,
+		MaxAttempts: 5,
+		Now: func() time.Time {
+			return now
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Selected != 1 || result.Abandoned != 1 {
+		t.Fatalf("result = %#v, want one stale row abandoned after final failed attempt", result)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

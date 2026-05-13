@@ -218,12 +218,16 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 Inputs:
 
 - Docker MySQL from `AOFEI`.
-- Due rows in `mid_callback_retry` with status `Pending` or `Retrying`; process
-  mode claims rows as `Processing` before downstream forwarding.
+- Due rows in `mid_callback_retry` with status `Pending` or `Retrying`, plus
+  stale `Processing` rows whose `claimed_at` is older than the worker stale
+  threshold; process mode claims rows as `Processing` before downstream
+  forwarding.
 
 Outputs:
 
 - Downstream HTTP GET calls to the already-expanded callback URL.
+- Loopback, private, link-local, unspecified, multicast, and DNS-rebinding
+  callback targets are rejected before forwarding.
 - Retry rows marked `Succeeded`, `Retrying`, or `Abandoned`.
 
 Notes:

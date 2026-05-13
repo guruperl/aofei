@@ -64,8 +64,10 @@ TRACKING_SECRET="..."
 ```
 
 These files are local artifacts and are ignored by git.
-`tracking_secret` in the DSP config signs generated `/imp` and `/clk` tracking
-URLs; when omitted, `TRACKING_SECRET` is used as the fallback.
+`tracking_secret` in the DSP config signs generated `/imp`, `/clk`, `/win`,
+`/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
+the fallback. `tracking_signature_ttl_seconds` bounds signed URL replay and
+defaults to 86400.
 Middleman fallback is controlled by `middleman_enabled`,
 `middleman_timeout_ms`, `middleman_max_bidders_per_imp`, and
 `middleman_exchange_domain`. `trigger_mode='Always'` fanout also requires

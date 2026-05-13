@@ -51,6 +51,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	modes := []dsp.ConfigMode{dsp.ConfigModeCache}
+	if cacheMode == cachejob.ModeSpread || cacheMode == cachejob.ModeAll {
+		modes = append(modes, dsp.ConfigModeNATS)
+	}
+	if err := c.Validate(modes...); err != nil {
+		log.Fatal(err)
+	}
 	ctx := context.Background()
 	redis, db, err := c.GetRedisDB(ctx)
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/guruperl/aofei/internal/safehttp"
 )
 
 const (
@@ -47,14 +49,15 @@ type Row struct {
 }
 
 type Options struct {
-	Limit       int
-	MaxAttempts int
-	Timeout     time.Duration
-	BaseBackoff time.Duration
-	MaxBackoff  time.Duration
-	DryRun      bool
-	Client      *http.Client
-	Now         func() time.Time
+	Limit                int
+	MaxAttempts          int
+	Timeout              time.Duration
+	BaseBackoff          time.Duration
+	MaxBackoff           time.Duration
+	StaleProcessingAfter time.Duration
+	DryRun               bool
+	Client               *http.Client
+	Now                  func() time.Time
 }
 
 type Result struct {
@@ -120,7 +123,9 @@ func Run(ctx context.Context, db *sql.DB, opts Options) (Result, error) {
 	if opts.DryRun {
 		rowSelector = dueRows
 	}
-	rows, err := rowSelector(ctx, db, opts.Limit, opts.MaxAttempts)
+	now := opts.now().UTC()
+	staleCutoff := now.Add(-opts.StaleProcessingAfter)
+	rows, err := rowSelector(ctx, db, opts.Limit, opts.MaxAttempts, now, staleCutoff)
 	if err != nil {
 		return Result{}, err
 	}
@@ -164,15 +169,17 @@ func RetryableForward(status string, code int) bool {
 	}
 }
 
-func dueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int) ([]Row, error) {
+func dueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int, now, staleCutoff time.Time) ([]Row, error) {
 	rows, err := db.QueryContext(ctx, `
 SELECT retry_id, token, source, callback_url, attempts
 FROM mid_callback_retry
-WHERE status IN ('Pending', 'Retrying')
-  AND next_attempt_at <= NOW()
-  AND attempts < ?
+WHERE attempts < ?
+  AND (
+    (status IN ('Pending', 'Retrying') AND next_attempt_at <= ?)
+    OR (status = 'Processing' AND (claimed_at IS NULL OR claimed_at < ?))
+  )
 ORDER BY next_attempt_at ASC, retry_id ASC
-LIMIT ?`, maxAttempts, limit)
+LIMIT ?`, maxAttempts, now, staleCutoff, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +195,7 @@ LIMIT ?`, maxAttempts, limit)
 	return out, rows.Err()
 }
 
-func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int) ([]Row, error) {
+func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int, now, staleCutoff time.Time) ([]Row, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -203,12 +210,14 @@ func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int) ([]Ro
 	rows, err := tx.QueryContext(ctx, `
 	SELECT retry_id, token, source, callback_url, attempts
 	FROM mid_callback_retry
-	WHERE status IN ('Pending', 'Retrying')
-	  AND next_attempt_at <= NOW()
-	  AND attempts < ?
+	WHERE attempts < ?
+	  AND (
+	    (status IN ('Pending', 'Retrying') AND next_attempt_at <= ?)
+	    OR (status = 'Processing' AND (claimed_at IS NULL OR claimed_at < ?))
+	  )
 	ORDER BY next_attempt_at ASC, retry_id ASC
 	LIMIT ?
-	FOR UPDATE`, maxAttempts, limit)
+	FOR UPDATE`, maxAttempts, now, staleCutoff, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -246,8 +255,8 @@ func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int) ([]Ro
 	}
 	_, err = tx.ExecContext(ctx, `
 	UPDATE mid_callback_retry
-	SET status='Processing', updated=NOW()
-	WHERE retry_id IN (`+placeholders+`)`, ids...)
+	SET status='Processing', claimed_at=?, updated=NOW()
+	WHERE retry_id IN (`+placeholders+`)`, append([]any{now}, ids...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,6 +272,11 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "invalid_url", 0, "invalid callback URL"
 	}
+	if opts.Client == nil {
+		if err := safehttp.ValidateCallbackURL(ctx, raw); err != nil {
+			return "invalid_url", 0, err.Error()
+		}
+	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, raw, nil)
@@ -271,7 +285,7 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 	}
 	client := opts.Client
 	if client == nil {
-		client = http.DefaultClient
+		client = safehttp.NewCallbackClient(nil)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -288,7 +302,7 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 func markSucceeded(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int) error {
 	_, err := db.ExecContext(ctx, `
 	UPDATE mid_callback_retry
-	SET status='Succeeded', attempts=?, last_http_status=?, last_error=NULL, updated=NOW()
+	SET status='Succeeded', attempts=?, claimed_at=NULL, last_http_status=?, last_error=NULL, updated=NOW()
 	WHERE retry_id=? AND status='Processing'`, attempts, nullableHTTPStatus(code), retryID)
 	return err
 }
@@ -296,7 +310,7 @@ func markSucceeded(ctx context.Context, db *sql.DB, retryID uint64, attempts, co
 func markRetrying(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int, lastErr string, next time.Time) error {
 	_, err := db.ExecContext(ctx, `
 	UPDATE mid_callback_retry
-	SET status='Retrying', attempts=?, next_attempt_at=?, last_http_status=?, last_error=?, updated=NOW()
+	SET status='Retrying', attempts=?, next_attempt_at=?, claimed_at=NULL, last_http_status=?, last_error=?, updated=NOW()
 	WHERE retry_id=? AND status='Processing'`, attempts, next.UTC(), nullableHTTPStatus(code), nullableError(lastErr), retryID)
 	return err
 }
@@ -304,7 +318,7 @@ func markRetrying(ctx context.Context, db *sql.DB, retryID uint64, attempts, cod
 func markAbandoned(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int, lastErr string) error {
 	_, err := db.ExecContext(ctx, `
 	UPDATE mid_callback_retry
-	SET status='Abandoned', attempts=?, last_http_status=?, last_error=?, updated=NOW()
+	SET status='Abandoned', attempts=?, claimed_at=NULL, last_http_status=?, last_error=?, updated=NOW()
 	WHERE retry_id=? AND status='Processing'`, attempts, nullableHTTPStatus(code), nullableError(lastErr), retryID)
 	return err
 }
@@ -324,6 +338,9 @@ func (opts Options) withDefaults() Options {
 	}
 	if opts.MaxBackoff <= 0 {
 		opts.MaxBackoff = time.Hour
+	}
+	if opts.StaleProcessingAfter <= 0 {
+		opts.StaleProcessingAfter = 10 * time.Minute
 	}
 	if opts.Now == nil {
 		opts.Now = time.Now

@@ -16,23 +16,15 @@ import (
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
-func TestMiddlemanReconciledPrices(t *testing.T) {
+func TestMiddlemanReconciledPricesUseServerOwnedPrice(t *testing.T) {
 	value := middlemanCallbackContext{
 		DownstreamBidPrice: 1.0,
 		UpstreamBidPrice:   1.2,
 		MarginCPM:          0.2,
 	}
-	got := value.reconciledPrices("1.100")
-	if !closeFloat(got.ChargePrice, 1.1) || !closeFloat(got.PayPrice, 0.9) {
-		t.Fatalf("prices = %+v, want charge 1.1 pay 0.9", got)
-	}
-	got = value.reconciledPrices("")
+	got := value.reconciledPrices()
 	if !closeFloat(got.ChargePrice, 1.2) || !closeFloat(got.PayPrice, 1.0) {
-		t.Fatalf("fallback prices = %+v, want charge 1.2 pay 1.0", got)
-	}
-	got = value.reconciledPrices("9.000")
-	if !closeFloat(got.ChargePrice, 1.2) || !closeFloat(got.PayPrice, 1.0) {
-		t.Fatalf("clamped prices = %+v, want charge 1.2 pay 1.0", got)
+		t.Fatalf("prices = %+v, want charge 1.2 pay 1.0", got)
 	}
 }
 
@@ -100,11 +92,11 @@ func TestServeMiddlemanBillPublishesOnceAndForwardsPayPrice(t *testing.T) {
 	if len(published) != 1 || published[0].Status != StatusTrackImp {
 		t.Fatalf("published = %#v, want one billable impression", published)
 	}
-	if !closeFloat(float64(published[0].RAdv.Cost), 1.1) || !closeFloat(published[0].Middleman.PayPrice, 0.9) {
+	if !closeFloat(float64(published[0].RAdv.Cost), 1.2) || !closeFloat(published[0].Middleman.PayPrice, 1.0) {
 		t.Fatalf("winloss prices = %#v middleman=%#v", published[0].RAdv, published[0].Middleman)
 	}
-	if len(forwarded) != 1 || forwarded[0] != "0.900" {
-		t.Fatalf("forwarded prices = %#v, want one downstream pay price 0.900", forwarded)
+	if len(forwarded) != 1 || forwarded[0] != "1.000" {
+		t.Fatalf("forwarded prices = %#v, want one downstream pay price 1.000", forwarded)
 	}
 }
 
@@ -334,8 +326,115 @@ func TestServeMiddlemanWinDoesNotForwardDuplicateNotifications(t *testing.T) {
 	if forwarded != 1 {
 		t.Fatalf("downstream forwards = %d, want one", forwarded)
 	}
-	if len(forwards) != 2 || forwards[0] != "ok" || forwards[1] != "duplicate" {
-		t.Fatalf("forward statuses = %#v, want ok then duplicate", forwards)
+	if len(forwards) != 1 || forwards[0] != "ok" {
+		t.Fatalf("forward statuses = %#v, want only first win published", forwards)
+	}
+}
+
+func TestServeMiddlemanRejectsMissingTimestampSignature(t *testing.T) {
+	store := newMemoryMiddlemanCallbackStore()
+	value := middlemanCallbackContext{
+		Token:              "tok",
+		RequestID:          "req",
+		ImpID:              "imp",
+		ResponseBidID:      "resp",
+		DownstreamBidPrice: 1.0,
+		UpstreamBidPrice:   1.2,
+		MarginCPM:          0.2,
+		RAdv:               match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+	}
+	if err := store.SetCallback(context.Background(), "tok", value, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	controller := &Controller{
+		C:              &Config{ServerURL: "http://aofei.example", TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+		middlemanStore: store,
+	}
+	args := url.Values{"t": []string{"tok"}}
+	args.Set("sig", signTrackingValues("test-secret", "/mid/win", middlemanSignableValues("/mid/win", args)))
+	req := httptest.NewRequest(http.MethodGet, "/mid/win?"+args.Encode(), nil)
+	rr := httptest.NewRecorder()
+
+	controller.ServeMiddlemanCallback(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want bad request", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "timestamp missing") {
+		t.Fatalf("body = %q, want timestamp missing error", rr.Body.String())
+	}
+}
+
+func TestServeMiddlemanRejectsExpiredSignature(t *testing.T) {
+	controller := &Controller{
+		C: &Config{
+			ServerURL:                   "http://aofei.example",
+			TrackingSecret:              "test-secret",
+			MiddlemanCallbackBaseURL:    "http://aofei.example",
+			TrackingSignatureTTLSeconds: 1,
+		},
+	}
+	raw, err := controller.middlemanProxyURL("/mid/win", "tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	q.Set(trackingSignatureTimestampParam, "1")
+	q.Set(trackingSignatureParam, signTrackingValues("test-secret", "/mid/win", middlemanSignableValues("/mid/win", q)))
+	u.RawQuery = q.Encode()
+	req := httptest.NewRequest(http.MethodGet, u.RequestURI(), nil)
+	rr := httptest.NewRecorder()
+
+	controller.ServeMiddlemanCallback(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want bad request", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "expired") {
+		t.Fatalf("body = %q, want expired error", rr.Body.String())
+	}
+}
+
+func TestServeMiddlemanSSRFIsInvalidForwardTarget(t *testing.T) {
+	store := newMemoryMiddlemanCallbackStore()
+	value := middlemanCallbackContext{
+		Token:              "tok",
+		RequestID:          "req",
+		ImpID:              "imp",
+		ResponseBidID:      "resp",
+		DownstreamNURL:     "http://127.0.0.1/win",
+		DownstreamBidPrice: 1.0,
+		UpstreamBidPrice:   1.2,
+		MarginCPM:          0.2,
+		RAdv:               match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+	}
+	if err := store.SetCallback(context.Background(), "tok", value, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	var published []WinLoss
+	controller := &Controller{
+		C:              &Config{ServerURL: "http://aofei.example", TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+		middlemanStore: store,
+		publishWinLossFunc: func(data []byte) error {
+			var wl WinLoss
+			if err := json.Unmarshal(data, &wl); err != nil {
+				return err
+			}
+			published = append(published, wl)
+			return nil
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, "/mid/win", "tok", "1.100"), nil)
+	rr := httptest.NewRecorder()
+
+	controller.ServeMiddlemanCallback(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+	}
+	if len(published) != 1 || published[0].Middleman.ForwardStatus != "invalid_url" {
+		t.Fatalf("published = %#v, want invalid_url forward status", published)
 	}
 }
 
