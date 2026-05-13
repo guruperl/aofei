@@ -1,11 +1,15 @@
 package midroute
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
+	"time"
 
+	"github.com/genelet/winter/match"
 	"github.com/genelet/winter/summer"
+	"github.com/mediocregopher/radix/v4"
 )
 
 type Model struct {
@@ -13,13 +17,29 @@ type Model struct {
 }
 
 func (self *Model) Topics(extra ...url.Values) error {
-	return self.SelectSQL(self.LISTS, `
+	if err := self.SelectSQL(self.LISTS, `
 SELECT g.group_id, g.group_name, g.trigger_mode, g.total_timeout_ms,
 	g.margin_pct, g.min_margin_cpm, g.active, g.created, g.updated,
 	(SELECT COUNT(*) FROM mid_route_bidder rb WHERE rb.group_id=g.group_id) AS bidder_count,
 	(SELECT COUNT(*) FROM mid_route_target rt WHERE rt.group_id=g.group_id) AS target_count
 FROM mid_route_group g
-ORDER BY g.group_id DESC`)
+ORDER BY g.group_id DESC`); err != nil {
+		return err
+	}
+	return self.loadRouteCacheStatus()
+}
+
+func (self *Model) Health(extra ...url.Values) error {
+	*self.LISTS = make([]map[string]interface{}, 0)
+	if err := self.loadRouteCacheStatus(); err != nil {
+		return err
+	}
+	for _, query := range routeHealthQueries() {
+		if err := self.SelectSQL(self.LISTS, query); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (self *Model) Startnew(extra ...url.Values) error {
@@ -414,6 +434,170 @@ ORDER BY width ASC, height ASC`); err != nil {
 	}
 	(*self.OTHER)["midroute_sizes"] = lists
 	return nil
+}
+
+func (self *Model) loadRouteCacheStatus() error {
+	if self.OTHER == nil {
+		return nil
+	}
+	status := map[string]interface{}{
+		"cache_key":    match.HashNameMiddlemanRoutes,
+		"cache_status": "unknown",
+	}
+	currentHighWater, err := match.DBGetMiddlemanRouteHighWater(context.Background(), self.DB)
+	if err != nil {
+		return err
+	}
+	status["db_route_high_water"] = currentHighWater
+
+	redis, ok, err := midrouteStorageRedis(self.Storage)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		status["cache_error"] = "Redis storage is not configured"
+		(*self.OTHER)["midroute_cache_status"] = status
+		return nil
+	}
+	cache, err := match.MiddlemanRouteCacheFromRedis(context.Background(), redis)
+	if err != nil {
+		status["cache_error"] = err.Error()
+		(*self.OTHER)["midroute_cache_status"] = status
+		return nil
+	}
+	status["cache_entry_count"] = len(cache.Entries)
+	if cache.Metadata == nil {
+		status["cache_status"] = "unknown"
+		(*self.OTHER)["midroute_cache_status"] = status
+		return nil
+	}
+	status["cache_generated_at"] = cache.Metadata.GeneratedAt
+	status["cache_metadata_entry_count"] = cache.Metadata.EntryCount
+	status["cache_source"] = cache.Metadata.Source
+	status["cache_route_high_water"] = cache.Metadata.RouteDBHighWater
+	status["cache_checksum"] = cache.Metadata.Checksum
+	status["cache_status"] = routeCacheFreshness(cache.Metadata.GeneratedAt, cache.Metadata.RouteDBHighWater, currentHighWater)
+	(*self.OTHER)["midroute_cache_status"] = status
+	return nil
+}
+
+func midrouteStorageRedis(storage map[string]interface{}) (radix.Client, bool, error) {
+	raw, ok := storage["Redis"]
+	if !ok || raw == nil {
+		return nil, false, nil
+	}
+	client, ok := raw.(radix.Client)
+	if !ok {
+		return nil, false, fmt.Errorf("storage Redis has type %T, want radix.Client", raw)
+	}
+	return client, true, nil
+}
+
+func routeCacheFreshness(generatedAt, cacheHighWater, dbHighWater string) string {
+	if generatedAt == "" {
+		return "unknown"
+	}
+	if _, err := time.Parse(time.RFC3339, generatedAt); err != nil {
+		return "unknown"
+	}
+	if cacheHighWater == dbHighWater {
+		return "fresh"
+	}
+	if cacheHighWater == "" || dbHighWater == "" {
+		return "stale"
+	}
+	cacheTime, err := time.Parse(time.RFC3339, cacheHighWater)
+	if err != nil {
+		return "unknown"
+	}
+	dbTime, err := time.Parse(time.RFC3339, dbHighWater)
+	if err != nil {
+		return "unknown"
+	}
+	if cacheTime.Before(dbTime) {
+		return "stale"
+	}
+	return "fresh"
+}
+
+func routeHealthQueries() []string {
+	selectPrefix := func(issue, severity string) string {
+		return fmt.Sprintf(`
+SELECT '%s' AS issue_type, '%s' AS severity,`, issue, severity)
+	}
+	commonTail := `
+	NULL AS route_bidder_id, NULL AS bidder_id, NULL AS bidder_name, NULL AS credential_ref,
+	NULL AS credential_status, NULL AS bidder_active, NULL AS synthetic_campaign_id,
+	NULL AS synthetic_item_id, NULL AS synthetic_creative_id, NULL AS detail`
+	return []string{
+		selectPrefix("no_active_targets", "error") + `
+	g.group_id, g.group_name, g.trigger_mode, g.active AS group_active,` + commonTail + `
+FROM mid_route_group g
+WHERE g.active='Yes'
+  AND NOT EXISTS (
+	SELECT 1 FROM mid_route_target t WHERE t.group_id=g.group_id AND t.active='Yes'
+  )
+ORDER BY g.group_id`,
+		selectPrefix("no_active_bidders", "error") + `
+	g.group_id, g.group_name, g.trigger_mode, g.active AS group_active,` + commonTail + `
+FROM mid_route_group g
+WHERE g.active='Yes'
+  AND NOT EXISTS (
+	SELECT 1 FROM mid_route_bidder rb WHERE rb.group_id=g.group_id AND rb.active='Yes'
+  )
+ORDER BY g.group_id`,
+		`
+SELECT 'inactive_or_unapproved_bidder' AS issue_type, 'error' AS severity,
+	g.group_id, g.group_name, g.trigger_mode, g.active AS group_active,
+	rb.route_bidder_id, b.bidder_id, b.bidder_name, b.credential_ref,
+	b.credential_status, b.active AS bidder_active, b.synthetic_campaign_id,
+	b.synthetic_item_id, b.synthetic_creative_id,
+	CONCAT('credential_status=', b.credential_status, ', active=', b.active) AS detail
+FROM mid_route_group g
+INNER JOIN mid_route_bidder rb USING (group_id)
+INNER JOIN adv_bidder b USING (bidder_id)
+WHERE g.active='Yes'
+  AND rb.active='Yes'
+  AND (b.active <> 'Yes' OR b.credential_status <> 'Active')
+ORDER BY g.group_id, rb.route_bidder_id`,
+		`
+SELECT 'missing_credential_ref' AS issue_type, 'error' AS severity,
+	g.group_id, g.group_name, g.trigger_mode, g.active AS group_active,
+	rb.route_bidder_id, b.bidder_id, b.bidder_name, b.credential_ref,
+	b.credential_status, b.active AS bidder_active, b.synthetic_campaign_id,
+	b.synthetic_item_id, b.synthetic_creative_id,
+	'credential_ref is empty' AS detail
+FROM mid_route_group g
+INNER JOIN mid_route_bidder rb USING (group_id)
+INNER JOIN adv_bidder b USING (bidder_id)
+WHERE g.active='Yes'
+  AND rb.active='Yes'
+  AND b.active='Yes'
+  AND (b.credential_ref IS NULL OR b.credential_ref='')
+ORDER BY g.group_id, rb.route_bidder_id`,
+		`
+SELECT 'invalid_synthetic_chain' AS issue_type, 'error' AS severity,
+	g.group_id, g.group_name, g.trigger_mode, g.active AS group_active,
+	rb.route_bidder_id, b.bidder_id, b.bidder_name, b.credential_ref,
+	b.credential_status, b.active AS bidder_active, b.synthetic_campaign_id,
+	b.synthetic_item_id, b.synthetic_creative_id,
+	CASE
+		WHEN c.campaign_id IS NULL THEN 'synthetic campaign is missing or belongs to another advertiser'
+		WHEN i.item_id IS NULL THEN 'synthetic item is missing or belongs to another campaign'
+		WHEN v.creative_id IS NULL THEN 'synthetic creative is missing or belongs to another item'
+		ELSE 'synthetic chain is invalid'
+	END AS detail
+FROM mid_route_group g
+INNER JOIN mid_route_bidder rb USING (group_id)
+INNER JOIN adv_bidder b USING (bidder_id)
+LEFT JOIN adv_campaign c ON (c.campaign_id=b.synthetic_campaign_id AND c.adv_id=b.adv_id)
+LEFT JOIN adv_item i ON (i.item_id=b.synthetic_item_id AND i.campaign_id=c.campaign_id)
+LEFT JOIN adv_creative v ON (v.creative_id=b.synthetic_creative_id AND v.item_id=i.item_id)
+WHERE g.active='Yes'
+  AND rb.active='Yes'
+  AND (c.campaign_id IS NULL OR i.item_id IS NULL OR v.creative_id IS NULL)
+ORDER BY g.group_id, rb.route_bidder_id`,
+	}
 }
 
 func targetSelectSQL() string {

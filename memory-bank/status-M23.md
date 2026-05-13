@@ -46,13 +46,15 @@ cache data, and the singleton `cmd/redis-cache` job refreshes that cache.
 
 ## Carry Forward
 
-- `[ ]` Route cache refresh is still a singleton `cmd/redis-cache` operation;
-  route edits do not push cache invalidation from the UI.
+- `[+]` Route cache refresh is still a singleton `cmd/redis-cache` operation;
+  M24 added route-only refresh and UI freshness visibility while preserving
+  cache-node ownership.
 - `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
   middleman routes are still Redis-only runtime cache data.
 - `[ ]` `trigger_mode='Always'` remains schema/UI-visible but runtime-inactive;
   bid fanout still uses `Fallback` after local no-bid.
-- `[ ]` Durable callback retry queues remain post-M23 reliability work.
+- `[+]` Durable callback retry queues moved to M24 and are implemented for
+  retryable downstream post-auction callback forwarding failures.
 - `[ ]` Real invoicing/payment execution remains future settlement work.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a
   non-goal unless future reporting requires reopening it.

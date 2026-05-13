@@ -108,7 +108,11 @@ no-op and a wrong adapter type is an explicit error.
 
 Middleman route edits write MySQL only. They do not refresh `middleman:routes`
 from the UI or from `cmd/unify`; the singleton `cmd/redis-cache -cache=redis|all`
-job remains responsible for publishing route changes to Redis.
+job remains responsible for publishing route changes to Redis, with
+`cmd/redis-cache -cache=routes` available for route-only refresh. The
+`midroute` topics and health actions show Redis route-cache freshness and route
+configuration health, but they do not execute cache refreshes or read credential
+secret values.
 
 ## Local Usage
 

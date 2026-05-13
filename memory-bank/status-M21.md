@@ -51,7 +51,8 @@ reporting.
   in M22.
 - `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
   middleman routes are still Redis-only runtime cache data.
-- `[ ]` Durable callback retry queues remain post-M23 reliability work.
+- `[+]` Durable callback retry queues moved to M24 and are implemented for
+  retryable downstream post-auction callback forwarding failures.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a
   non-goal unless a future reporting requirement justifies reopening it.
 

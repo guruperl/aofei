@@ -6,7 +6,7 @@ import (
 )
 
 func TestValidateMode(t *testing.T) {
-	for _, mode := range []string{ModeRedis, ModeSpread, ModeAll} {
+	for _, mode := range []string{ModeRedis, ModeSpread, ModeAll, ModeRoutes} {
 		if err := ValidateMode(mode); err != nil {
 			t.Fatalf("ValidateMode(%q) = %v", mode, err)
 		}

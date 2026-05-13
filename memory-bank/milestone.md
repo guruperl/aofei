@@ -592,18 +592,62 @@ Acceptance:
 - M23 does not add spread route snapshots, durable callback retries, real
   settlement execution, arbitrary markup rewriting, or `Always` fanout runtime.
 
-## Post-M23 Middleman Backlog
+## M24 - Middleman Operations Reliability `[+]`
 
-These items remain intentionally outside the completed M21-M23 milestones:
+Make the current fallback system easier to operate and more reliable without
+changing auction winner semantics.
 
-- Add an operator-owned route cache refresh workflow beyond the singleton
-  manual/scheduled `cmd/redis-cache` run, if route edits need faster rollout.
+Scope:
+
+- Add route-only `cmd/redis-cache -cache=routes` refresh and read support.
+- Add additive metadata to Redis `middleman:routes` payloads: generation time,
+  entry count, source, route-table high-water timestamp, and entry checksum.
+- Show route-cache freshness on the admin `midroute` topics and health views
+  without running refresh from the UI.
+- Add admin `midroute?action=health` HTML/JSON output for route groups with no
+  active targets/bidders, inactive or unapproved route bidders, missing
+  credential refs, and invalid synthetic chains.
+- Add `mid_callback_retry` and singleton `cmd/mid-callback-retry` for retryable
+  downstream `/mid/win`, `/mid/loss`, and `/mid/bill` forwarding failures.
+
+Acceptance:
+
+- `/bid` does not write MySQL retry rows or perform new slow operational work.
+- Route cache publication remains owned by the singleton cache node.
+- Retry queues contain only retryable post-auction downstream callback failures:
+  network/request errors, HTTP 429, and HTTP 5xx.
+- Retry execution forwards downstream only and does not republish win/loss or
+  billable delivery records.
+
+## M25 - Middleman Auction Expansion `[ ]`
+
+Allow explicitly gated middleman fanout to compete with local bids after M24 is
+closed and reviewed.
+
+Scope:
+
+- Add `middleman_always_enabled`, default false.
+- Include `trigger_mode` in route cache behavior for `Always` routes.
+- Keep `Fallback` routes limited to local no-bid impressions.
+- Let `Always` middleman bids compete with local bids on effective CPM after
+  margin markup, while preserving local-wins fallback when comparison is unsafe.
+
+Acceptance:
+
+- `middleman_enabled` remains required.
+- `middleman_always_enabled=false` ignores `Always` route fanout.
+- Existing timeout, bidder limit, credential, ACL/channel, USD, floor, and
+  callback-proxy controls continue to apply.
+- Mixed local and middleman winners can be returned in one OpenRTB response.
+
+## Post-M24 Middleman Backlog
+
+These items remain intentionally outside M24:
+
 - Add spread/local snapshots for middleman bidder routes if `cmd/unify` should
   support middleman fallback without Redis static-cache reads.
-- Implement `trigger_mode='Always'` runtime behavior if operators need
+- Complete M25 `trigger_mode='Always'` runtime behavior when operators need
   downstream fanout even when local campaigns can bid.
-- Add durable callback retry queues for downstream notification forwarding if
-  Redis TTL idempotency plus synchronous forwarding is not reliable enough.
 - Add real invoicing/payment execution from `daily_mid` settlement facts.
 - Keep arbitrary downstream markup impression/click rewriting closed unless a
   future reporting requirement makes cooperative click notify insufficient.

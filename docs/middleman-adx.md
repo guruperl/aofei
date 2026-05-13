@@ -72,6 +72,8 @@ HTML routes are:
   `/goto/admin/g/midroute?action=bidders|startnewBidder|insertBidder|editBidder|updateBidder|deleteBidder`
 - Admin route targets:
   `/goto/admin/g/midroute?action=targets|startnewTarget|insertTarget|editTarget|updateTarget|deleteTarget`
+- Admin route health:
+  `/goto/admin/g/midroute?action=health`
 
 JSON routes remain available under `/goto/{role}/json/bidder` and
 `/goto/admin/json/midroute`.
@@ -86,6 +88,7 @@ The middleman tables are:
 | `mid_route_group` | Operator-defined fallback group with timeout and margin defaults. |
 | `mid_route_bidder` | Active bidders in a route group with optional overrides. |
 | `mid_route_target` | Route assignment to global, publisher, site, slot, and optional size. |
+| `mid_callback_retry` | Durable retry queue for retryable downstream post-auction callback forwarding failures. |
 | `ledger_mid` | Interval middleman reporting facts from callback metadata. |
 | `daily_mid` | Daily middleman reporting facts aggregated from `ledger_mid`. |
 
@@ -102,9 +105,23 @@ active in M20.
 Operators manage `mid_route_group`, `mid_route_bidder`, and `mid_route_target`
 through the admin `midroute` Summer/Genelet UI. The bidder route cache is
 Redis-only under `middleman:routes`. The singleton
-`cmd/redis-cache -cache=redis|all` job builds it from active `adv_bidder`,
-`mid_route_group`, `mid_route_bidder`, and `mid_route_target` rows. `cmd/unify`
-does not refresh this cache after route edits.
+`cmd/redis-cache -cache=redis|all|routes` job builds it from active
+`adv_bidder`, `mid_route_group`, `mid_route_bidder`, and `mid_route_target`
+rows. `cmd/unify` does not refresh this cache after route edits.
+
+The route cache remains version 1 JSON. M24 adds optional metadata to the
+payload: generation time, entry count, source, route-table high-water timestamp,
+and a checksum over route entries. Older version-1 payloads without metadata
+remain readable, but freshness is reported as unknown. The admin `midroute`
+topics page and JSON output expose the Redis metadata beside the current MySQL
+route high-water timestamp. The admin UI is visibility-only; operators still run
+the singleton cache command on the cache node to publish route changes.
+
+`midroute?action=health` reports active route groups with no active targets or
+route bidders, active route bidders whose downstream bidder is inactive or not
+credential-approved, missing `credential_ref` names, and invalid synthetic
+campaign/item/creative chains. Credential secret values are never read or shown;
+the UI shows only `credential_ref` names and statuses.
 
 Route membership alone is not enough to fan out. A bidder must also be active,
 credential-ready, mapped to a valid synthetic reporting chain, and eligible for
@@ -177,6 +194,19 @@ middleman reports show pay-side spend. Admin reports show charge spend, pay
 spend, margin, win/loss counts, billable impressions, clicks, and callback
 forward health.
 
+M24 adds durable retry for retryable downstream callback forwarding failures.
+Only post-auction `/mid/win`, `/mid/loss`, and `/mid/bill` forwards are
+eligible. Network/request errors, HTTP 429, and HTTP 5xx responses enqueue a
+row in `mid_callback_retry` with the expanded downstream URL and enough
+auction, route, bidder, price, and currency context to retry after the Redis
+callback context expires. Missing URLs, invalid URLs, duplicate notifications,
+and HTTP 4xx responses other than 429 are not queued.
+
+The singleton `cmd/mid-callback-retry` command processes due retry rows with
+bounded attempts and exponential backoff. It forwards downstream callbacks only;
+it does not republish win/loss or delivery records, so ledger counts remain
+idempotent.
+
 Forwarded requests still preserve the full original impression list and add
 cooperative click notify URLs under `ext.aofei_middleman.click_notify_urls`.
 M21 does not rewrite arbitrary downstream `adm`, impression pixels, or click
@@ -198,12 +228,13 @@ markup.
   from middleman callback metadata.
 - M23: admin route-operations UI for route groups, route bidders, and route
   targets; route-cache refresh remains a singleton `cmd/redis-cache` job.
+- M24: route-cache freshness/health visibility, route-only cache refresh, and
+  durable retry for retryable downstream callback forwards.
 
-## Post-M23 Backlog
+## Post-M24 Backlog
 
-The live middleman TODOs after M23 are route cache rollout automation beyond the
-singleton `cmd/redis-cache` job, optional spread/local route snapshots,
-`trigger_mode='Always'` runtime behavior, durable downstream callback retry
-queues, and real invoicing/payment execution from settlement facts. Arbitrary
-downstream `adm` impression/click rewriting remains closed unless a future
-reporting requirement makes cooperative click notify insufficient.
+The live middleman TODOs after M24 are optional spread/local route snapshots,
+`trigger_mode='Always'` runtime behavior, and real invoicing/payment execution
+from settlement facts. Arbitrary downstream `adm` impression/click rewriting
+remains closed unless a future reporting requirement makes cooperative click
+notify insufficient.

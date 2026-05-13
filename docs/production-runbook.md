@@ -284,7 +284,7 @@ Build artifacts from a reviewed commit:
 
 ```bash
 GOWORK=off go test ./...
-GOWORK=off go install ./cmd/unify ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/maxmind ./cmd/redis-cache
+GOWORK=off go install ./cmd/unify ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
 ```
 
 Copy binaries into a versioned release directory, update the active symlink or
@@ -296,6 +296,7 @@ sudo systemctl restart aofei-spread.service
 sudo systemctl restart aofei-nats-client.service
 sudo systemctl restart aofei-unify.service
 sudo systemctl enable --now aofei-redis-cache.timer
+sudo systemctl enable --now aofei-mid-callback-retry.timer
 sudo systemctl enable --now aofei-ledger.timer
 sudo systemctl enable --now aofei-ledger-daily.timer
 sudo systemctl status aofei-unify.service
@@ -308,6 +309,10 @@ Smoke checks:
 - Redis contains `pubmap`, `audience`, `creative`, `middleman:routes`, and
   `slot:<size_id>` cache families after cache population when Redis
   static-cache mode or middleman fallback is used.
+- `cmd/redis-cache -cache=routes -read` shows current route-cache metadata when
+  middleman routes are used.
+- The middleman callback retry timer runs on one operations node and can read
+  due rows without processing them via `cmd/mid-callback-retry -read`.
 - In local/spread static-cache mode, spread files exist and bid nodes have
   loaded a current in-process static generation.
 - NATS log subjects are written into the configured log directories.

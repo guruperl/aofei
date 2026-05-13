@@ -18,7 +18,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: redis-cache -s=dsp_config -cache=redis|spread|all -read -update -interval=divider -stamp=stamp\n")
+	fmt.Fprintf(os.Stderr, "usage: redis-cache -s=dsp_config -cache=redis|spread|all|routes -read -update -interval=divider -stamp=stamp\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }

@@ -84,7 +84,7 @@ After `reset && load`, the expected inventory is:
 
 | Object/data | Count |
 |---|---:|
-| Base tables | 56 |
+| Base tables | 57 |
 | Views | 1 |
 | Stored routines | 6 |
 | Triggers | 18 |
@@ -98,7 +98,10 @@ advertiser-owned OpenRTB endpoint metadata and optional synthetic
 campaign/item/creative reporting IDs. `mid_route_*` tables store
 operator-controlled fallback route configuration. `ledger_mid` and `daily_mid`
 store middleman callback-derived reporting facts for advertiser pay-side reports
-and admin charge/pay/margin settlement views.
+and admin charge/pay/margin settlement views. `mid_callback_retry` stores
+auditable retry rows for retryable downstream middleman callback forwarding
+failures without foreign keys so rows remain inspectable if route or bidder rows
+are later removed.
 
 ## Updating The Baseline
 

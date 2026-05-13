@@ -20,6 +20,7 @@ const (
 	ModeRedis  = "redis"
 	ModeSpread = "spread"
 	ModeAll    = "all"
+	ModeRoutes = "routes"
 )
 
 type Options struct {
@@ -31,10 +32,10 @@ type Options struct {
 
 func ValidateMode(mode string) error {
 	switch mode {
-	case ModeRedis, ModeSpread, ModeAll:
+	case ModeRedis, ModeSpread, ModeAll, ModeRoutes:
 		return nil
 	default:
-		return fmt.Errorf("unknown cache mode %q; expected redis, spread, or all", mode)
+		return fmt.Errorf("unknown cache mode %q; expected redis, spread, all, or routes", mode)
 	}
 }
 
@@ -44,6 +45,9 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 	}
 	if opts.UpdateInterval <= 0 {
 		return fmt.Errorf("cache update interval must be positive")
+	}
+	if opts.Mode == ModeRoutes {
+		return match.DBGetMiddlemanRoutesToRedis(ctx, redis, db)
 	}
 	if opts.Mode == ModeSpread || opts.Mode == ModeAll {
 		if nc == nil {
@@ -92,6 +96,9 @@ func Read(ctx context.Context, out io.Writer, c *dsp.Config, redis radix.Client,
 	if err := ValidateMode(mode); err != nil {
 		return err
 	}
+	if mode == ModeRoutes {
+		return RedisRoutesRead(ctx, out, redis)
+	}
 	sizeIDs, err := match.DBGetActiveCreativeSizeIDs(ctx, db)
 	if err != nil {
 		return err
@@ -106,9 +113,24 @@ func Read(ctx context.Context, out io.Writer, c *dsp.Config, redis radix.Client,
 			return err
 		}
 		return RedisRead(ctx, out, redis, sizeIDs)
+	case ModeRoutes:
+		return RedisRoutesRead(ctx, out, redis)
 	default:
 		return ValidateMode(mode)
 	}
+}
+
+func RedisRoutesRead(ctx context.Context, out io.Writer, redis radix.Client) error {
+	middlemanRoutes, err := match.MiddlemanRouteCacheFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	bs, err := json.MarshalIndent(middlemanRoutes, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Middleman routes:\n%s\n", bs)
+	return nil
 }
 
 func RedisRead(ctx context.Context, out io.Writer, redis radix.Client, sizeIDs []uint32) error {

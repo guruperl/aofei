@@ -60,6 +60,11 @@ advertiser-owned endpoint and reporting schema boundary:
 - Middleman fallback is enabled only by explicit DSP config after
   advertiser-owned endpoint approval, route cache population, synthetic
   reporting row validation, and ACL/channel eligibility checks.
+- Middleman route operations expose cache freshness and health in Summer while
+  keeping cache publication on the singleton `cmd/redis-cache` node.
+- Retryable downstream middleman callback forwarding failures are queued
+  durably after `/mid/*` callbacks and retried by a singleton operations
+  command; `/bid` remains cache/Redis-only and does not write MySQL retry rows.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

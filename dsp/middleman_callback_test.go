@@ -339,6 +339,66 @@ func TestServeMiddlemanWinDoesNotForwardDuplicateNotifications(t *testing.T) {
 	}
 }
 
+func TestServeMiddlemanWinRetriesOnlyRetryableDownstreamFailure(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		statusCode  int
+		wantForward int
+	}{
+		{"http400", http.StatusBadRequest, 1},
+		{"http429", http.StatusTooManyRequests, 2},
+		{"http500", http.StatusInternalServerError, 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var forwarded int
+			downstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				forwarded++
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer downstream.Close()
+
+			store := newMemoryMiddlemanCallbackStore()
+			value := middlemanCallbackContext{
+				Token:              "tok",
+				RequestID:          "req",
+				ImpID:              "imp",
+				ResponseBidID:      "resp",
+				DownstreamNURL:     downstream.URL + "/win",
+				DownstreamBidPrice: 1.0,
+				UpstreamBidPrice:   1.2,
+				MarginCPM:          0.2,
+				RAdv:               match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+			}
+			if err := store.SetCallback(context.Background(), "tok", value, time.Hour); err != nil {
+				t.Fatal(err)
+			}
+			controller := &Controller{
+				C: &Config{
+					ServerURL:                "http://aofei.example",
+					TrackingSecret:           "test-secret",
+					MiddlemanCallbackBaseURL: "http://aofei.example",
+				},
+				client:         downstream.Client(),
+				middlemanStore: store,
+				publishWinLossFunc: func(_ []byte) error {
+					return nil
+				},
+			}
+			req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, "/mid/win", "tok", "1.100"), nil)
+			for i := 0; i < 2; i++ {
+				rr := httptest.NewRecorder()
+				controller.ServeMiddlemanCallback(rr, req)
+				if rr.Code != http.StatusNoContent {
+					t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+				}
+			}
+			if forwarded != tt.wantForward {
+				t.Fatalf("forwards = %d, want %d", forwarded, tt.wantForward)
+			}
+		})
+	}
+}
+
 func openRTBBidForMiddlemanTest(impID string, price float64) openrtb2.Bid {
 	return openrtb2.Bid{ID: "bid", ImpID: impID, Price: price}
 }

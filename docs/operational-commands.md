@@ -20,6 +20,7 @@ Use these commands as separate process roles:
 | HTTP/UI/ADX | `cmd/unify` | every HTTP node |
 | NATS log writer | `cmd/nats-client` | separate systemd service on nodes that write/aggregate logs |
 | Redis cache refresh | `cmd/redis-cache -cache=redis` | singleton cron/timer on one cache node |
+| Middleman callback retry | `cmd/mid-callback-retry` | singleton cron/timer on one operations node |
 | Ledger | `cmd/ledger` | singleton cron/timer on the log aggregation node |
 | Spread snapshots | `cmd/spread` | nodes that need spread disk cache |
 | MaxMind refresh | `cmd/maxmind` | manual or scheduled maintenance node |
@@ -45,6 +46,20 @@ Run it only from the dedicated cache-maintenance node; `cmd/unify` does not
 refresh bidder routes itself. After operators edit route groups, route bidders,
 or route targets in Summer, run this refresh before expecting HTTP workers to
 use the new route state.
+
+To refresh only the middleman route cache:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=routes
+```
+
+To inspect only the route cache JSON and metadata:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=routes -read
+```
 
 - Generated log directories live under `.local/logs/` and are ignored by git:
   `.local/logs/log_request/`, `.local/logs/log_response/`,
@@ -178,6 +193,47 @@ Ledger should run only on the node where `cmd/nats-client` aggregates
 Redis cache population is also a singleton operational job; run
 `cmd/redis-cache -cache=redis` from cron or a systemd timer on one dedicated
 node.
+
+## `cmd/mid-callback-retry`
+
+Purpose: retry failed downstream middleman callback forwards from
+`mid_callback_retry`.
+
+Invocation:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
+```
+
+Read/dry-run mode:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/mid-callback-retry -read
+```
+
+Inputs:
+
+- Docker MySQL from `AOFEI`.
+- Due rows in `mid_callback_retry` with status `Pending` or `Retrying`.
+
+Outputs:
+
+- Downstream HTTP GET calls to the already-expanded callback URL.
+- Retry rows marked `Succeeded`, `Retrying`, or `Abandoned`.
+
+Notes:
+
+- `cmd/unify` enqueues only post-auction `/mid/win`, `/mid/loss`, and
+  `/mid/bill` forwarding failures that are retryable: network/request errors,
+  HTTP 429, and HTTP 5xx.
+- Missing URLs, invalid URLs, duplicate callbacks, and HTTP 4xx responses other
+  than 429 are not queued.
+- The retry command forwards downstream only. It does not republish delivery,
+  win, loss, or billable records, so ledger counts remain idempotent.
+- Run this command as a singleton cron or systemd timer. Do not run it on every
+  HTTP worker.
 
 ## `cmd/winloss`
 

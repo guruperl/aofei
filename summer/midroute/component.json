@@ -1,6 +1,7 @@
 {
   "actions": {
     "topics": {"groups":["admin"]},
+    "health": {"groups":["admin"]},
     "startnew": {"groups":["admin"]},
     "insert": {"groups":["admin"], "validate":["group_name"]},
     "edit": {"groups":["admin"], "validate":["group_id"]},

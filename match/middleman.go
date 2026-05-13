@@ -2,9 +2,12 @@ package match
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/genelet/winter/acl"
 	"github.com/mediocregopher/radix/v4"
@@ -17,8 +20,17 @@ const (
 )
 
 type MiddlemanRouteCache struct {
-	Version int                   `json:"version"`
-	Entries []MiddlemanRouteEntry `json:"entries"`
+	Version  int                          `json:"version"`
+	Metadata *MiddlemanRouteCacheMetadata `json:"metadata,omitempty"`
+	Entries  []MiddlemanRouteEntry        `json:"entries"`
+}
+
+type MiddlemanRouteCacheMetadata struct {
+	GeneratedAt      string `json:"generated_at"`
+	EntryCount       int    `json:"entry_count"`
+	Source           string `json:"source"`
+	RouteDBHighWater string `json:"route_db_high_water,omitempty"`
+	Checksum         string `json:"checksum"`
 }
 
 type MiddlemanRouteEntry struct {
@@ -153,7 +165,7 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 	}
 	defer rows.Close()
 
-	cache := &MiddlemanRouteCache{Version: MiddlemanRouteCacheVersion}
+	cache := &MiddlemanRouteCache{Version: MiddlemanRouteCacheVersion, Entries: make([]MiddlemanRouteEntry, 0)}
 	audiences := make(map[uint32]*acl.ACLAudience)
 	for rows.Next() {
 		var e MiddlemanRouteEntry
@@ -211,7 +223,48 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	highWater, err := DBGetMiddlemanRouteHighWater(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	cache.Metadata = &MiddlemanRouteCacheMetadata{
+		GeneratedAt:      time.Now().UTC().Format(time.RFC3339),
+		EntryCount:       len(cache.Entries),
+		Source:           "mysql",
+		RouteDBHighWater: highWater,
+		Checksum:         cache.RouteChecksum(),
+	}
 	return cache, nil
+}
+
+func (c *MiddlemanRouteCache) RouteChecksum() string {
+	if c == nil {
+		return ""
+	}
+	data, err := json.Marshal(c.Entries)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func DBGetMiddlemanRouteHighWater(ctx context.Context, db *sql.DB) (string, error) {
+	var highWater sql.NullString
+	err := db.QueryRowContext(ctx, `
+SELECT DATE_FORMAT(MAX(updated), '%Y-%m-%dT%H:%i:%sZ') FROM (
+	SELECT updated FROM adv_bidder
+	UNION ALL SELECT updated FROM mid_route_group
+	UNION ALL SELECT updated FROM mid_route_bidder
+	UNION ALL SELECT updated FROM mid_route_target
+) route_updates`).Scan(&highWater)
+	if err != nil {
+		return "", err
+	}
+	if !highWater.Valid {
+		return "", nil
+	}
+	return highWater.String, nil
 }
 
 func (c *MiddlemanRouteCache) ToRedis(ctx context.Context, conn radix.Client) error {

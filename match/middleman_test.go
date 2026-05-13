@@ -1,6 +1,7 @@
 package match
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/genelet/winter/acl"
@@ -48,6 +49,37 @@ func TestMiddlemanRouteEntryEligibility(t *testing.T) {
 	partial := MiddlemanRouteEntry{EntityTypeID: entityType}
 	if partial.Eligible(attr) {
 		t.Fatalf("partial route target should not match globally")
+	}
+}
+
+func TestMiddlemanRouteCacheMetadataIsAdditive(t *testing.T) {
+	raw := []byte(`{"version":1,"entries":[]}`)
+	var cache MiddlemanRouteCache
+	if err := json.Unmarshal(raw, &cache); err != nil {
+		t.Fatal(err)
+	}
+	if cache.Metadata != nil {
+		t.Fatalf("metadata = %#v, want nil for old cache payload", cache.Metadata)
+	}
+
+	cache.Entries = []MiddlemanRouteEntry{{TargetID: 1, GroupID: 2, RouteBidderID: 3, BidderID: 4}}
+	checksum := cache.RouteChecksum()
+	if checksum == "" {
+		t.Fatal("checksum is empty")
+	}
+	cache.Metadata = &MiddlemanRouteCacheMetadata{
+		GeneratedAt:      "2026-05-13T00:00:00Z",
+		EntryCount:       len(cache.Entries),
+		Source:           "mysql",
+		RouteDBHighWater: "2026-05-13T00:00:00Z",
+		Checksum:         checksum,
+	}
+	data, err := json.Marshal(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !json.Valid(data) {
+		t.Fatalf("metadata payload is invalid JSON: %s", data)
 	}
 }
 

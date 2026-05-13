@@ -25,6 +25,7 @@ func TestMidrouteTemplatesRender(t *testing.T) {
 		other  map[string]interface{}
 	}{
 		{"topics", []map[string]interface{}{templateGroupRow()}, nil},
+		{"health", []map[string]interface{}{templateHealthRow()}, templateCacheOther()},
 		{"startnew", []map[string]interface{}{templateGroupFormRow()}, nil},
 		{"insert", []map[string]interface{}{{"group_id": int64(11)}}, nil},
 		{"edit", []map[string]interface{}{templateGroupRow()}, nil},
@@ -89,9 +90,29 @@ func templateArgs() url.Values {
 
 func templateRouteOther() map[string]interface{} {
 	return map[string]interface{}{
-		"midroute_group":   templateGroupRow(),
-		"midroute_bidders": []map[string]interface{}{templateBidderOption()},
-		"midroute_sizes":   []map[string]interface{}{templateSizeOption()},
+		"midroute_group":        templateGroupRow(),
+		"midroute_bidders":      []map[string]interface{}{templateBidderOption()},
+		"midroute_sizes":        []map[string]interface{}{templateSizeOption()},
+		"midroute_cache_status": templateCacheStatus(),
+	}
+}
+
+func templateCacheOther() map[string]interface{} {
+	return map[string]interface{}{
+		"midroute_cache_status": templateCacheStatus(),
+	}
+}
+
+func templateCacheStatus() map[string]interface{} {
+	return map[string]interface{}{
+		"cache_key":              "middleman:routes",
+		"cache_status":           "fresh",
+		"cache_generated_at":     "2026-05-13T00:00:00Z",
+		"cache_entry_count":      int64(1),
+		"cache_route_high_water": "2026-05-13T00:00:00Z",
+		"db_route_high_water":    "2026-05-13T00:00:00Z",
+		"cache_source":           "mysql",
+		"cache_checksum":         "abc123",
 	}
 }
 
@@ -188,5 +209,20 @@ func templateNewTargetRouteRow() map[string]interface{} {
 		"size_id":           int64(0),
 		"priority":          int64(100),
 		"active":            "Yes",
+	}
+}
+
+func templateHealthRow() map[string]interface{} {
+	return map[string]interface{}{
+		"severity":          "error",
+		"issue_type":        "missing_credential_ref",
+		"group_id":          int64(11),
+		"group_name":        "Fallback Buyers",
+		"bidder_id":         int64(7),
+		"bidder_name":       "Remote Bidder",
+		"credential_ref":    "MID_BIDDER_HEADERS",
+		"credential_status": "Active",
+		"bidder_active":     "Yes",
+		"detail":            "credential_ref is empty",
 	}
 }

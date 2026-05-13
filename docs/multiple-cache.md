@@ -26,7 +26,11 @@ Middleman bidder routes are Redis static data in M20:
 
 - `middleman:routes` stores a versioned JSON payload compiled from active
   `adv_bidder` and `mid_route_*` rows, including synthetic item ACL payloads.
-- It is populated by the singleton `cmd/redis-cache -cache=redis|all` job.
+- It is populated by the singleton `cmd/redis-cache -cache=redis|all|routes`
+  job. Route-only mode leaves the other cache families untouched.
+- M24 route payloads include additive metadata for generated time, entry count,
+  source, route DB high-water timestamp, and checksum. Older version-1 payloads
+  without metadata are still readable with unknown freshness.
 - It is not mirrored into spread/local snapshots yet.
 
 Disk snapshots under `.local/spread/` are the durable local recovery format, not

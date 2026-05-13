@@ -38,7 +38,8 @@ charge/pay/margin settlement views without changing bidder runtime behavior.
 
 - `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
   middleman routes are still Redis-only runtime cache data.
-- `[ ]` Durable callback retry queues remain post-M23 reliability work.
+- `[+]` Durable callback retry queues moved to M24 and are implemented for
+  retryable downstream post-auction callback forwarding failures.
 - `[ ]` Real invoicing/payment execution remains out of scope; M22 produces
   reportable settlement facts only.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a

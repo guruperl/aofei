@@ -172,6 +172,20 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
 
+Refresh only the Redis middleman route cache:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=routes
+```
+
+Read only the Redis middleman route cache:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=routes -read
+```
+
 Do not run a Redis cache refresher from every `unify` node. When spread mode is
 used, keep `cmd/spread` running on nodes whose local disk snapshots should be
 updated from NATS messages.
@@ -194,6 +208,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/nats-client -interval=
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -daily -timestamp=YYYY-MM-DD
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/exchange.example.test win
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
 ```
@@ -202,6 +217,9 @@ Run ledger from the node where `cmd/nats-client` aggregates log files. Do not
 run ledger on every `unify` node. When middleman callback metadata is present,
 ledger also fills `ledger_mid` and `daily_mid`; advertiser reports use pay-side
 spend, while admin reports expose charge, pay, and margin.
+Run `cmd/mid-callback-retry` as a singleton operations job for retryable
+downstream middleman callback forwarding failures. It forwards downstream only
+and does not republish win/loss records.
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and

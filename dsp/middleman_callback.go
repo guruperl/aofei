@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/genelet/winter/internal/jobs/midcallback"
 	"github.com/genelet/winter/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -552,35 +553,64 @@ func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value 
 	if !first {
 		return "duplicate", 0, nil
 	}
-	status, code := self.forwardMiddlemanCallback(ctx, raw, value, prices)
-	if retryableMiddlemanForwardStatus(status) {
+	target, status, code, lastErr := self.forwardMiddlemanCallback(ctx, raw, value, prices)
+	if midcallback.RetryableForward(status, code) {
+		if err := self.enqueueMiddlemanCallbackRetry(ctx, value, source, target, prices, status, code, lastErr); err != nil {
+			if self.Logger != nil {
+				self.Logger.Sugar().Warnf("middleman callback retry enqueue failed: %v", err)
+			}
+		}
 		_ = self.callbackStore().ClearNotify(ctx, value.Token, source)
 	}
 	return status, code, nil
 }
 
-func retryableMiddlemanForwardStatus(status string) bool {
-	switch status {
-	case "error", "http_error", "request_error":
-		return true
-	default:
-		return false
+func (self *Controller) enqueueMiddlemanCallbackRetry(ctx context.Context, value middlemanCallbackContext, source, target string, prices middlemanPrices, status string, code int, lastErr string) error {
+	if self == nil || self.DB == nil || target == "" {
+		return nil
 	}
+	return midcallback.Enqueue(ctx, self.DB, midcallback.Failure{
+		Token:         value.Token,
+		Source:        source,
+		CallbackURL:   target,
+		BidderID:      value.BidderID,
+		GroupID:       value.GroupID,
+		RouteBidderID: value.RouteBidderID,
+		TargetID:      value.TargetID,
+		AuctionID:     value.RequestID,
+		ImpID:         value.ImpID,
+		AuctionBidID:  value.ResponseBidID,
+		ChargePrice:   prices.ChargePrice,
+		PayPrice:      prices.PayPrice,
+		Currency:      prices.Currency,
+		HTTPStatus:    code,
+		LastError:     middlemanForwardError(status, code, lastErr),
+	})
 }
 
-func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string, value middlemanCallbackContext, prices middlemanPrices) (string, int) {
+func middlemanForwardError(status string, code int, lastErr string) string {
+	if lastErr != "" {
+		return lastErr
+	}
+	if code > 0 {
+		return fmt.Sprintf("%s %d", status, code)
+	}
+	return status
+}
+
+func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string, value middlemanCallbackContext, prices middlemanPrices) (string, string, int, string) {
 	if raw == "" {
-		return "missing", 0
+		return "", "missing", 0, ""
 	}
 	target, err := expandMiddlemanCallbackURL(raw, value, prices)
 	if err != nil {
-		return "invalid_url", 0
+		return "", "invalid_url", 0, err.Error()
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, self.middlemanCallbackTimeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, target, nil)
 	if err != nil {
-		return "request_error", 0
+		return target, "request_error", 0, err.Error()
 	}
 	client := self.client
 	if client == nil {
@@ -588,14 +618,14 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "error", 0
+		return target, "error", 0, err.Error()
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "http_error", resp.StatusCode
+		return target, "http_error", resp.StatusCode, resp.Status
 	}
-	return "ok", resp.StatusCode
+	return target, "ok", resp.StatusCode, ""
 }
 
 func expandMiddlemanCallbackURL(raw string, value middlemanCallbackContext, prices middlemanPrices) (string, error) {
