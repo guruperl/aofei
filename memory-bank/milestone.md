@@ -859,10 +859,20 @@ Acceptance:
 - OpenRTB responses return a valid `BidResponse`, including `200` with empty
   `seatbid` on all-no-fill.
 
-## M33 - SSP Middleman Fallback `[ ]`
+## M33 - SSP Middleman Fallback `[+]`
 
 Let direct SSP local no-fill requests use existing middleman fallback and gated
 `Always` behavior while preserving the M32 response formats.
+
+Acceptance:
+
+- Valid `/pz` requests can fan out to middleman only after token, media, cache,
+  and browser policy validation succeeds.
+- Local no-fill impressions use `Fallback` candidates; local filled impressions
+  use gated `Always` candidates.
+- Middleman winners preserve ordered `html`, `json`, and `openrtb` SSP response
+  formats and keep SSP audits wrapped around the original `/pz` request and
+  final SSP response.
 
 ## M34 - Richer Supply Taxonomy ADR `[ ]`
 

@@ -2,7 +2,9 @@ package dsp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -514,7 +516,10 @@ func TestServeSSPOpenRTBResponseReturnsBidResponseAndEmptySeatBidOnNoFill(t *tes
 				{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: tt.floor},
 			}), map[string]any{"responseFormat": "openrtb"})
 
-			rr := serveSSP(t, controller, body)
+			rr := serveSSPWithHeaders(t, controller, body, map[string]string{
+				"Origin":     "https://example.com",
+				"User-Agent": "ssp-openrtb-test-agent",
+			})
 			if rr.Code != http.StatusOK {
 				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
 			}
@@ -537,6 +542,196 @@ func TestServeSSPOpenRTBResponseReturnsBidResponseAndEmptySeatBidOnNoFill(t *tes
 			bid := response.SeatBid[0].Bid[0]
 			if bid.ImpID != "unit-one" || bid.AdM == "" || bid.CID != "10" || bid.CrID != "10000" || bid.AdID != "10000" || bid.W != 300 || bid.H != 250 {
 				t.Fatalf("bid = %#v", bid)
+			}
+			if response.BidID == "" {
+				t.Fatal("response bidid is empty")
+			}
+			if response.BidID == bid.ID {
+				t.Fatalf("response bidid = bid id = %q, want distinct auction and concrete bid ids", response.BidID)
+			}
+			if _, err := UnpackBidID(response.BidID); err != nil {
+				t.Fatalf("UnpackBidID(%q): %v", response.BidID, err)
+			}
+			if _, err := UnpackResponseBidID(bid.ID); err != nil {
+				t.Fatalf("UnpackResponseBidID(%q): %v", bid.ID, err)
+			}
+		})
+	}
+}
+
+func TestServeSSPMiddlemanFallbackRendersAllResponseFormats(t *testing.T) {
+	tests := []struct {
+		format string
+	}{
+		{format: "html"},
+		{format: "json"},
+		{format: "openrtb"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			runtime := &recordingMiddlemanRuntime{
+				makeBids: func(bid *openrtb2.BidRequest, fallbackImps []middlemanFallbackImp) []middlemanDownstreamBid {
+					if len(fallbackImps) != 1 || fmt.Sprint(fallbackImps[0].TriggerModes) != "[Fallback]" {
+						t.Fatalf("fallback imps = %#v, want one Fallback imp", fallbackImps)
+					}
+					return []middlemanDownstreamBid{sspMiddlemanBid(0, bid.Imp[0].ID, "<div>middleman-fallback</div>", 101, fallbackImps[0].Attr)}
+				},
+			}
+			enableSSPMiddleman(controller, false, runtime)
+			body := sspRequestBodyWithFields(t, sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+				{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 100},
+			}), map[string]any{"responseFormat": tt.format})
+
+			rr := serveSSP(t, controller, body)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+			}
+			if runtime.calls != 1 {
+				t.Fatalf("middleman calls = %d, want 1", runtime.calls)
+			}
+			var forwarded map[string]json.RawMessage
+			if err := json.Unmarshal(runtime.rawRequests[0], &forwarded); err != nil {
+				t.Fatal(err)
+			}
+			if len(forwarded["imp"]) == 0 || len(forwarded["adUnits"]) != 0 || len(forwarded["site"]) == 0 {
+				t.Fatalf("forwarded request = %s, want synthesized OpenRTB and no SSP adUnits", runtime.rawRequests[0])
+			}
+
+			switch tt.format {
+			case "json":
+				var response []sspJSONAdUnitResponse
+				if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				if len(response) != 1 || !response[0].Filled || response[0].AdM != "<div>middleman-fallback</div>" || response[0].ImpressionURL != "" || response[0].ClickURL != "" {
+					t.Fatalf("json response = %#v", response)
+				}
+			case "openrtb":
+				var response openrtb2.BidResponse
+				if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				if len(response.SeatBid) != 1 || response.SeatBid[0].Seat != "90" || len(response.SeatBid[0].Bid) != 1 || response.SeatBid[0].Bid[0].AdM != "<div>middleman-fallback</div>" {
+					t.Fatalf("openrtb response = %#v", response)
+				}
+				if response.BidID != "mid-response" {
+					t.Fatalf("response bidid = %q, want mid-response", response.BidID)
+				}
+			default:
+				var response []string
+				if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				if len(response) != 1 || response[0] != "<div>middleman-fallback</div>" {
+					t.Fatalf("html response = %#v", response)
+				}
+			}
+		})
+	}
+}
+
+func TestServeSSPMiddlemanAlwaysCompetesOnlyWhenEnabled(t *testing.T) {
+	tests := []struct {
+		name       string
+		always     bool
+		midPrice   float64
+		wantCalls  int
+		wantMarkup string
+	}{
+		{name: "always disabled keeps local", midPrice: 3.0, wantMarkup: "one.html"},
+		{name: "lower middleman keeps local", always: true, midPrice: 1.9, wantCalls: 1, wantMarkup: "one.html"},
+		{name: "higher middleman replaces local", always: true, midPrice: 2.5, wantCalls: 1, wantMarkup: "middleman-always"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			runtime := &recordingMiddlemanRuntime{
+				makeBids: func(bid *openrtb2.BidRequest, fallbackImps []middlemanFallbackImp) []middlemanDownstreamBid {
+					if len(fallbackImps) != 1 || fmt.Sprint(fallbackImps[0].TriggerModes) != "[Always]" {
+						t.Fatalf("fallback imps = %#v, want one Always imp", fallbackImps)
+					}
+					return []middlemanDownstreamBid{sspMiddlemanBid(0, bid.Imp[0].ID, "<div>middleman-always</div>", tt.midPrice, fallbackImps[0].Attr)}
+				},
+			}
+			enableSSPMiddleman(controller, tt.always, runtime)
+			body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+				{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+			})
+
+			rr := serveSSP(t, controller, body)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+			}
+			if runtime.calls != tt.wantCalls {
+				t.Fatalf("middleman calls = %d, want %d", runtime.calls, tt.wantCalls)
+			}
+			var response []string
+			if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if len(response) != 1 || !strings.Contains(response[0], tt.wantMarkup) {
+				t.Fatalf("html response = %#v, want markup containing %q", response, tt.wantMarkup)
+			}
+		})
+	}
+}
+
+func TestServeSSPMiddlemanCallbackFailureFallsBackToLocalWinner(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	runtime := &recordingMiddlemanRuntime{
+		makeBids: func(bid *openrtb2.BidRequest, fallbackImps []middlemanFallbackImp) []middlemanDownstreamBid {
+			return []middlemanDownstreamBid{sspMiddlemanBid(0, bid.Imp[0].ID, "<div>middleman-would-win</div>", 3.0, fallbackImps[0].Attr)}
+		},
+	}
+	enableSSPMiddleman(controller, true, runtime)
+	controller.middlemanStore = failingSetCallbackStore{memoryMiddlemanCallbackStore: newMemoryMiddlemanCallbackStore()}
+	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSP(t, controller, body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	var response []string
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response) != 1 || !strings.Contains(response[0], "one.html") || strings.Contains(response[0], "middleman-would-win") {
+		t.Fatalf("html response = %#v, want local fallback", response)
+	}
+}
+
+func TestServeSSPInvalidRequestsDoNotInvokeMiddleman(t *testing.T) {
+	site, slot := directTokens(t, 1, 10, 100, match.SizeID2To1(300, 250))
+	tests := []struct {
+		name    string
+		body    []byte
+		headers map[string]string
+		want    int
+	}{
+		{name: "malformed json", body: []byte("{"), want: http.StatusBadRequest},
+		{name: "invalid token", body: []byte(`{"site":"bad","adUnits":[{"code":"x","slot":"` + slot + `","mediaTypes":{"banner":{}}}]}`), want: http.StatusBadRequest},
+		{name: "unsupported media", body: []byte(`{"site":"` + site + `","adUnits":[{"code":"x","slot":"` + slot + `","mediaTypes":{"audio":{}}}]}`), want: http.StatusBadRequest},
+		{name: "policy rejection", body: sspRequestBody(t, 1, 10, []sspAdUnitSpec{{Code: "x", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true}}), headers: map[string]string{"Origin": "https://attacker.example"}, want: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			runtime := &recordingMiddlemanRuntime{}
+			enableSSPMiddleman(controller, true, runtime)
+			headers := tt.headers
+			if headers == nil {
+				headers = map[string]string{"Origin": "https://example.com"}
+			}
+
+			rr := serveSSPWithHeaders(t, controller, tt.body, headers)
+			if rr.Code != tt.want {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, tt.want, rr.Body.String())
+			}
+			if runtime.calls != 0 {
+				t.Fatalf("middleman calls = %d, want 0", runtime.calls)
 			}
 		})
 	}
@@ -824,6 +1019,67 @@ func serveSSPWithHeaders(t *testing.T, controller *Controller, body []byte, head
 	rr := httptest.NewRecorder()
 	controller.ServeSSP(rr, req)
 	return rr
+}
+
+type recordingMiddlemanRuntime struct {
+	calls       int
+	rawRequests [][]byte
+	makeBids    func(*openrtb2.BidRequest, []middlemanFallbackImp) []middlemanDownstreamBid
+}
+
+func (r *recordingMiddlemanRuntime) Fallback(_ context.Context, bid *openrtb2.BidRequest, rawRequest []byte, _ time.Time, fallbackImps []middlemanFallbackImp) ([]middlemanDownstreamBid, error) {
+	r.calls++
+	r.rawRequests = append(r.rawRequests, append([]byte(nil), rawRequest...))
+	if r.makeBids == nil {
+		return nil, nil
+	}
+	return r.makeBids(bid, fallbackImps), nil
+}
+
+func enableSSPMiddleman(controller *Controller, always bool, runtime *recordingMiddlemanRuntime) {
+	controller.C.MiddlemanEnabled = true
+	controller.C.MiddlemanAlwaysEnabled = always
+	controller.C.MiddlemanCallbackBaseURL = controller.C.ServerURL
+	controller.middlemanRuntime = runtime
+	controller.middlemanStore = newMemoryMiddlemanCallbackStore()
+}
+
+func sspMiddlemanBid(impIndex int, impID, adm string, price float64, attr *match.Attribute) middlemanDownstreamBid {
+	return middlemanDownstreamBid{
+		ImpIndex: impIndex,
+		Seat:     "90",
+		Bid: openrtb2.Bid{
+			ID:    "mid-bid",
+			ImpID: impID,
+			Price: price,
+			AdM:   adm,
+			CID:   "90",
+			CrID:  "900",
+			AdID:  "900",
+			W:     300,
+			H:     250,
+		},
+		Audit: bidAudit{
+			Attr: attr,
+			One: match.RAdv{
+				Demand:   match.Demand{AdvID: 9, CampaignID: 90, ItemID: 901, CreativeID: 900},
+				CostType: 2,
+				Cost:     float32(price),
+			},
+		},
+		ResponseBidID:      "mid-response",
+		Entry:              match.MiddlemanRouteEntry{BidderID: 7, AdvID: 9, SyntheticCampaignID: 90, SyntheticItemID: 901, SyntheticCreativeID: 900},
+		DownstreamBidPrice: price,
+		UpstreamBidPrice:   price,
+	}
+}
+
+type failingSetCallbackStore struct {
+	*memoryMiddlemanCallbackStore
+}
+
+func (f failingSetCallbackStore) SetCallback(context.Context, string, middlemanCallbackContext, time.Duration) error {
+	return fmt.Errorf("set callback failed")
 }
 
 func drainAuditMessages(publisher *auditPublisher) []auditMessage {

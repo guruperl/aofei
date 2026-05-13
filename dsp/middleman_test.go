@@ -127,7 +127,7 @@ func TestMaterializeBidWinnersSupportsMixedLocalAndMiddleman(t *testing.T) {
 	if !replace {
 		t.Fatal("middleman should win empty impression")
 	}
-	seatOrder, seatBids, audits, responseBidID := controller.materializeBidWinners(
+	seatOrder, seatBids, audits, responseBidID, materialized := controller.materializeBidWinners(
 		context.Background(),
 		bid,
 		map[int]bidWinner{0: local, 1: midWinner},
@@ -148,6 +148,9 @@ func TestMaterializeBidWinnersSupportsMixedLocalAndMiddleman(t *testing.T) {
 	}
 	if len(audits) != 2 || audits[0].One.CampaignID != 10 || audits[1].One.CampaignID != 20 {
 		t.Fatalf("audits = %#v", audits)
+	}
+	if len(materialized) != 2 || !materialized[0].Local || materialized[1].Local {
+		t.Fatalf("materialized winners = %#v", materialized)
 	}
 }
 

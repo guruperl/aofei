@@ -8,11 +8,13 @@ M28 wires runtime serving on `POST /pz`. M29 makes publisher slot pages generate
 working browser/API samples for that runtime path. M30 adds measurement
 semantics. M31 adds browser origin/referrer enforcement and documents the
 product boundary. M32 adds mobile/API request fields and explicit JSON/OpenRTB
-response formats. The handler validates packed direct SSP tokens against the
-publisher-by-id cache, enforces the browser page host against the cached site
-host, converts ad units into internal OpenRTB impressions, serves local Aofei
-demand, renders the requested response shape, and identifies SSP traffic
-separately in audits.
+response formats. M33 lets valid direct SSP auctions use the existing
+middleman fallback and gated `Always` runtime after local matching. The handler
+validates packed direct SSP tokens against the publisher-by-id cache, enforces
+the browser page host against the cached site host, converts ad units into
+internal OpenRTB impressions, serves local Aofei demand, optionally fans out to
+middleman bidders, renders the requested response shape, and identifies SSP
+traffic separately in audits.
 
 ## V1 Browser Contract
 
@@ -124,9 +126,12 @@ represented by `""` at the matching array position:
 ]
 ```
 
-Native fills include a parsed `native` object alongside `adm`.
+Native fills include a parsed `native` object alongside `adm`. Middleman fills
+use the returned `adm`, price, ids, and dimensions; they omit local-only
+`impressionUrl` and `clickUrl` fields.
 `responseFormat:"openrtb"` returns an OpenRTB `BidResponse`; all-no-fill
-requests still return `200` with an empty `seatbid`.
+requests still return `200` with an empty `seatbid`. Filled bids are grouped by
+the final winner seat, including synthetic middleman seats when middleman wins.
 
 API examples on publisher slot pages use the SDK JSON response shape:
 
@@ -284,10 +289,22 @@ is authoritative for app identity; any supplied `app.id`, `app.bundle`, or
 identity path, with HTTP headers used as fallback for IP, user agent, and
 language. Body `user.id` and `buyeruid` are honored for SDK requests only.
 
-M28-M32 intentionally serve local Aofei demand only. They reuse the existing
-candidate, frequency-cap, audience, creative rendering, tracker, and audit
-paths, but do not invoke middleman fallback. `/pz` does not write MySQL, refresh
-caches, add credentialed CORS, or wildcard publisher subdomains.
+M33 reuses the existing middleman runtime for validated `/pz` auctions after
+local matching. Local no-fill impressions may use `Fallback` routes when
+`middleman_enabled` is true. Local filled impressions may use `Always` routes
+only when both `middleman_enabled` and `middleman_always_enabled` are true; the
+marked-up middleman bid must beat the comparable local effective CPM to replace
+the local winner. Middleman callback proxy setup remains the materialization
+gate: setup failure falls back to a local winner when one exists, otherwise the
+impression remains no-fill.
+
+Middleman bidders receive the synthesized internal OpenRTB request, not the
+original `/pz` JSON body. SSP request and response audits continue to wrap the
+original `/pz` request and final SSP response payloads.
+
+`/pz` does not write MySQL, refresh caches, add credentialed CORS, wildcard
+publisher subdomains, or change `ads.js`, schema, cache shape, or account
+roles.
 
 ## Measurement And Audits
 
@@ -322,7 +339,7 @@ metadata: request and response audit envelopes use `source:"ssp"` and
 `contract:"pz-v1"`, while attribute audits add the same fields. ADX/OpenRTB
 traffic remains on `/bid/{domain}` with `source:"adx"` and `contract:"openrtb"`.
 
-M32 does not add a database or cache field for publisher supply source. Richer
+M33 does not add a database or cache field for publisher supply source. Richer
 supply taxonomy and separate SSP account/schema boundaries remain future ADR
 work.
 
@@ -340,5 +357,6 @@ external `ads.js` endpoint resolution, and permissive `/pz` CORS. M30 adds
 cookie fallback and audit/reporting semantics. M31 hardens browser
 origin/referrer policy and documents the direct SSP source boundary. M32 adds
 SDK `app`/`device`/`user` parsing and explicit `"html"`, `"json"`, and
-`"openrtb"` response formats without changing `ads.js`, schema, cache shape, or
-account roles.
+`"openrtb"` response formats. M33 adds middleman fallback/`Always` use for
+valid `/pz` auctions without changing `ads.js`, schema, cache shape, or account
+roles.

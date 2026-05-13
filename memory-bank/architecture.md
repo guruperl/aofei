@@ -66,8 +66,7 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    against the direct publisher cache, including the configured slot size,
    synthesizes internal OpenRTB browser impressions from headers and
    cache-derived site/slot strings, reuses the local Aofei bid path, and returns
-   a JSON HTML-string array in ad-unit order with `""` for no-fill units. M28
-   does not invoke middleman fallback for SSP traffic.
+   a JSON HTML-string array in ad-unit order with `""` for no-fill units.
    M29 publisher tags are generated from the `pub` slot UI using configured
    `ServerURL`, stored `pub_slot.size_id`, DOM ids of the form
 	   `pz-slot-<slot_id>`, and banner `mediaTypes` samples. `www/js/ads.js`
@@ -88,7 +87,13 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   app id/bundle/domain mismatches, honors SDK body user IDs, merges body
 	   device identity with header IP/UA fallback, and renders explicit
 	   `responseFormat:"json"` fill objects or `"openrtb"` `BidResponse`
-	   payloads while preserving omitted/`"html"` browser array responses.
+	   payloads while preserving omitted/`"html"` browser array responses. M33
+	   runs the existing middleman runtime for valid `/pz` auctions after local
+	   matching. Local no-fill impressions use `Fallback` candidates; local
+	   filled impressions use `Always` candidates only when both middleman gates
+	   are enabled. SSP fanout sends the synthesized internal OpenRTB request,
+	   while SSP request/response audits keep wrapping the original `/pz` request
+	   and final SSP response.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -99,7 +104,8 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    regenerates the configured MaxMind runtime JSON without loading the existing
    geodata file first.
 
-Middleman AdX fallback is active behind `middleman_enabled`. Advertiser-owned
+Middleman fallback is active behind `middleman_enabled` for ADX `/bid` and
+validated direct SSP `/pz` auctions. Advertiser-owned
 OpenRTB endpoints live in `adv_bidder`, with synthetic campaign, item, and
 creative IDs for existing ledger/report joins. Summer/Genelet exposes
 advertiser-safe endpoint metadata forms and admin review and approval forms.
@@ -112,7 +118,9 @@ route/bidder entries, trigger mode, and synthetic item ACL payloads; the legacy
 `middleman:routes` key is kept fallback-only for M24 rolling-deploy safety.
 `Fallback` routes apply only to local no-bid impressions. `Always` routes apply
 only when both `middleman_enabled` and `middleman_always_enabled` are true, and
-then marked-up middleman bids compete with local bids on effective CPM. Route
+then marked-up middleman bids compete with local bids on effective CPM. Callback
+proxy setup remains the materialization gate; callback setup failure falls back
+to a local winner when one exists, otherwise that impression no-fills. Route
 edits do not refresh the cache from `cmd/unify`; the singleton
 `cmd/redis-cache -cache=redis|all` job remains the cache publication path, with
 `-cache=routes` available for route-only refresh.
@@ -212,10 +220,10 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP richer supply taxonomy remains future product work; M32 keeps the
-  `/pz` plus audit `source:"ssp"` supply boundary and adds mobile/API JSON and
-  OpenRTB response contracts without schema, cache-shape, or account-role
-  changes.
+- Direct SSP richer supply taxonomy remains future product work; M33 keeps the
+  `/pz` plus audit `source:"ssp"` supply boundary, M32 response contracts, and
+  existing schema/cache/account-role boundaries while adding middleman
+  fallback/`Always` use for valid auctions only.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

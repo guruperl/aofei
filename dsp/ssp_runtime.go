@@ -81,7 +81,14 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, audits := self.localSSPBidResults(ctx, bid, pub, current)
+	rawMiddlemanRequest, err := json.Marshal(bid)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pub.Pub, current, pub.Domain, rawMiddlemanRequest, nil)
+	_, _, audits, _, materialized := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, nil)
+	results := sspBidResultsFromMaterialized(bid, materialized)
 	for _, result := range results {
 		if !result.Filled {
 			metricSSPNoFillAdUnits.Add(1)
@@ -195,6 +202,7 @@ func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPu
 type sspBidResult struct {
 	Filled        bool
 	Bid           openrtb2.Bid
+	ResponseBidID string
 	Seat          string
 	ImpressionURL string
 	ClickURL      string
@@ -231,6 +239,7 @@ func (self *Controller) localSSPBidResults(ctx context.Context, bid *openrtb2.Bi
 		results[impIndex] = sspBidResult{
 			Filled:        true,
 			Bid:           rspBid,
+			ResponseBidID: dspBid.bidID(),
 			Seat:          dspBid.seat(),
 			ImpressionURL: winloss.ImpURL(),
 			ClickURL:      clickURLForSSPBid(dspBid, winloss),
@@ -238,6 +247,31 @@ func (self *Controller) localSSPBidResults(ctx context.Context, bid *openrtb2.Bi
 		audits = append(audits, audit)
 	}
 	return results, audits
+}
+
+func sspBidResultsFromMaterialized(bid *openrtb2.BidRequest, winners []bidWinner) []sspBidResult {
+	n := 0
+	if bid != nil {
+		n = len(bid.Imp)
+	}
+	results := make([]sspBidResult, n)
+	for _, winner := range winners {
+		if winner.ImpIndex < 0 || winner.ImpIndex >= len(results) {
+			continue
+		}
+		result := sspBidResult{
+			Filled:        true,
+			Bid:           winner.Bid,
+			ResponseBidID: winner.ResponseBidID,
+			Seat:          winner.Seat,
+		}
+		if winner.Local {
+			result.ImpressionURL = winner.ImpressionURL
+			result.ClickURL = winner.ClickURL
+		}
+		results[winner.ImpIndex] = result
+	}
+	return results
 }
 
 func clickURLForSSPBid(dspBid *DSP, winloss *WinLoss) string {
@@ -333,7 +367,10 @@ func sspOpenRTBResponse(bid *openrtb2.BidRequest, results []sspBidResult) *openr
 			seatOrder = append(seatOrder, seat)
 		}
 		if response.BidID == "" {
-			response.BidID = result.Bid.ID
+			response.BidID = result.ResponseBidID
+			if response.BidID == "" {
+				response.BidID = result.Bid.ID
+			}
 		}
 		seatBids[seat] = append(seatBids[seat], result.Bid)
 	}

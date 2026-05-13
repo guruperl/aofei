@@ -85,9 +85,12 @@ advertiser-owned endpoint and reporting schema boundary:
 	  mobile/API serving on the same `/pz` and `pub` boundary by accepting
 	  SDK `app`, `device`, and `user` objects, honoring explicit
 	  `responseFormat:"json"` and `"openrtb"` outputs, and preserving omitted or
-	  `"html"` browser responses as the existing ordered HTML-string array.
-	  Richer supply taxonomy remains an ADR milestone rather than runtime schema
-	  work.
+	  `"html"` browser responses as the existing ordered HTML-string array. M33
+	  lets valid `/pz` auctions use existing middleman `Fallback` and gated
+	  `Always` fanout after local matching while preserving those M32 response
+	  formats and keeping malformed, invalid-token, and policy-rejected traffic
+	  out of middleman fanout. Richer supply taxonomy remains an ADR milestone
+	  rather than runtime schema work.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

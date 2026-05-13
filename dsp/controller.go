@@ -96,6 +96,8 @@ type bidWinner struct {
 	Bid           openrtb2.Bid
 	Audit         bidAudit
 	ResponseBidID string
+	ImpressionURL string
+	ClickURL      string
 	EffectiveCPM  float64
 	Comparable    bool
 	Local         bool
@@ -359,62 +361,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	glog.Infof("1: bid domain: %s => pub id: %d", pubStr, pubObj.PubID)
-	var fallbackImps []middlemanFallbackImp
-	localWinners := make(map[int]bidWinner)
-	finalWinners := make(map[int]bidWinner)
-	for impIndex := range bid.Imp {
-		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex)
-		if err != nil {
-			glog.Infof("imp %d: %v", impIndex, err)
-			if audit.Attr != nil && isLocalNoBid(err) {
-				fallbackImps = append(fallbackImps, middlemanFallbackImp{
-					Index:        impIndex,
-					Attr:         audit.Attr,
-					TriggerModes: self.middlemanTriggerModesForNoBid(),
-				})
-			}
-			continue
-		}
-		winloss := dspBid.WinLoss(StatusBid)
-		rspnsBid, err := dspBid.NewBid(winloss)
-		if err != nil {
-			glog.Infof("imp %d: %v", impIndex, err)
-			continue
-		}
-		effectiveCPM, comparable := localBidEffectiveCPM(dspBid, audit, rspnsBid)
-		winner := bidWinner{
-			ImpIndex:      impIndex,
-			Seat:          dspBid.seat(),
-			Bid:           rspnsBid,
-			Audit:         audit,
-			ResponseBidID: dspBid.bidID(),
-			EffectiveCPM:  effectiveCPM,
-			Comparable:    comparable,
-			Local:         true,
-		}
-		localWinners[impIndex] = winner
-		finalWinners[impIndex] = winner
-		if self.middlemanAlwaysEnabled() && comparable && audit.Attr != nil {
-			fallbackImps = append(fallbackImps, middlemanFallbackImp{
-				Index:        impIndex,
-				Attr:         audit.Attr,
-				TriggerModes: []string{"Always"},
-			})
-		}
-	}
-	if len(fallbackImps) != 0 {
-		middlemanBids, err := self.middleman().Fallback(ctx, bid, bidStr, current, fallbackImps)
-		if err != nil {
-			glog.Infof("middleman fallback: %v", err)
-		}
-		for _, middlemanBid := range middlemanBids {
-			current, ok := finalWinners[middlemanBid.ImpIndex]
-			if winner, replace := chooseMiddlemanWinner(current, ok, middlemanBid); replace {
-				finalWinners[middlemanBid.ImpIndex] = winner
-			}
-		}
-	}
-	seatOrder, seatBids, audits, responseBidID := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, glog)
+	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pubObj, current, pubStr, bidStr, glog)
+	seatOrder, seatBids, audits, responseBidID, _ := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, glog)
 	if len(audits) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		metricBidNoBids.Add(1)
@@ -467,10 +415,74 @@ func (self *Controller) middlemanAlwaysEnabled() bool {
 }
 
 func (self *Controller) middlemanTriggerModesForNoBid() []string {
-	if self.middlemanAlwaysEnabled() {
-		return []string{"Fallback", "Always"}
-	}
 	return []string{"Fallback"}
+}
+
+func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, rawMiddlemanRequest []byte, glog *zap.SugaredLogger) (map[int]bidWinner, map[int]bidWinner) {
+	var fallbackImps []middlemanFallbackImp
+	localWinners := make(map[int]bidWinner)
+	finalWinners := make(map[int]bidWinner)
+	for impIndex := range bid.Imp {
+		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex)
+		if err != nil {
+			if glog != nil {
+				glog.Infof("imp %d: %v", impIndex, err)
+			}
+			if audit.Attr != nil && isLocalNoBid(err) {
+				fallbackImps = append(fallbackImps, middlemanFallbackImp{
+					Index:        impIndex,
+					Attr:         audit.Attr,
+					TriggerModes: self.middlemanTriggerModesForNoBid(),
+				})
+			}
+			continue
+		}
+		winloss := dspBid.WinLoss(StatusBid)
+		rspnsBid, err := dspBid.NewBid(winloss)
+		if err != nil {
+			if glog != nil {
+				glog.Infof("imp %d: %v", impIndex, err)
+			}
+			continue
+		}
+		effectiveCPM, comparable := localBidEffectiveCPM(dspBid, audit, rspnsBid)
+		winner := bidWinner{
+			ImpIndex:      impIndex,
+			Seat:          dspBid.seat(),
+			Bid:           rspnsBid,
+			Audit:         audit,
+			ResponseBidID: dspBid.bidID(),
+			ImpressionURL: winloss.ImpURL(),
+			ClickURL:      clickURLForSSPBid(dspBid, winloss),
+			EffectiveCPM:  effectiveCPM,
+			Comparable:    comparable,
+			Local:         true,
+		}
+		localWinners[impIndex] = winner
+		finalWinners[impIndex] = winner
+		if self.middlemanAlwaysEnabled() && comparable && audit.Attr != nil {
+			fallbackImps = append(fallbackImps, middlemanFallbackImp{
+				Index:        impIndex,
+				Attr:         audit.Attr,
+				TriggerModes: []string{"Always"},
+			})
+		}
+	}
+	if len(fallbackImps) != 0 {
+		middlemanBids, err := self.middleman().Fallback(ctx, bid, rawMiddlemanRequest, current, fallbackImps)
+		if err != nil {
+			if glog != nil {
+				glog.Infof("middleman fallback: %v", err)
+			}
+		}
+		for _, middlemanBid := range middlemanBids {
+			current, ok := finalWinners[middlemanBid.ImpIndex]
+			if winner, replace := chooseMiddlemanWinner(current, ok, middlemanBid); replace {
+				finalWinners[middlemanBid.ImpIndex] = winner
+			}
+		}
+	}
+	return finalWinners, localWinners
 }
 
 func localBidEffectiveCPM(dspBid *DSP, audit bidAudit, bid openrtb2.Bid) (float64, bool) {
@@ -506,10 +518,11 @@ func chooseMiddlemanWinner(current bidWinner, hasCurrent bool, middlemanBid midd
 	}, true
 }
 
-func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2.BidRequest, winners map[int]bidWinner, localWinners map[int]bidWinner, glog *zap.SugaredLogger) ([]string, map[string][]openrtb2.Bid, []bidAudit, string) {
+func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2.BidRequest, winners map[int]bidWinner, localWinners map[int]bidWinner, glog *zap.SugaredLogger) ([]string, map[string][]openrtb2.Bid, []bidAudit, string, []bidWinner) {
 	var seatOrder []string
 	seatBids := make(map[string][]openrtb2.Bid)
 	var audits []bidAudit
+	var materialized []bidWinner
 	responseBidID := ""
 	for impIndex := range bid.Imp {
 		winner, ok := winners[impIndex]
@@ -546,8 +559,9 @@ func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2
 		}
 		seatBids[winner.Seat] = append(seatBids[winner.Seat], winner.Bid)
 		audits = append(audits, winner.Audit)
+		materialized = append(materialized, winner)
 	}
-	return seatOrder, seatBids, audits, responseBidID
+	return seatOrder, seatBids, audits, responseBidID, materialized
 }
 
 func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, impIndex int) (*DSP, bidAudit, error) {
