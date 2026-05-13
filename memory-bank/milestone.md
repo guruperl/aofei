@@ -874,10 +874,38 @@ Acceptance:
   formats and keep SSP audits wrapped around the original `/pz` request and
   final SSP response.
 
-## M34 - Richer Supply Taxonomy ADR `[ ]`
+## M34 - Richer Supply Taxonomy ADR `[+]`
 
 Keep runtime on the `pub` role and write an ADR for taxonomy fields,
 cache/audit impact, admin UI changes, and migration path before schema work.
+
+Scope:
+
+- Keep `pub`, `pub_site`, and `pub_slot` as the publisher and inventory
+  ownership boundary.
+- Recommend additive nullable/defaulted future fields on existing publisher
+  tables.
+- Cover site/app identity, integration mode, slot/media taxonomy,
+  quality/source taxonomy, cache impact, audit impact, admin UI impact, and
+  migration path.
+- Do not change schema, cache payloads, runtime behavior, audit payloads,
+  ledger tables, or Summer/Genelet admin code.
+
+Acceptance:
+
+- ADR 0001 records the future taxonomy direction.
+- `/pz` plus audit `source:"ssp"` and `contract:"pz-v1"` remains the current
+  runtime direct SSP boundary until a later schema/cache milestone.
+- M35 remains the separate SSP account/schema ADR.
+
+Result:
+
+- [ADR 0001](../docs/adr/0001-richer-supply-taxonomy.md) keeps `pub`,
+  `pub_site`, and `pub_slot` as the publisher and inventory ownership boundary.
+- Future taxonomy is additive on existing publisher tables and covers site/app
+  identity, integration mode, slot/media intent, and quality/source metadata.
+- M34 changes docs and memory only; schema, cache payloads, runtime behavior,
+  audit payloads, ledgers, and Summer/Genelet admin code remain unchanged.
 
 ## M35 - SSP Account/Schema ADR `[ ]`
 

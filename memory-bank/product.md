@@ -89,8 +89,13 @@ advertiser-owned endpoint and reporting schema boundary:
 	  lets valid `/pz` auctions use existing middleman `Fallback` and gated
 	  `Always` fanout after local matching while preserving those M32 response
 	  formats and keeping malformed, invalid-token, and policy-rejected traffic
-	  out of middleman fanout. Richer supply taxonomy remains an ADR milestone
-	  rather than runtime schema work.
+	  out of middleman fanout. M34 records future richer supply taxonomy as
+	  additive nullable/defaulted fields on existing publisher tables while
+	  keeping `pub`, `pub_site`, and `pub_slot` as the ownership boundary and
+	  keeping `/pz` plus audit `source:"ssp"`/`contract:"pz-v1"` as the current
+	  runtime boundary until a later schema/cache milestone. M35 remains the
+	  separate ADR for deciding whether an SSP account/schema boundary is still
+	  needed.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

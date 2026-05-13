@@ -9,8 +9,10 @@ working browser/API samples for that runtime path. M30 adds measurement
 semantics. M31 adds browser origin/referrer enforcement and documents the
 product boundary. M32 adds mobile/API request fields and explicit JSON/OpenRTB
 response formats. M33 lets valid direct SSP auctions use the existing
-middleman fallback and gated `Always` runtime after local matching. The handler
-validates packed direct SSP tokens against the publisher-by-id cache, enforces
+middleman fallback and gated `Always` runtime after local matching. M34 records
+the future richer supply taxonomy direction in
+[ADR 0001](adr/0001-richer-supply-taxonomy.md). The handler validates packed
+direct SSP tokens against the publisher-by-id cache, enforces
 the browser page host against the cached site host, converts ad units into
 internal OpenRTB impressions, serves local Aofei demand, optionally fans out to
 middleman bidders, renders the requested response shape, and identifies SSP
@@ -339,9 +341,22 @@ metadata: request and response audit envelopes use `source:"ssp"` and
 `contract:"pz-v1"`, while attribute audits add the same fields. ADX/OpenRTB
 traffic remains on `/bid/{domain}` with `source:"adx"` and `contract:"openrtb"`.
 
-M33 does not add a database or cache field for publisher supply source. Richer
-supply taxonomy and separate SSP account/schema boundaries remain future ADR
-work.
+M34 does not add a database or cache field for publisher supply source. It
+accepts ADR 0001 as the future taxonomy direction:
+
+- keep `pub`, `pub_site`, and `pub_slot` as the publisher and inventory
+  ownership boundary;
+- add nullable or defaulted taxonomy fields to existing publisher tables in a
+  later schema milestone;
+- normalize site/app identity, integration mode, slot/media intent, and
+  quality/source metadata instead of overloading legacy packed fields;
+- extend `pubmap:by-id`, request/response/attribute audits, and
+  Summer/Genelet pub/site/slot forms additively only after schema/cache support
+  exists.
+
+Until that later implementation, `/pz` plus audit `source:"ssp"` and
+`contract:"pz-v1"` remains the current runtime audit boundary. The separate SSP
+account/schema question remains M35 ADR work.
 
 ## Publisher UI
 
@@ -359,4 +374,5 @@ origin/referrer policy and documents the direct SSP source boundary. M32 adds
 SDK `app`/`device`/`user` parsing and explicit `"html"`, `"json"`, and
 `"openrtb"` response formats. M33 adds middleman fallback/`Always` use for
 valid `/pz` auctions without changing `ads.js`, schema, cache shape, or account
-roles.
+roles. M34 adds ADR 0001 for future richer supply taxonomy while making no
+runtime, schema, cache payload, audit payload, ledger, or admin UI change.

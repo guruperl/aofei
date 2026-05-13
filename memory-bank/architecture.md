@@ -93,7 +93,13 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   filled impressions use `Always` candidates only when both middleman gates
 	   are enabled. SSP fanout sends the synthesized internal OpenRTB request,
 	   while SSP request/response audits keep wrapping the original `/pz` request
-	   and final SSP response.
+	   and final SSP response. M34 selects the future richer supply taxonomy
+	   direction without changing runtime behavior: add nullable/defaulted fields
+	   to existing publisher tables for site/app identity, integration mode,
+	   slot/media intent, and quality/source metadata; extend direct publisher
+	   cache and audits additively only after schema support exists; and keep
+	   `source:"ssp"`/`contract:"pz-v1"` as the runtime audit boundary until
+	   then.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -220,10 +226,11 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP richer supply taxonomy remains future product work; M33 keeps the
-  `/pz` plus audit `source:"ssp"` supply boundary, M32 response contracts, and
-  existing schema/cache/account-role boundaries while adding middleman
-  fallback/`Always` use for valid auctions only.
+- Direct SSP richer supply taxonomy is documented in
+  [ADR 0001](../docs/adr/0001-richer-supply-taxonomy.md). Implementation
+  remains future product work: M34 changes no schema, cache payload, runtime
+  behavior, audit payload, ledger table, or admin UI code. The current runtime
+  boundary remains `/pz` plus audit `source:"ssp"` and `contract:"pz-v1"`.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.
