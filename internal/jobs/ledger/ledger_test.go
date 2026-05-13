@@ -83,6 +83,46 @@ func TestStatisticsScansLargeLinesAndAggregatesByCreativeID(t *testing.T) {
 	}
 }
 
+func TestStatisticsAggregatesDirectSSPTrackerWinLossWithoutSchemaChange(t *testing.T) {
+	dir := t.TempDir()
+	ledger := &Ledger{
+		LogWinLoss: dir,
+		Current:    456,
+		slots: map[uint32][2]uint32{
+			100: {10, 1},
+		},
+		creatives: map[uint32][3]uint32{
+			10000: {1000, 10, 1},
+		},
+	}
+	writeWinLossLog(t, filepath.Join(dir, "winloss.456"),
+		dsp.WinLoss{
+			Status: dsp.StatusTrackImp,
+			RPub:   match.RPub{PubID: 1, SiteID: 10, SlotID: 100},
+			RAdv:   match.RAdv{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Cost: 2.5},
+		},
+		dsp.WinLoss{
+			Status: dsp.StatusTrackClk,
+			RPub:   match.RPub{PubID: 1, SiteID: 10, SlotID: 100},
+			RAdv:   match.RAdv{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Cost: 2.5},
+		},
+	)
+
+	slots, creatives, imps, clis, spend, err := ledger.Statistics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slots[100] != [2]uint32{10, 1} {
+		t.Fatalf("slot metadata = %v, want site/pub metadata", slots[100])
+	}
+	if creatives[10000] != [3]uint32{1000, 10, 1} {
+		t.Fatalf("creative metadata = %v, want item/campaign/adv metadata", creatives[10000])
+	}
+	if imps[100][10000] != 1 || clis[100][10000] != 1 || spend[100][10000] != 2.5 {
+		t.Fatalf("ledger aggregates imps=%v clis=%v spend=%v, want 1/1/2.5", imps, clis, spend)
+	}
+}
+
 func TestStatisticsAggregatesMiddlemanMetadata(t *testing.T) {
 	dir := t.TempDir()
 	ledger := &Ledger{

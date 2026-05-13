@@ -2,11 +2,14 @@ package dsp
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +18,11 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
+)
+
+const (
+	sspUserCookieName   = "aofei_pz_uid"
+	sspUserCookieMaxAge = 365 * 24 * 60 * 60
 )
 
 // ServeSSP handles the direct publisher browser JSON contract on /pz.
@@ -41,11 +49,15 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bid, pub, units, err := self.openRTBFromSSP(ctx, r, sspReq)
+	cookieUserID := self.resolveSSPUserCookie(nil, r)
+	bid, pub, units, err := self.openRTBFromSSP(ctx, r, sspReq, cookieUserID)
 	if err != nil {
 		metricSSPValidationErrors.Add(1)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if cookieUserID == "" {
+		self.resolveSSPUserCookie(w, r)
 	}
 
 	html := make([]string, len(units))
@@ -86,12 +98,10 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	for i := range audits {
 		audits[i].Elapsed = elapsed
 	}
-	if len(audits) != 0 {
-		_ = self.publishBidAudits(rawRequest, rawResponse, audits)
-	}
+	_ = self.publishSSPBidAudits(rawRequest, rawResponse, audits)
 }
 
-func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req *SSPRequest) (*openrtb2.BidRequest, *acl.DirectPub, []SSPValidatedUnit, error) {
+func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req *SSPRequest, cookieUserID ...string) (*openrtb2.BidRequest, *acl.DirectPub, []SSPValidatedUnit, error) {
 	if req == nil {
 		return nil, nil, nil, fmt.Errorf("ssp request is nil")
 	}
@@ -115,6 +125,10 @@ func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req
 		User:   &openrtb2.User{},
 		Imp:    make([]openrtb2.Imp, 0, len(units)),
 	}
+	if len(cookieUserID) != 0 && cookieUserID[0] != "" {
+		bid.User.ID = cookieUserID[0]
+		bid.User.BuyerUID = cookieUserID[0]
+	}
 	if bid.ID == "" {
 		bid.ID = "ssp-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	}
@@ -126,6 +140,70 @@ func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req
 		bid.Imp = append(bid.Imp, imp)
 	}
 	return bid, pub, units, nil
+}
+
+func (self *Controller) resolveSSPUserCookie(w http.ResponseWriter, r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if cookie, err := r.Cookie(sspUserCookieName); err == nil && validSSPUserCookie(cookie.Value) {
+		return cookie.Value
+	}
+	value, err := newSSPUserCookieValue()
+	if err != nil || w == nil {
+		return ""
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     sspUserCookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   sspUserCookieMaxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   self.sspCookieSecure(r),
+	})
+	return ""
+}
+
+func validSSPUserCookie(value string) bool {
+	if len(value) < 16 || len(value) > 128 {
+		return false
+	}
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '_' || r == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func newSSPUserCookieValue() (string, error) {
+	var raw [18]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func (self *Controller) sspCookieSecure(r *http.Request) bool {
+	if r != nil {
+		if r.TLS != nil {
+			return true
+		}
+		if strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+			return true
+		}
+	}
+	if self == nil || self.C == nil || self.C.ServerURL == "" {
+		return false
+	}
+	u, err := url.Parse(self.C.ServerURL)
+	return err == nil && strings.EqualFold(u.Scheme, "https")
 }
 
 func (self *Controller) sspPubByID(ctx context.Context, pubID uint32) (*acl.DirectPub, error) {

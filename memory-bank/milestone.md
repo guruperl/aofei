@@ -757,7 +757,7 @@ Result:
 - `cmd/unify` handles `OPTIONS /pz` and applies permissive CORS headers only to
   `/pz`.
 
-## M30 - SSP Measurement, Cookie, And Reporting Semantics `[ ]`
+## M30 - SSP Measurement, Cookie, And Reporting Semantics `[+]`
 
 Make direct SSP traffic observable and compatible with existing ledgers.
 
@@ -778,6 +778,19 @@ Acceptance:
 - Existing ledger aggregation continues without schema change unless a concrete
   reporting gap is found.
 - Browser cookie absence does not break serving.
+
+Result:
+
+- `/pz` request and response audits use explicit SSP envelopes with
+  `source:"ssp"` and `contract:"pz-v1"` while ADX `/bid` request/response audits
+  remain raw OpenRTB payloads.
+- Attribute audits include additive `source` and `contract` fields for ADX and
+  SSP traffic.
+- `/pz` uses a valid `aofei_pz_uid` cookie as OpenRTB user identity when present;
+  missing or invalid cookies keep current-request serving on the existing IP+UA
+  fallback and set a best-effort cookie for later requests.
+- SSP markup reuses the existing signed `/imp` and `/clk` tracker path, and
+  tracker `WinLoss` records aggregate through the current ledger schema.
 
 ## M31 - SSP Hardening And Product Boundary `[ ]`
 

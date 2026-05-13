@@ -88,8 +88,8 @@ func newLocalBidPathController(t *testing.T) *Controller {
 	writePubSnapshot(t, top, "pub.example", pub)
 	writeRAdvsSnapshot(t, top, sizeOne, 100, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Weight: 1, CostType: 2, Cost: 2}})
 	writeRAdvsSnapshot(t, top, sizeTwo, 200, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 2000, CreativeID: 20000}, Weight: 1, CostType: 2, Cost: 3}})
-	writeCreativeSnapshot(t, top, 10000, &match.Creative{CreativeContent: "https://cdn.example/one.html", SizeID: sizeOne})
-	writeCreativeSnapshot(t, top, 20000, &match.Creative{CreativeContent: "https://cdn.example/two.html", SizeID: sizeTwo})
+	writeCreativeSnapshot(t, top, 10000, &match.Creative{CreativeContent: "https://cdn.example/one.html?click={CLICK_URL}", Landing: "https://advertiser.example/one", SizeID: sizeOne})
+	writeCreativeSnapshot(t, top, 20000, &match.Creative{CreativeContent: "https://cdn.example/two.html", Landing: "https://advertiser.example/two", SizeID: sizeTwo})
 
 	controller := &Controller{
 		C:      &Config{Spread: top, IsLocal: true, ServerURL: "https://dsp.example", TrackingSecret: "test-secret"},

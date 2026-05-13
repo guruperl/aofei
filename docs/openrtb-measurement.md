@@ -79,9 +79,9 @@ The bid path publishes these NATS subjects after a successful HTTP response:
 
 | Subject | Payload | Consumer |
 |---|---|---|
-| `request` | Raw request body | `cmd/nats-client` writes `log_request/request.<stamp>`. |
-| `response` | Raw response body | `cmd/nats-client` writes `log_response/response.<stamp>`. |
-| `attribute` | `match.AttributePlus` JSON, one per served impression | `cmd/nats-client` writes `log_attribute/attribute.<stamp>`. |
+| `request` | ADX raw request body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and raw request `payload` | `cmd/nats-client` writes `log_request/request.<stamp>`. |
+| `response` | ADX raw response body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and HTML-array `payload` | `cmd/nats-client` writes `log_response/response.<stamp>`. |
+| `attribute` | `match.AttributePlus` JSON, one per served impression, with additive `source` and `contract` fields | `cmd/nats-client` writes `log_attribute/attribute.<stamp>`. |
 | `winloss` | `dsp.WinLoss` JSON | `cmd/nats-client` writes `log_winloss/winloss.<stamp>`. |
 
 Audit publish is best effort after the bid response is sent. Request, response,
@@ -89,6 +89,12 @@ and attribute audit messages are enqueued to a bounded in-process queue and
 published by a background worker without flushing in the HTTP request goroutine.
 If NATS is missing, the queue is full, or publish fails, the accepted bidder
 response is not rolled back.
+
+ADX `/bid` request and response audits remain raw OpenRTB payloads for
+compatibility. Direct SSP `/pz` request and response audits are wrapped only for
+SSP traffic so operators can distinguish the entrypoint without changing ADX log
+readers. Attribute audits use `source:"adx", contract:"openrtb"` for `/bid` and
+`source:"ssp", contract:"pz-v1"` for `/pz`.
 
 `cmd/spread` ignores the four log subjects and handles only cache/spread
 subjects.
@@ -120,6 +126,11 @@ charge/pay/margin spend, `StatusTrackClk` contributes clicks, and
 `StatusWin`/`StatusLoss` contribute admin audit counts without becoming spend.
 Advertiser-facing middleman spend is pay-side spend; admin reports expose
 charge, pay, and margin.
+
+Direct SSP markup reuses the same local `NewBid` rendering path as ADX local
+bids. Its signed `/imp` and `/clk` tracker URLs publish normal `WinLoss` records
+with direct publisher/site/slot IDs and demand IDs, so `cmd/ledger` aggregates
+SSP impressions, clicks, and spend through the existing ledger schema.
 
 ## Known Measurement Gaps
 

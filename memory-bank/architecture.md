@@ -70,10 +70,14 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    does not invoke middleman fallback for SSP traffic.
    M29 publisher tags are generated from the `pub` slot UI using configured
    `ServerURL`, stored `pub_slot.size_id`, DOM ids of the form
-   `pz-slot-<slot_id>`, and banner `mediaTypes` samples. `www/js/ads.js`
-   derives its default `/pz` endpoint from the loaded script origin and can be
-   overridden per call. `cmd/unify` applies permissive CORS headers only to
-   `POST/OPTIONS /pz`.
+	   `pz-slot-<slot_id>`, and banner `mediaTypes` samples. `www/js/ads.js`
+	   derives its default `/pz` endpoint from the loaded script origin and can be
+	   overridden per call. `cmd/unify` applies permissive CORS headers only to
+	   `POST/OPTIONS /pz`.
+	   M30 identifies SSP traffic in audits with `source:"ssp"` and
+	   `contract:"pz-v1"`, uses a valid `aofei_pz_uid` cookie as browser user
+	   identity when present, and leaves missing-cookie requests on the existing
+	   IP+UA fallback path.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -197,8 +201,8 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP cookie handling, origin/referrer controls beyond permissive
-  `/pz` CORS, and reporting semantics are planned for M30-M31.
+- Direct SSP origin/referrer controls beyond permissive `/pz` CORS remain planned
+  for M31.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

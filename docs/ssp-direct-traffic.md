@@ -5,10 +5,11 @@ managed by the existing `pub` role. It is separate from ADX/OpenRTB traffic on
 `/bid/{domain}`.
 
 M28 wires runtime serving on `POST /pz`. M29 makes publisher slot pages generate
-working browser/API samples for that runtime path. The handler validates packed
-direct SSP tokens against the publisher-by-id cache, converts ad units into
-internal OpenRTB impressions, serves local Aofei demand, and returns a JSON
-array of HTML strings in request order.
+working browser/API samples for that runtime path. M30 adds measurement
+semantics. The handler validates packed direct SSP tokens against the
+publisher-by-id cache, converts ad units into internal OpenRTB impressions,
+serves local Aofei demand, returns a JSON array of HTML strings in request
+order, and identifies SSP traffic separately in audits.
 
 ## V1 Browser Contract
 
@@ -190,14 +191,43 @@ server endpoint from the script URL, so
 pzLoadAds(payload, { endpoint: "https://aofei.example/pz" });
 ```
 
-Cross-origin calls do not send credentials by default in M29. Cookie behavior
-belongs to M30.
+Cross-origin calls do not send credentials by default. M30 keeps `ads.js`
+credentialless and does not add `Access-Control-Allow-Credentials`. `/pz` sets a
+best-effort `aofei_pz_uid` cookie for browser traffic. When a later request
+returns a valid cookie value, the adapter sets synthesized OpenRTB `user.id` and
+`buyeruid` to that value. If the cookie is missing or invalid, the current
+request leaves `user` empty and continues through the existing IP+UA fallback in
+attribute extraction, so cookie absence does not block serving.
 
-M28/M29 intentionally serve local Aofei demand only. They reuse the existing
+M28-M30 intentionally serve local Aofei demand only. They reuse the existing
 candidate, frequency-cap, audience, creative rendering, tracker, and audit
-paths, but do not invoke middleman fallback. `/pz` does not write MySQL,
-refresh caches, set cookies, add origin allowlists/referrer enforcement, or add
-separate SSP reporting semantics.
+paths, but do not invoke middleman fallback. `/pz` does not write MySQL, refresh
+caches, add origin allowlists/referrer enforcement, or add credentialed CORS.
+
+## Measurement And Audits
+
+Filled SSP markup is rendered by the existing DSP `NewBid` path, so banner,
+native, and video markup carry the same signed `/imp` and `/clk` tracking URLs as
+ADX-rendered local bids. `/imp` publishes `StatusTrackImp` win/loss records and
+`/clk` publishes `StatusTrackClk` records. Those records carry the validated
+publisher, site, slot, size, campaign, item, creative, advertiser, and price
+data already consumed by `cmd/ledger`; M30 does not require a ledger schema
+change.
+
+NATS/log audit payloads distinguish entrypoints:
+
+- ADX `/bid` request and response audit subjects remain raw OpenRTB request and
+  response JSON.
+- SSP `/pz` request and response audit subjects use a JSON envelope:
+  `{"source":"ssp","contract":"pz-v1","payload":...}`.
+- Attribute audit rows include additive `source` and `contract` fields. ADX rows
+  use `source:"adx", contract:"openrtb"`; SSP rows use
+  `source:"ssp", contract:"pz-v1"`.
+
+Valid all-no-fill SSP requests still publish request and response audits with an
+HTML array of empty strings, but no attribute rows because no impression served.
+Malformed or invalid-token requests return HTTP errors and do not publish SSP
+audits.
 
 ## Publisher UI
 
@@ -209,6 +239,6 @@ in the browser with a Blob from the rendered sample.
 ## Milestone Boundary
 
 M29 wires publisher-facing tag generation, copy/download UI, stored slot sizes,
-external `ads.js` endpoint resolution, and permissive `/pz` CORS. Cookie
-handling, origin/referrer controls beyond this endpoint-limited CORS allowance,
-and direct-SSP-specific reporting semantics belong to M30 through M31.
+external `ads.js` endpoint resolution, and permissive `/pz` CORS. M30 adds
+cookie fallback and audit/reporting semantics. Origin/referrer controls beyond
+this endpoint-limited CORS allowance belong to M31.

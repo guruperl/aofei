@@ -74,6 +74,22 @@ type bidAudit struct {
 	Elapsed time.Duration
 }
 
+type auditSource struct {
+	Source   string
+	Contract string
+}
+
+type auditEnvelope struct {
+	Source   string          `json:"source"`
+	Contract string          `json:"contract"`
+	Payload  json.RawMessage `json:"payload"`
+}
+
+var (
+	auditSourceADX = auditSource{Source: "adx", Contract: "openrtb"}
+	auditSourceSSP = auditSource{Source: "ssp", Contract: "pz-v1"}
+)
+
 type bidWinner struct {
 	ImpIndex      int
 	Seat          string
@@ -687,6 +703,33 @@ func (self *Controller) publishBidAudit(bidStr, rspnStr []byte, attr *match.Attr
 }
 
 func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAudit) error {
+	return self.publishBidAuditsFor(auditSourceADX, bidStr, rspnStr, audits)
+}
+
+func (self *Controller) publishSSPBidAudits(bidStr, rspnStr []byte, audits []bidAudit) error {
+	request, err := wrapAuditPayload(auditSourceSSP, bidStr)
+	if err != nil {
+		return err
+	}
+	response, err := wrapAuditPayload(auditSourceSSP, rspnStr)
+	if err != nil {
+		return err
+	}
+	return self.publishBidAuditsFor(auditSourceSSP, request, response, audits)
+}
+
+func wrapAuditPayload(source auditSource, payload []byte) ([]byte, error) {
+	if len(payload) == 0 {
+		payload = []byte("null")
+	}
+	return json.Marshal(auditEnvelope{
+		Source:   source.Source,
+		Contract: source.Contract,
+		Payload:  json.RawMessage(payload),
+	})
+}
+
+func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr []byte, audits []bidAudit) error {
 	if self.Nc == nil && self.audit == nil {
 		return nil
 	}
@@ -705,6 +748,8 @@ func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAud
 			Attribute: *audit.Attr,
 			RAdv:      audit.One,
 			Elapsed:   time.Duration(audit.Elapsed.Milliseconds()),
+			Source:    source.Source,
+			Contract:  source.Contract,
 		})
 		if err != nil {
 			return err
