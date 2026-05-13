@@ -21,21 +21,25 @@ type Red struct {
 }
 
 type Config struct {
-	DocumentRoot   string   `json:"document_root"`
-	ServerURL      string   `json:"server_url"`
-	ServerPort     string   `json:"server_port"`
-	HhLock         string   `json:"hhlock,omitempty"`
-	Ips            string   `json:"ips,omitempty"`
-	Redis          *Red     `json:"redis,omitempty"`
-	NatsURL        string   `json:"nats_url,omitempty"`
-	TrackingSecret string   `json:"tracking_secret,omitempty"`
-	ConnectArray   []string `json:"connect_array,omitempty"`
-	Spread         string   `json:"spread,omitempty"`
-	IsLocal        bool     `json:"is_local,omitempty"`
-	LogRequest     string   `json:"log_request,omitempty"`
-	LogResponse    string   `json:"log_response,omitempty"`
-	LogAttribute   string   `json:"log_attribute,omitempty"`
-	LogWinLoss     string   `json:"log_winloss,omitempty"`
+	DocumentRoot              string   `json:"document_root"`
+	ServerURL                 string   `json:"server_url"`
+	ServerPort                string   `json:"server_port"`
+	HhLock                    string   `json:"hhlock,omitempty"`
+	Ips                       string   `json:"ips,omitempty"`
+	Redis                     *Red     `json:"redis,omitempty"`
+	NatsURL                   string   `json:"nats_url,omitempty"`
+	TrackingSecret            string   `json:"tracking_secret,omitempty"`
+	ConnectArray              []string `json:"connect_array,omitempty"`
+	Spread                    string   `json:"spread,omitempty"`
+	IsLocal                   bool     `json:"is_local,omitempty"`
+	MiddlemanEnabled          bool     `json:"middleman_enabled,omitempty"`
+	MiddlemanTimeoutMS        int      `json:"middleman_timeout_ms,omitempty"`
+	MiddlemanMaxBiddersPerImp int      `json:"middleman_max_bidders_per_imp,omitempty"`
+	MiddlemanExchangeDomain   string   `json:"middleman_exchange_domain,omitempty"`
+	LogRequest                string   `json:"log_request,omitempty"`
+	LogResponse               string   `json:"log_response,omitempty"`
+	LogAttribute              string   `json:"log_attribute,omitempty"`
+	LogWinLoss                string   `json:"log_winloss,omitempty"`
 }
 
 func NewConfig(filename string) (*Config, error) {
@@ -103,8 +107,35 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.TrackingSecret == "" {
 		parsed.TrackingSecret = os.Getenv("TRACKING_SECRET")
 	}
+	if parsed.MiddlemanTimeoutMS <= 0 {
+		parsed.MiddlemanTimeoutMS = 100
+	}
+	if parsed.MiddlemanMaxBiddersPerImp <= 0 {
+		parsed.MiddlemanMaxBiddersPerImp = 5
+	}
+	if parsed.MiddlemanExchangeDomain == "" {
+		parsed.MiddlemanExchangeDomain = serverURLHost(parsed.ServerURL)
+	}
 
 	return parsed, nil
+}
+
+func serverURLHost(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	raw = strings.TrimSpace(raw)
+	if strings.Contains(raw, "://") {
+		parts := strings.SplitN(raw, "://", 2)
+		raw = parts[1]
+	}
+	if i := strings.IndexByte(raw, '/'); i >= 0 {
+		raw = raw[:i]
+	}
+	if i := strings.IndexByte(raw, ':'); i >= 0 {
+		raw = raw[:i]
+	}
+	return raw
 }
 
 // GetRedisDB returns the Redis conn and database handler

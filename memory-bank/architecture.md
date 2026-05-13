@@ -30,13 +30,13 @@
 3. `etc/demand.sql` plus `go run ./etc pub` can load sample local demand and
    publisher data.
 4. The cache job reads MySQL through `dsp.Config`, builds `PubMap`, `RAdv`,
-   audience, and creative caches, discovers active creative size IDs from the
-   schema, then replaces Redis cache entries or publishes spread/NATS reset and
-   snapshot messages. It runs through standalone `cmd/redis-cache` or opt-in
-   `cmd/unify` background flags. `cmd/spread` must be running when spread
-   messages should become `.local/spread/` file snapshots; on startup it
-   best-effort bootstraps those snapshots from Redis when Redis and MySQL are
-   reachable.
+   audience, creative, and Redis-only middleman route caches, discovers active
+   creative size IDs from the schema, then replaces Redis cache entries or
+   publishes spread/NATS reset and snapshot messages. It runs through standalone
+   `cmd/redis-cache`; `cmd/unify` does not run cache refreshers. `cmd/spread`
+   must be running when spread messages should become `.local/spread/` file
+   snapshots; on startup it best-effort bootstraps those snapshots from Redis
+   when Redis and MySQL are reachable.
 5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
 6. Bid/win/loss/log flows use Redis for mutable runtime state and NATS/spread/log
@@ -53,26 +53,23 @@
    same redirect through `{CLICK_URL}`.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
-   interval and daily ledger tables through standalone `cmd/ledger` or opt-in
-   `cmd/unify` background flags; missing input remains retryable and non-fatal
-   in embedded mode.
+   interval and daily ledger tables through standalone `cmd/ledger`; missing
+   input remains retryable command input.
 8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
    regenerates the configured MaxMind runtime JSON without loading the existing
    geodata file first.
 
-Middleman AdX fallback is schema-defined but not yet active in the bid path.
-Advertiser-owned OpenRTB endpoints live in `adv_bidder`, with optional
-synthetic campaign, item, and creative IDs for existing ledger/report joins.
-Summer/Genelet exposes advertiser-safe endpoint metadata forms and admin review
-and approval forms. Approval creates a missing inactive synthetic chain or
-validates an existing complete same-advertiser chain, then marks the bidder
-credential active and the bidder active. Operators will later assign active
-route groups to publisher/site/slot inventory through `mid_route_*` tables. The
-synthetic item/campaign chain is also the planned eligibility surface for bidder
-fanout: existing `ac`, `ch_ac`, `ch_belong`, `access_order`, `fl_sitetypes`, and
-channel matching rules should decide whether a bidder may receive the original
-publisher/site request before a downstream call is made. Runtime fanout, route
-caching, callback proxying, and reporting integration remain future milestones.
+Middleman AdX fallback is active behind `middleman_enabled`. Advertiser-owned
+OpenRTB endpoints live in `adv_bidder`, with synthetic campaign, item, and
+creative IDs for existing ledger/report joins. Summer/Genelet exposes
+advertiser-safe endpoint metadata forms and admin review and approval forms.
+Approval creates a missing inactive synthetic chain or validates an existing
+complete same-advertiser chain, then marks the bidder credential active and the
+bidder active. Operators assign active route groups to publisher/site/slot
+inventory through `mid_route_*` tables. The Redis `middleman:routes` cache
+contains active route/bidder entries and synthetic item ACL payloads; the bid
+path uses it only for local no-bid impressions. Callback proxying, downstream
+win/loss reconciliation, and reporting integration remain future milestones.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the
@@ -137,8 +134,9 @@ legacy definers or legacy named database auth references.
   remains the development workflow, not the production ownership model.
 - Runtime config parsing needs one validation/defaulting boundary across DSP
   and Summer/Genelet so missing service blocks fail with actionable errors.
-- Redis and spread cache payloads need typed/versioned contracts instead of
-  direct struct serialization.
+- Redis and spread campaign cache payloads need typed/versioned contracts
+  instead of direct struct serialization. The middleman route Redis payload is
+  already versioned JSON.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

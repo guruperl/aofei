@@ -65,6 +65,10 @@ TRACKING_SECRET="..."
 These files are local artifacts and are ignored by git.
 `tracking_secret` in the DSP config signs generated `/imp` and `/clk` tracking
 URLs; when omitted, `TRACKING_SECRET` is used as the fallback.
+Middleman fallback is controlled by `middleman_enabled`,
+`middleman_timeout_ms`, `middleman_max_bidders_per_imp`, and
+`middleman_exchange_domain`. Bidder `credential_ref` values name environment
+variables containing JSON outbound header maps for downstream OpenRTB calls.
 
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
@@ -169,10 +173,13 @@ Do not run a Redis cache refresher from every `unify` node. When spread mode is
 used, keep `cmd/spread` running on nodes whose local disk snapshots should be
 updated from NATS messages.
 
-Expected Redis cache families are `pubmap`, `audience`, `creative`, and
-`slot:<size_id>` hashes keyed by slot id. Expected spread directories are
+Expected Redis cache families are `pubmap`, `audience`, `creative`,
+`middleman:routes`, and `slot:<size_id>` hashes keyed by slot id. Expected
+spread directories are
 `.local/spread/pubmap/`, `.local/spread/audience/`,
 `.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
+`middleman:routes` is Redis-only in M20 and is populated by the singleton
+`cmd/redis-cache` job, not by `cmd/unify`.
 
 ## Operational Commands
 

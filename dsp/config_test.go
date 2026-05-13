@@ -45,6 +45,18 @@ func TestConfig(t *testing.T) {
 	if c.TrackingSecret != "env-secret" {
 		t.Errorf("TrackingSecret = %q, want env fallback", c.TrackingSecret)
 	}
+	if c.MiddlemanEnabled {
+		t.Errorf("MiddlemanEnabled = true, want default false")
+	}
+	if c.MiddlemanTimeoutMS != 100 {
+		t.Errorf("MiddlemanTimeoutMS = %d, want 100", c.MiddlemanTimeoutMS)
+	}
+	if c.MiddlemanMaxBiddersPerImp != 5 {
+		t.Errorf("MiddlemanMaxBiddersPerImp = %d, want 5", c.MiddlemanMaxBiddersPerImp)
+	}
+	if c.MiddlemanExchangeDomain != "localhost" {
+		t.Errorf("MiddlemanExchangeDomain = %q, want localhost", c.MiddlemanExchangeDomain)
+	}
 }
 
 func TestLocalConfigSmoke(t *testing.T) {

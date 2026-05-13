@@ -41,12 +41,12 @@ Nil or empty subaudiences generally mean wildcard targeting. Uploaded audiences
 are different: when upload targeting is configured, every configured identifier
 type must be present in the bid and present in the advertiser upload set.
 
-Middleman bidder fallback should reuse this same ACL and channel eligibility
-surface through each bidder's synthetic item. In M17, admin approval creates or
-validates that synthetic chain while leaving those rows inactive. Future route
-cache and fanout work can choose a coarse fanout pool, but the synthetic
-advertiser/campaign/item chain decides whether the original publisher/site
-request is allowed for a specific bidder.
+Middleman bidder fallback reuses this same ACL and channel eligibility surface
+through each bidder's synthetic item. Admin approval creates or validates that
+synthetic chain while leaving those rows inactive. The Redis middleman route
+cache chooses the coarse fanout pool, and the synthetic advertiser/campaign/item
+chain decides whether the original publisher/site request is allowed for a
+specific bidder.
 
 ## Cache Contracts
 
@@ -58,6 +58,7 @@ Runtime matching reads these Redis families:
 | `slot:<size_id>` | Hash keyed by slot id, binary `match.RAdvs`. | `cmd/redis-cache` from active creatives and slots. |
 | `audience` | Hash keyed by item id, gob-encoded `match.Audience`. | `cmd/redis-cache` from active item targeting. |
 | `creative` | Hash keyed by creative id, gob-encoded `match.Creative`. | `cmd/redis-cache` from active creatives. |
+| `middleman:routes` | Versioned JSON route/bidder cache with synthetic ACL payloads. | `cmd/redis-cache -cache=redis` from active `adv_bidder` and `mid_route_*` rows. |
 | `bothcap:<user_id>` | Hash keyed by item id, binary `match.BothCap`. | Tracker callbacks on `/imp` and `/clk`. |
 | `upload:<adv_id>:<marker>` | Redis set of uploaded identifier values. | Upload/admin flows. |
 
@@ -67,6 +68,10 @@ Spread/local snapshot mode mirrors the same static data under `.local/spread/`:
 - `slot/<size_id>/<slot_id>`
 - `audience/<item_id>`
 - `creative/<creative_id>`
+
+Middleman route cache is Redis-only in M20. It is not mirrored into spread
+snapshots, so `cmd/unify` nodes that enable middleman fallback need Redis
+available even when local/spread static campaign cache is enabled.
 
 When DSP local mode is enabled, these files are loaded into an in-process static
 cache at controller startup and refreshed through the explicit reload hook.
@@ -96,6 +101,9 @@ The current bid path applies filters in this order:
 6. If no uploaded direct match exists, run combined audience predicates.
 7. Pick a candidate using bid-floor/cost/weight math.
 8. Load the creative and render response markup.
+9. For impressions with no local bid, optionally run middleman fallback from
+   `middleman:routes`, filtering each bidder through synthetic ACL/channel
+   eligibility before any downstream OpenRTB call.
 
 `Audience.Has` evaluates geo, demo, user-agent, date/hour, and ACL predicates.
 If a candidate has no audience object, both Redis and spread/IO modes treat it

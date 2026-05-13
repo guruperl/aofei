@@ -102,6 +102,13 @@ tracking secrets, or cloud keys. DSP tracking URLs use `tracking_secret` in
 `AOFEI`, or the `TRACKING_SECRET` environment fallback, to sign click redirect
 and cap-mutation tracker payloads.
 
+Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
+When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
+`middleman_max_bidders_per_imp` deliberately. Each active bidder
+`credential_ref` names an environment variable visible to `cmd/unify`; its
+value must be a JSON object of outbound HTTP headers. Do not put those header
+values in MySQL, Redis, or checked-in config files.
+
 Summer/Genelet CORS is exact-origin only. `ServerURL` is allowed by default, and
 additional browser origins must be listed in `CORSOrigins`; other non-empty
 `Origin` values receive HTTP 403 before routing.
@@ -283,8 +290,9 @@ Smoke checks:
 
 - `cmd/unify` listens on `ServerPort` and serves expected admin/static paths.
 - DSP bid endpoint returns the expected local or staging fixture response.
-- Redis contains `pubmap`, `audience`, `creative`, and `slot:<size_id>` cache
-  families after cache population when Redis static-cache mode is used.
+- Redis contains `pubmap`, `audience`, `creative`, `middleman:routes`, and
+  `slot:<size_id>` cache families after cache population when Redis
+  static-cache mode or middleman fallback is used.
 - In local/spread static-cache mode, spread files exist and bid nodes have
   loaded a current in-process static generation.
 - NATS log subjects are written into the configured log directories.
@@ -331,8 +339,9 @@ Redis requirements:
 
 - Persistence and eviction policy are operational decisions.
 - Monitor memory, connected clients, command errors, and key counts.
-- Repopulate static cache after flushes, failover, or schema/data changes when
-  Redis static-cache mode is used.
+- Repopulate static cache after flushes, failover, bidder route changes, or
+  schema/data changes when Redis static-cache mode or middleman fallback is
+  used.
 - Keep mutable-state key families such as `bothcap:<user_id>` and
   `upload:<adv_id>:<marker>` protected from accidental static-cache flushes.
 

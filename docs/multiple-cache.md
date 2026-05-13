@@ -22,6 +22,13 @@ Static bid-serving data is local:
 - `creative/<creative_id>` creative metadata, trackers, landing URL, failback,
   size, and content.
 
+Middleman bidder routes are Redis static data in M20:
+
+- `middleman:routes` stores a versioned JSON payload compiled from active
+  `adv_bidder` and `mid_route_*` rows, including synthetic item ACL payloads.
+- It is populated by the singleton `cmd/redis-cache -cache=redis|all` job.
+- It is not mirrored into spread/local snapshots yet.
+
 Disk snapshots under `.local/spread/` are the durable local recovery format, not
 the hot lookup path. The DSP loads those files into in-process maps and serves
 static lookups from memory.
@@ -30,8 +37,8 @@ static lookups from memory.
 
 `cmd/redis-cache` now treats full refreshes as replacement operations:
 
-- Redis mode deletes `pubmap`, `audience`, `creative`, and existing `slot:*`
-  keys before repopulating static cache state.
+- Redis mode deletes `pubmap`, `audience`, `creative`, `middleman:routes`, and
+  existing `slot:*` keys before repopulating static cache state.
 - Spread mode publishes `__reset__` family subjects before publishing new
   snapshots.
 - Item-level RAdv refreshes recompute affected creative sizes from MySQL slot

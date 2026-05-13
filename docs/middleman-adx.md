@@ -83,17 +83,38 @@ The middleman tables are:
 Route targets may point at existing publisher entities: `3=pub`,
 `31=pub_site`, and `32=pub_slot`; `NULL` means global.
 
-## Planned Runtime Contract
+## Runtime Contract
 
-Fallback routing will run only after internal campaign matching produces no bid.
-The fanout budget will be the minimum of the incoming OpenRTB `tmax`, the route
-group timeout, and the DSP config default. Late, invalid, inactive, or non-USD
-downstream responses will be discarded.
+M20 enables per-impression fallback behind `middleman_enabled`. Local campaign
+bids still win first. Only impressions that local campaign matching cannot fill
+are considered for downstream fanout. Route group `trigger_mode='Always'` is not
+active in M20.
+
+The bidder route cache is Redis-only under `middleman:routes`. The singleton
+`cmd/redis-cache -cache=redis|all` job builds it from active `adv_bidder`,
+`mid_route_group`, `mid_route_bidder`, and `mid_route_target` rows. `cmd/unify`
+does not refresh this cache.
 
 Route membership alone is not enough to fan out. A bidder must also be active,
 credential-ready, mapped to a valid synthetic reporting chain, and eligible for
 the original upstream publisher/site/slot under the existing ACL and channel
 matching rules.
+
+Credential refs are environment-backed. `adv_bidder.credential_ref` names an
+environment variable whose value is a JSON object of outbound HTTP headers, for
+example `{"Authorization":"Bearer ..."}`. Hop-by-hop headers such as `Host`,
+`Connection`, and `Content-Length` are rejected.
+
+The forwarded OpenRTB request preserves the original request fields and full
+impression list. It overrides `ext.request_domain` with
+`middleman_exchange_domain` and does not add user profile enrichment yet. The
+auction accepts downstream bids only for impressions that local campaign
+matching did not fill.
+
+The fanout budget is the minimum of remaining nonzero incoming OpenRTB `tmax`
+after local matching, group timeout, bidder or route-bidder timeout, and
+`middleman_timeout_ms`. Late, invalid, inactive, below-floor, or non-USD
+downstream responses are discarded.
 
 The first auction integration will preserve incoming bid floors when forwarding
 and apply markup only on the response returned upstream:
@@ -105,6 +126,11 @@ upstream_price = downstream_price + max(downstream_price * margin_pct, min_margi
 If no downstream bid survives validation and markup checks, the response remains
 `204 No Content`.
 
+The upstream bid keeps downstream ad markup and tracking fields, but uses the
+approved synthetic campaign and creative IDs for `seat`, `cid`, `crid`, and
+`adid`. Callback proxying, downstream win/loss reconciliation, and middleman
+reporting remain M21/M22 work.
+
 ## Milestone Sequence
 
 - M16: advertiser-owned endpoint schema, synthetic reporting IDs, route tables,
@@ -114,7 +140,7 @@ If no downstream bid survives validation and markup checks, the response remains
 - M18: Summer template modernization on `../pzdesign/tmpls`, `html/template`,
   and bidder page integration.
 - M20: route cache, synthetic eligibility checks, downstream OpenRTB client, and
-  fallback auction integration after local no-bid.
+  per-impression fallback auction integration after local no-bid.
 - M21: callback proxying, audit, and operations.
 - M22: advertiser and operator reporting using synthetic campaign/item/creative
   rows.

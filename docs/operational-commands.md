@@ -40,6 +40,10 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
 
+This refresh also compiles `middleman:routes` for enabled middleman fallback.
+Run it only from the dedicated cache-maintenance node; `cmd/unify` does not
+refresh bidder routes itself.
+
 - Generated log directories live under `.local/logs/` and are ignored by git:
   `.local/logs/log_request/`, `.local/logs/log_response/`,
   `.local/logs/log_attribute/`, and `.local/logs/log_winloss/`.
@@ -101,6 +105,9 @@ Outputs:
 - `.local/spread/audience/`
 - `.local/spread/creative/`
 - `.local/spread/slot/<size_id>/`
+
+Middleman bidder routes are not spread snapshots in M20. They remain Redis-only
+under `middleman:routes`.
 
 Notes:
 

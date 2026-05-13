@@ -490,7 +490,7 @@ Acceptance:
 - Standalone cache and ledger commands remain available for cron, timers, and
   manual operation.
 
-## M20 - Middleman Bidder Runtime `[ ]`
+## M20 - Middleman Bidder Runtime `[+]`
 
 Wire approved bidders into fallback runtime after local campaign matching
 returns no bid.

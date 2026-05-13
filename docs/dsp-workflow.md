@@ -43,14 +43,18 @@ contains advertiser, campaign, item, creative, cost, weight, and frequency-cap
 fields.
 
 If no candidates exist for an impression's size/slot pair, that impression is
-skipped. The bid path returns no content only when no impression produces a bid.
-Middleman AdX fallback is not active yet; the M16 schema adds advertiser-owned
-bidder endpoints, route groups, and synthetic reporting identifiers, and M17
-adds the Summer portal/approval flow for endpoint metadata and inactive
-synthetic reporting rows. `ServeBid` still returns no content when local
-campaign matching produces no bid. Future fanout should reuse the synthetic
-campaign/item ACL and channel rules to decide which bidder endpoints may receive
-the original publisher/site request.
+eligible for middleman fallback when `middleman_enabled` is true. Local campaign
+bids still win first. Only impressions that local matching cannot fill are
+forwarded to downstream bidders selected from the Redis `middleman:routes`
+cache. Candidate bidders must match an active route and pass the synthetic item
+ACL/channel check for the original publisher/site/slot.
+
+Middleman fanout forwards the full original request shape to each selected
+bidder and overrides `ext.request_domain` with `middleman_exchange_domain`. The
+auction only accepts downstream bids for impressions that local matching did not
+fill. It does not add user/profile enrichment yet. Credential references
+resolve to environment variables containing JSON header maps; no secret
+material is stored in MySQL or Redis.
 
 ## Filtering
 
@@ -125,6 +129,12 @@ macros per query value.
 response body is written: request and response once, and one attribute event per
 served impression. A bounded background publisher sends them to NATS best
 effort and counts queue drops.
+
+Middleman fallback responses are grouped under synthetic campaign seats. The
+downstream ad markup and tracking fields are preserved, but the upstream-facing
+campaign and creative identifiers are replaced with the approved synthetic
+reporting IDs. M20 does not proxy callbacks or reconcile downstream win/loss
+events; those remain later milestone work.
 
 ## Win, Loss, Impression, And Click
 

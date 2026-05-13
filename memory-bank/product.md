@@ -27,13 +27,13 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 - Advertisers (`adv`) own campaigns, items, creatives, balances, and targeting.
 - Publishers (`pub`) expose sites, slots, publisher attributes, and traffic
   metadata.
-- Advertisers (`adv`) can own middleman bidder endpoints for future fallback
-  exchange fanout. Existing advertiser auth and reporting remain the account
-  boundary. Advertisers can create and edit safe endpoint metadata in
-  Summer/Genelet, while operators retain route, credential, synthetic reporting
-  row, and traffic activation control. The synthetic campaign/item chain should
-  also reuse the existing ACL and channel matching model to decide which
-  original publisher/site inventory may be forwarded to a bidder.
+- Advertisers (`adv`) can own middleman bidder endpoints for fallback exchange
+  fanout. Existing advertiser auth and reporting remain the account boundary.
+  Advertisers can create and edit safe endpoint metadata in Summer/Genelet,
+  while operators retain route, credential, synthetic reporting row, and traffic
+  activation control. The synthetic campaign/item chain reuses the existing ACL
+  and channel matching model to decide which original publisher/site inventory
+  may be forwarded to a bidder.
 - Matching code turns database state into Redis and spread/static cache
   structures such as `PubMap`, `RAdv`, audience maps, and creative maps.
 - DSP runtime code reads request data, config, cache entries, mutable Redis
@@ -56,9 +56,9 @@ advertiser-owned endpoint and reporting schema boundary:
   MySQL.
 - Static publisher, slot, audience, and creative data should be inspectable as
   Redis payloads, spread disk snapshots, and local in-process generations.
-- Middleman fallback should be implemented only after advertiser-owned endpoint,
-  portal approval, route configuration, synthetic reporting row, ACL/channel
-  eligibility, and accounting contracts are explicit.
+- Middleman fallback is enabled only by explicit DSP config after
+  advertiser-owned endpoint approval, route cache population, synthetic
+  reporting row validation, and ACL/channel eligibility checks.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

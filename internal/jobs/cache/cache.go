@@ -154,6 +154,16 @@ func RedisRead(ctx context.Context, out io.Writer, redis radix.Client, sizeIDs [
 		return err
 	}
 	fmt.Fprintf(out, "\nCreatives:\n%s\n", bs)
+
+	middlemanRoutes, err := match.MiddlemanRouteCacheFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	bs, err = json.MarshalIndent(middlemanRoutes, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "\nMiddleman routes:\n%s\n", bs)
 	return nil
 }
 
@@ -176,7 +186,11 @@ func WriteToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap ac
 		return err
 	}
 
-	return match.DBGetCreativesToRedisSpread(ctx, redis, db)
+	if err := match.DBGetCreativesToRedisSpread(ctx, redis, db); err != nil {
+		return err
+	}
+
+	return match.DBGetMiddlemanRoutesToRedis(ctx, redis, db)
 }
 
 func SpreadRead(out io.Writer, top string, sizeIDs []uint32) error {
@@ -253,7 +267,7 @@ func WriteToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.Pu
 }
 
 func ResetRedisStaticCaches(ctx context.Context, redis radix.Client) error {
-	for _, name := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative} {
+	for _, name := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameMiddlemanRoutes} {
 		if err := redis.Do(ctx, radix.Cmd(nil, "DEL", name)); err != nil {
 			return err
 		}

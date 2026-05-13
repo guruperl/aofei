@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,7 @@ type Controller struct {
 	localMu sync.Mutex
 	local   *localStaticCache
 	audit   *auditPublisher
+	client  *http.Client
 }
 
 type controllerOptions struct {
@@ -53,6 +55,27 @@ type bidAudit struct {
 	Attr    *match.Attribute
 	One     match.RAdv
 	Elapsed time.Duration
+}
+
+type localNoBidError struct {
+	err error
+}
+
+func (e localNoBidError) Error() string {
+	return e.err.Error()
+}
+
+func (e localNoBidError) Unwrap() error {
+	return e.err
+}
+
+func noBidErrorf(format string, args ...any) error {
+	return localNoBidError{err: fmt.Errorf(format, args...)}
+}
+
+func isLocalNoBid(err error) bool {
+	var noBid localNoBidError
+	return errors.As(err, &noBid)
 }
 
 // ControllerOption configures optional external services for a Controller.
@@ -96,10 +119,11 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		return nil, err
 	}
 	controller := &Controller{
-		C:     c,
-		Redis: redis,
-		DB:    db,
-		local: newLocalStaticCache(),
+		C:      c,
+		Redis:  redis,
+		DB:     db,
+		local:  newLocalStaticCache(),
+		client: http.DefaultClient,
 	}
 	if c.IsLocal {
 		if err := controller.ReloadLocalStaticCache(); err != nil {
@@ -200,6 +224,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	glog.Infof("1: bid domain: %s => pub id: %d", pubStr, pubObj.PubID)
 	var audits []bidAudit
+	var fallbackImps []middlemanFallbackImp
 	var seatOrder []string
 	seatBids := make(map[string][]openrtb2.Bid)
 	responseBidID := ""
@@ -207,6 +232,9 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex)
 		if err != nil {
 			glog.Infof("imp %d: %v", impIndex, err)
+			if audit.Attr != nil && isLocalNoBid(err) {
+				fallbackImps = append(fallbackImps, middlemanFallbackImp{Index: impIndex, Attr: audit.Attr})
+			}
 			continue
 		}
 		seat := dspBid.seat()
@@ -224,6 +252,23 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		}
 		seatBids[seat] = append(seatBids[seat], rspnsBid)
 		audits = append(audits, audit)
+	}
+	if len(fallbackImps) != 0 {
+		middlemanBids, err := self.middlemanFallback(ctx, bid, bidStr, current, fallbackImps)
+		if err != nil {
+			glog.Infof("middleman fallback: %v", err)
+		}
+		for _, middlemanBid := range middlemanBids {
+			seat := middlemanBid.Seat
+			if _, ok := seatBids[seat]; !ok {
+				seatOrder = append(seatOrder, seat)
+			}
+			if responseBidID == "" {
+				responseBidID = middlemanBid.ResponseBidID
+			}
+			seatBids[seat] = append(seatBids[seat], middlemanBid.Bid)
+			audits = append(audits, middlemanBid.Audit)
+		}
 	}
 	if len(audits) == 0 {
 		w.WriteHeader(http.StatusNoContent)
@@ -275,6 +320,7 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	if err != nil {
 		return nil, bidAudit{}, err
 	}
+	audit := bidAudit{Attr: attr}
 	var monitors match.RAdvs
 	top := self.C.Spread
 	if self.C.IsLocal {
@@ -283,21 +329,21 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 		monitors, err = match.RAdvsFromRedisBySizeIDSlotID(ctx, self.Redis, attr.SizeID, attr.RPub.SlotID)
 	}
 	if err != nil {
-		return nil, bidAudit{}, err
+		return nil, audit, err
 	}
 	if len(monitors) == 0 {
-		return nil, bidAudit{}, fmt.Errorf("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
+		return nil, audit, noBidErrorf("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
 	}
 	if self.Redis == nil && radvsNeedCaps(monitors) {
-		return nil, bidAudit{}, fmt.Errorf("redis mutable state unavailable for frequency caps")
+		return nil, audit, fmt.Errorf("redis mutable state unavailable for frequency caps")
 	}
 
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, attr.UserID)
 	if err != nil {
-		return nil, bidAudit{}, err
+		return nil, audit, err
 	}
 	if len(candidates) == 0 {
-		return nil, bidAudit{}, fmt.Errorf("no ad after fcap for user %s", attr.UserID)
+		return nil, audit, noBidErrorf("no ad after fcap for user %s", attr.UserID)
 	}
 
 	var audiences match.Audiences
@@ -307,24 +353,24 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 		audiences, err = candidates.AudiencesFromRedis(ctx, self.Redis)
 	}
 	if err != nil {
-		return nil, bidAudit{}, err
+		return nil, audit, err
 	}
 	if self.Redis == nil && audiencesNeedUploads(audiences) {
-		return nil, bidAudit{}, fmt.Errorf("redis mutable state unavailable for uploaded audiences")
+		return nil, audit, fmt.Errorf("redis mutable state unavailable for uploaded audiences")
 	}
 
 	radvs, auds, err := self.priorityAudienceMatches(ctx, bid, candidates, audiences, attr)
 	if err != nil {
-		return nil, bidAudit{}, err
+		return nil, audit, err
 	}
 	if len(radvs) == 0 {
-		return nil, bidAudit{}, fmt.Errorf("no ad after matching audience")
+		return nil, audit, noBidErrorf("no ad after matching audience")
 	}
 
 	imp := bid.Imp[impIndex]
 	index, bidPrice := radvs.PickIndexPrice(imp.BidFloor, imp.BidFloorCur)
 	if index < 0 {
-		return nil, bidAudit{}, fmt.Errorf("no ad to match for bid floor %f %s", imp.BidFloor, imp.BidFloorCur)
+		return nil, audit, noBidErrorf("no ad to match for bid floor %f %s", imp.BidFloor, imp.BidFloorCur)
 	}
 
 	one := radvs[index]
@@ -341,7 +387,7 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 		creative, err = match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
 	}
 	if err != nil {
-		return nil, bidAudit{}, err
+		return nil, audit, err
 	}
 
 	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, auds[index], bidPrice, self.C.ServerURL).
