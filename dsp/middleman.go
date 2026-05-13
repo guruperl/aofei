@@ -37,11 +37,20 @@ type middlemanAssignment struct {
 }
 
 type middlemanDownstreamBid struct {
-	ImpIndex      int
-	Seat          string
-	Bid           openrtb2.Bid
-	Audit         bidAudit
-	ResponseBidID string
+	ImpIndex           int
+	Seat               string
+	Bid                openrtb2.Bid
+	Audit              bidAudit
+	ResponseBidID      string
+	Entry              match.MiddlemanRouteEntry
+	DownstreamSeat     string
+	DownstreamAdID     string
+	DownstreamNURL     string
+	DownstreamBURL     string
+	DownstreamLURL     string
+	DownstreamBidPrice float64
+	UpstreamBidPrice   float64
+	ClickRequestToken  string
 }
 
 func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.BidRequest, rawRequest []byte, started time.Time, fallbackImps []middlemanFallbackImp) ([]middlemanDownstreamBid, error) {
@@ -100,8 +109,12 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 
 	winners := make([]middlemanDownstreamBid, 0, len(best))
 	for _, imp := range fallbackImps {
-		if bid, ok := best[imp.Index]; ok {
-			winners = append(winners, bid)
+		if selected, ok := best[imp.Index]; ok {
+			if err := self.prepareMiddlemanCallback(ctx, bid, &selected); err != nil {
+				glog.Infof("middleman bidder %d callback setup failed: %v", selected.Entry.BidderID, err)
+				continue
+			}
+			winners = append(winners, selected)
 		}
 	}
 	return winners, nil
@@ -198,7 +211,15 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 	if err != nil {
 		return nil, err
 	}
-	body, err := middlemanRequestBodyForAssignment(rawRequest, self.C.MiddlemanExchangeDomain)
+	clickRequestToken, err := newMiddlemanToken()
+	if err != nil {
+		return nil, err
+	}
+	clickURLs, err := self.middlemanClickNotifyURLs(clickRequestToken, assignment.EntriesByID)
+	if err != nil {
+		return nil, err
+	}
+	body, err := middlemanRequestBodyForAssignment(rawRequest, self.C.MiddlemanExchangeDomain, clickURLs)
 	if err != nil {
 		return nil, err
 	}
@@ -267,6 +288,11 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 			if markedPrice < bid.Imp[impIndex].BidFloor {
 				continue
 			}
+			downstreamPrice := rspBid.Price
+			downstreamNURL := rspBid.NURL
+			downstreamBURL := rspBid.BURL
+			downstreamLURL := rspBid.LURL
+			downstreamAdID := rspBid.AdID
 			rspBid.Price = markedPrice
 			rspBid.CID = strconv.FormatUint(uint64(entry.SyntheticCampaignID), 10)
 			rspBid.CrID = strconv.FormatUint(uint64(entry.SyntheticCreativeID), 10)
@@ -293,16 +319,42 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 						Cost:     float32(markedPrice),
 					},
 				},
-				ResponseBidID: responseBidID,
+				ResponseBidID:      responseBidID,
+				Entry:              entry,
+				DownstreamSeat:     seatBid.Seat,
+				DownstreamAdID:     downstreamAdID,
+				DownstreamNURL:     downstreamNURL,
+				DownstreamBURL:     downstreamBURL,
+				DownstreamLURL:     downstreamLURL,
+				DownstreamBidPrice: downstreamPrice,
+				UpstreamBidPrice:   markedPrice,
+				ClickRequestToken:  clickRequestToken,
 			})
 		}
 	}
 	return out, nil
 }
 
-func middlemanRequestBodyForAssignment(rawRequest []byte, exchangeDomain string) ([]byte, error) {
+func (self *Controller) middlemanClickNotifyURLs(requestToken string, entries map[string]match.MiddlemanRouteEntry) (map[string]string, error) {
+	if requestToken == "" || len(entries) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]string, len(entries))
+	for impID := range entries {
+		u, err := self.middlemanClickProxyURL(requestToken, impID)
+		if err != nil {
+			return nil, err
+		}
+		out[impID] = u
+	}
+	return out, nil
+}
+
+func middlemanRequestBodyForAssignment(rawRequest []byte, exchangeDomain string, clickNotifyURLs ...map[string]string) ([]byte, error) {
 	if exchangeDomain == "" {
-		return append([]byte(nil), rawRequest...), nil
+		if len(clickNotifyURLs) == 0 || len(clickNotifyURLs[0]) == 0 {
+			return append([]byte(nil), rawRequest...), nil
+		}
 	}
 	root := make(map[string]json.RawMessage)
 	if err := json.Unmarshal(rawRequest, &root); err != nil {
@@ -318,7 +370,17 @@ func middlemanRequestBodyForAssignment(rawRequest []byte, exchangeDomain string)
 	if err != nil {
 		return nil, err
 	}
-	ext["request_domain"] = data
+	if exchangeDomain != "" {
+		ext["request_domain"] = data
+	}
+	if len(clickNotifyURLs) > 0 && len(clickNotifyURLs[0]) > 0 {
+		payload := map[string]any{"click_notify_urls": clickNotifyURLs[0]}
+		data, err = json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		ext["aofei_middleman"] = data
+	}
 	root["ext"], err = json.Marshal(ext)
 	if err != nil {
 		return nil, err

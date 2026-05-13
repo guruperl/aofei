@@ -48,9 +48,10 @@
    signed over concrete query payloads, and click redirects plus cap mutations
    require valid signatures. `/win` and `/loss` remain analytics callbacks with
    signatures over immutable packed fields so exchange auction macros can still
-   be resolved by the exchange. Native click links use `/clk` as a tracking
-   redirect with a direct advertiser fallback; banner creatives opt into the
-   same redirect through `{CLICK_URL}`.
+   be resolved by the exchange. Middleman `/mid/*` callback proxy URLs are
+   signed by token and store selected-bid context in Redis. Native click links
+   use `/clk` as a tracking redirect with a direct advertiser fallback; banner
+   creatives opt into the same redirect through `{CLICK_URL}`.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -68,8 +69,13 @@ complete same-advertiser chain, then marks the bidder credential active and the
 bidder active. Operators assign active route groups to publisher/site/slot
 inventory through `mid_route_*` tables. The Redis `middleman:routes` cache
 contains active route/bidder entries and synthetic item ACL payloads; the bid
-path uses it only for local no-bid impressions. Callback proxying, downstream
-win/loss reconciliation, and reporting integration remain future milestones.
+path uses it only for local no-bid impressions. Selected middleman winners
+create Redis callback context under `middleman:cb:<token>` and return signed
+`/mid/win`, `/mid/loss`, and optional `/mid/bill` URLs. `burl` is the preferred
+billable event and win is the billable fallback only when no `burl` exists.
+Downstream callbacks receive net payable auction prices; Aofei logs charge-side
+prices through the synthetic chain. Reporting integration remains a future
+milestone.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the
@@ -106,6 +112,10 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
   remains a singleton scheduled `cmd/redis-cache` job on one dedicated node.
   Ledger runs as a singleton scheduled `cmd/ledger` job on the node where
   `cmd/nats-client` aggregates win/loss log files.
+- Middleman callback proxying uses Redis TTL keys for selected-bid context,
+  cooperative click mapping, and billable-event idempotency. These keys are
+  runtime state owned by `cmd/unify`, not cache data populated by
+  `cmd/redis-cache`.
 
 ## Cache Boundary
 

@@ -37,9 +37,11 @@ campaign matching cannot fill an impression.
 
 ## Carry Forward
 
-- `[ ]` Callback proxying and downstream win/loss reconciliation remain M21.
-- `[ ]` Middleman advertiser/operator reporting remains M22.
-- `[ ]` Spread/local snapshots for bidder routes are deferred; M20 route cache
+- `[+]` Callback proxying and downstream win/loss reconciliation were forwarded
+  to M21 and completed there.
+- `[ ]` Middleman advertiser/operator reporting was forwarded through M21 and
+  remains M22.
+- `[ ]` Spread/local snapshots for bidder routes remain deferred; M20 route cache
   is Redis-only.
 
 ## Verification

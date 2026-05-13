@@ -514,3 +514,28 @@ Acceptance:
 - Local campaign bids still win before any fallback fanout.
 - No callback proxying, win/loss reconciliation, or middleman reporting changes
   are introduced until later milestones.
+
+## M21 - Middleman Callback Proxy And Price Reconciliation `[+]`
+
+Keep Aofei in the callback path for middleman bids and establish the
+charge/pay accounting facts needed before reporting.
+
+Scope:
+
+- Store short-lived selected-bid callback context in Redis for middleman winners.
+- Replace upstream-facing middleman `nurl`, `burl`, and `lurl` with signed
+  Aofei `/mid/*` proxy URLs.
+- Treat `burl` as the preferred billable event and use win notification as the
+  billable fallback only when no downstream `burl` exists.
+- Reconcile upstream charge price and downstream pay price before forwarding
+  callbacks downstream.
+- Add cooperative click notify URLs in forwarded request `ext` without
+  rewriting downstream ad markup.
+
+Acceptance:
+
+- Middleman callbacks publish existing winloss records tied to synthetic
+  campaign/item/creative IDs.
+- Billable middleman events are idempotent per selected bid.
+- Downstream callbacks receive net payable `${AUCTION_PRICE}` values.
+- Arbitrary `adm` rewrite and advertiser/operator reporting remain later work.

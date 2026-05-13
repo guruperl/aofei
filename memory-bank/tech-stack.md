@@ -67,8 +67,11 @@ These files are local artifacts and are ignored by git.
 URLs; when omitted, `TRACKING_SECRET` is used as the fallback.
 Middleman fallback is controlled by `middleman_enabled`,
 `middleman_timeout_ms`, `middleman_max_bidders_per_imp`, and
-`middleman_exchange_domain`. Bidder `credential_ref` values name environment
-variables containing JSON outbound header maps for downstream OpenRTB calls.
+`middleman_exchange_domain`. Middleman callback proxying is controlled by
+`middleman_callback_ttl_seconds`, `middleman_callback_timeout_ms`, and
+`middleman_callback_base_url`; it requires `tracking_secret` and Redis. Bidder
+`credential_ref` values name environment variables containing JSON outbound
+header maps for downstream OpenRTB calls.
 
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.

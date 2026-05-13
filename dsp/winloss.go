@@ -32,14 +32,33 @@ type WinLoss struct {
 	Current        time.Time `json:"current,omitempty"`
 	match.RPub     `json:"rpub,omitempty"`
 	match.RAdv     `json:"radv,omitempty"`
-	BothCap        *match.BothCap `json:"-"`
-	Seat           string         `json:"seat,omitempty"`
-	AuctionID      string         `json:"auction_id,omitempty"`
-	AuctionBidID   string         `json:"auction_bid_id,omitempty"`
-	AuctionImpID   string         `json:"auction_imp_id,omitempty"`
-	AuctionAdID    string         `json:"auction_ad_id,omitempty"`
+	BothCap        *match.BothCap        `json:"-"`
+	Seat           string                `json:"seat,omitempty"`
+	AuctionID      string                `json:"auction_id,omitempty"`
+	AuctionBidID   string                `json:"auction_bid_id,omitempty"`
+	AuctionImpID   string                `json:"auction_imp_id,omitempty"`
+	AuctionAdID    string                `json:"auction_ad_id,omitempty"`
+	Middleman      *MiddlemanWinLossMeta `json:"middleman,omitempty"`
 	serverURL      string
 	trackingSecret string
+}
+
+// MiddlemanWinLossMeta carries charge/pay audit details for proxied middleman
+// callbacks without changing the existing ledger aggregation contract.
+type MiddlemanWinLossMeta struct {
+	BidderID           uint32  `json:"bidder_id,omitempty"`
+	GroupID            uint32  `json:"group_id,omitempty"`
+	RouteBidderID      uint32  `json:"route_bidder_id,omitempty"`
+	TargetID           uint32  `json:"target_id,omitempty"`
+	Source             string  `json:"source,omitempty"`
+	ForwardStatus      string  `json:"forward_status,omitempty"`
+	ForwardHTTPStatus  int     `json:"forward_http_status,omitempty"`
+	DownstreamBidPrice float64 `json:"downstream_bid_price,omitempty"`
+	UpstreamBidPrice   float64 `json:"upstream_bid_price,omitempty"`
+	ChargePrice        float64 `json:"charge_price,omitempty"`
+	PayPrice           float64 `json:"pay_price,omitempty"`
+	MarginCPM          float64 `json:"margin_cpm,omitempty"`
+	Currency           string  `json:"currency,omitempty"`
 }
 
 // NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.

@@ -14,6 +14,10 @@ a new runtime contract.
 | `GET` | `/loss` | `dsp.Controller.ServeWinLoss` | Record an exchange loss callback. |
 | `GET` | `/imp` | `dsp.Controller.ServeWinLoss` | Record an impression tracker callback and refresh impression caps. |
 | `GET` | `/clk` | `dsp.Controller.ServeWinLoss` | Record a click callback, refresh click caps, and redirect when a valid `redirect` target is present. |
+| `GET` | `/mid/win` | `dsp.Controller.ServeMiddlemanCallback` | Record and proxy a middleman win callback. |
+| `GET` | `/mid/loss` | `dsp.Controller.ServeMiddlemanCallback` | Record and proxy a middleman loss callback. |
+| `GET` | `/mid/bill` | `dsp.Controller.ServeMiddlemanCallback` | Record and proxy a middleman billing callback. |
+| `GET` | `/mid/click` | `dsp.Controller.ServeMiddlemanCallback` | Record a cooperative downstream middleman click notification. |
 
 `ServeBid` reads and limits the request body, unmarshals
 `openrtb2.BidRequest`, validates that at least one impression and a device are
@@ -55,6 +59,16 @@ opts in with the `{CLICK_URL}` macro. `/clk` records best-effort click state and
 redirects only when the normal tracking fields are present and the `redirect`
 target is valid HTTP(S).
 
+Middleman bids use a separate callback proxy instead of generated creative
+markup. The selected downstream bid's original callback URLs are stored in Redis
+with a TTL, and the upstream response receives signed `/mid/*` URLs. Aofei
+forwards downstream `nurl`, `burl`, and `lurl` when present, replacing
+`${AUCTION_PRICE}` with the downstream payable price. `burl` is the preferred
+billable event; when the selected downstream bid has no `burl`, `/mid/win`
+becomes the billable fallback. Cooperative click notification is exposed in the
+forwarded request as `ext.aofei_middleman.click_notify_urls`; downstream ad
+markup must opt in, because Aofei does not rewrite arbitrary middleman `adm`.
+
 ## NATS And Log Flow
 
 The bid path publishes these NATS subjects after a successful HTTP response:
@@ -86,6 +100,14 @@ Bare `StatusWin` and `StatusLoss` events are written to the win/loss log when
 callbacks arrive, but current ledger statistics do not count them as delivery or
 spend. Win/loss callbacks are analytics only; unresolved or unsigned auction
 price macros are not spend authority.
+
+Middleman `/mid/bill` publishes a `StatusTrackImp` event with charge-side CPM in
+`RAdv.Cost`, so the existing ledger path can count middleman delivery through
+the synthetic campaign/item/creative chain. If no downstream `burl` exists,
+`/mid/win` publishes the billable `StatusTrackImp` fallback once. Middleman
+winloss records also include optional metadata for downstream bid price,
+upstream bid price, charge price, pay price, margin, callback source, and
+downstream forward status; M22 reporting will consume that metadata.
 
 ## Known Measurement Gaps
 

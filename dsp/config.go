@@ -21,25 +21,28 @@ type Red struct {
 }
 
 type Config struct {
-	DocumentRoot              string   `json:"document_root"`
-	ServerURL                 string   `json:"server_url"`
-	ServerPort                string   `json:"server_port"`
-	HhLock                    string   `json:"hhlock,omitempty"`
-	Ips                       string   `json:"ips,omitempty"`
-	Redis                     *Red     `json:"redis,omitempty"`
-	NatsURL                   string   `json:"nats_url,omitempty"`
-	TrackingSecret            string   `json:"tracking_secret,omitempty"`
-	ConnectArray              []string `json:"connect_array,omitempty"`
-	Spread                    string   `json:"spread,omitempty"`
-	IsLocal                   bool     `json:"is_local,omitempty"`
-	MiddlemanEnabled          bool     `json:"middleman_enabled,omitempty"`
-	MiddlemanTimeoutMS        int      `json:"middleman_timeout_ms,omitempty"`
-	MiddlemanMaxBiddersPerImp int      `json:"middleman_max_bidders_per_imp,omitempty"`
-	MiddlemanExchangeDomain   string   `json:"middleman_exchange_domain,omitempty"`
-	LogRequest                string   `json:"log_request,omitempty"`
-	LogResponse               string   `json:"log_response,omitempty"`
-	LogAttribute              string   `json:"log_attribute,omitempty"`
-	LogWinLoss                string   `json:"log_winloss,omitempty"`
+	DocumentRoot                string   `json:"document_root"`
+	ServerURL                   string   `json:"server_url"`
+	ServerPort                  string   `json:"server_port"`
+	HhLock                      string   `json:"hhlock,omitempty"`
+	Ips                         string   `json:"ips,omitempty"`
+	Redis                       *Red     `json:"redis,omitempty"`
+	NatsURL                     string   `json:"nats_url,omitempty"`
+	TrackingSecret              string   `json:"tracking_secret,omitempty"`
+	ConnectArray                []string `json:"connect_array,omitempty"`
+	Spread                      string   `json:"spread,omitempty"`
+	IsLocal                     bool     `json:"is_local,omitempty"`
+	MiddlemanEnabled            bool     `json:"middleman_enabled,omitempty"`
+	MiddlemanTimeoutMS          int      `json:"middleman_timeout_ms,omitempty"`
+	MiddlemanMaxBiddersPerImp   int      `json:"middleman_max_bidders_per_imp,omitempty"`
+	MiddlemanExchangeDomain     string   `json:"middleman_exchange_domain,omitempty"`
+	MiddlemanCallbackTTLSeconds int      `json:"middleman_callback_ttl_seconds,omitempty"`
+	MiddlemanCallbackTimeoutMS  int      `json:"middleman_callback_timeout_ms,omitempty"`
+	MiddlemanCallbackBaseURL    string   `json:"middleman_callback_base_url,omitempty"`
+	LogRequest                  string   `json:"log_request,omitempty"`
+	LogResponse                 string   `json:"log_response,omitempty"`
+	LogAttribute                string   `json:"log_attribute,omitempty"`
+	LogWinLoss                  string   `json:"log_winloss,omitempty"`
 }
 
 func NewConfig(filename string) (*Config, error) {
@@ -115,6 +118,15 @@ func NewConfig(filename string) (*Config, error) {
 	}
 	if parsed.MiddlemanExchangeDomain == "" {
 		parsed.MiddlemanExchangeDomain = serverURLHost(parsed.ServerURL)
+	}
+	if parsed.MiddlemanCallbackTTLSeconds <= 0 {
+		parsed.MiddlemanCallbackTTLSeconds = 86400
+	}
+	if parsed.MiddlemanCallbackTimeoutMS <= 0 {
+		parsed.MiddlemanCallbackTimeoutMS = 1000
+	}
+	if parsed.MiddlemanCallbackBaseURL == "" {
+		parsed.MiddlemanCallbackBaseURL = parsed.ServerURL
 	}
 
 	return parsed, nil

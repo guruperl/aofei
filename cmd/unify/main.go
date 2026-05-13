@@ -78,6 +78,10 @@ func main() {
 	mux.HandleFunc("GET /loss", sc.ServeWinLoss)
 	mux.HandleFunc("GET /clk", sc.ServeWinLoss)
 	mux.HandleFunc("GET /imp", sc.ServeWinLoss)
+	mux.HandleFunc("GET /mid/win", sc.ServeMiddlemanCallback)
+	mux.HandleFunc("GET /mid/loss", sc.ServeMiddlemanCallback)
+	mux.HandleFunc("GET /mid/bill", sc.ServeMiddlemanCallback)
+	mux.HandleFunc("GET /mid/click", sc.ServeMiddlemanCallback)
 	mux.Handle("/", gc)
 
 	server := &http.Server{

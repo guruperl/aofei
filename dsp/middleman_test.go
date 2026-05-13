@@ -115,6 +115,10 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 					AdM:   "<img>",
 					CID:   "downstream-campaign",
 					CrID:  "downstream-creative",
+					AdID:  "downstream-ad",
+					NURL:  "http://downstream.example/win?auction_price=${AUCTION_PRICE}",
+					BURL:  "http://downstream.example/bill?auction_price=${AUCTION_PRICE}",
+					LURL:  "http://downstream.example/loss?auction_price=${AUCTION_PRICE}",
 				}},
 			}},
 		})
@@ -155,8 +159,11 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	}
 	controller := &Controller{
 		C: &Config{
-			MiddlemanExchangeDomain: "aofei.example",
-			MiddlemanTimeoutMS:      100,
+			ServerURL:                "http://aofei.example",
+			TrackingSecret:           "test-secret",
+			MiddlemanExchangeDomain:  "aofei.example",
+			MiddlemanTimeoutMS:       100,
+			MiddlemanCallbackBaseURL: "http://aofei.example",
 		},
 		client: server.Client(),
 	}
@@ -182,6 +189,14 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	if ext["request_domain"] != "aofei.example" {
 		t.Fatalf("request_domain = %#v", ext["request_domain"])
 	}
+	mid, ok := ext["aofei_middleman"].(map[string]any)
+	if !ok {
+		t.Fatalf("aofei_middleman ext missing: %#v", ext)
+	}
+	clicks, ok := mid["click_notify_urls"].(map[string]any)
+	if !ok || clicks["imp-2"] == "" {
+		t.Fatalf("click notify URLs missing: %#v", mid)
+	}
 	if got[0].Bid.Price != 2.5 {
 		t.Fatalf("price = %f, want 2.5", got[0].Bid.Price)
 	}
@@ -190,6 +205,9 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	}
 	if got[0].Audit.One.ItemID != 102 || got[0].Audit.One.CostType != 2 || got[0].ResponseBidID != "resp-1" {
 		t.Fatalf("audit/response id = %#v %q", got[0].Audit.One, got[0].ResponseBidID)
+	}
+	if got[0].DownstreamBidPrice != 2.0 || got[0].UpstreamBidPrice != 2.5 || got[0].DownstreamAdID != "downstream-ad" {
+		t.Fatalf("downstream accounting = %#v", got[0])
 	}
 }
 

@@ -56,6 +56,14 @@ fill. It does not add user/profile enrichment yet. Credential references
 resolve to environment variables containing JSON header maps; no secret
 material is stored in MySQL or Redis.
 
+For final middleman winners, callback metadata is stored in Redis and returned
+`nurl`, `lurl`, and optional `burl` fields are replaced with signed `/mid/*`
+proxy URLs. `burl` is the preferred billable event; win notification is the
+billable fallback only when no downstream `burl` exists. The forwarded request
+also includes cooperative click notify URLs under
+`ext.aofei_middleman.click_notify_urls`; downstream markup must opt in because
+the DSP does not rewrite arbitrary middleman ad markup.
+
 ## Filtering
 
 Frequency caps are checked first by reading `bothcap:<user_id>` for capped item
@@ -131,10 +139,11 @@ served impression. A bounded background publisher sends them to NATS best
 effort and counts queue drops.
 
 Middleman fallback responses are grouped under synthetic campaign seats. The
-downstream ad markup and tracking fields are preserved, but the upstream-facing
-campaign and creative identifiers are replaced with the approved synthetic
-reporting IDs. M20 does not proxy callbacks or reconcile downstream win/loss
-events; those remain later milestone work.
+downstream ad markup is preserved, but upstream-facing callback URLs and the
+campaign and creative identifiers are replaced with Aofei proxy URLs and the
+approved synthetic reporting IDs. Middleman callback proxying records win/loss,
+billable, cooperative click, and charge/pay audit facts; advertiser/operator
+reporting remains later milestone work.
 
 ## Win, Loss, Impression, And Click
 

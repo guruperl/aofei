@@ -33,17 +33,19 @@ const (
 )
 
 type Controller struct {
-	C       *Config
-	Ips     *maxmind.IPSearch
-	Redis   radix.Client
-	DB      *sql.DB
-	Nc      *nats.Conn
-	Logger  *zap.Logger
-	IsLocal bool
-	localMu sync.Mutex
-	local   *localStaticCache
-	audit   *auditPublisher
-	client  *http.Client
+	C                  *Config
+	Ips                *maxmind.IPSearch
+	Redis              radix.Client
+	DB                 *sql.DB
+	Nc                 *nats.Conn
+	Logger             *zap.Logger
+	IsLocal            bool
+	localMu            sync.Mutex
+	local              *localStaticCache
+	audit              *auditPublisher
+	client             *http.Client
+	middlemanStore     middlemanCallbackStore
+	publishWinLossFunc func([]byte) error
 }
 
 type controllerOptions struct {
@@ -450,6 +452,9 @@ func validateBidRequest(bid *openrtb2.BidRequest) error {
 }
 
 func (self *Controller) publishWinLoss(bs []byte) error {
+	if self.publishWinLossFunc != nil {
+		return self.publishWinLossFunc(bs)
+	}
 	if self.Nc == nil {
 		return nil
 	}

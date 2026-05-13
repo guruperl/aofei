@@ -104,7 +104,11 @@ and cap-mutation tracker payloads.
 
 Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
 When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
-`middleman_max_bidders_per_imp` deliberately. Each active bidder
+`middleman_max_bidders_per_imp` deliberately. Middleman callback proxying also
+requires `tracking_secret`, Redis, and a public `middleman_callback_base_url`
+that points back to the `cmd/unify` HTTP service; set
+`middleman_callback_ttl_seconds` and `middleman_callback_timeout_ms` according
+to exchange callback latency expectations. Each active bidder
 `credential_ref` names an environment variable visible to `cmd/unify`; its
 value must be a JSON object of outbound HTTP headers. Do not put those header
 values in MySQL, Redis, or checked-in config files.

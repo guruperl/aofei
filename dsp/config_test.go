@@ -57,6 +57,15 @@ func TestConfig(t *testing.T) {
 	if c.MiddlemanExchangeDomain != "localhost" {
 		t.Errorf("MiddlemanExchangeDomain = %q, want localhost", c.MiddlemanExchangeDomain)
 	}
+	if c.MiddlemanCallbackTTLSeconds != 86400 {
+		t.Errorf("MiddlemanCallbackTTLSeconds = %d, want 86400", c.MiddlemanCallbackTTLSeconds)
+	}
+	if c.MiddlemanCallbackTimeoutMS != 1000 {
+		t.Errorf("MiddlemanCallbackTimeoutMS = %d, want 1000", c.MiddlemanCallbackTimeoutMS)
+	}
+	if c.MiddlemanCallbackBaseURL != "http://localhost" {
+		t.Errorf("MiddlemanCallbackBaseURL = %q, want server_url default", c.MiddlemanCallbackBaseURL)
+	}
 }
 
 func TestLocalConfigSmoke(t *testing.T) {

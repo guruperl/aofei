@@ -126,10 +126,44 @@ upstream_price = downstream_price + max(downstream_price * margin_pct, min_margi
 If no downstream bid survives validation and markup checks, the response remains
 `204 No Content`.
 
-The upstream bid keeps downstream ad markup and tracking fields, but uses the
-approved synthetic campaign and creative IDs for `seat`, `cid`, `crid`, and
-`adid`. Callback proxying, downstream win/loss reconciliation, and middleman
-reporting remain M21/M22 work.
+The upstream bid keeps downstream ad markup, but uses the approved synthetic
+campaign and creative IDs for `seat`, `cid`, `crid`, and `adid`.
+
+M21 keeps Aofei in the OpenRTB callback path for selected middleman winners.
+After the final per-impression winner is selected, `cmd/unify` stores a
+short-lived callback context in Redis under `middleman:cb:<token>` and replaces
+returned callback fields with signed Aofei proxy URLs:
+
+- `/mid/win` for win notification and win audit.
+- `/mid/loss` for loss notification and loss audit.
+- `/mid/bill` when the downstream bid provided `burl`.
+- `/mid/click` for cooperative click notification when downstream markup opts in
+  to the URL supplied in forwarded request `ext`.
+
+Billing authority is `burl` first. When a downstream bid has `burl`, `/mid/bill`
+is the billable event. When a downstream bid does not have `burl`, `/mid/win`
+is the billable fallback. Billable middleman events are idempotent through
+`middleman:bill:<token>`.
+
+M21 records both sides of the middleman price:
+
+```text
+charge_price = upstream callback auction_price capped at upstream returned bid price,
+               or upstream returned bid price when the callback price is absent
+pay_price = min(downstream_bid_price, max(0, charge_price - margin_cpm))
+margin_cpm = upstream returned bid price - downstream bid price
+```
+
+Downstream callbacks receive the net payable price in their
+`${AUCTION_PRICE}` macro. Winloss logs store charge price in the existing
+`RAdv.Cost` field so the current ledger can count charge-side CPM delivery, and
+store downstream bid, upstream bid, pay price, margin, callback source, and
+forward status in middleman metadata for M22 reporting.
+
+Forwarded requests still preserve the full original impression list and add
+cooperative click notify URLs under `ext.aofei_middleman.click_notify_urls`.
+M21 does not rewrite arbitrary downstream `adm`, impression pixels, or click
+markup.
 
 ## Milestone Sequence
 
@@ -141,6 +175,7 @@ reporting remain M21/M22 work.
   and bidder page integration.
 - M20: route cache, synthetic eligibility checks, downstream OpenRTB client, and
   per-impression fallback auction integration after local no-bid.
-- M21: callback proxying, audit, and operations.
+- M21: callback proxying, cooperative click notify, audit, and charge/pay price
+  reconciliation.
 - M22: advertiser and operator reporting using synthetic campaign/item/creative
   rows.
