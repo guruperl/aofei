@@ -38,32 +38,51 @@ type Creative struct {
 // Pack serializes the audience into a byte slice.
 func (self *Creative) Pack() ([]byte, error) {
 	buf := new(bytes.Buffer)
+	if err := writeCachePayloadHeader(buf, cachePayloadKindCreative, cachePayloadVersionCreative); err != nil {
+		return nil, err
+	}
 	err := gob.NewEncoder(buf).Encode(self)
 	return buf.Bytes(), err
 }
 
 // PackIO serializes the audience into a byte slice for IO.
 func (self *Creative) PackIO(w io.Writer) error {
+	if err := writeCachePayloadHeader(w, cachePayloadKindCreative, cachePayloadVersionCreative); err != nil {
+		return err
+	}
 	return gob.NewEncoder(w).Encode(self)
 }
 
 // UnpackCreativeIO deserializes the audience from an IO reader.
 func UnpackCreativeIO(r io.Reader) (*Creative, error) {
+	data, err := readAllCachePayload(r, cachePayloadKindCreative, cachePayloadVersionCreative)
+	if err != nil {
+		return nil, err
+	}
 	audience := new(Creative)
-	err := gob.NewDecoder(r).Decode(audience)
+	err = gob.NewDecoder(bytes.NewReader(data)).Decode(audience)
 	return audience, err
 }
 
 // UnpackCreative deserializes the audience from a byte slice.
 func UnpackCreative(data []byte) (*Creative, error) {
+	var err error
+	data, err = unpackCachePayload(data, cachePayloadKindCreative, cachePayloadVersionCreative)
+	if err != nil {
+		return nil, err
+	}
 	audience := new(Creative)
 	buf := bytes.NewReader(data)
-	err := gob.NewDecoder(buf).Decode(audience)
+	err = gob.NewDecoder(buf).Decode(audience)
 	return audience, err
 }
 
 // DBGetCreativesToRedisSpread retrieves all creatives from the database and inserts them into Redis.
 func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.DB, extra ...string) error {
+	sink, err := CacheSinkFor(conn)
+	if err != nil {
+		return err
+	}
 	var pars []interface{}
 	str := `
 SELECT r.creative_id, r.size_id, c.iurl, i.item_click, i.imp_url, i.click_url, c.foreign_id, r.creative_name, r.content
@@ -123,15 +142,11 @@ WHERE r.active="Yes"`
 		if content.Valid {
 			cre.CreativeContent = content.String
 		}
-		switch t := conn.(type) {
-		case radix.Client:
-			err = cre.ToRedis(ctx, t, creativeID)
-		case *nats.Conn:
-			err = cre.ToSpread(t, creativeID)
-		default:
-			err = fmt.Errorf("unknown connection type %T", t)
-		}
+		data, err := cre.Pack()
 		if err != nil {
+			return err
+		}
+		if err := sink.PutCreative(ctx, creativeID, data); err != nil {
 			return err
 		}
 	}
@@ -161,7 +176,7 @@ func (self *Creative) ToRedis(ctx context.Context, conn radix.Client, creativeID
 	if err != nil {
 		return err
 	}
-	return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameCreative, fmt.Sprintf("%d", creativeID), string(data)))
+	return RedisCacheSink{Client: conn}.PutCreative(ctx, creativeID, data)
 }
 
 // ToSpread publishes creative to nats.
@@ -170,7 +185,7 @@ func (self *Creative) ToSpread(conn *nats.Conn, creativeID uint32) error {
 	if err != nil {
 		return err
 	}
-	return conn.Publish(fmt.Sprintf("%s:%d", HashNameCreative, creativeID), data)
+	return SpreadCacheSink{Conn: conn}.PutCreative(context.Background(), creativeID, data)
 }
 
 // CreativeFromRedis retrieves audience data from Redis.

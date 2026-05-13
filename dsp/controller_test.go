@@ -2,6 +2,7 @@ package dsp
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/guruperl/aofei/match"
+	"go.uber.org/zap"
 )
 
 func TestControllerOptionsCanDisableNATSAndMaxMindIndependently(t *testing.T) {
@@ -30,6 +32,14 @@ func TestControllerOptionsCanDisableNATSAndMaxMindIndependently(t *testing.T) {
 	withoutBoth := applyControllerOptions(WithoutNATS(), WithoutMaxMind())
 	if withoutBoth.nats || withoutBoth.maxmind {
 		t.Fatalf("without both = %+v, want both disabled", withoutBoth)
+	}
+
+	guard := func(context.Context, string) error { return fmt.Errorf("guard") }
+	client := &http.Client{}
+	logger := zap.NewNop()
+	withDeps := applyControllerOptions(WithHTTPClient(client), WithLogger(logger), WithCallbackURLGuard(guard), withMiddlemanCallbackStore(newMemoryMiddlemanCallbackStore()))
+	if withDeps.httpClient != client || withDeps.logger != logger || withDeps.callbackURLGuard == nil || withDeps.callbackStore == nil {
+		t.Fatalf("injected deps not retained: %+v", withDeps)
 	}
 }
 

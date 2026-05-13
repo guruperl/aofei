@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cmdboot"
 	"github.com/guruperl/aofei/internal/jobs/midcallback"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -27,6 +28,7 @@ var (
 	timeout     time.Duration
 	dryRun      bool
 	readOnly    bool
+	lockTTL     time.Duration
 )
 
 func init() {
@@ -37,11 +39,13 @@ func init() {
 	flag.DurationVar(&timeout, "timeout", 2*time.Second, "downstream callback HTTP timeout")
 	flag.BoolVar(&dryRun, "dry-run", false, "read due rows without forwarding or updating")
 	flag.BoolVar(&readOnly, "read", false, "alias for -dry-run")
+	flag.DurationVar(&lockTTL, "lock-ttl", 30*time.Minute, "singleton lock TTL for mutating runs")
 }
 
 func main() {
 	flag.Parse()
-	ctx := context.Background()
+	ctx, stop := cmdboot.SignalContext(context.Background())
+	defer stop()
 	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
@@ -49,11 +53,19 @@ func main() {
 	if err := c.Validate(dsp.ConfigModeRetry); err != nil {
 		log.Fatal(err)
 	}
-	db, err := c.OpenDB(ctx)
+	redis, db, err := c.GetRedisDB(ctx, dsp.ConfigModeRetry)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer redis.Close()
 	defer db.Close()
+	if !(dryRun || readOnly) {
+		lock, err := cmdboot.AcquireLock(ctx, redis, "aofei:mid-callback-retry", lockTTL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer lock.Release(context.Background())
+	}
 
 	result, err := midcallback.Run(ctx, db, midcallback.Options{
 		Limit:       limit,

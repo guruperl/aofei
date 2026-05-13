@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
@@ -75,25 +76,34 @@ func (self *Controller) ReloadLocalStaticCache() error {
 	if self.C == nil {
 		return fmt.Errorf("controller config is nil")
 	}
-	return self.localStaticCache().load(self.C.Spread)
+	start := time.Now()
+	count, err := self.localStaticCache().load(self.C.Spread)
+	metricLocalCacheReloadMillis.Set(time.Since(start).Milliseconds())
+	if err != nil {
+		metricLocalCacheReloadErrors.Add(1)
+		return err
+	}
+	metricLocalCacheReloads.Add(1)
+	metricLocalCacheReloadEntries.Set(int64(count))
+	return nil
 }
 
-func (c *localStaticCache) load(top string) error {
+func (c *localStaticCache) load(top string) (int, error) {
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	audiences, err := match.AudienceMapFromIO(top)
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return 0, err
 	}
 	creatives, err := match.CreativeMapFromIO(top)
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return 0, err
 	}
 	radvs, err := localRAdvsFromIO(top)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if pubmap == nil {
@@ -111,7 +121,11 @@ func (c *localStaticCache) load(top string) error {
 	c.audiences = audiences
 	c.creatives = creatives
 	c.radvs = radvs
-	return nil
+	count := len(pubmap) + len(audiences) + len(creatives)
+	for _, bySlot := range radvs {
+		count += len(bySlot)
+	}
+	return count, nil
 }
 
 func localRAdvsFromIO(top string) (map[uint32]map[uint32]match.RAdvs, error) {

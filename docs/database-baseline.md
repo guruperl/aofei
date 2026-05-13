@@ -16,6 +16,8 @@ Docker MySQL use.
   by the local package.
 - It must not contain explicit legacy MySQL definers.
 - It must not require or recreate legacy named MySQL users.
+- Tables use `utf8mb4` with `utf8mb4_0900_ai_ci` collation for the MySQL 8
+  local and production baseline.
 - Local Docker auth is created by `scripts/aofei-local.sh`.
 
 ## Reset And Load

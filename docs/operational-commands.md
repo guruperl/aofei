@@ -28,6 +28,8 @@ Use these commands as separate process roles:
 
 Do not run Redis cache refresh or ledger on every `unify` node. Ledger must run
 where the complete `log_winloss/winloss.<stamp>` files are available.
+Mutating `redis-cache`, `ledger`, `mid-callback-retry`, and `winloss` runs take
+a Redis singleton lock by default; read-only modes skip the lock.
 
 ## Common Prerequisites
 
@@ -280,6 +282,8 @@ Outputs:
 Notes:
 
 - No-bid and malformed bid responses fail with clear errors instead of panics.
+- The simulator takes a singleton lock by default. Use `-allow-concurrent` only
+  for intentional load testing.
 
 ## `cmd/maxmind`
 

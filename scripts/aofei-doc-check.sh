@@ -47,7 +47,7 @@ mapfile -t active_docs < <(
 
 config_examples=(
 	etc/aofei.json
-	etc/summer.json
+	etc/summer.example.json
 	etc/maxmind.json
 )
 
@@ -89,7 +89,19 @@ do
 	fi
 done
 
-for config in etc/aofei.json etc/summer.json; do
+if ! grep -Fq 'aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei' etc/aofei.json; then
+	fail "etc/aofei.json must use the Docker local MySQL example DSN."
+fi
+
+if ! grep -Fq 'aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei' etc/summer.example.json; then
+	fail "etc/summer.example.json must use the Docker local MySQL example DSN."
+fi
+
+if run_rg 'local-dev-secret|smtp_pass|-(local-secret|local-coding)' etc/summer.example.json; then
+	fail "etc/summer.example.json must use placeholder secrets, not local runtime secrets."
+fi
+
+for config in etc/aofei.json etc/summer.example.json; do
 	if ! grep -Fq 'aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei' "$config"; then
 		fail "$config must use the Docker local MySQL example DSN."
 	fi

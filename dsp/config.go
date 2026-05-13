@@ -47,6 +47,10 @@ type Config struct {
 	LogResponse                 string   `json:"log_response,omitempty"`
 	LogAttribute                string   `json:"log_attribute,omitempty"`
 	LogWinLoss                  string   `json:"log_winloss,omitempty"`
+	DBMaxOpenConns              int      `json:"db_max_open_conns,omitempty"`
+	DBMaxIdleConns              int      `json:"db_max_idle_conns,omitempty"`
+	DBConnMaxLifetimeSeconds    int      `json:"db_conn_max_lifetime_seconds,omitempty"`
+	DBConnMaxIdleTimeSeconds    int      `json:"db_conn_max_idle_time_seconds,omitempty"`
 }
 
 type ConfigMode string
@@ -261,11 +265,11 @@ func serverURLHost(raw string) string {
 }
 
 // GetRedisDB returns the Redis conn and database handler
-func (self *Config) GetRedisDB(ctx context.Context) (radix.Client, *sql.DB, error) {
+func (self *Config) GetRedisDB(ctx context.Context, modes ...ConfigMode) (radix.Client, *sql.DB, error) {
 	if err := self.Validate(ConfigModeDatabase, ConfigModeRedis); err != nil {
 		return nil, nil, err
 	}
-	db, err := self.OpenDB(ctx)
+	db, err := self.OpenDB(ctx, modes...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -286,7 +290,7 @@ func (self *Config) GetRedisDB(ctx context.Context) (radix.Client, *sql.DB, erro
 	return redis, db, nil
 }
 
-func (self *Config) OpenDB(ctx context.Context) (*sql.DB, error) {
+func (self *Config) OpenDB(ctx context.Context, modes ...ConfigMode) (*sql.DB, error) {
 	if err := self.Validate(ConfigModeDatabase); err != nil {
 		return nil, err
 	}
@@ -294,6 +298,7 @@ func (self *Config) OpenDB(ctx context.Context) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	self.ApplyDBPool(db, modes...)
 	if ctx != nil {
 		if err := db.PingContext(ctx); err != nil {
 			_ = db.Close()
@@ -301,6 +306,46 @@ func (self *Config) OpenDB(ctx context.Context) (*sql.DB, error) {
 		}
 	}
 	return db, nil
+}
+
+func (self *Config) ApplyDBPool(db *sql.DB, modes ...ConfigMode) {
+	if self == nil || db == nil {
+		return
+	}
+	defaults := dbPoolDefaults(modes...)
+	maxOpen := choosePositive(self.DBMaxOpenConns, defaults.maxOpen)
+	maxIdle := choosePositive(self.DBMaxIdleConns, defaults.maxIdle)
+	if maxIdle > maxOpen && maxOpen > 0 {
+		maxIdle = maxOpen
+	}
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
+	db.SetConnMaxLifetime(time.Duration(choosePositive(self.DBConnMaxLifetimeSeconds, defaults.maxLifetimeSeconds)) * time.Second)
+	db.SetConnMaxIdleTime(time.Duration(choosePositive(self.DBConnMaxIdleTimeSeconds, defaults.maxIdleTimeSeconds)) * time.Second)
+}
+
+type dbPoolProfile struct {
+	maxOpen            int
+	maxIdle            int
+	maxLifetimeSeconds int
+	maxIdleTimeSeconds int
+}
+
+func dbPoolDefaults(modes ...ConfigMode) dbPoolProfile {
+	for _, mode := range modes {
+		switch mode {
+		case ConfigModeLedger, ConfigModeRetry, ConfigModeCache, ConfigModeMaxMind:
+			return dbPoolProfile{maxOpen: 4, maxIdle: 2, maxLifetimeSeconds: 600, maxIdleTimeSeconds: 120}
+		}
+	}
+	return dbPoolProfile{maxOpen: 32, maxIdle: 8, maxLifetimeSeconds: 1800, maxIdleTimeSeconds: 300}
+}
+
+func choosePositive(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 type Stamp struct {

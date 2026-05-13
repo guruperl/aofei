@@ -41,6 +41,7 @@ func (self *DH) dhw(offsets ...uint8) (int, int, int) {
 	loc := time.FixedZone(zName, offsetSeconds)
 	localTime := self.Datetime.In(loc)
 	fullday := localTime.Day()
+	// fullhour is stored as a legacy 1-based bucket: 1 means 00:00 and 24 means 23:00.
 	fullhour := localTime.Hour() + 1
 	weekday := int(localTime.Weekday())
 	if weekday == 0 {

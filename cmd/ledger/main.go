@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/guruperl/aofei/dsp"
-	ledgerjob "github.com/guruperl/aofei/internal/jobs/ledger"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cmdboot"
+	ledgerjob "github.com/guruperl/aofei/internal/jobs/ledger"
 )
 
 func usage() {
@@ -24,6 +25,7 @@ var sConf string
 var interval int
 var stamp string
 var daily bool
+var lockTTL time.Duration
 
 func init() {
 	flag.Usage = usage
@@ -31,18 +33,31 @@ func init() {
 	flag.IntVar(&interval, "interval", 10, "Divider in minutes")
 	flag.StringVar(&stamp, "timestamp", "", "optional. it is MySQL day if daily is set, or 7 digit unix timestamp in minutes")
 	flag.BoolVar(&daily, "daily", false, "If set, it will insert daily ledger")
+	flag.DurationVar(&lockTTL, "lock-ttl", 30*time.Minute, "singleton lock TTL")
 }
 
 func main() {
 	flag.Parse()
-	ctx := context.Background()
-	sc, err := dsp.NewControllerWithOptions(ctx, sConf, dsp.WithoutNATS(), dsp.WithoutMaxMind())
+	ctx, stop := cmdboot.SignalContext(context.Background())
+	defer stop()
+	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	db := sc.DB
-	defer sc.Close()
+	if err := c.Validate(dsp.ConfigModeLedger); err != nil {
+		log.Fatal(err)
+	}
+	redis, db, err := c.GetRedisDB(ctx, dsp.ConfigModeLedger)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer redis.Close()
+	defer db.Close()
+	lock, err := cmdboot.AcquireLock(ctx, redis, "aofei:ledger", lockTTL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lock.Release(context.Background())
 
 	if daily {
 		if stamp == "" {
@@ -56,9 +71,9 @@ func main() {
 		var result ledgerjob.IntervalResult
 		var i int
 		if stamp == "" {
-			result, err = ledgerjob.RunInterval(db, sc.C.LogWinLoss, interval)
+			result, err = ledgerjob.RunInterval(db, c.LogWinLoss, interval)
 		} else if i, err = strconv.Atoi(stamp); err == nil {
-			result, err = ledgerjob.RunInterval(db, sc.C.LogWinLoss, interval, i)
+			result, err = ledgerjob.RunInterval(db, c.LogWinLoss, interval, i)
 		}
 		if err == nil && !result.Skipped {
 			log.Printf("Ledger %d at %d minutes done", result.Current, interval)

@@ -608,19 +608,23 @@ func middlemanForwardError(status string, code int, lastErr string) string {
 
 func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string, value middlemanCallbackContext, prices middlemanPrices) (string, string, int, string) {
 	if raw == "" {
+		metricMiddlemanForwardErrors.Add(1)
 		return "", "missing", 0, ""
 	}
 	target, err := expandMiddlemanCallbackURL(raw, value, prices)
 	if err != nil {
+		metricMiddlemanForwardErrors.Add(1)
 		return "", "invalid_url", 0, err.Error()
 	}
 	if err := self.validateMiddlemanCallbackTarget(ctx, target); err != nil {
+		metricMiddlemanForwardErrors.Add(1)
 		return target, "invalid_url", 0, err.Error()
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, self.middlemanCallbackTimeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, target, nil)
 	if err != nil {
+		metricMiddlemanForwardErrors.Add(1)
 		return target, "request_error", 0, err.Error()
 	}
 	client := self.client
@@ -629,13 +633,16 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		metricMiddlemanForwardErrors.Add(1)
 		return target, "error", 0, err.Error()
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		metricMiddlemanForwardErrors.Add(1)
 		return target, "http_error", resp.StatusCode, resp.Status
 	}
+	metricMiddlemanForwardOK.Add(1)
 	return target, "ok", resp.StatusCode, ""
 }
 

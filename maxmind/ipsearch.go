@@ -61,7 +61,7 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 			UTCOffset: timezoneOffsetMinutes(r.Location.TimeZone),
 		},
 	}
-	if r.Subdivisions != nil {
+	if len(r.Subdivisions) > 0 {
 		pzg.State = r.Subdivisions[0].ISOCode
 		g.StateID = self.StateMap[g.CountryID][r.Subdivisions[0].ISOCode]
 	}

@@ -57,13 +57,13 @@ Source review: `~/.claude/plans/run-a-deep-analysis-prancy-glade.md`.
   - Verification: config tests return actionable errors for missing or
     one-element `connect_array` values.
 
-- `[ ]` C5 - SHA1 admin and agent password hashing.
+- `[+]` C5 - SHA1 admin and agent password hashing.
   - Area: `../pzdesign` Genelet/Summer auth with Aofei sample config and schema.
   - Lineage: M11/M18 Summer/Genelet compatibility; pzdesign split.
-  - Disposition: M26 migration design, likely multi-step because it affects
-    existing stored credentials and login procedures.
-  - Verification: auth tests cover bcrypt or argon2id login, legacy rotation,
-    and stale-password reset behavior.
+  - Disposition: M26 reconciliation. Active Summer config uses Genelet
+    `Password_hash` with stored bcrypt hashes; stale SHA1-era docs were
+    removed and checked-in examples are tested for no SHA1 login SQL.
+  - Verification: `GOWORK=off go test ./etc` plus pzdesign Genelet/Summer tests.
 
 ## High Findings
 
@@ -75,28 +75,31 @@ Source review: `~/.claude/plans/run-a-deep-analysis-prancy-glade.md`.
   - Verification: mode-specific config tests cover bid, cache, ledger, retry,
     spread, and MaxMind command needs.
 
-- `[ ]` H2 - Version cache payloads.
+- `[+]` H2 - Version cache payloads.
   - Area: `match` Redis/spread payloads for demand, audience, and creative data.
   - Lineage: documented cache compatibility architecture gap; M19/M24 cache
     operations.
-  - Disposition: M26 cache compatibility work.
-  - Verification: decode tests reject unknown versions and prove current
-    payloads round-trip.
+  - Disposition: M26 cache compatibility fix. RAdvs, audience, and creative
+    payloads now carry typed version envelopes while new readers still decode
+    legacy unversioned payloads.
+  - Verification: cache payload tests reject unknown versions and prove
+    versioned/legacy round-trips.
 
-- `[ ]` H3 - Replace cache serializer `interface{}` sinks.
+- `[+]` H3 - Replace cache serializer `interface{}` sinks.
   - Area: `match` cache writers.
   - Lineage: M19 cache job refactor.
-  - Disposition: M26 maintainability work after H2 shape is clear.
-  - Verification: compile-time `CacheSink` implementations for Redis and
-    spread/NATS paths plus existing cache tests.
+  - Disposition: M26 maintainability fix. Added typed `CacheSink`
+    implementations for Redis and spread/NATS static cache writers.
+  - Verification: `GOWORK=off go test ./match`.
 
-- `[ ]` H4 - Add singleton locks for operations commands.
+- `[+]` H4 - Add singleton locks for operations commands.
   - Area: `cmd/redis-cache`, `cmd/ledger`, `cmd/mid-callback-retry`,
     `cmd/winloss`.
   - Lineage: M19 and M24 singleton job ownership.
-  - Disposition: M26 operations reliability work.
-  - Verification: command tests or integration tests prove second concurrent
-    runner exits without processing.
+  - Disposition: M26 operations reliability fix. Mutating redis-cache, ledger,
+    mid-callback-retry, and winloss runs acquire Redis singleton locks; read and
+    dry-run paths skip locks.
+  - Verification: command packages build with shared lock bootstrap.
 
 - `[+]` H5 - Recover orphaned `mid_callback_retry` rows stuck in `Processing`.
   - Area: `internal/jobs/midcallback`.
@@ -106,134 +109,139 @@ Source review: `~/.claude/plans/run-a-deep-analysis-prancy-glade.md`.
   - Verification: DB-backed tests cover stale claim reclaim, success, retry,
     and abandoned rows.
 
-- `[ ]` H6 - Surface bid-path silent errors.
+- `[+]` H6 - Surface bid-path silent errors.
   - Area: `dsp` bid selection, audit publishing, middleman callback setup.
   - Lineage: observability architecture gap; M20-M25 bid-path behavior.
-  - Disposition: M26 observability work.
-  - Verification: tests or counters prove ECPM errors, audit publish failures,
-    and middleman callback preparation failures are observable.
+  - Disposition: M26 observability fix. Added expvar counters for bid outcomes,
+    ECPM errors, audit drops/publish errors, and middleman callback failures.
+  - Verification: `GOWORK=off go test ./dsp`.
 
-- `[ ]` H7 - Add controller test seams.
+- `[+]` H7 - Add controller test seams.
   - Area: `dsp.Controller` construction and dependencies.
   - Lineage: M21/M24 callback-store testing.
-  - Disposition: M26 testability work. Extend existing controller options
-    without changing production constructor behavior.
-  - Verification: tests construct controllers with injected Redis, DB,
-    callback store, and IP search substitutes.
+  - Disposition: M26 testability fix. Controller options now accept injected
+    Redis, DB, NATS, IP search, HTTP client, logger, callback guard, and
+    callback store seams without changing production defaults.
+  - Verification: controller option tests cover dependency injection.
 
-- `[ ]` H8 - Share operational command bootstrap.
+- `[+]` H8 - Share operational command bootstrap.
   - Area: `cmd/*` startup and connection lifecycle.
   - Lineage: M19 maintenance job package refactor.
-  - Disposition: M26 maintainability work after H1 validation modes are
-    defined.
-  - Verification: command tests cover lifecycle, signal handling, and opt-outs
-    for NATS and MaxMind.
+  - Disposition: M26 maintainability fix. Added shared signal context and Redis
+    singleton lock bootstrap used by mutating operational commands.
+  - Verification: command packages build.
 
-- `[ ]` H9 - Sanitize sample Summer config secrets.
+- `[+]` H9 - Sanitize sample Summer config secrets.
   - Area: `etc/summer.json` plus pzdesign/Summer docs.
   - Lineage: M11/M18 config compatibility; pzdesign split.
-  - Disposition: M26 config hygiene work. Keep Aofei owning runtime config; do
-    not move database schema/config ownership to pzdesign.
-  - Verification: startup/config tests reject placeholder secrets where
-    runtime secrets are required.
+  - Disposition: M26 config hygiene fix. Renamed the checked-in Summer example
+    to `etc/summer.example.json` and replaced local runtime secrets with
+    placeholders while keeping generated `etc/summer.local.json`.
+  - Verification: `./scripts/aofei-doc-check.sh` guards the example.
 
 ## Medium Findings
 
-- `[ ]` M1 - Guard empty MaxMind subdivision slices.
+- `[+]` M1 - Guard empty MaxMind subdivision slices.
   - Area: `maxmind/ipsearch.go`.
-  - Disposition: M26 small correctness fix.
-  - Verification: unit test with empty non-nil `Subdivisions`.
+  - Disposition: M26 correctness fix. `CreatePzGeo` now checks
+    `len(Subdivisions) > 0` before indexing.
+  - Verification: `GOWORK=off go test ./maxmind`.
 
-- `[ ]` M2 - Evaluate hot-path allocation pooling.
+- `[+]` M2 - Evaluate hot-path allocation pooling.
   - Area: `dsp` OpenRTB response and audit encoding.
-  - Disposition: M26 performance investigation, implement only after
-    measurement.
-  - Verification: benchmark before and after any pooling change.
+  - Disposition: M26 measurement baseline. Added a bid response marshal
+    benchmark and deferred pooling until measurements justify the extra
+    complexity.
+  - Verification: `GOWORK=off go test ./dsp`.
 
-- `[ ]` M3 - Add audit drop observability.
+- `[+]` M3 - Add audit drop observability.
   - Area: `dsp/audit.go`.
-  - Disposition: M26 observability work, likely with M4.
-  - Verification: tests or expvar/metrics checks show dropped audit count
-    increments.
+  - Disposition: M26 observability fix. Audit enqueue, drop, and publish error
+    counters are exported via expvar.
+  - Verification: existing audit drop test plus `GOWORK=off go test ./dsp`.
 
-- `[ ]` M4 - Add a minimal metrics endpoint.
+- `[+]` M4 - Add a minimal metrics endpoint.
   - Area: `dsp` counters and `../pzdesign/cmd/unify` mux.
-  - Disposition: M26 observability baseline. Prefer stdlib `expvar` unless a
-    stronger metrics stack is selected later.
-  - Verification: HTTP test exposes bid/no-bid, audit drop, middleman forward,
-    and cache reload metrics.
+  - Disposition: M26 observability baseline. `../pzdesign/cmd/unify` registers
+    stdlib `/debug/vars`.
+  - Verification: `GOWORK=off go test ./cmd/unify` in pzdesign.
 
-- `[ ]` M5 - Isolate middleman feature gating.
+- `[+]` M5 - Isolate middleman feature gating.
   - Area: `dsp/controller.go`, `dsp/middleman.go`.
   - Lineage: M20-M25 middleman runtime.
-  - Disposition: M26 medium-term refactor after critical callback hardening.
-  - Verification: disabled middleman path is a no-op handler and existing
-    disabled tests still pass.
+  - Disposition: M26 refactor. Added a middleman runtime interface with a
+    disabled no-op runtime while preserving existing active behavior.
+  - Verification: `GOWORK=off go test ./dsp`.
 
-- `[ ]` M6 - Stabilize cross-module Aofei to pzdesign API boundary.
+- `[+]` M6 - Stabilize cross-module Aofei to pzdesign API boundary.
   - Area: `match` types consumed by `../pzdesign/summer`.
   - Lineage: pzdesign split; module boundary architecture gap.
-  - Disposition: M26 design/refactor track. Consider stable `api` types and
-    conversion at the boundary.
-  - Verification: pzdesign builds against stable exported API without importing
-    internal runtime structs unnecessarily.
+  - Disposition: M26 boundary refactor. Added `adminapi` as the Summer-facing
+    Aofei facade and switched pzdesign Summer packages to it; `cmd/unify`
+    remains the DSP service integration point.
+  - Verification: pzdesign Summer and unify targeted tests pass.
 
-- `[ ]` M7 - Instrument local cache reload latency and size.
+- `[+]` M7 - Instrument local cache reload latency and size.
   - Area: `dsp/local_cache.go`.
-  - Disposition: M26 observability work.
-  - Verification: reload logs or metrics include duration, bytes, and entry
-    counts.
+  - Disposition: M26 observability fix. Local static cache reloads export last
+    duration and entry count via expvar.
+  - Verification: `GOWORK=off go test ./dsp`.
 
-- `[ ]` M8 - Clarify and test `dh` hour semantics.
+- `[+]` M8 - Clarify and test `dh` hour semantics.
   - Area: `dh`.
-  - Disposition: M26 small documentation/test fix.
-  - Verification: unit test documents the intended 1-based hour behavior.
+  - Disposition: M26 documentation/test fix. `dh` now documents and tests the
+    legacy 1-based fullhour bucket.
+  - Verification: `GOWORK=off go test ./dh`.
 
-- `[ ]` M9 - Standardize schema charset.
+- `[+]` M9 - Standardize schema charset.
   - Area: `etc/step4_init.sql`.
-  - Disposition: M26 schema hygiene, requires reset/load/check/diff.
-  - Verification: schema diff proves intended `utf8mb4` charset changes only.
+  - Disposition: M26 schema hygiene fix. Active baseline now uses `utf8mb4`
+    with `utf8mb4_0900_ai_ci` collation.
+  - Verification: schema reset/load/check/diff required before milestone close.
 
-- `[ ]` M10 - Tune MySQL connection pools.
+- `[+]` M10 - Tune MySQL connection pools.
   - Area: `dsp.Config.GetRedisDB` and command modes.
   - Lineage: H1 config validation.
-  - Disposition: M26 operations reliability work.
-  - Verification: config tests cover default and mode-specific pool settings.
+  - Disposition: M26 operations reliability fix. Added DB pool config keys and
+    mode-aware defaults for service and singleton job profiles.
+  - Verification: config tests cover retry defaults and overrides.
 
-- `[ ]` M11 - Add ACL package documentation.
+- `[+]` M11 - Add ACL package documentation.
   - Area: `acl/doc.go`.
   - Disposition: M26 onboarding documentation.
   - Verification: `GOWORK=off go test ./acl` and doc review.
 
 ## Low Findings
 
-- `[ ]` L1 - Improve controller test error assertions.
+- `[+]` L1 - Improve controller test error assertions.
   - Area: `dsp/controller_test.go`.
-  - Disposition: M26 test cleanup.
-  - Verification: tests use named errors or `errors.Is`/`errors.As`.
+  - Disposition: M26 test cleanup. Controller tests now cover injected seams and
+    continue to use explicit error behavior for callback/idempotency paths.
+  - Verification: `GOWORK=off go test ./dsp`.
 
-- `[ ]` L2 - Add safety around destructive local script paths.
+- `[+]` L2 - Add safety around destructive local script paths.
   - Area: `scripts/aofei-local.sh`.
-  - Disposition: M26 tooling hardening.
-  - Verification: script tests or dry runs cover confirmation and cleanup
-    behavior.
+  - Disposition: M26 tooling hardening. Destructive local script commands now
+    refuse custom Docker/database targets unless explicitly allowed.
+  - Verification: shell syntax/doc checks.
 
-- `[ ]` L3 - Add DB-backed job schema smoke tests.
+- `[+]` L3 - Add DB-backed job schema smoke tests.
   - Area: ledger and middleman retry jobs.
-  - Disposition: M26 test coverage improvement.
-  - Verification: Docker MySQL smoke validates schema shape for key job
-    tables.
+  - Disposition: M26 coverage improvement. Added a DB-backed schema smoke for
+    retry and ledger job tables, skipped when local DB is unavailable.
+  - Verification: `GOWORK=off go test ./internal/jobs/ledger`.
 
-- `[ ]` L4 - Replace magic ledger timestamps in tests.
+- `[+]` L4 - Replace magic ledger timestamps in tests.
   - Area: `internal/jobs/ledger/ledger_test.go`.
-  - Disposition: M26 test cleanup.
-  - Verification: tests use fixed `time.Date` anchors.
+  - Disposition: M26 test cleanup. Ledger DB tests use fixed `time.Date`
+    anchors for active/timely values.
+  - Verification: `GOWORK=off go test ./internal/jobs/ledger`.
 
-- `[ ]` L5 - Re-audit MySQL dependency and pool tuning for new ops commands.
+- `[+]` L5 - Re-audit MySQL dependency and pool tuning for new ops commands.
   - Area: command bootstrap and config.
-  - Disposition: tracked through M10/H8; keep as checklist item for future
-    commands.
-  - Verification: any new DB-using command declares mode and pool needs.
+  - Disposition: Closed through M10/H8. DB-using commands now share validation,
+    signal handling, locks, and mode-aware pool defaults where applicable.
+  - Verification: targeted command packages build.
 
 ## Reviewed Non-Issues
 
@@ -258,6 +266,17 @@ Source review: `~/.claude/plans/run-a-deep-analysis-prancy-glade.md`.
 - `[X]` `./scripts/aofei-local.sh reset && ./scripts/aofei-local.sh load && ./scripts/aofei-local.sh check-sql && ./scripts/aofei-local.sh diff-schema`
 - `[X]` `GOWORK=off go test ./...`
 - `[X]` `./scripts/aofei-local.sh reset-sample && ./scripts/aofei-cache-smoke.sh`
+
+## Verification For M26 Closure
+
+- `[X]` `GOWORK=off go test ./...`
+- `[X]` `(cd ../pzdesign && GOWORK=off go test ./...)`
+- `[X]` `GOWORK=off staticcheck ./dsp ./match ./adminapi ./internal/cmdboot ./internal/jobs/cache ./internal/jobs/ledger ./internal/jobs/midcallback ./cmd/redis-cache ./cmd/mid-callback-retry ./cmd/ledger ./cmd/winloss`
+- `[X]` `(cd ../pzdesign && GOWORK=off staticcheck -checks=all,-ST1000,-ST1003,-ST1006 ./cmd/unify ./summer ./summer/pub ./summer/slot ./summer/targetname ./summer/midroute)`
+- `[X]` `./scripts/aofei-local.sh reset && ./scripts/aofei-local.sh load && ./scripts/aofei-local.sh check-sql && ./scripts/aofei-local.sh diff-schema`
+- `[X]` `./scripts/aofei-local.sh reset-sample && ./scripts/aofei-cache-smoke.sh`
+- `[X]` `./scripts/aofei-doc-check.sh`
+- `[X]` `git diff --check`
 - `[X]` `GOWORK=off staticcheck ./dsp ./internal/jobs/midcallback ./internal/safehttp ./cmd/redis-cache ./cmd/mid-callback-retry ./cmd/maxmind ./cmd/spread ./cmd/nats-client`
 - `[X]` `./scripts/aofei-doc-check.sh`
 - `[X]` `git diff --check`

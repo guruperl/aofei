@@ -641,7 +641,7 @@ Acceptance:
   callback-proxy controls continue to apply.
 - Mixed local and middleman winners can be returned in one OpenRTB response.
 
-## M26 - Middle-Term Review `[ ]`
+## M26 - Middle-Term Review `[+]`
 
 Track and remediate the independent deep code quality and architecture review
 without reopening completed milestones.
@@ -665,7 +665,7 @@ Acceptance:
 - Critical and high findings have clear remediation ordering.
 - Findings tied to M21-M25, M19, M11/M18, pzdesign, or architecture gaps are
   classified without reopening those closed milestones.
-- Future fixes are implemented as focused changes with tests and verification
+- Review fixes are implemented as focused changes with tests and verification
   recorded in `status-M26.md`.
 
 ## Post-M25 Middleman Backlog

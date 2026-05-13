@@ -142,12 +142,22 @@ ORDER BY v.size_id`)
 // Pack packs the creatives to binary.
 func (self RAdvs) Pack() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.LittleEndian, self)
+	if err := writeCachePayloadHeader(buf, cachePayloadKindRAdvs, cachePayloadVersionRAdvs); err != nil {
+		return nil, err
+	}
+	err := self.packLegacy(buf)
 	return buf.Bytes(), err
 }
 
 // PackIO packs the RAdvs to an IO writer.
 func (self RAdvs) PackIO(w *bytes.Buffer) error {
+	if err := writeCachePayloadHeader(w, cachePayloadKindRAdvs, cachePayloadVersionRAdvs); err != nil {
+		return err
+	}
+	return self.packLegacy(w)
+}
+
+func (self RAdvs) packLegacy(w io.Writer) error {
 	return binary.Write(w, binary.LittleEndian, self)
 }
 
@@ -187,22 +197,40 @@ func (self RAdvs) Delete(invalids map[uint32]RAdv) RAdvs {
 
 // UnpackRAdvs unpacks the weights from binary.
 func UnpackRAdvs(data []byte) (RAdvs, error) {
+	var err error
+	data, err = unpackCachePayload(data, cachePayloadKindRAdvs, cachePayloadVersionRAdvs)
+	if err != nil {
+		return nil, err
+	}
+	if len(data)%33 != 0 {
+		return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
+	}
 	n := len(data) / 33
 	blocks := make([]RAdv, n)
 	buf := bytes.NewReader(data)
-	err := binary.Read(buf, binary.LittleEndian, &blocks)
+	err = binary.Read(buf, binary.LittleEndian, &blocks)
 	return blocks, err
 }
 
 // UnpackRAdvsIO unpacks the RAdvs from an IO reader.
 func UnpackRAdvsIO(r io.Reader) (RAdvs, error) {
 	// Create a bytes.Reader to read from the io.Reader
-	var buf bytes.Buffer
-	_, err := io.Copy(&buf, r)
+	data, err := readAllCachePayload(r, cachePayloadKindRAdvs, cachePayloadVersionRAdvs)
 	if err != nil {
-		return nil, err // Error reading from the io.Reader
+		return nil, err
 	}
-	return UnpackRAdvs(buf.Bytes())
+	return unpackRAdvsLegacy(data)
+}
+
+func unpackRAdvsLegacy(data []byte) (RAdvs, error) {
+	if len(data)%33 != 0 {
+		return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
+	}
+	n := len(data) / 33
+	blocks := make([]RAdv, n)
+	buf := bytes.NewReader(data)
+	err := binary.Read(buf, binary.LittleEndian, &blocks)
+	return blocks, err
 }
 
 // DBGetRAdvsToRedisSpreadByItemID retrieves RAdvs from the database with give item and inserts them into Redis.
@@ -219,6 +247,10 @@ func DBDeleteRAdvsToRedisSpreadByItemID(ctx context.Context, conn any, db *sql.D
 func dbRAdvsToRedisSpreadByItemID(ctx context.Context, how string, conn any, db *sql.DB, itemID uint32, top ...string) error {
 	if how != "Get" && how != "Delete" {
 		return nil
+	}
+	sink, err := CacheSinkFor(conn)
+	if err != nil {
+		return err
 	}
 
 	rows, err := db.QueryContext(ctx, `
@@ -247,7 +279,7 @@ func dbRAdvsToRedisSpreadByItemID(ctx context.Context, how string, conn any, db 
 		if err != nil {
 			return err
 		}
-		if err = radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID); err != nil {
+		if err = radvHashToCacheSinkBySizeID(ctx, sink, hash, sizeID); err != nil {
 			return err
 		}
 	}
@@ -261,7 +293,11 @@ func DBGetRAdvsToRedisSpreadBySizeID(ctx context.Context, conn interface{}, db *
 	if err != nil {
 		return err
 	}
-	return radvHashToRedisSpreadBySizeID(ctx, conn, hash, sizeID)
+	sink, err := CacheSinkFor(conn)
+	if err != nil {
+		return err
+	}
+	return radvHashToCacheSinkBySizeID(ctx, sink, hash, sizeID)
 }
 
 func dbRAdvsBySizeID(ctx context.Context, db *sql.DB, sizeID uint32) (map[uint32]RAdvs, error) {
@@ -320,37 +356,34 @@ func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint3
 
 // radvHashToRedisSpread the size slot cache, used for the 10 minute refresh.
 func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash map[uint32]RAdvs, sizeID uint32) error {
-	switch t := conn.(type) {
-	case radix.Client:
-		if err := t.Do(ctx, radix.Cmd(nil, "DEL", HashNameRAdvs(sizeID))); err != nil {
-			return err
-		}
-	case *nats.Conn:
-	default:
+	sink, err := CacheSinkFor(conn)
+	if err != nil {
+		return err
+	}
+	return radvHashToCacheSinkBySizeID(ctx, sink, hash, sizeID)
+}
+
+func radvHashToCacheSinkBySizeID(ctx context.Context, sink CacheSink, hash map[uint32]RAdvs, sizeID uint32) error {
+	if err := sink.ResetRAdvs(ctx, sizeID); err != nil {
+		return err
 	}
 	i := 0
 	for slotID, radvs := range hash {
 		if len(radvs) == 0 {
 			continue
 		}
-		var err error
-		switch t := conn.(type) {
-		case radix.Client:
-			err = radvs.ToRedis(ctx, t, slotID, sizeID)
-		case *nats.Conn:
-			err = radvs.ToSpread(t, slotID, sizeID, i == 0)
-			i++
-		default:
-			err = fmt.Errorf("unsupported connection type: %T", conn)
-		}
+		data, err := radvs.Pack()
 		if err != nil {
 			return err
 		}
+		cleanup := i == 0
+		if err := sink.PutRAdvs(ctx, sizeID, slotID, data, cleanup); err != nil {
+			return err
+		}
+		i++
 	}
 	if i == 0 {
-		if t, ok := conn.(*nats.Conn); ok {
-			return publishRAdvsSpreadCleanup(t, sizeID)
-		}
+		return sink.CleanupRAdvs(ctx, sizeID)
 	}
 	return nil
 }
@@ -371,10 +404,9 @@ func HashIONameRAdvs(slotID uint32) string {
 
 // ToRedis inserts RAdvs into Redis.
 func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint32) error {
-	key := strconv.FormatUint(uint64(slotID), 10)
 	data, err := self.Pack()
 	if err == nil {
-		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameRAdvs(sizeID), key, string(data)))
+		err = RedisCacheSink{Client: conn}.PutRAdvs(ctx, sizeID, slotID, data, false)
 	}
 	return err
 }
@@ -385,13 +417,7 @@ func (self RAdvs) ToSpread(conn *nats.Conn, slotID, sizeID uint32, cleanup ...bo
 	if err != nil {
 		return err
 	}
-	subject := fmt.Sprintf("%s:%d", HashNameRAdvs(sizeID), slotID)
-	// cleanup is attached to the subject, to clean up the size directory.
-	// this should be assigned only for the 10 minute refresh in radvHashToRedisSpreadBySizeID
-	if len(cleanup) > 0 && cleanup[0] {
-		subject += "cleanup"
-	}
-	return conn.Publish(subject, data)
+	return SpreadCacheSink{Conn: conn}.PutRAdvs(context.Background(), sizeID, slotID, data, len(cleanup) > 0 && cleanup[0])
 }
 
 // RAdvsFromRedisBySizeIDSlotID builds RAdvs from redis.

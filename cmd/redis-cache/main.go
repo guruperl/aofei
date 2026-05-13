@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cmdboot"
 	cachejob "github.com/guruperl/aofei/internal/jobs/cache"
 	"github.com/nats-io/nats.go"
 
@@ -29,6 +31,7 @@ var stamp int
 var update bool
 var read bool
 var cacheMode string
+var lockTTL time.Duration
 
 func init() {
 	flag.Usage = usage
@@ -38,6 +41,7 @@ func init() {
 	flag.BoolVar(&read, "read", false, "read caches from redis")
 	flag.IntVar(&interval, "interval", 10, "if update, divider in minutes")
 	flag.IntVar(&stamp, "timestamp", 0, "if update, fixed timestamp in minutes")
+	flag.DurationVar(&lockTTL, "lock-ttl", 30*time.Minute, "singleton lock TTL for mutating runs")
 }
 
 func main() {
@@ -58,8 +62,9 @@ func main() {
 	if err := c.Validate(modes...); err != nil {
 		log.Fatal(err)
 	}
-	ctx := context.Background()
-	redis, db, err := c.GetRedisDB(ctx)
+	ctx, stop := cmdboot.SignalContext(context.Background())
+	defer stop()
+	redis, db, err := c.GetRedisDB(ctx, dsp.ConfigModeCache)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,6 +77,11 @@ func main() {
 		}
 		return
 	}
+	lock, err := cmdboot.AcquireLock(ctx, redis, "aofei:redis-cache:"+cacheMode, lockTTL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer lock.Release(context.Background())
 
 	var nc *nats.Conn
 	if cacheMode == cachejob.ModeSpread || cacheMode == cachejob.ModeAll {

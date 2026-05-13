@@ -51,8 +51,10 @@ func (p *auditPublisher) Enqueue(subject string, data []byte) {
 	}
 	select {
 	case p.queue <- msg:
+		metricAuditEnqueued.Add(1)
 	default:
 		p.drops.Add(1)
+		metricAuditDropped.Add(1)
 	}
 }
 
@@ -87,6 +89,8 @@ func (p *auditPublisher) run() {
 		if p.nc == nil {
 			continue
 		}
-		_ = p.nc.Publish(msg.subject, msg.data)
+		if err := p.nc.Publish(msg.subject, msg.data); err != nil {
+			metricAuditPublishErrors.Add(1)
+		}
 	}
 }

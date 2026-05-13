@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestConfig(t *testing.T) {
@@ -65,6 +67,29 @@ func TestConfig(t *testing.T) {
 	}
 	if c.MiddlemanCallbackBaseURL != "http://localhost" {
 		t.Errorf("MiddlemanCallbackBaseURL = %q, want server_url default", c.MiddlemanCallbackBaseURL)
+	}
+}
+
+func TestApplyDBPoolDefaultsAndOverrides(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	c := &Config{}
+	c.ApplyDBPool(db, ConfigModeRetry)
+	stats := db.Stats()
+	if stats.MaxOpenConnections != 4 {
+		t.Fatalf("retry max open = %d, want 4", stats.MaxOpenConnections)
+	}
+
+	c.DBMaxOpenConns = 12
+	c.DBMaxIdleConns = 6
+	c.ApplyDBPool(db)
+	stats = db.Stats()
+	if stats.MaxOpenConnections != 12 {
+		t.Fatalf("override max open = %d, want 12", stats.MaxOpenConnections)
 	}
 }
 

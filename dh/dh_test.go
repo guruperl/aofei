@@ -33,3 +33,14 @@ func TestDHAudienceOffsetEnumStillOverridesVisitorOffset(t *testing.T) {
 		t.Fatalf("stored UTC enum hour = %d, want 24", hour)
 	}
 }
+
+func TestFullhourIsOneBasedLegacyBucket(t *testing.T) {
+	_, hour, _ := NewDHFromMinutes(time.Date(2026, time.May, 12, 0, 0, 0, 0, time.UTC), 0).dhw()
+	if hour != 1 {
+		t.Fatalf("midnight fullhour = %d, want one-based bucket 1", hour)
+	}
+	_, hour, _ = NewDHFromMinutes(time.Date(2026, time.May, 12, 23, 0, 0, 0, time.UTC), 0).dhw()
+	if hour != 24 {
+		t.Fatalf("23:00 fullhour = %d, want one-based bucket 24", hour)
+	}
+}

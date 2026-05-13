@@ -90,8 +90,10 @@ Run Redis cache population as a singleton cron job or systemd timer on one
 dedicated node with `cmd/redis-cache -cache=redis`; do not run one cache
 refresher per `unify` node. Run `cmd/ledger` only on the log aggregation node
 where the complete `log_winloss/winloss.<stamp>` stream is available.
+Mutating `cmd/redis-cache`, `cmd/ledger`, `cmd/mid-callback-retry`, and
+`cmd/winloss` executions also acquire Redis singleton locks.
 
-Checked-in `etc/aofei.json` and `etc/summer.json` are examples. Generated
+Checked-in `etc/aofei.json` and `etc/summer.example.json` are examples. Generated
 `etc/*.local.json` files are local-only artifacts and must not be copied into
 production as-is.
 
@@ -385,6 +387,10 @@ NATS requirements:
 
 ## Logs And Ledger
 
+The unified HTTP service exposes stdlib expvar metrics at `/debug/vars`,
+including bid/no-bid counters, audit queue drops and publish errors, middleman
+callback forwarding results, and local cache reload status.
+
 `cmd/unify` publishes request, response, attribute, and win/loss events when
 NATS is enabled. `cmd/nats-client` writes those subjects to:
 
@@ -425,11 +431,9 @@ read-only deployed copy. Static UI assets should be served from the matching
 
 ## Auth Compatibility
 
-Current Summer admin and user flows retain SHA1-era password hash compatibility
-for the existing schema and stored procedures. That is compatibility behavior,
-not the long-term production authentication contract. A future auth migration
-must define new hashing, migration, reset, and rollback behavior before changing
-stored hashes or login queries.
+Current Summer admin and user flows verify stored bcrypt password hashes through
+Genelet's `Password_hash` issuer field. Existing SHA1-era credentials must be
+reset before production use.
 
 ## Historical Material
 

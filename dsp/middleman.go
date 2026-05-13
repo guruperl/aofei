@@ -54,6 +54,34 @@ type middlemanDownstreamBid struct {
 	ClickRequestToken  string
 }
 
+type middlemanRuntime interface {
+	Fallback(context.Context, *openrtb2.BidRequest, []byte, time.Time, []middlemanFallbackImp) ([]middlemanDownstreamBid, error)
+}
+
+type noopMiddlemanRuntime struct{}
+
+func (noopMiddlemanRuntime) Fallback(context.Context, *openrtb2.BidRequest, []byte, time.Time, []middlemanFallbackImp) ([]middlemanDownstreamBid, error) {
+	return nil, nil
+}
+
+type controllerMiddlemanRuntime struct {
+	controller *Controller
+}
+
+func (r controllerMiddlemanRuntime) Fallback(ctx context.Context, bid *openrtb2.BidRequest, rawRequest []byte, started time.Time, fallbackImps []middlemanFallbackImp) ([]middlemanDownstreamBid, error) {
+	return r.controller.middlemanFallback(ctx, bid, rawRequest, started, fallbackImps)
+}
+
+func (self *Controller) middleman() middlemanRuntime {
+	if self == nil || self.C == nil || !self.C.MiddlemanEnabled {
+		return noopMiddlemanRuntime{}
+	}
+	if self.middlemanRuntime != nil {
+		return self.middlemanRuntime
+	}
+	return controllerMiddlemanRuntime{controller: self}
+}
+
 func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.BidRequest, rawRequest []byte, started time.Time, fallbackImps []middlemanFallbackImp) ([]middlemanDownstreamBid, error) {
 	if self.C == nil || !self.C.MiddlemanEnabled || self.Redis == nil || len(fallbackImps) == 0 {
 		return nil, nil

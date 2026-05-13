@@ -68,27 +68,42 @@ func (self *Audience) Has(attr *Attribute) bool {
 // Pack serializes the audience into a byte slice.
 func (self *Audience) Pack() ([]byte, error) {
 	buf := new(bytes.Buffer)
+	if err := writeCachePayloadHeader(buf, cachePayloadKindAudience, cachePayloadVersionAudience); err != nil {
+		return nil, err
+	}
 	err := gob.NewEncoder(buf).Encode(self)
 	return buf.Bytes(), err
 }
 
 // PackIO packs the audience into an IO writer.
 func (self *Audience) PackIO(w *bytes.Buffer) error {
+	if err := writeCachePayloadHeader(w, cachePayloadKindAudience, cachePayloadVersionAudience); err != nil {
+		return err
+	}
 	return gob.NewEncoder(w).Encode(self)
 }
 
 // UnpackAudience deserializes the audience from a byte slice.
 func UnpackAudience(data []byte) (*Audience, error) {
+	var err error
+	data, err = unpackCachePayload(data, cachePayloadKindAudience, cachePayloadVersionAudience)
+	if err != nil {
+		return nil, err
+	}
 	audience := new(Audience)
 	buf := bytes.NewReader(data)
-	err := gob.NewDecoder(buf).Decode(audience)
+	err = gob.NewDecoder(buf).Decode(audience)
 	return audience, err
 }
 
 // UnpackAudienceIO deserializes the audience from an IO reader.
 func UnpackAudienceIO(r io.Reader) (*Audience, error) {
+	data, err := readAllCachePayload(r, cachePayloadKindAudience, cachePayloadVersionAudience)
+	if err != nil {
+		return nil, err
+	}
 	audience := new(Audience)
-	err := gob.NewDecoder(r).Decode(audience)
+	err = gob.NewDecoder(bytes.NewReader(data)).Decode(audience)
 	return audience, err
 }
 
@@ -227,19 +242,18 @@ const (
 func (self *Audience) ToRedis(ctx context.Context, conn radix.Client, itemID uint32) error {
 	bs, err := self.Pack()
 	if err == nil {
-		err = conn.Do(ctx, radix.Cmd(nil, "HSET", HashNameAudience, strconv.FormatUint(uint64(itemID), 10), string(bs)))
+		err = RedisCacheSink{Client: conn}.PutAudience(ctx, itemID, bs)
 	}
 	return err
 }
 
 // ToSpread publishes the audience to NATS.
 func (self *Audience) ToSpread(conn *nats.Conn, itemID uint32) error {
-	subject := fmt.Sprintf("%s:%d", HashNameAudience, itemID)
 	bs, err := self.Pack()
 	if err != nil {
 		return err
 	}
-	return conn.Publish(subject, bs)
+	return SpreadCacheSink{Conn: conn}.PutAudience(context.Background(), itemID, bs)
 }
 
 // AudienceFromRedis retrieves audience data from Redis.

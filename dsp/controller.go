@@ -47,13 +47,25 @@ type Controller struct {
 	client             *http.Client
 	middlemanStore     middlemanCallbackStore
 	callbackURLGuard   func(context.Context, string) error
+	middlemanRuntime   middlemanRuntime
 	trackingNotifyOnce func(context.Context, Status, string, time.Duration) (bool, error)
 	publishWinLossFunc func([]byte) error
+	ownRedis           bool
+	ownDB              bool
+	ownNATS            bool
 }
 
 type controllerOptions struct {
-	nats    bool
-	maxmind bool
+	nats             bool
+	maxmind          bool
+	redis            radix.Client
+	db               *sql.DB
+	nc               *nats.Conn
+	ips              *maxmind.IPSearch
+	httpClient       *http.Client
+	logger           *zap.Logger
+	callbackURLGuard func(context.Context, string) error
+	callbackStore    middlemanCallbackStore
 }
 
 type bidAudit struct {
@@ -112,6 +124,56 @@ func WithoutMaxMind() ControllerOption {
 	}
 }
 
+func WithRedis(redis radix.Client) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.redis = redis
+	}
+}
+
+func WithDB(db *sql.DB) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.db = db
+	}
+}
+
+func WithNATS(nc *nats.Conn) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.nc = nc
+		opts.nats = false
+	}
+}
+
+func WithIPSearch(ips *maxmind.IPSearch) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.ips = ips
+		opts.maxmind = false
+	}
+}
+
+func WithHTTPClient(client *http.Client) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.httpClient = client
+	}
+}
+
+func WithLogger(logger *zap.Logger) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.logger = logger
+	}
+}
+
+func WithCallbackURLGuard(guard func(context.Context, string) error) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.callbackURLGuard = guard
+	}
+}
+
+func withMiddlemanCallbackStore(store middlemanCallbackStore) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.callbackStore = store
+	}
+}
+
 func NewController(ctx context.Context, filename string, offline ...string) (*Controller, error) {
 	if len(offline) == 0 {
 		return NewControllerWithOptions(ctx, filename)
@@ -134,9 +196,28 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 	if err := c.Validate(ConfigModeBid); err != nil {
 		return nil, err
 	}
-	redis, db, err := c.GetRedisDB(ctx)
-	if err != nil {
-		return nil, err
+	options := applyControllerOptions(opts...)
+	redis := options.redis
+	db := options.db
+	ownRedis := false
+	ownDB := false
+	if redis == nil || db == nil {
+		openedRedis, openedDB, err := c.GetRedisDB(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if redis == nil {
+			redis = openedRedis
+			ownRedis = true
+		} else {
+			openedRedis.Close()
+		}
+		if db == nil {
+			db = openedDB
+			ownDB = true
+		} else {
+			openedDB.Close()
+		}
 	}
 	controller := &Controller{
 		C:      c,
@@ -147,6 +228,16 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		callbackURLGuard: func(ctx context.Context, raw string) error {
 			return safehttp.ValidateCallbackURL(ctx, raw)
 		},
+		Logger:         options.logger,
+		middlemanStore: options.callbackStore,
+		ownRedis:       ownRedis,
+		ownDB:          ownDB,
+	}
+	if options.httpClient != nil {
+		controller.client = options.httpClient
+	}
+	if options.callbackURLGuard != nil {
+		controller.callbackURLGuard = options.callbackURLGuard
 	}
 	if c.IsLocal {
 		if err := controller.ReloadLocalStaticCache(); err != nil {
@@ -154,17 +245,22 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		}
 	}
 
-	options := applyControllerOptions(opts...)
-	if options.nats {
+	if options.nc != nil {
+		controller.Nc = options.nc
+		controller.audit = newAuditPublisher(options.nc, defaultAuditQueueSize)
+	} else if options.nats {
 		nc, err := nats.Connect(c.NatsURL, nats.ReconnectWait(10*time.Second))
 		if err != nil {
 			return nil, err
 		}
 		controller.Nc = nc
 		controller.audit = newAuditPublisher(nc, defaultAuditQueueSize)
+		controller.ownNATS = true
 	}
 
-	if options.maxmind {
+	if options.ips != nil {
+		controller.Ips = options.ips
+	} else if options.maxmind {
 		ips, err := maxmind.LoadIPData(c.Ips)
 		if err != nil {
 			return nil, err
@@ -188,13 +284,13 @@ func (self *Controller) Close() {
 	if self.audit != nil {
 		self.audit.Close()
 	}
-	if self.Redis != nil {
+	if self.Redis != nil && self.ownRedis {
 		self.Redis.Close()
 	}
-	if self.DB != nil {
+	if self.DB != nil && self.ownDB {
 		self.DB.Close()
 	}
-	if self.Nc != nil {
+	if self.Nc != nil && self.ownNATS {
 		self.Nc.Close()
 	}
 	if self.Logger != nil {
@@ -203,6 +299,7 @@ func (self *Controller) Close() {
 }
 
 func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
+	metricBidRequests.Add(1)
 	logger := self.Logger
 	if logger == nil {
 		logger = zap.NewNop()
@@ -290,7 +387,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(fallbackImps) != 0 {
-		middlemanBids, err := self.middlemanFallback(ctx, bid, bidStr, current, fallbackImps)
+		middlemanBids, err := self.middleman().Fallback(ctx, bid, bidStr, current, fallbackImps)
 		if err != nil {
 			glog.Infof("middleman fallback: %v", err)
 		}
@@ -304,6 +401,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	seatOrder, seatBids, audits, responseBidID := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, glog)
 	if len(audits) == 0 {
 		w.WriteHeader(http.StatusNoContent)
+		metricBidNoBids.Add(1)
 		glog.Infof("no impression produced a bid")
 		return
 	}
@@ -334,6 +432,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(rspnStr)
+	metricBidResponses.Add(1)
 
 	glog.Info("11: publish to nats")
 	elapsed := time.Since(current)
@@ -364,6 +463,7 @@ func localBidEffectiveCPM(dspBid *DSP, audit bidAudit, bid openrtb2.Bid) (float6
 	}
 	cpm, ok := audit.One.ECPM()
 	if !ok {
+		metricECPMErrors.Add(1)
 		return 0, false
 	}
 	if float64(cpm) != bid.Price {
@@ -406,6 +506,7 @@ func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2
 			}
 			middlemanBid := *winner.Middleman
 			if err := self.prepareMiddlemanCallback(ctx, bid, &middlemanBid); err != nil {
+				metricMiddlemanCallbackSetupFailures.Add(1)
 				if glog != nil {
 					glog.Infof("middleman bidder %d callback setup failed: %v", middlemanBid.Entry.BidderID, err)
 				}

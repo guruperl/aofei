@@ -87,7 +87,8 @@ with HTML templates under `../pzdesign/tmpls` and static UI assets under
 `Template`, and `DocumentRoot` at that checkout.
 
 Production defaults are `/etc/aofei/aofei.json` and
-`/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The production
+`/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The checked-in
+Summer example is `etc/summer.example.json`. The production
 runbook is [docs/production-runbook.md](../docs/production-runbook.md).
 Summer/Genelet CORS allows the exact `ServerURL` origin plus exact entries in
 `CORSOrigins`.

@@ -238,6 +238,26 @@ cleanup_diff_schema() {
 	fi
 }
 
+require_local_destructive_target() {
+	local command_name="$1"
+	case "$CONTAINER:$VOLUME:$REDIS_CONTAINER:$REDIS_VOLUME:$DB_NAME" in
+		aofei-mysql:aofei-mysql-data:aofei-redis:aofei-redis-data:aofei) ;;
+		*)
+			if [ "${AOFEI_ALLOW_CUSTOM_DESTRUCTIVE:-}" != "1" ]; then
+				echo "$command_name refuses custom Docker/database targets without AOFEI_ALLOW_CUSTOM_DESTRUCTIVE=1." >&2
+				echo "Targets: mysql=$CONTAINER volume=$VOLUME redis=$REDIS_CONTAINER redis_volume=$REDIS_VOLUME db=$DB_NAME" >&2
+				return 1
+			fi
+			;;
+	esac
+	for value in "$CONTAINER" "$VOLUME" "$REDIS_CONTAINER" "$REDIS_VOLUME" "$DB_NAME"; do
+		if [ -z "$value" ] || [ "$value" = "/" ] || [ "$value" = "." ]; then
+			echo "$command_name refuses empty or unsafe target value: '$value'." >&2
+			return 1
+		fi
+	done
+}
+
 diff_schema() {
 	mysql_up
 	check_sql
@@ -293,6 +313,10 @@ generate_configs() {
   "middleman_callback_base_url": "http://localhost:8080",
   "redis": {"Addr": "$REDIS_ADDR", "User": "", "Pass": ""},
   "connect_array": ["mysql", "$DSN"],
+  "db_max_open_conns": 32,
+  "db_max_idle_conns": 8,
+  "db_conn_max_lifetime_seconds": 1800,
+  "db_conn_max_idle_time_seconds": 300,
   "spread": "$ROOT/.local/spread",
   "log_request": "$ROOT/.local/logs/log_request",
   "log_response": "$ROOT/.local/logs/log_response",
@@ -383,6 +407,7 @@ up() {
 }
 
 reset_db() {
+	require_local_destructive_target reset
 	up
 	mysql_root <<SQL
 DROP DATABASE IF EXISTS \`${DB_NAME}\`;
@@ -396,6 +421,7 @@ SQL
 }
 
 load_baseline() {
+	require_local_destructive_target load
 	up
 	local source_sql
 	source_sql="$(baseline_sql)"
@@ -525,6 +551,7 @@ nats_down() {
 }
 
 redis_flush() {
+	require_local_destructive_target redis-flush
 	redis_up
 	docker exec "$REDIS_CONTAINER" redis-cli FLUSHALL
 }

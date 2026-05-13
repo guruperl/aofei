@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/match"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 func TestStatisticsMissingWinLossFileReturnsMissingInput(t *testing.T) {
@@ -271,6 +271,25 @@ func TestMiddlemanLedgerIntervalAndDailyTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertMiddlemanLedgerRow(t, db, "daily_mid", "daily_log", "daily", day)
+}
+
+func TestJobSchemaSmoke(t *testing.T) {
+	db := openLedgerTestDB(t)
+	defer db.Close()
+
+	for _, table := range []string{"mid_callback_retry", "ledger_log", "ledger_mid", "daily_log", "daily_mid"} {
+		var count int
+		err := db.QueryRow(`
+SELECT COUNT(*)
+FROM information_schema.tables
+WHERE table_schema = DATABASE() AND table_name = ?`, table).Scan(&count)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("schema table %s count = %d, want 1", table, count)
+		}
+	}
 }
 
 func openLedgerTestDB(t *testing.T) *sql.DB {

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cmdboot"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 
@@ -33,11 +34,15 @@ var sConf string
 var address string
 var how string
 var httpClient = &http.Client{Timeout: 15 * time.Second}
+var allowConcurrent bool
+var lockTTL time.Duration
 
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
 	flag.StringVar(&address, "bid", "/bid/exchange.example.test", "bid url")
+	flag.BoolVar(&allowConcurrent, "allow-concurrent", false, "skip singleton lock for intentional load testing")
+	flag.DurationVar(&lockTTL, "lock-ttl", 30*time.Minute, "singleton lock TTL")
 }
 
 func main() {
@@ -48,12 +53,20 @@ func main() {
 		how = "random"
 	}
 
-	ctx := context.Background()
+	ctx, stop := cmdboot.SignalContext(context.Background())
+	defer stop()
 	sc, err := dsp.NewControllerWithOptions(ctx, sConf, dsp.WithoutNATS(), dsp.WithoutMaxMind())
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer sc.Close()
+	if !allowConcurrent {
+		lock, err := cmdboot.AcquireLock(ctx, sc.Redis, "aofei:winloss", lockTTL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer lock.Release(context.Background())
+	}
 
 	buf := bytes.NewBuffer(jsonBid)
 	host := strings.Replace(sc.C.ServerURL, "https", "http", 1)

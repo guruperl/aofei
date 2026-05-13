@@ -114,7 +114,7 @@ not use the lower-case DSP `AOFEI` config because Genelet expects
 
 ## Active Configuration Boundary
 
-- `etc/aofei.json` and `etc/summer.json` are checked-in examples.
+- `etc/aofei.json` and `etc/summer.example.json` are checked-in examples.
 - `etc/aofei.local.json` and `etc/summer.local.json` are generated local files
   and must remain ignored.
 - Summer/Genelet code, UI templates, and static UI assets live in the sibling
@@ -136,6 +136,8 @@ not use the lower-case DSP `AOFEI` config because Genelet expects
   remains a singleton scheduled `cmd/redis-cache` job on one dedicated node.
   Ledger runs as a singleton scheduled `cmd/ledger` job on the node where
   `cmd/nats-client` aggregates win/loss log files.
+- Mutating operations commands acquire Redis singleton locks, and the unified
+  HTTP service exposes stdlib expvar metrics at `/debug/vars`.
 - Middleman callback proxying uses Redis TTL keys for selected-bid context,
   cooperative click mapping, and billable-event idempotency. These keys are
   runtime state owned by `cmd/unify`, not cache data populated by
@@ -168,11 +170,12 @@ legacy definers or legacy named database auth references.
   remains the development workflow, not the production ownership model.
 - Runtime config parsing needs one validation/defaulting boundary across DSP
   and Summer/Genelet so missing service blocks fail with actionable errors.
-- Redis and spread campaign cache payloads need typed/versioned contracts
-  instead of direct struct serialization. The middleman route Redis payload is
-  already versioned JSON.
+- Redis and spread campaign cache payloads use typed version envelopes for
+  RAdvs, audience, and creative data while retaining legacy decode support.
+  The middleman route Redis payload is versioned JSON.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.
-- Production auth hardening still needs a future migration from SHA1-era
-  password compatibility to a modern password-hash contract.
+- Summer/Genelet admin auth verifies stored bcrypt password hashes through the
+  `Password_hash` issuer field. SHA1-era credentials are legacy data that must
+  be reset before production use.
