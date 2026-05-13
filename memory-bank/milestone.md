@@ -723,7 +723,7 @@ Result:
 - M28 keeps middleman fallback, cookies, CORS/origin policy changes, publisher
   tag UI, and reporting-semantics separation out of scope.
 
-## M29 - Publisher Tag UI And Download `[ ]`
+## M29 - Publisher Tag UI And Download `[+]`
 
 Make direct publisher tags usable from the existing `pub` UI.
 
@@ -741,6 +741,21 @@ Acceptance:
 - Publishers can copy or download a working browser tag for each slot.
 - External sites can embed the sample tag and call Aofei `/pz`.
 - Existing publisher admin tests still pass.
+
+Result:
+
+- `pub_slot.size_id` is stored in the SQL baseline and Summer slot metadata, so
+  generated direct tags use each slot's configured width/height.
+- Publisher slot topics generate M28-compatible browser/API samples with
+  absolute `/pz` endpoints, direct `site` and `slot` tokens, DOM-only ad-unit
+  codes, and banner `mediaTypes`.
+- `www/js/ads.js` defaults to the origin of the loaded script plus `/pz`,
+  supports explicit endpoint overrides, preserves ad-unit order, and omits
+  credentials by default.
+- Publisher slot topics expose copy actions and downloadable
+  `aofei-slot-<slot_id>.html` browser samples.
+- `cmd/unify` handles `OPTIONS /pz` and applies permissive CORS headers only to
+  `/pz`.
 
 ## M30 - SSP Measurement, Cookie, And Reporting Semantics `[ ]`
 

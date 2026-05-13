@@ -68,6 +68,12 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    local Aofei bid path, and returns a JSON HTML-string array in ad-unit order
    with `""` for no-fill units. M28 does not invoke middleman fallback for SSP
    traffic.
+   M29 publisher tags are generated from the `pub` slot UI using configured
+   `ServerURL`, stored `pub_slot.size_id`, DOM ids of the form
+   `pz-slot-<slot_id>`, and banner `mediaTypes` samples. `www/js/ads.js`
+   derives its default `/pz` endpoint from the loaded script origin and can be
+   overridden per call. `cmd/unify` applies permissive CORS headers only to
+   `POST/OPTIONS /pz`.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -190,8 +196,8 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP cookie handling, origin/referrer controls, reporting semantics,
-  and publisher tag download UI are planned for M29-M31.
+- Direct SSP cookie handling, origin/referrer controls beyond permissive
+  `/pz` CORS, and reporting semantics are planned for M30-M31.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

@@ -74,8 +74,10 @@ advertiser-owned endpoint and reporting schema boundary:
   existing `pub` role remains the publisher account and inventory owner. The v1
   browser contract is `POST /pz` with packed `site` and `adUnits[].slot` tokens
   and a JSON array of HTML strings in ad-unit order. M28 serves valid requests
-  through the existing local Aofei bid path; publisher tag UI, cookies,
-  origin/referrer hardening, and reporting separation are later milestones.
+  through the existing local Aofei bid path. M29 adds publisher slot tag
+  copy/download UI, stored slot sizes, external `ads.js` endpoint resolution,
+  and endpoint-limited permissive `/pz` CORS; cookies, origin/referrer
+  hardening, and reporting separation are later milestones.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

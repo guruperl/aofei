@@ -107,6 +107,11 @@ are later removed. Retry workers set `claimed_at` while processing rows; stale
 `Processing` rows whose claim age exceeds the retry worker stale threshold are
 eligible for reclaim.
 
+Publisher slots store `pub_slot.size_id` as the packed width/height used by
+publisher-facing direct SSP tags. The default baseline value is `4194368`
+(`64x64`) for historical rows and for insert paths that do not provide an
+explicit size.
+
 ## Updating The Baseline
 
 When an intentional schema change is made inside Docker MySQL:

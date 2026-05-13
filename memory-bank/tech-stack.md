@@ -210,6 +210,11 @@ from `.local/spread/pubmap/`; it does not add a separate spread directory.
 `../pzdesign/cmd/unify`; valid requests return `200 application/json` arrays of
 HTML strings, while malformed JSON, invalid direct tokens, missing slots,
 unsupported media, and cache validation failures return HTTP errors.
+`../pzdesign/cmd/unify` also handles `OPTIONS /pz` and applies permissive CORS
+headers only on `/pz`: origin `*`, methods `POST, OPTIONS`, and header
+`Content-Type`. Publisher slot pages load `../pzdesign/www/js/ads.js`; the
+script posts to the origin it was loaded from plus `/pz` unless
+`pzLoadAds(payload, {endpoint: "..."})` is used.
 
 ## Operational Commands
 
