@@ -100,6 +100,42 @@ func TestDirectPubMapValidatesAndReconstructsSupplyStrings(t *testing.T) {
 	}
 }
 
+func TestDirectPubMapOmitsInactiveAndLimitedPublishers(t *testing.T) {
+	pubmap := PubMap{
+		"active.example": {
+			PubID:  1,
+			Active: true,
+			Sites:  map[string]uint32{"active.example": 10},
+			Slots:  map[uint32]map[string]uint32{10: map[string]uint32{"slot": 100}},
+		},
+		"inactive.example": {
+			PubID:  2,
+			Active: false,
+			Sites:  map[string]uint32{"inactive.example": 20},
+			Slots:  map[uint32]map[string]uint32{20: map[string]uint32{"slot": 200}},
+		},
+		"limited.example": {
+			PubID:       3,
+			Active:      true,
+			LimitImps:   10,
+			CurrentImps: 10,
+			Sites:       map[string]uint32{"limited.example": 30},
+			Slots:       map[uint32]map[string]uint32{30: map[string]uint32{"slot": 300}},
+		},
+	}
+
+	byID := DirectPubMapFromPubMap(pubmap)
+	if byID.PubByID(1) == nil {
+		t.Fatal("active publisher missing from direct by-id lookup")
+	}
+	if byID.PubByID(2) != nil {
+		t.Fatal("inactive publisher present in direct by-id lookup")
+	}
+	if byID.PubByID(3) != nil {
+		t.Fatal("limited publisher present in direct by-id lookup")
+	}
+}
+
 func TestDirectPubPackRoundTrip(t *testing.T) {
 	pub := &Pub{
 		PubID:     42,

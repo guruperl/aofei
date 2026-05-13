@@ -20,6 +20,7 @@ var (
 	metricSSPRequests                    = expvar.NewInt("aofei_ssp_requests_total")
 	metricSSPMalformed                   = expvar.NewInt("aofei_ssp_malformed_total")
 	metricSSPValidationErrors            = expvar.NewInt("aofei_ssp_validation_errors_total")
+	metricSSPPolicyRejections            = expvar.NewInt("aofei_ssp_policy_rejections_total")
 	metricSSPFilledAdUnits               = expvar.NewInt("aofei_ssp_filled_ad_units_total")
 	metricSSPNoFillAdUnits               = expvar.NewInt("aofei_ssp_no_fill_ad_units_total")
 )

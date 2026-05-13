@@ -89,6 +89,171 @@ func TestServeSSPReturnsHTMLArrayInRequestOrder(t *testing.T) {
 	}
 }
 
+func TestServeSSPPolicyAcceptsMatchingOriginOrReferer(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers map[string]string
+	}{
+		{
+			name:    "matching origin",
+			headers: map[string]string{"Origin": "https://example.com"},
+		},
+		{
+			name:    "matching referer without origin",
+			headers: map[string]string{"Referer": "https://example.com/article/1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{
+				{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+			})
+
+			rr := serveSSPWithHeaders(t, controller, body, tt.headers)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestServeSSPPolicyRejectsBrowserHeaderFailures(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		headers  map[string]string
+	}{
+		{
+			name:    "mismatched origin",
+			headers: map[string]string{"Origin": "https://attacker.example"},
+		},
+		{
+			name:    "mismatched referer",
+			headers: map[string]string{"Referer": "https://attacker.example/page"},
+		},
+		{
+			name:    "origin null",
+			headers: map[string]string{"Origin": "null"},
+		},
+		{
+			name:    "malformed origin",
+			headers: map[string]string{"Origin": "://bad"},
+		},
+		{
+			name: "no browser headers",
+		},
+		{
+			name:     "sdk mismatched origin",
+			platform: "sdk",
+			headers:  map[string]string{"Origin": "https://attacker.example"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			body := sspRequestBodyWithPlatform(t, tt.platform, 1, 10, []sspAdUnitSpec{
+				{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+			})
+
+			rr := serveSSPWithHeaders(t, controller, body, tt.headers)
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusForbidden, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestServeSSPPolicyAllowsSDKWithoutBrowserHeaders(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBodyWithPlatform(t, "sdk", 1, 10, []sspAdUnitSpec{
+		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSPWithHeaders(t, controller, body, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("cookies = %#v, want none for sdk traffic", cookies)
+	}
+}
+
+func TestServeSSPBrowserRequestWithoutCookieSetsCookie(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{
+		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSPWithHeaders(t, controller, body, map[string]string{"Origin": "https://example.com"})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	cookies := rr.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != sspUserCookieName || !validSSPUserCookie(cookies[0].Value) {
+		t.Fatalf("Set-Cookie = %#v, want valid %s browser cookie", cookies, sspUserCookieName)
+	}
+}
+
+func TestOpenRTBFromSSPIgnoresSDKCookieAndKeepsIPUAFallback(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBodyWithPlatform(t, "sdk", 1, 10, []sspAdUnitSpec{
+		{Code: "debug-code", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1.25},
+	})
+	sspReq, err := ParseSSPRequest(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/pz", nil)
+	req.RemoteAddr = "192.0.2.55:1234"
+	req.Header.Set("User-Agent", "sdk-ua-test")
+	req.AddCookie(&http.Cookie{Name: sspUserCookieName, Value: "valid_cookie_user_123"})
+
+	rr := httptest.NewRecorder()
+	cookieUserID := controller.resolveSSPUserCookieForPlatform(rr, req, sspReq.Platform)
+	if cookieUserID != "" {
+		t.Fatalf("sdk cookie resolved user = %q, want ignored", cookieUserID)
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("sdk Set-Cookie = %#v, want none", cookies)
+	}
+
+	bid, _, _, err := controller.openRTBFromSSP(req.Context(), req, sspReq, "valid_cookie_user_123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bid.User.ID != "" || bid.User.BuyerUID != "" {
+		t.Fatalf("user = %#v, want empty user for sdk cookie", bid.User)
+	}
+	attr, err := match.NewAttributeForImp(req.Context(), nil, bid, 0, controller.local.pubByID[1].Pub, timeNowForTest(), "pub.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attr.UserID == "" {
+		t.Fatal("sdk attribute user should fall back to IP+UA when cookie is ignored")
+	}
+}
+
+func TestServeSSPPolicyRejectionDoesNotSetCookieOrPublishAudits(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	controller.audit = newAuditPublisher(nil, 10)
+	body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{
+		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSPWithHeaders(t, controller, body, map[string]string{"Origin": "https://attacker.example"})
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusForbidden, rr.Body.String())
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("cookies = %#v, want none", cookies)
+	}
+	if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+		t.Fatalf("audit messages = %#v, want none", messages)
+	}
+}
+
 func TestServeSSPPublishesSourceAuditsForFilledAndAllNoFillResponses(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -161,7 +326,11 @@ func TestServeSSPSmokeFixturesForDirectWebTagAndAppLikeAPI(t *testing.T) {
 				{Code: tt.code, SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
 			})
 
-			rr := serveSSP(t, controller, body)
+			headers := map[string]string{"Origin": "https://example.com"}
+			if tt.platform == "sdk" {
+				headers = nil
+			}
+			rr := serveSSPWithHeaders(t, controller, body, headers)
 			if rr.Code != http.StatusOK {
 				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
 			}
@@ -475,8 +644,16 @@ func directTokens(t *testing.T, pubID, siteID, slotID, sizeID uint32) (string, s
 
 func serveSSP(t *testing.T, controller *Controller, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
+	return serveSSPWithHeaders(t, controller, body, map[string]string{"Origin": "https://example.com"})
+}
+
+func serveSSPWithHeaders(t *testing.T, controller *Controller, body []byte, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/pz", bytes.NewReader(body))
 	req.RemoteAddr = "203.0.113.1:4567"
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	rr := httptest.NewRecorder()
 	controller.ServeSSP(rr, req)
 	return rr

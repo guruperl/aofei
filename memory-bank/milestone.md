@@ -786,13 +786,15 @@ Result:
   remain raw OpenRTB payloads.
 - Attribute audits include additive `source` and `contract` fields for ADX and
   SSP traffic.
-- `/pz` uses a valid `aofei_pz_uid` cookie as OpenRTB user identity when present;
-  missing or invalid cookies keep current-request serving on the existing IP+UA
-  fallback and set a best-effort cookie for later requests.
+- `/pz` uses a valid browser-only `aofei_pz_uid` cookie as OpenRTB user identity
+  when present; missing or invalid browser cookies keep current-request serving
+  on the existing IP+UA fallback and set a best-effort cookie for later browser
+  requests. `platform:"sdk"` requests do not read, set, rotate, or propagate the
+  cookie.
 - SSP markup reuses the existing signed `/imp` and `/clk` tracker path, and
   tracker `WinLoss` records aggregate through the current ledger schema.
 
-## M31 - SSP Hardening And Product Boundary `[ ]`
+## M31 - SSP Hardening And Product Boundary `[+]`
 
 Finish safety, operations, and product separation after the basic path works.
 
@@ -814,6 +816,21 @@ Acceptance:
   entrypoints.
 - Remaining advanced API/mobile/native response work is carried forward
   explicitly.
+
+Result:
+
+- `/pz` now enforces exact cached-site-host `Origin`/`Referer` policy after
+  token/cache validation and before cookies, bidding, or audit publishing.
+  Browser traffic must send a matching `Origin` or `Referer`; `platform:"sdk"`
+  may omit both headers, but any supplied header must still match.
+- Policy rejections return `403` and increment
+  `aofei_ssp_policy_rejections_total`.
+- Direct SSP remains bounded by the `/pz` entrypoint plus audit
+  `source:"ssp"`/`contract:"pz-v1"` metadata; no supply-source schema/cache
+  field, `ads.js` change, credentialed CORS, or response-format change was
+  added.
+- API/mobile/native response formats and richer supply taxonomy remain future
+  product work.
 
 ## Post-M25 Middleman Backlog
 

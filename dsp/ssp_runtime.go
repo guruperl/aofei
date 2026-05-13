@@ -25,7 +25,7 @@ const (
 	sspUserCookieMaxAge = 365 * 24 * 60 * 60
 )
 
-// ServeSSP handles the direct publisher browser JSON contract on /pz.
+// ServeSSP handles the direct publisher JSON contract on /pz.
 func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	metricSSPRequests.Add(1)
 	current := time.Now()
@@ -49,15 +49,30 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookieUserID := self.resolveSSPUserCookie(nil, r)
-	bid, pub, units, err := self.openRTBFromSSP(ctx, r, sspReq, cookieUserID)
+	pub, units, err := self.validateSSPSupply(ctx, sspReq)
 	if err != nil {
 		metricSSPValidationErrors.Add(1)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if cookieUserID == "" {
-		self.resolveSSPUserCookie(w, r)
+	if err := validateSSPRequestPolicy(r, sspReq, units); err != nil {
+		metricSSPPolicyRejections.Add(1)
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	cookieUserID := ""
+	if sspPlatformUsesBrowserCookie(sspReq.Platform) {
+		cookieUserID = self.resolveSSPUserCookieForPlatform(nil, r, sspReq.Platform)
+		if cookieUserID == "" {
+			self.resolveSSPUserCookieForPlatform(w, r, sspReq.Platform)
+		}
+	}
+	bid, err := openRTBFromValidatedSSP(r, sspReq, pub, units, cookieUserID)
+	if err != nil {
+		metricSSPValidationErrors.Add(1)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	html := make([]string, len(units))
@@ -102,22 +117,53 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req *SSPRequest, cookieUserID ...string) (*openrtb2.BidRequest, *acl.DirectPub, []SSPValidatedUnit, error) {
+	pub, units, err := self.validateSSPSupply(ctx, req)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	userID := ""
+	if len(cookieUserID) != 0 && sspPlatformUsesBrowserCookie(req.Platform) {
+		userID = cookieUserID[0]
+	}
+	bid, err := openRTBFromValidatedSSP(r, req, pub, units, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return bid, pub, units, nil
+}
+
+func (self *Controller) validateSSPSupply(ctx context.Context, req *SSPRequest) (*acl.DirectPub, []SSPValidatedUnit, error) {
 	if req == nil {
-		return nil, nil, nil, fmt.Errorf("ssp request is nil")
+		return nil, nil, fmt.Errorf("ssp request is nil")
 	}
 	pubID, _, err := acl.UnpackDirectToken(string(req.Site))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("invalid site token: %w", err)
+		return nil, nil, fmt.Errorf("invalid site token: %w", err)
 	}
 	pub, err := self.sspPubByID(ctx, pubID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	units, err := req.ValidateSupply(pub)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
+	return pub, units, nil
+}
 
+func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPub, units []SSPValidatedUnit, cookieUserID string) (*openrtb2.BidRequest, error) {
+	if req == nil {
+		return nil, fmt.Errorf("ssp request is nil")
+	}
+	if pub == nil {
+		return nil, fmt.Errorf("publisher is nil")
+	}
+	if len(units) == 0 {
+		return nil, fmt.Errorf("ssp request has no validated ad units")
+	}
+	if !sspPlatformUsesBrowserCookie(req.Platform) {
+		cookieUserID = ""
+	}
 	bid := &openrtb2.BidRequest{
 		ID:     req.ID,
 		Site:   siteFromSSP(r, pub, units[0]),
@@ -125,9 +171,9 @@ func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req
 		User:   &openrtb2.User{},
 		Imp:    make([]openrtb2.Imp, 0, len(units)),
 	}
-	if len(cookieUserID) != 0 && cookieUserID[0] != "" {
-		bid.User.ID = cookieUserID[0]
-		bid.User.BuyerUID = cookieUserID[0]
+	if cookieUserID != "" {
+		bid.User.ID = cookieUserID
+		bid.User.BuyerUID = cookieUserID
 	}
 	if bid.ID == "" {
 		bid.ID = "ssp-" + strconv.FormatInt(time.Now().UnixNano(), 36)
@@ -135,11 +181,88 @@ func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req
 	for i, unit := range units {
 		imp, err := openRTBImpFromSSPUnit(req.AdUnits[i], unit, i)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("adUnits[%d] %w", i, err)
+			return nil, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
 		bid.Imp = append(bid.Imp, imp)
 	}
-	return bid, pub, units, nil
+	return bid, nil
+}
+
+func validateSSPRequestPolicy(r *http.Request, req *SSPRequest, units []SSPValidatedUnit) error {
+	if req == nil {
+		return fmt.Errorf("ssp request is nil")
+	}
+	if len(units) == 0 {
+		return fmt.Errorf("ssp request has no validated ad units")
+	}
+	siteHost := strings.TrimSpace(units[0].SiteStr)
+	if siteHost == "" {
+		return fmt.Errorf("ssp request has no validated site host")
+	}
+
+	origins, hasOrigin, originErr := validatedSSPHeaderHosts(r, "Origin")
+	if originErr != nil {
+		return originErr
+	}
+	referers, hasReferer, refererErr := validatedSSPHeaderHosts(r, "Referer")
+	if refererErr != nil {
+		return refererErr
+	}
+	if !sspPlatformMayOmitBrowserHeaders(req.Platform) && !hasOrigin && !hasReferer {
+		return fmt.Errorf("browser SSP request requires matching Origin or Referer")
+	}
+	for _, origin := range origins {
+		if !strings.EqualFold(origin, siteHost) {
+			return fmt.Errorf("Origin host %q does not match site host %q", origin, siteHost)
+		}
+	}
+	for _, referer := range referers {
+		if !strings.EqualFold(referer, siteHost) {
+			return fmt.Errorf("Referer host %q does not match site host %q", referer, siteHost)
+		}
+	}
+	return nil
+}
+
+func sspPlatformMayOmitBrowserHeaders(platform string) bool {
+	return strings.EqualFold(strings.TrimSpace(platform), "sdk")
+}
+
+func sspPlatformUsesBrowserCookie(platform string) bool {
+	normalized := strings.TrimSpace(platform)
+	return normalized == "" || strings.EqualFold(normalized, "browser")
+}
+
+func validatedSSPHeaderHosts(r *http.Request, header string) ([]string, bool, error) {
+	if r == nil {
+		return nil, false, nil
+	}
+	values := nonEmptyHeaderValues(r.Header.Values(header))
+	if len(values) == 0 {
+		return nil, false, nil
+	}
+	hosts := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.EqualFold(value, "null") {
+			return nil, true, fmt.Errorf("%s header is not an allowed origin", header)
+		}
+		u, err := url.Parse(value)
+		if err != nil || u.Scheme == "" || u.Host == "" || u.Hostname() == "" {
+			return nil, true, fmt.Errorf("%s header must be an absolute URL", header)
+		}
+		hosts = append(hosts, u.Hostname())
+	}
+	return hosts, true, nil
+}
+
+func nonEmptyHeaderValues(values []string) []string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			filtered = append(filtered, trimmed)
+		}
+	}
+	return filtered
 }
 
 func (self *Controller) resolveSSPUserCookie(w http.ResponseWriter, r *http.Request) string {
@@ -163,6 +286,13 @@ func (self *Controller) resolveSSPUserCookie(w http.ResponseWriter, r *http.Requ
 		Secure:   self.sspCookieSecure(r),
 	})
 	return ""
+}
+
+func (self *Controller) resolveSSPUserCookieForPlatform(w http.ResponseWriter, r *http.Request, platform string) string {
+	if !sspPlatformUsesBrowserCookie(platform) {
+		return ""
+	}
+	return self.resolveSSPUserCookie(w, r)
 }
 
 func validSSPUserCookie(value string) bool {

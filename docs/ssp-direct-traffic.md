@@ -6,10 +6,12 @@ managed by the existing `pub` role. It is separate from ADX/OpenRTB traffic on
 
 M28 wires runtime serving on `POST /pz`. M29 makes publisher slot pages generate
 working browser/API samples for that runtime path. M30 adds measurement
-semantics. The handler validates packed direct SSP tokens against the
-publisher-by-id cache, converts ad units into internal OpenRTB impressions,
-serves local Aofei demand, returns a JSON array of HTML strings in request
-order, and identifies SSP traffic separately in audits.
+semantics. M31 adds browser origin/referrer enforcement and documents the
+product boundary. The handler validates packed direct SSP tokens against the
+publisher-by-id cache, enforces the browser page host against the cached site
+host, converts ad units into internal OpenRTB impressions, serves local Aofei
+demand, returns a JSON array of HTML strings in request order, and identifies
+SSP traffic separately in audits.
 
 ## V1 Browser Contract
 
@@ -124,6 +126,22 @@ Malformed JSON returns `400`, oversized bodies return `413`, and invalid direct
 tokens, missing slots, unsupported media, unknown publishers, or site/slot
 mismatches, including size mismatches, return `400`.
 
+After token and cache validation, browser requests must prove that the page host
+matches the cached site host. A request is treated as browser traffic unless
+`platform` is `sdk`. Browser requests must include at least one valid `Origin`
+or `Referer`, and every present `Origin` or `Referer` must be an absolute URL
+whose host equals the validated cached site string exactly. `Origin: null`,
+malformed URLs, missing browser headers, mismatched hosts, and subdomain
+variants return `403`. SDK requests may omit both headers, but if they include
+either header it must still match. Policy rejections do not set
+`aofei_pz_uid`, do not bid, and do not publish request, response, or attribute
+audits.
+
+The `aofei_pz_uid` cookie is part of the browser contract only. Empty or omitted
+`platform` and `platform:"browser"` requests may read an existing valid cookie
+or set a best-effort cookie for a later request. `platform:"sdk"` requests do
+not read, rotate, set, or propagate this cookie.
+
 ## Cache Lookup
 
 Existing `/bid/{domain}` traffic reads the publisher cache by route domain from
@@ -169,6 +187,10 @@ Access-Control-Allow-Methods: POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type
 ```
 
+This CORS layer stays credentialless. Preflight does not carry the direct `site`
+token body, so `OPTIONS /pz` remains permissive and the validated `POST /pz`
+policy is the serving authority.
+
 The adapter builds minimal browser metadata from HTTP headers:
 
 - `User-Agent` -> OpenRTB `device.ua`;
@@ -191,18 +213,27 @@ server endpoint from the script URL, so
 pzLoadAds(payload, { endpoint: "https://aofei.example/pz" });
 ```
 
-Cross-origin calls do not send credentials by default. M30 keeps `ads.js`
-credentialless and does not add `Access-Control-Allow-Credentials`. `/pz` sets a
-best-effort `aofei_pz_uid` cookie for browser traffic. When a later request
-returns a valid cookie value, the adapter sets synthesized OpenRTB `user.id` and
-`buyeruid` to that value. If the cookie is missing or invalid, the current
-request leaves `user` empty and continues through the existing IP+UA fallback in
-attribute extraction, so cookie absence does not block serving.
+Cross-origin browser calls do not send credentials by default. M30 keeps
+`ads.js` credentialless and does not add `Access-Control-Allow-Credentials`, so
+the browser cookie is best-effort only where the browser accepts and returns it.
+When a later browser request returns a valid cookie value, the adapter sets
+synthesized OpenRTB `user.id` and `buyeruid` to that value. If the browser
+cookie is missing or invalid, the current request leaves `user` empty and
+continues through the existing IP+UA fallback in attribute extraction, so cookie
+absence does not block serving.
 
-M28-M30 intentionally serve local Aofei demand only. They reuse the existing
+SDK and in-app requests are represented by `platform:"sdk"` in the v1 `/pz`
+contract. They are credentialless and cookie-free. The adapter leaves the
+synthesized OpenRTB `user` object empty unless a future contract adds explicit
+user or device IDs. With the current request shape, attribute extraction uses
+OpenRTB device identity if present and otherwise falls back to an MD5 of the
+request IP and user agent derived from `User-Agent`, `X-Forwarded-For`,
+`X-Real-IP`, or `RemoteAddr`.
+
+M28-M31 intentionally serve local Aofei demand only. They reuse the existing
 candidate, frequency-cap, audience, creative rendering, tracker, and audit
 paths, but do not invoke middleman fallback. `/pz` does not write MySQL, refresh
-caches, add origin allowlists/referrer enforcement, or add credentialed CORS.
+caches, add credentialed CORS, or wildcard publisher subdomains.
 
 ## Measurement And Audits
 
@@ -229,6 +260,18 @@ HTML array of empty strings, but no attribute rows because no impression served.
 Malformed or invalid-token requests return HTTP errors and do not publish SSP
 audits.
 
+## Product Boundary
+
+Direct SSP is currently identified by the `/pz` entrypoint and SSP audit
+metadata: request and response audit envelopes use `source:"ssp"` and
+`contract:"pz-v1"`, while attribute audits add the same fields. ADX/OpenRTB
+traffic remains on `/bid/{domain}` with `source:"adx"` and `contract:"openrtb"`.
+
+M31 does not add a database or cache field for publisher supply source. Richer
+supply taxonomy, API/mobile-native response formats, and non-HTML response
+contracts are future product work. The v1 browser and SDK/API examples continue
+to receive a JSON array of HTML strings.
+
 ## Publisher UI
 
 The existing `pub` role remains the publisher account boundary. Slot topics
@@ -240,5 +283,6 @@ in the browser with a Blob from the rendered sample.
 
 M29 wires publisher-facing tag generation, copy/download UI, stored slot sizes,
 external `ads.js` endpoint resolution, and permissive `/pz` CORS. M30 adds
-cookie fallback and audit/reporting semantics. Origin/referrer controls beyond
-this endpoint-limited CORS allowance belong to M31.
+cookie fallback and audit/reporting semantics. M31 hardens browser
+origin/referrer policy and documents the direct SSP source boundary without
+changing `ads.js`, schema, cache shape, or response format.

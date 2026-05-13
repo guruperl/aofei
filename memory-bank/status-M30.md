@@ -19,9 +19,13 @@ existing win/loss and ledger path without schema changes.
 
 - `[+]` Add best-effort `/pz` browser cookie handling.
   - `/pz` accepts a valid `aofei_pz_uid` cookie as OpenRTB `user.id` and
-    `buyeruid`.
-  - Missing or invalid cookies leave the current request on the existing IP+UA
-    fallback path and set or rotate a best-effort cookie for later requests.
+    `buyeruid` only for browser-cookie traffic: missing or empty `platform` and
+    `platform:"browser"`.
+  - Missing or invalid browser cookies leave the current request on the existing
+    IP+UA fallback path and set or rotate a best-effort cookie for later browser
+    requests.
+  - `platform:"sdk"` requests do not read, set, rotate, or propagate the
+    browser cookie.
   - `ads.js` remains credentialless and `/pz` CORS remains permissive but not
     credentialed; origin/referrer policy is still M31.
 

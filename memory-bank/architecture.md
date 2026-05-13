@@ -75,9 +75,15 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   overridden per call. `cmd/unify` applies permissive CORS headers only to
 	   `POST/OPTIONS /pz`.
 	   M30 identifies SSP traffic in audits with `source:"ssp"` and
-	   `contract:"pz-v1"`, uses a valid `aofei_pz_uid` cookie as browser user
-	   identity when present, and leaves missing-cookie requests on the existing
-	   IP+UA fallback path.
+	   `contract:"pz-v1"`, uses a valid browser-only `aofei_pz_uid` cookie as
+	   user identity when present, and leaves missing-cookie requests on the
+	   existing IP+UA fallback path. M31 keeps `/pz` CORS credentialless and
+	   enforces validated `POST /pz` policy instead: browser requests must send a
+	   valid `Origin` or `Referer` whose host exactly matches the cached site
+	   string, any present `Origin` or `Referer` must match, and only
+	   `platform:"sdk"` may omit both headers. SDK/in-app requests do not read,
+	   set, or propagate `aofei_pz_uid`; until a richer mobile contract exists,
+	   their identity remains the existing device-ID or UA+IP attribute fallback.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -201,8 +207,9 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP origin/referrer controls beyond permissive `/pz` CORS remain planned
-  for M31.
+- Direct SSP advanced API/mobile/native response contracts and richer supply
+  taxonomy remain future product work; M31 keeps the v1 JSON HTML-string array
+  response and identifies direct supply by `/pz` plus audit `source:"ssp"`.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

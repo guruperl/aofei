@@ -77,8 +77,14 @@ advertiser-owned endpoint and reporting schema boundary:
 	  through the existing local Aofei bid path. M29 adds publisher slot tag
 	  copy/download UI, stored slot sizes, external `ads.js` endpoint resolution,
 	  and endpoint-limited permissive `/pz` CORS. M30 adds SSP audit-source
-	  separation, best-effort browser cookies with IP+UA fallback, and ledger
-	  compatibility checks; origin/referrer hardening remains a later milestone.
+	  separation, browser-only best-effort cookies with IP+UA fallback, and
+	  ledger compatibility checks. M31 adds exact cached-site-host
+	  origin/referrer enforcement for browser traffic while keeping `/pz` CORS
+	  credentialless, keeps SDK/in-app requests cookie-free on UA+IP fallback
+	  unless a future contract adds explicit IDs, keeps `/pz` plus audit
+	  `source:"ssp"` as the current direct SSP source boundary, and leaves richer
+	  supply taxonomy or non-HTML API/mobile response formats to later
+	  milestones.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

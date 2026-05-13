@@ -218,9 +218,21 @@ headers only on `/pz`: origin `*`, methods `POST, OPTIONS`, and header
 script posts to the origin it was loaded from plus `/pz` unless
 `pzLoadAds(payload, {endpoint: "..."})` is used.
 `/pz` remains credentialless at the CORS layer. The DSP sets a best-effort
-`aofei_pz_uid` cookie for browser traffic; a returned valid cookie becomes
-OpenRTB `user.id`/`buyeruid`, while missing cookies continue through IP+UA
-fallback.
+`aofei_pz_uid` cookie only for browser-cookie traffic, meaning empty or omitted
+`platform` and `platform:"browser"` requests. A returned valid browser cookie
+becomes OpenRTB `user.id`/`buyeruid`, while missing cookies continue through
+IP+UA fallback. `platform:"sdk"` requests are cookie-free: they do not read,
+set, rotate, or propagate `aofei_pz_uid`.
+After packed token and cache validation, `POST /pz` enforces browser
+origin/referrer policy. Browser requests, including missing or empty `platform`,
+must include a valid `Origin` or `Referer` whose host exactly matches the cached
+site host, and any present `Origin` or `Referer` must match. `platform:"sdk"`
+may omit both headers, but supplied headers must still match. Rejections return
+`403` before cookies, bidding, or audit publishing and increment
+`aofei_ssp_policy_rejections_total`.
+Current SDK/in-app `/pz` requests synthesize no OpenRTB `user` unless a future
+contract adds explicit user or device IDs. Attribute extraction uses the
+existing identity precedence, including UA+IP fallback from request headers.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX request/response logs remain raw OpenRTB JSON, and
 attribute logs include additive `source`/`contract` fields.

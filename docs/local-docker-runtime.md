@@ -194,6 +194,7 @@ Expected Redis cache families after sample population:
 | Family | Shape |
 |---|---|
 | `pubmap` | Hash keyed by publisher domain. |
+| `pubmap:by-id` | Direct SSP hash keyed by numeric publisher id for `/pz` token validation. |
 | `audience` | Hash keyed by item id. |
 | `creative` | Hash keyed by creative id. |
 | `middleman:routes:v2` | Preferred M25 JSON bidder route cache; empty when no active routes exist. |
@@ -258,6 +259,25 @@ directory when the refreshed size has no nonempty slots.
 On startup, `cmd/spread` also attempts to bootstrap static spread files from
 Redis. This is best effort: if Redis or MySQL is unavailable, the receiver still
 starts and consumes live NATS cache messages.
+
+## Direct SSP `/pz`
+
+The sibling `../pzdesign/cmd/unify` serves the direct publisher SSP endpoint at
+`POST /pz`. Browser requests use packed `site` and `adUnits[].slot` tokens and
+return a JSON array of HTML strings. Redis mode validates those tokens through
+`pubmap:by-id`; local/static mode derives the same lookup from
+`.local/spread/pubmap/`.
+
+`/pz` keeps permissive, credentialless CORS for `POST` and `OPTIONS`, but the
+validated `POST` request enforces browser origin/referrer policy. Browser
+requests, including empty or omitted `platform`, must send an `Origin` or
+`Referer` whose host exactly matches the cached site host. SDK requests may omit
+both headers, but any supplied `Origin` or `Referer` must also match. Policy
+rejections return `403` before cookies, bidding, or audit publication.
+The `aofei_pz_uid` cookie is browser-only, meaning empty or omitted `platform`
+and `platform:"browser"` requests can read or set it. `platform:"sdk"` traffic
+does not read, set, or propagate that cookie and continues through the existing
+UA+IP identity fallback when no explicit device identity exists.
 
 ## Operational Commands
 

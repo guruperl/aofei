@@ -135,6 +135,18 @@ Summer/Genelet CORS is exact-origin only. `ServerURL` is allowed by default, and
 additional browser origins must be listed in `CORSOrigins`; other non-empty
 `Origin` values receive HTTP 403 before routing.
 
+Direct publisher SSP traffic is separate from Summer/Genelet admin CORS.
+`cmd/unify` handles `POST/OPTIONS /pz` with permissive, credentialless endpoint
+CORS because preflight cannot carry the direct `site` token body. Serving
+authority is the validated `POST /pz` request: after packed token and cache
+validation, browser requests must include `Origin` or `Referer` with a host that
+exactly matches the cached publisher site host. `Origin: null`, malformed URLs,
+missing browser headers, mismatched hosts, and subdomain variants return `403`
+before cookies, bidding, or audit publishing. `platform:"sdk"` may omit both
+headers, but any supplied `Origin` or `Referer` must also match. The
+`aofei_pz_uid` cookie is browser-only; SDK/in-app requests do not read or set it
+and use the existing device identity or UA+IP fallback path.
+
 ## systemd Units
 
 Example `aofei-unify.service`:
@@ -389,7 +401,8 @@ NATS requirements:
 
 The unified HTTP service exposes stdlib expvar metrics at `/debug/vars`,
 including bid/no-bid counters, audit queue drops and publish errors, middleman
-callback forwarding results, and local cache reload status.
+callback forwarding results, local cache reload status, direct SSP request
+results, and `aofei_ssp_policy_rejections_total`.
 
 `cmd/unify` publishes request, response, attribute, and win/loss events when
 NATS is enabled. `cmd/nats-client` writes those subjects to:
