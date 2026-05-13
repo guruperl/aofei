@@ -668,6 +668,113 @@ Acceptance:
 - Review fixes are implemented as focused changes with tests and verification
   recorded in `status-M26.md`.
 
+## M27 - SSP Contract And Cache Lookup Foundation `[+]`
+
+Make direct publisher SSP request identity and publisher lookup unambiguous
+before runtime serving.
+
+Scope:
+
+- Define the v1 `POST /pz` request/response contract for browser tags.
+- Keep `site` as packed `(pub_id, site_id)` and `adUnits[].slot` as packed
+  `(slot_id, size_id)`.
+- Treat `adUnits[].code` as a DOM element id only in the v1 contract.
+- Add an additive publisher cache lookup by `pub_id`, derived from `pubmap`,
+  with reverse site/slot metadata for future ACL matching.
+- Add parser and validation tests for current Pzdesign tags and historical
+  Holiday samples.
+
+Acceptance:
+
+- No `/pz` runtime serving is wired yet.
+- Direct tag tokens can be parsed and validated against cached
+  publisher/site/slot data without MySQL on the request path.
+- Existing `/bid/{domain}` behavior and cache reads remain unchanged.
+
+## M28 - SSP Runtime Adapter `[ ]`
+
+Serve direct browser ad-tag requests through the existing Aofei bid engine.
+
+Scope:
+
+- Add `dsp.Controller.ServeSSP` and wire `POST /pz` in `../pzdesign/cmd/unify`.
+- Convert valid SSP ad units into internal OpenRTB impressions.
+- Reuse the existing local bid flow for candidates, caps, audiences, creative
+  rendering, trackers, and audit publishing.
+- Return a JSON HTML-string array in input order.
+- Add SSP request, malformed, fill, no-fill, and validation expvar counters.
+
+Acceptance:
+
+- Multi-ad-unit SSP requests return renderable HTML in request order.
+- Direct SSP impressions and clicks carry real publisher, site, slot, and size
+  IDs.
+- `/pz` does not write MySQL or refresh caches.
+
+## M29 - Publisher Tag UI And Download `[ ]`
+
+Make direct publisher tags usable from the existing `pub` UI.
+
+Scope:
+
+- Fix publisher slot snippets to use an absolute Aofei endpoint.
+- Update `www/js/ads.js` to derive the ad-server origin from the script URL or
+  an explicit endpoint option.
+- Add visible tag download/link actions on publisher slot pages.
+- Align browser and API examples with the M28 request contract.
+- Keep the existing `pub` role and site/slot CRUD.
+
+Acceptance:
+
+- Publishers can copy or download a working browser tag for each slot.
+- External sites can embed the sample tag and call Aofei `/pz`.
+- Existing publisher admin tests still pass.
+
+## M30 - SSP Measurement, Cookie, And Reporting Semantics `[ ]`
+
+Make direct SSP traffic observable and compatible with existing ledgers.
+
+Scope:
+
+- Identify direct SSP traffic separately from ADX `/bid` in request, response,
+  and attribute audits.
+- Add best-effort browser user-cookie handling with IP+UA fallback.
+- Verify `/imp` and `/clk` records from SSP markup feed existing win/loss and
+  ledger inputs.
+- Add direct web tag, app-like API, partial-fill, all-no-fill, and invalid-token
+  smoke fixtures.
+- Document direct SSP measurement behavior.
+
+Acceptance:
+
+- Operators can distinguish ADX and direct SSP traffic in logs/audits.
+- Existing ledger aggregation continues without schema change unless a concrete
+  reporting gap is found.
+- Browser cookie absence does not break serving.
+
+## M31 - SSP Hardening And Product Boundary `[ ]`
+
+Finish safety, operations, and product separation after the basic path works.
+
+Scope:
+
+- Add origin/referrer policy controls for browser tags.
+- Validate token tampering, inactive inventory, mismatched size, and unsupported
+  media-type cases.
+- Decide whether publisher inventory needs an explicit supply-source field.
+- Keep browser HTML arrays as stable v1 while planning optional API/mobile
+  response formats.
+- Update production runbook, local runtime docs, memory bank status, and
+  closeout verification.
+
+Acceptance:
+
+- Direct SSP is safe to expose outside local development.
+- ADX `/bid/{domain}` and direct `/pz` are documented as separate traffic
+  entrypoints.
+- Remaining advanced API/mobile/native response work is carried forward
+  explicitly.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

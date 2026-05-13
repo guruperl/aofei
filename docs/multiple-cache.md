@@ -17,6 +17,9 @@ Redis owns shared mutable state:
 Static bid-serving data is local:
 
 - `pubmap/<domain>` publisher/site/slot routing.
+- Direct SSP derives publisher-by-id routing from `pubmap`. Redis mode also
+  publishes the additive `pubmap:by-id` hash for future `/pz` serving; local
+  mode derives the same lookup in memory and does not add a spread directory.
 - `slot/<size_id>/<slot_id>` compiled `match.RAdvs` candidates.
 - `audience/<item_id>` compiled audience predicates.
 - `creative/<creative_id>` creative metadata, trackers, landing URL, failback,
@@ -45,9 +48,9 @@ static lookups from memory.
 
 `cmd/redis-cache` now treats full refreshes as replacement operations:
 
-- Redis mode deletes `pubmap`, `audience`, `creative`, `middleman:routes:v2`,
-  legacy `middleman:routes`, and existing `slot:*` keys before repopulating
-  static cache state.
+- Redis mode deletes `pubmap`, `pubmap:by-id`, `audience`, `creative`,
+  `middleman:routes:v2`, legacy `middleman:routes`, and existing `slot:*` keys
+  before repopulating static cache state.
 - Spread mode publishes `__reset__` family subjects before publishing new
   snapshots.
 - Item-level RAdv refreshes recompute affected creative sizes from MySQL slot
@@ -66,6 +69,8 @@ static lookups from memory.
 
 - Publisher, slot candidate, audience, and creative reads are served from Go
   maps without request-path filesystem checks.
+- Direct SSP publisher-by-id reads are derived from the same publisher map in
+  memory.
 - The initial snapshot is loaded at controller startup when `is_local=true`.
 - Later refreshes use the explicit local static-cache reload hook after spread
   files have been replaced.

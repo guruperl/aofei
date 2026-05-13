@@ -1,9 +1,12 @@
 package acl
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/gob"
 	"os"
+	"strconv"
 
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
@@ -11,28 +14,53 @@ import (
 
 type PubMap map[string]*Pub
 
+type DirectPub struct {
+	Domain string
+	Pub    *Pub
+	Sites  map[uint32]string
+	Slots  map[uint32]map[uint32]string
+}
+
+type DirectPubMap map[uint32]*DirectPub
+
 // ToRedis encodes the PubMap to a byte slice and stores it in Redis
 func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
 	arr := []string{HashNamePubmap}
+	byID := []string{HashNamePubByID}
 	for k, v := range self {
 		var bs []byte
 		var err error
-		if v.Active && (v.LimitImps == 0 || v.CurrentImps < v.LimitImps) {
+		if v != nil && v.Active && (v.LimitImps == 0 || v.CurrentImps < v.LimitImps) {
 			if bs, err = v.Pack(); err == nil {
 				arr = append(arr, k, string(bs))
+			}
+			if err == nil {
+				var direct []byte
+				direct, err = NewDirectPub(k, v).Pack()
+				if err == nil {
+					byID = append(byID, strconv.FormatUint(uint64(v.PubID), 10), string(direct))
+				}
 			}
 		} else {
 			// delete old pubmap
 			err = conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubmap, k))
+			if err == nil && v != nil {
+				err = conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubByID, strconv.FormatUint(uint64(v.PubID), 10)))
+			}
 		}
 		if err != nil {
 			return err
 		}
 	}
-	if len(arr) == 1 {
-		return nil
+	if len(arr) > 1 {
+		if err := conn.Do(ctx, radix.Cmd(nil, "HMSET", arr...)); err != nil {
+			return err
+		}
 	}
-	return conn.Do(ctx, radix.Cmd(nil, "HMSET", arr...))
+	if len(byID) > 1 {
+		return conn.Do(ctx, radix.Cmd(nil, "HMSET", byID...))
+	}
+	return nil
 }
 
 // ToSpread encodes the PubMap to a byte slice and publish it to nats
@@ -75,6 +103,124 @@ func PubMapFromRedis(ctx context.Context, conn radix.Client) (PubMap, error) {
 }
 
 var HashNamePubmap = "pubmap"
+
+var HashNamePubByID = "pubmap:by-id"
+
+func NewDirectPub(domain string, pub *Pub) *DirectPub {
+	direct := &DirectPub{
+		Domain: domain,
+		Pub:    pub,
+		Sites:  make(map[uint32]string),
+		Slots:  make(map[uint32]map[uint32]string),
+	}
+	if pub == nil {
+		return direct
+	}
+	for siteStr, siteID := range pub.Sites {
+		if _, ok := direct.Sites[siteID]; !ok {
+			direct.Sites[siteID] = siteStr
+		}
+	}
+	for siteID, slots := range pub.Slots {
+		if direct.Slots[siteID] == nil {
+			direct.Slots[siteID] = make(map[uint32]string)
+		}
+		for slotStr, slotID := range slots {
+			if _, ok := direct.Slots[siteID][slotID]; !ok {
+				direct.Slots[siteID][slotID] = slotStr
+			}
+		}
+	}
+	return direct
+}
+
+func DirectPubMapFromPubMap(pubmap PubMap) DirectPubMap {
+	if pubmap == nil {
+		return nil
+	}
+	byID := make(DirectPubMap)
+	for domain, pub := range pubmap {
+		if pub == nil || !pub.Active || (pub.LimitImps != 0 && pub.CurrentImps >= pub.LimitImps) {
+			continue
+		}
+		byID[pub.PubID] = NewDirectPub(domain, pub)
+	}
+	return byID
+}
+
+func (self *DirectPub) Pack() ([]byte, error) {
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(self)
+	return buf.Bytes(), err
+}
+
+func UnpackDirectPub(data []byte) (*DirectPub, error) {
+	var pub DirectPub
+	err := gob.NewDecoder(bytes.NewReader(data)).Decode(&pub)
+	return &pub, err
+}
+
+func (self *DirectPub) Validate(siteID, slotID uint32) (string, string, bool) {
+	if self == nil || self.Pub == nil {
+		return "", "", false
+	}
+	siteStr, ok := self.Sites[siteID]
+	if !ok {
+		return "", "", false
+	}
+	slots := self.Slots[siteID]
+	if slots == nil {
+		return "", "", false
+	}
+	slotStr, ok := slots[slotID]
+	if !ok {
+		return "", "", false
+	}
+	return siteStr, slotStr, true
+}
+
+func (self DirectPubMap) PubByID(pubID uint32) *DirectPub {
+	if self == nil {
+		return nil
+	}
+	return self[pubID]
+}
+
+func PubByIDFromRedis(ctx context.Context, conn radix.Client, pubID uint32) (*DirectPub, error) {
+	var bs []byte
+	err := conn.Do(ctx, radix.Cmd(&bs, "HGET", HashNamePubByID, strconv.FormatUint(uint64(pubID), 10)))
+	if err == nil && len(bs) > 2 {
+		return UnpackDirectPub(bs)
+	}
+	return nil, err
+}
+
+func DirectPubMapFromRedis(ctx context.Context, conn radix.Client) (DirectPubMap, error) {
+	arr := make([]string, 0)
+	err := conn.Do(ctx, radix.Cmd(&arr, "HGETALL", HashNamePubByID))
+	if err != nil {
+		return nil, err
+	}
+	if len(arr) == 0 {
+		return nil, nil
+	}
+	if len(arr)%2 != 0 {
+		return nil, sql.ErrNoRows
+	}
+	byID := make(DirectPubMap)
+	for i := 0; i < len(arr); i += 2 {
+		pubID64, err := strconv.ParseUint(arr[i], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		pub, err := UnpackDirectPub([]byte(arr[i+1]))
+		if err != nil {
+			return nil, err
+		}
+		byID[uint32(pubID64)] = pub
+	}
+	return byID, nil
+}
 
 // PubMapFromIO retrieves the PubMap from IO
 func PubMapFromIO(top string) (PubMap, error) {

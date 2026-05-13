@@ -1,0 +1,118 @@
+package acl
+
+import (
+	"encoding/base32"
+	"testing"
+)
+
+func TestDirectTokenMatchesHistoricalSamples(t *testing.T) {
+	tests := []struct {
+		token string
+		x     uint32
+		y     uint32
+	}{
+		{token: "AAAACAH774AAA", x: 65536, y: 65535},
+		{token: "AAAACAAUAMAAA", x: 65536, y: 788},
+		{token: "AAAACAH677776", x: 65536, y: 4294967294},
+		{token: "CUBQAAH774AAA", x: 789, y: 65535},
+	}
+
+	for _, tt := range tests {
+		x, y, err := UnpackDirectToken(tt.token)
+		if err != nil {
+			t.Fatalf("UnpackDirectToken(%q): %v", tt.token, err)
+		}
+		if x != tt.x || y != tt.y {
+			t.Fatalf("UnpackDirectToken(%q) = %d, %d; want %d, %d", tt.token, x, y, tt.x, tt.y)
+		}
+		packed, err := PackDirectToken(x, y)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if packed != tt.token {
+			t.Fatalf("PackDirectToken(%d, %d) = %q, want %q", x, y, packed, tt.token)
+		}
+	}
+}
+
+func TestUnpackDirectTokenRejectsMalformedLengths(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{
+			name:  "short",
+			token: base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte{1, 2, 3, 4}),
+		},
+		{
+			name:  "long",
+			token: base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9}),
+		},
+		{
+			name:  "invalid-base32",
+			token: "not valid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, _, err := UnpackDirectToken(tt.token); err == nil {
+				t.Fatalf("UnpackDirectToken(%q) succeeded, want error", tt.token)
+			}
+		})
+	}
+}
+
+func TestDirectPubMapValidatesAndReconstructsSupplyStrings(t *testing.T) {
+	pub := &Pub{
+		PubID:  42,
+		Active: true,
+		Sites:  map[string]uint32{"example.com": 7},
+		Slots: map[uint32]map[string]uint32{
+			7: map[string]uint32{"leaderboard": 99},
+		},
+	}
+
+	byID := DirectPubMapFromPubMap(PubMap{"pub.example": pub})
+	direct := byID.PubByID(42)
+	if direct == nil {
+		t.Fatal("direct publisher lookup is nil")
+	}
+	if direct.Domain != "pub.example" {
+		t.Fatalf("domain = %q, want pub.example", direct.Domain)
+	}
+	siteStr, slotStr, ok := direct.Validate(7, 99)
+	if !ok {
+		t.Fatal("expected direct supply to validate")
+	}
+	if siteStr != "example.com" || slotStr != "leaderboard" {
+		t.Fatalf("reverse strings = %q, %q; want example.com, leaderboard", siteStr, slotStr)
+	}
+	if _, _, ok := direct.Validate(7, 100); ok {
+		t.Fatal("wrong slot validated")
+	}
+	if _, _, ok := direct.Validate(8, 99); ok {
+		t.Fatal("wrong site validated")
+	}
+}
+
+func TestDirectPubPackRoundTrip(t *testing.T) {
+	pub := &Pub{
+		PubID:  42,
+		Active: true,
+		Sites:  map[string]uint32{"example.com": 7},
+		Slots:  map[uint32]map[string]uint32{7: map[string]uint32{"leaderboard": 99}},
+	}
+	direct := NewDirectPub("pub.example", pub)
+	data, err := direct.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := UnpackDirectPub(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Pub.PubID != 42 || got.Sites[7] != "example.com" || got.Slots[7][99] != "leaderboard" {
+		t.Fatalf("round trip = %#v", got)
+	}
+}

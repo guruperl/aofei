@@ -32,12 +32,13 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 2. `etc/step4_init.sql` initializes the active MySQL schema and baseline data.
 3. `etc/demand.sql` plus `go run ./etc pub` can load sample local demand and
    publisher data.
-4. The cache job reads MySQL through `dsp.Config`, builds `PubMap`, `RAdv`,
-   audience, creative, and Redis-only middleman route caches, discovers active
-   creative size IDs from the schema, then replaces Redis cache entries or
-   publishes spread/NATS reset and snapshot messages. It runs through standalone
-   `cmd/redis-cache`; `cmd/unify` does not run cache refreshers. Route-only
-   middleman cache publication is available through
+4. The cache job reads MySQL through `dsp.Config`, builds `PubMap`, the derived
+   direct-SSP publisher-by-id lookup, `RAdv`, audience, creative, and
+   Redis-only middleman route caches, discovers active creative size IDs from
+   the schema, then replaces Redis cache entries or publishes spread/NATS reset
+   and snapshot messages. It runs through standalone `cmd/redis-cache`;
+   `cmd/unify` does not run cache refreshers. Route-only middleman cache
+   publication is available through
    `cmd/redis-cache -cache=routes`. `cmd/spread` must be running when spread
    messages should become `.local/spread/` file snapshots; on startup it
    best-effort bootstraps those snapshots from Redis when Redis and MySQL are
@@ -58,6 +59,10 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    signed by token and store selected-bid context in Redis. Native click links
    use `/clk` as a tracking redirect with a direct advertiser fallback; banner
    creatives opt into the same redirect through `{CLICK_URL}`.
+   Direct publisher SSP traffic is planned as a separate `POST /pz` entrypoint.
+   M27 defines the contract and cache lookup only: `site` packs `(pub_id,
+   site_id)`, `adUnits[].slot` packs `(slot_id, size_id)`, and the browser DOM
+   `code` is not trusted as supply identity. `/pz` serving is not wired yet.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -153,6 +158,13 @@ frequency caps, uploaded audience sets, and future counters. Frequency-cap
 tracker updates keep the `bothcap:<user_id>` hash and binary `BothCap` payload,
 but refresh through Redis optimistic transactions to avoid concurrent lost
 updates.
+Direct SSP uses an additive `pubmap:by-id` Redis hash derived from `pubmap`.
+The value includes publisher domain, the active publisher object, and reverse
+site/slot metadata so a future `/pz` request can validate packed direct tag
+tokens and reconstruct site and slot strings for ACL matching without a MySQL
+read. Local/static mode derives the same lookup from the loaded `pubmap`
+snapshot in memory; `/bid/{domain}` continues to read the existing domain-keyed
+publisher cache.
 
 ## Database Boundary
 
@@ -173,6 +185,8 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
+- Direct SSP runtime serving, cookie handling, origin/referrer controls,
+  reporting semantics, and publisher tag download UI are planned for M28-M31.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

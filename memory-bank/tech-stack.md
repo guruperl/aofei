@@ -196,13 +196,16 @@ Do not run a Redis cache refresher from every `unify` node. When spread mode is
 used, keep `cmd/spread` running on nodes whose local disk snapshots should be
 updated from NATS messages.
 
-Expected Redis cache families are `pubmap`, `audience`, `creative`,
-`middleman:routes:v2`, fallback-only legacy `middleman:routes`, and
+Expected Redis cache families are `pubmap`, additive direct-SSP
+`pubmap:by-id`, `audience`, `creative`, `middleman:routes:v2`,
+fallback-only legacy `middleman:routes`, and
 `slot:<size_id>` hashes keyed by slot id. Expected spread directories are
 `.local/spread/pubmap/`, `.local/spread/audience/`,
 `.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
 Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
+Direct SSP local/static serving derives its by-publisher-id lookup in memory
+from `.local/spread/pubmap/`; it does not add a separate spread directory.
 
 ## Operational Commands
 

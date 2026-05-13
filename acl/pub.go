@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/mediocregopher/radix/v4"
@@ -91,9 +92,19 @@ func (self *Pub) ToRedis(ctx context.Context, conn radix.Client, domain string) 
 		if err != nil {
 			return err
 		}
-		return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubmap, domain, string(bs)))
+		if err := conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubmap, domain, string(bs))); err != nil {
+			return err
+		}
+		direct, err := NewDirectPub(domain, self).Pack()
+		if err != nil {
+			return err
+		}
+		return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubByID, strconv.FormatUint(uint64(self.PubID), 10), string(direct)))
 	}
-	return conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubmap, domain))
+	if err := conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubmap, domain)); err != nil {
+		return err
+	}
+	return conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubByID, strconv.FormatUint(uint64(self.PubID), 10)))
 }
 
 // ToSpread put Pub to spread
