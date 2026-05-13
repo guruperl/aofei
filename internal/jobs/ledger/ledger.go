@@ -45,6 +45,46 @@ type IntervalResult struct {
 	Skipped bool
 }
 
+type StatisticsResult struct {
+	Slots     map[uint32][2]uint32
+	Creatives map[uint32][3]uint32
+	Imps      map[uint32]map[uint32]int
+	Clis      map[uint32]map[uint32]int
+	Spend     map[uint32]map[uint32]float32
+	Middleman map[middlemanLedgerKey]*middlemanLedgerStats
+}
+
+type middlemanLedgerKey struct {
+	BidderID      uint32
+	GroupID       uint32
+	RouteBidderID uint32
+	TargetID      uint32
+	AdvID         uint32
+	CampaignID    uint32
+	ItemID        uint32
+	CreativeID    uint32
+	PubID         uint32
+	SiteID        uint32
+	SlotID        uint32
+}
+
+type middlemanLedgerStats struct {
+	Wins             int
+	Losses           int
+	Imps             int
+	Clis             int
+	ChargeSpend      float64
+	PaySpend         float64
+	MarginSpend      float64
+	ForwardOK        int
+	ForwardDuplicate int
+	ForwardMissing   int
+	ForwardError     int
+	ForwardHTTPError int
+	ForwardInvalid   int
+	ForwardNone      int
+}
+
 func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
 	if interval <= 0 {
 		return nil, fmt.Errorf("ledger interval must be positive")
@@ -159,16 +199,25 @@ func Every(ctx context.Context, every time.Duration, run func(context.Context)) 
 }
 
 func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, map[uint32]map[uint32]int, map[uint32]map[uint32]int, map[uint32]map[uint32]float32, error) {
+	stats, err := self.StatisticsAll()
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	return stats.Slots, stats.Creatives, stats.Imps, stats.Clis, stats.Spend, nil
+}
+
+func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 	imps := make(map[uint32]map[uint32]int)
 	clis := make(map[uint32]map[uint32]int)
 	spes := make(map[uint32]map[uint32]float32)
+	middleman := make(map[middlemanLedgerKey]*middlemanLedgerStats)
 
 	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.Current)
 	fh, err := os.Open(name)
 	if err != nil && os.IsNotExist(err) {
-		return nil, nil, nil, nil, nil, &MissingInputError{Path: name}
+		return StatisticsResult{}, &MissingInputError{Path: name}
 	} else if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return StatisticsResult{}, err
 	}
 	defer fh.Close()
 
@@ -180,8 +229,9 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 	for scanner.Scan() {
 		var wl dsp.WinLoss
 		if err := json.Unmarshal(scanner.Bytes(), &wl); err != nil {
-			return nil, nil, nil, nil, nil, err
+			return StatisticsResult{}, err
 		}
+		aggregateMiddlemanLedger(middleman, wl)
 		slotID := wl.RPub.SlotID
 		creativeID := wl.RAdv.CreativeID
 		var found bool
@@ -210,22 +260,110 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return StatisticsResult{}, err
 	}
 
-	return slots, creatives, imps, clis, spes, nil
+	return StatisticsResult{
+		Slots:     slots,
+		Creatives: creatives,
+		Imps:      imps,
+		Clis:      clis,
+		Spend:     spes,
+		Middleman: middleman,
+	}, nil
 }
 
 func (self *Ledger) StatisticsToLedger() error {
-	slots, creatives, imps, clis, spes, err := self.Statistics()
+	stats, err := self.StatisticsAll()
 	if err != nil {
 		return err
 	}
 	myDay := self.Active.Format("2006-01-02 15:04:05")
-	return insertLedger(self.DB, myDay, slots, creatives, imps, clis, spes)
+	return insertLedger(self.DB, myDay, stats)
 }
 
-func insertLedger(db *sql.DB, myDay string, slots map[uint32][2]uint32, creatives map[uint32][3]uint32, imps, clis map[uint32]map[uint32]int, spes map[uint32]map[uint32]float32) error {
+func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, wl dsp.WinLoss) {
+	if wl.Middleman == nil {
+		return
+	}
+	meta := wl.Middleman
+	key := middlemanLedgerKey{
+		BidderID:      meta.BidderID,
+		GroupID:       meta.GroupID,
+		RouteBidderID: meta.RouteBidderID,
+		TargetID:      meta.TargetID,
+		AdvID:         wl.RAdv.AdvID,
+		CampaignID:    wl.RAdv.CampaignID,
+		ItemID:        wl.RAdv.ItemID,
+		CreativeID:    wl.RAdv.CreativeID,
+		PubID:         wl.RPub.PubID,
+		SiteID:        wl.RPub.SiteID,
+		SlotID:        wl.RPub.SlotID,
+	}
+	stats := out[key]
+	if stats == nil {
+		stats = &middlemanLedgerStats{}
+		out[key] = stats
+	}
+	if middlemanForwardStatusCounts(wl.Status, meta.Source) {
+		stats.addForwardStatus(meta.ForwardStatus)
+	}
+	switch wl.Status {
+	case dsp.StatusWin:
+		if meta.ForwardStatus != "duplicate" {
+			stats.Wins++
+		}
+	case dsp.StatusLoss:
+		if meta.ForwardStatus != "duplicate" {
+			stats.Losses++
+		}
+	case dsp.StatusTrackImp:
+		stats.Imps++
+		stats.ChargeSpend += meta.ChargePrice
+		stats.PaySpend += meta.PayPrice
+		margin := meta.ChargePrice - meta.PayPrice
+		if margin < 0 {
+			margin = 0
+		}
+		stats.MarginSpend += margin
+	case dsp.StatusTrackClk:
+		stats.Clis++
+	}
+}
+
+func middlemanForwardStatusCounts(status dsp.Status, source string) bool {
+	switch status {
+	case dsp.StatusWin, dsp.StatusLoss:
+		return true
+	case dsp.StatusTrackImp:
+		return source == "bill"
+	default:
+		return false
+	}
+}
+
+func (s *middlemanLedgerStats) addForwardStatus(status string) {
+	switch status {
+	case "ok":
+		s.ForwardOK++
+	case "duplicate":
+		s.ForwardDuplicate++
+	case "missing":
+		s.ForwardMissing++
+	case "http_error":
+		s.ForwardHTTPError++
+	case "invalid_url":
+		s.ForwardInvalid++
+	case "none":
+		s.ForwardNone++
+	case "", "error", "request_error":
+		s.ForwardError++
+	default:
+		s.ForwardError++
+	}
+}
+
+func insertLedger(db *sql.DB, myDay string, stats StatisticsResult) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -236,6 +374,14 @@ func insertLedger(db *sql.DB, myDay string, slots map[uint32][2]uint32, creative
 	insPub := `INSERT INTO ledger_pub (log_id, slot_id, site_id, pub_id) VALUES (?,?,?,?)`
 	insAdv := `INSERT INTO ledger_adv (log_id, creative_id, item_id, campaign_id, adv_id) VALUES (?,?,?,?,?)`
 	insPubAdv := `INSERT INTO ledger_pub_adv (lp_id, la_id, imps, clis, spend) VALUES (?,?,?,?,?)`
+	insMid := `
+INSERT INTO ledger_mid (
+	log_id, bidder_id, group_id, route_bidder_id, target_id,
+	adv_id, campaign_id, item_id, creative_id, pub_id, site_id, slot_id,
+	wins, losses, imps, clis, charge_spend, pay_spend, margin_spend,
+	forward_ok, forward_duplicate, forward_missing, forward_error,
+	forward_http_error, forward_invalid, forward_none
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	updPub := `UPDATE ledger_pub lp
 INNER JOIN (
 	SELECT pa.lp_id AS lp_id, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, SUM(pa.spend) AS spend
@@ -269,7 +415,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		return err
 	}
 
-	for slotID, ids := range slots {
+	for slotID, ids := range stats.Slots {
 		var lpID int64
 		if res, err = tx.Exec(insPub, logID, slotID, ids[0], ids[1]); err != nil {
 			return err
@@ -280,7 +426,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		lpIds[slotID] = lpID
 	}
 
-	for creativeID, ids := range creatives {
+	for creativeID, ids := range stats.Creatives {
 		var laID int64
 		if res, err = tx.Exec(insAdv, logID, creativeID, ids[0], ids[1], ids[2]); err != nil {
 			return err
@@ -296,9 +442,9 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	ss := float32(0)
 	for slotID, lpID := range lpIds {
 		for creativeID, laID := range laIds {
-			i, ok1 := imps[slotID][creativeID]
-			c, ok2 := clis[slotID][creativeID]
-			s, ok3 := spes[slotID][creativeID]
+			i, ok1 := stats.Imps[slotID][creativeID]
+			c, ok2 := stats.Clis[slotID][creativeID]
+			s, ok3 := stats.Spend[slotID][creativeID]
 			if !ok1 && !ok2 && !ok3 {
 				continue
 			}
@@ -308,6 +454,19 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			is += i
 			cs += c
 			ss += s
+		}
+	}
+
+	for key, value := range stats.Middleman {
+		if _, err = tx.Exec(insMid,
+			logID, key.BidderID, key.GroupID, key.RouteBidderID, key.TargetID,
+			key.AdvID, key.CampaignID, key.ItemID, key.CreativeID, key.PubID, key.SiteID, key.SlotID,
+			value.Wins, value.Losses, value.Imps, value.Clis,
+			value.ChargeSpend, value.PaySpend, value.MarginSpend,
+			value.ForwardOK, value.ForwardDuplicate, value.ForwardMissing, value.ForwardError,
+			value.ForwardHTTPError, value.ForwardInvalid, value.ForwardNone,
+		); err != nil {
+			return err
 		}
 	}
 
@@ -393,6 +552,36 @@ INNER JOIN daily_log ldp ON (dp.log_id=ldp.log_id)
 INNER JOIN daily_adv da ON (tmp.creative_id=da.creative_id)
 INNER JOIN daily_log lda ON (da.log_id=lda.log_id)
 WHERE ldp.daily=? AND lda.daily=?`
+	insMid := `
+INSERT INTO daily_mid (
+	log_id, bidder_id, group_id, route_bidder_id, target_id,
+	adv_id, campaign_id, item_id, creative_id, pub_id, site_id, slot_id,
+	wins, losses, imps, clis, charge_spend, pay_spend, margin_spend,
+	forward_ok, forward_duplicate, forward_missing, forward_error,
+	forward_http_error, forward_invalid, forward_none
+)
+SELECT dl.log_id, tmp.bidder_id, tmp.group_id, tmp.route_bidder_id, tmp.target_id,
+	tmp.adv_id, tmp.campaign_id, tmp.item_id, tmp.creative_id, tmp.pub_id, tmp.site_id, tmp.slot_id,
+	tmp.wins, tmp.losses, tmp.imps, tmp.clis, tmp.charge_spend, tmp.pay_spend, tmp.margin_spend,
+	tmp.forward_ok, tmp.forward_duplicate, tmp.forward_missing, tmp.forward_error,
+	tmp.forward_http_error, tmp.forward_invalid, tmp.forward_none
+FROM (
+	SELECT DATE(l.timely) AS daily,
+		m.bidder_id, m.group_id, m.route_bidder_id, m.target_id,
+		m.adv_id, m.campaign_id, m.item_id, m.creative_id, m.pub_id, m.site_id, m.slot_id,
+		SUM(m.wins) AS wins, SUM(m.losses) AS losses, SUM(m.imps) AS imps, SUM(m.clis) AS clis,
+		SUM(m.charge_spend) AS charge_spend, SUM(m.pay_spend) AS pay_spend, SUM(m.margin_spend) AS margin_spend,
+		SUM(m.forward_ok) AS forward_ok, SUM(m.forward_duplicate) AS forward_duplicate,
+		SUM(m.forward_missing) AS forward_missing, SUM(m.forward_error) AS forward_error,
+		SUM(m.forward_http_error) AS forward_http_error, SUM(m.forward_invalid) AS forward_invalid,
+		SUM(m.forward_none) AS forward_none
+	FROM ledger_mid m
+	INNER JOIN ledger_log l USING (log_id)
+	WHERE DATE(l.timely)=?
+	GROUP BY daily, m.bidder_id, m.group_id, m.route_bidder_id, m.target_id,
+		m.adv_id, m.campaign_id, m.item_id, m.creative_id, m.pub_id, m.site_id, m.slot_id
+) tmp
+INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -410,6 +599,9 @@ WHERE ldp.daily=? AND lda.daily=?`
 		return err
 	}
 	if _, err := tx.Exec(insPubAdv, myDay, myDay, myDay); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(insMid, myDay); err != nil {
 		return err
 	}
 

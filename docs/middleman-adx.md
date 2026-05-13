@@ -23,9 +23,9 @@ and margin settings. Secrets are not stored in MySQL;
 
 Each `adv_bidder` may reference synthetic campaign, item, and creative rows.
 Those rows are reporting identities, not normal local demand. They let existing
-ledger and advertiser reports roll up spend, impressions, clicks, and publisher
-breakdowns through the current `adv_campaign`, `adv_item`, `adv_creative`,
-`ledger_adv`, and `daily_adv` joins.
+ledger joins preserve charge-side delivery through `adv_campaign`, `adv_item`,
+`adv_creative`, `ledger_adv`, and `daily_adv`. M22 adds middleman-specific
+ledger tables for pay-side advertiser reporting and admin settlement views.
 
 Operator tooling must ensure the synthetic IDs form one chain owned by the same
 advertiser: `adv_bidder.adv_id -> adv_campaign.adv_id`,
@@ -79,6 +79,8 @@ The middleman tables are:
 | `mid_route_group` | Operator-defined fallback group with timeout and margin defaults. |
 | `mid_route_bidder` | Active bidders in a route group with optional overrides. |
 | `mid_route_target` | Route assignment to global, publisher, site, slot, and optional size. |
+| `ledger_mid` | Interval middleman reporting facts from callback metadata. |
+| `daily_mid` | Daily middleman reporting facts aggregated from `ledger_mid`. |
 
 Route targets may point at existing publisher entities: `3=pub`,
 `31=pub_site`, and `32=pub_slot`; `NULL` means global.
@@ -156,9 +158,15 @@ margin_cpm = upstream returned bid price - downstream bid price
 
 Downstream callbacks receive the net payable price in their
 `${AUCTION_PRICE}` macro. Winloss logs store charge price in the existing
-`RAdv.Cost` field so the current ledger can count charge-side CPM delivery, and
+`RAdv.Cost` field so the legacy ledger can count charge-side CPM delivery, and
 store downstream bid, upstream bid, pay price, margin, callback source, and
-forward status in middleman metadata for M22 reporting.
+forward status in middleman metadata.
+
+M22 consumes that metadata in `cmd/ledger`. `ledger_mid` and `daily_mid`
+preserve bidder, route, synthetic demand, and publisher dimensions. Advertiser
+middleman reports show pay-side spend. Admin reports show charge spend, pay
+spend, margin, win/loss counts, billable impressions, clicks, and callback
+forward health.
 
 Forwarded requests still preserve the full original impression list and add
 cooperative click notify URLs under `ext.aofei_middleman.click_notify_urls`.
@@ -177,5 +185,5 @@ markup.
   per-impression fallback auction integration after local no-bid.
 - M21: callback proxying, cooperative click notify, audit, and charge/pay price
   reconciliation.
-- M22: advertiser and operator reporting using synthetic campaign/item/creative
-  rows.
+- M22: advertiser pay-side reports and admin charge/pay/margin settlement views
+  from middleman callback metadata.

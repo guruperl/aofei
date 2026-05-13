@@ -91,7 +91,8 @@ subjects.
 
 ## Ledger Inputs
 
-`cmd/ledger` reads `log_winloss/winloss.<stamp>`. It aggregates only:
+`cmd/ledger` reads `log_winloss/winloss.<stamp>`. The legacy ledger tables
+aggregate only:
 
 - `StatusTrackImp` as impressions and spend.
 - `StatusTrackClk` as clicks.
@@ -107,7 +108,14 @@ the synthetic campaign/item/creative chain. If no downstream `burl` exists,
 `/mid/win` publishes the billable `StatusTrackImp` fallback once. Middleman
 winloss records also include optional metadata for downstream bid price,
 upstream bid price, charge price, pay price, margin, callback source, and
-downstream forward status; M22 reporting will consume that metadata.
+downstream forward status.
+
+M22 reporting consumes `WinLoss.Middleman` into `ledger_mid` and `daily_mid`.
+For middleman rows, `StatusTrackImp` contributes billable impressions,
+charge/pay/margin spend, `StatusTrackClk` contributes clicks, and
+`StatusWin`/`StatusLoss` contribute admin audit counts without becoming spend.
+Advertiser-facing middleman spend is pay-side spend; admin reports expose
+charge, pay, and margin.
 
 ## Known Measurement Gaps
 

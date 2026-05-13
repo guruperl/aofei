@@ -199,7 +199,9 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to
 ```
 
 Run ledger from the node where `cmd/nats-client` aggregates log files. Do not
-run ledger on every `unify` node.
+run ledger on every `unify` node. When middleman callback metadata is present,
+ledger also fills `ledger_mid` and `daily_mid`; advertiser reports use pay-side
+spend, while admin reports expose charge, pay, and margin.
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and

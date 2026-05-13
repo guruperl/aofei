@@ -47,7 +47,8 @@ reporting.
 
 ## Carry Forward
 
-- `[ ]` Advertiser/operator reporting using middleman price metadata remains M22.
+- `[+]` Advertiser/operator reporting using middleman price metadata completed
+  in M22.
 - `[ ]` Spread/local snapshots for bidder routes remain deferred; middleman
   routes are still Redis-only runtime cache data.
 - `[ ]` Arbitrary downstream markup impression/click rewrite remains out of

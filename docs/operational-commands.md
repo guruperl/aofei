@@ -156,7 +156,10 @@ Outputs:
 
 - Interval rows in `ledger_log`, `ledger_pub`, `ledger_adv`, and
   `ledger_pub_adv`.
+- Middleman interval rows in `ledger_mid` when win/loss records include
+  `WinLoss.Middleman` metadata.
 - Daily rows in `daily_log`, `daily_pub`, `daily_adv`, and `daily_pub_adv`.
+- Middleman daily rows in `daily_mid`.
 - Balance counters updated from the inserted ledger rows.
 
 Notes:
@@ -165,6 +168,8 @@ Notes:
   not create a zero ledger row for an absent source file.
 - Interval and daily writes run inside transactions.
 - Demand dimensions are counted by `creative_id`.
+- Middleman advertiser reports use pay-side spend. Admin settlement reports use
+  charge spend, pay spend, and margin from callback metadata.
 
 Ledger should run only on the node where `cmd/nats-client` aggregates
 `log_winloss/winloss.<stamp>` files. Do not run it on every `unify` node.

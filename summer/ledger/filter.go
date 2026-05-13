@@ -12,13 +12,13 @@ type Filter struct {
 }
 
 func (self *Filter) GetAll() (map[string][]string, []string) {
-	who := self.RoleValue
-	if who == "pub" {
+	switch self.RoleValue {
+	case "pub":
 		self.Fks = map[string][]string{"pub": {"pub_id", ""}}
-	} else if who == "adv" {
+	case "adv":
 		self.Fks = map[string][]string{"adv": {"adv_id", ""}}
-	} else {
-		self.Fks = map[string][]string{"pub": {"campaign_id", "campaign_md5"}}
+	default:
+		self.Fks = nil
 	}
 
 	return self.Filter.GetAll()
@@ -33,7 +33,12 @@ func (self *Filter) Preset() error {
 	action := self.Action
 	//who := self.RoleValue
 
-	if summer.Grep([]string{"topicsAdv24Hours", "topicsAdvTopItems", "topicsAdvTopSlots", "topicsPub24Hours", "topicsPubTopSlots", "topicsPubTopCampaigns"}, action) {
+	if summer.Grep([]string{
+		"topicsAdv24Hours", "topicsAdvTopItems", "topicsAdvTopSlots",
+		"topicsPub24Hours", "topicsPubTopSlots", "topicsPubTopCampaigns",
+		"topicsMid24Hours", "topicsMidTopBidders", "topicsMidTopSlots",
+		"topicsMidTopRoutes", "topicsMidTopPublishers",
+	}, action) {
 		if ARGS.Get("day") == "" {
 			day_time := time.Now().AddDate(0, 0, -1).String()
 			ARGS.Set("day", day_time[0:10])

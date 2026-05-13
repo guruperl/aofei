@@ -1,13 +1,18 @@
 {
   "actions": {
-	    "editPub": {"groups":["pub"],"validate":["pub_id"]},
+      "editPub": {"groups":["pub"],"validate":["pub_id"]},
       "topicsAdv24Hours" : {"groups":["adv"],"validate":["adv_id"]},
       "topicsAdvTopItems": {"groups":["adv"],"validate":["adv_id"]},
       "topicsAdvTopSlots": {"groups":["adv"],"validate":["adv_id"]},
       "topicsPub24Hours" : {"groups":["pub"],"validate":["pub_id"]},
       "topicsPubTopSlots": {"groups":["pub"],"validate":["pub_id"]},
       "topicsPubTopCampaigns": {"groups":["pub"],"validate":["pub_id"]},
-	    "editAdv": {"groups":["adv"],"validate":["adv_id"]}
+      "topicsMid24Hours" : {"groups":["admin","adv"]},
+      "topicsMidTopBidders": {"groups":["admin","adv"]},
+      "topicsMidTopSlots": {"groups":["adv"],"validate":["adv_id"]},
+      "topicsMidTopRoutes": {"groups":["admin"]},
+      "topicsMidTopPublishers": {"groups":["admin"]},
+      "editAdv": {"groups":["adv"],"validate":["adv_id"]}
   },
 
   "nextpages" : {

@@ -55,7 +55,9 @@
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
-   input remains retryable command input.
+   input remains retryable command input. Middleman callback metadata also
+   populates `ledger_mid` and `daily_mid` for advertiser pay-side reports and
+   admin settlement views.
 8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
    regenerates the configured MaxMind runtime JSON without loading the existing
    geodata file first.
@@ -74,8 +76,8 @@ create Redis callback context under `middleman:cb:<token>` and return signed
 `/mid/win`, `/mid/loss`, and optional `/mid/bill` URLs. `burl` is the preferred
 billable event and win is the billable fallback only when no `burl` exists.
 Downstream callbacks receive net payable auction prices; Aofei logs charge-side
-prices through the synthetic chain. Reporting integration remains a future
-milestone.
+prices through the synthetic chain and middleman-specific charge/pay/margin
+facts through `ledger_mid` and `daily_mid`.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the

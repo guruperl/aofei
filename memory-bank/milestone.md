@@ -539,3 +539,27 @@ Acceptance:
 - Billable middleman events are idempotent per selected bid.
 - Downstream callbacks receive net payable `${AUCTION_PRICE}` values.
 - Arbitrary `adm` rewrite and advertiser/operator reporting remain later work.
+
+## M22 - Middleman Reporting And Settlement Views `[+]`
+
+Turn M21 callback facts into advertiser and operator reporting.
+
+Scope:
+
+- Add middleman-specific interval and daily ledger tables.
+- Extend `cmd/ledger` to aggregate `WinLoss.Middleman` charge, pay, margin,
+  route, bidder, synthetic demand, publisher, win/loss, billable impression,
+  click, and callback health facts.
+- Add advertiser Summer/Genelet reports that show pay-side middleman spend by
+  hour, bidder, and slot.
+- Add admin Summer/Genelet reports that show charge, pay, margin, route,
+  bidder, publisher, and callback health views.
+
+Acceptance:
+
+- Existing local campaign ledger semantics remain unchanged.
+- Advertiser middleman reports are scoped to the logged-in advertiser and do not
+  expose charge or margin fields.
+- Admin reports expose charge/pay/margin and route dimensions.
+- Bid fanout, callback proxying, durable callback retries, and arbitrary markup
+  rewriting remain unchanged.

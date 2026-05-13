@@ -113,6 +113,11 @@ to exchange callback latency expectations. Each active bidder
 value must be a JSON object of outbound HTTP headers. Do not put those header
 values in MySQL, Redis, or checked-in config files.
 
+Middleman reporting depends on `cmd/ledger` running on the node with the
+complete `log_winloss` stream. Advertiser middleman reports use pay-side spend
+from `daily_mid`; admin settlement reports use charge, pay, and margin from
+`daily_mid`.
+
 Summer/Genelet CORS is exact-origin only. `ServerURL` is allowed by default, and
 additional browser origins must be listed in `CORSOrigins`; other non-empty
 `Origin` values receive HTTP 403 before routing.
@@ -375,7 +380,8 @@ log_winloss/winloss.<stamp>
 `cmd/ledger` consumes `winloss.<stamp>` files. Missing files are retryable input
 errors, not successful empty intervals. Run interval ledger jobs after the
 matching log rotation window closes, then run daily jobs after interval jobs for
-that day are complete.
+that day are complete. When middleman fallback is enabled, these jobs also fill
+`ledger_mid` and `daily_mid` from middleman callback metadata.
 
 Use standalone `cmd/ledger` for targeted replays with explicit `-timestamp`
 values.

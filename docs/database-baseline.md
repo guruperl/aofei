@@ -84,7 +84,7 @@ After `reset && load`, the expected inventory is:
 
 | Object/data | Count |
 |---|---:|
-| Base tables | 54 |
+| Base tables | 56 |
 | Views | 1 |
 | Stored routines | 6 |
 | Triggers | 18 |
@@ -96,9 +96,9 @@ After `reset && load`, the expected inventory is:
 Middleman AdX schema is present but starts empty. `adv_bidder` stores
 advertiser-owned OpenRTB endpoint metadata and optional synthetic
 campaign/item/creative reporting IDs. `mid_route_*` tables store
-operator-controlled fallback route configuration. The M17 Summer portal can
-create/edit bidder metadata and admin approval can populate inactive synthetic
-reporting rows, but DSP runtime fanout is still disabled.
+operator-controlled fallback route configuration. `ledger_mid` and `daily_mid`
+store middleman callback-derived reporting facts for advertiser pay-side reports
+and admin charge/pay/margin settlement views.
 
 ## Updating The Baseline
 
