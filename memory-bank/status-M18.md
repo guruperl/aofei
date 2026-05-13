@@ -23,11 +23,17 @@ pages there.
   - Added admin bidder `.g` pages for topics, edit, update, and approve.
   - Added bidder navigation links to advertiser and admin sidebars.
 
-## Deferred
+- `[+]` Best-effort `.e` cleanup in `pzdesign`.
+  - English template variants now parse with the sibling template checker.
+  - `.e` templates remain secondary variants, not the primary runtime surface.
 
-- `[ ]` `.e` template cleanup and validation.
-  - `.e` templates are intentionally out of scope for M18.
-  - Known example: `pub/pub/dashboard.e` references `$item` before declaring it.
+- `[+]` Public asset pruning in `pzdesign`.
+  - Removed unused demo/test pages, unused JavaScript/vendor assets, and
+    checked-in upload payloads from the public `www/` tree.
+  - Added `tools/check-templates.go` in `pzdesign` for `.g` and `.e`
+    `html/template` parse checks.
+
+## Deferred
 
 - `[ ]` Page-by-page escaping audit.
   - `html/template` auto-escapes output. Existing pages that intentionally
@@ -45,6 +51,8 @@ pages there.
 - `[+]` `./scripts/aofei-doc-check.sh`
 - `[+]` `git diff --check`
 - `[+]` `git diff --check` in `../pzdesign`
+- `[+]` `go run ./tools/check-templates.go -ext=.g` in `../pzdesign`
+- `[+]` `go run ./tools/check-templates.go -ext=.e` in `../pzdesign`
 
 Exploratory `GOWORK=off staticcheck ./genelet` still reports the known
 pre-existing Genelet findings recorded in earlier milestones; it is not used as

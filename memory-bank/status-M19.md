@@ -24,14 +24,18 @@ node.
   - No cache or ledger scheduler runs inside `cmd/unify`.
   - UI and ADX HTTP service nodes do not need per-node cache/ledger job config.
 
-## Deferred
+- `[+]` Singleton operational placement.
+  - Redis cache refresh remains a singleton cron/timer job on one dedicated
+    cache-maintenance node, not an embedded `unify` job.
+  - Ledger remains a singleton cron/timer job on the log aggregation node where
+    the complete `log_winloss/winloss.<stamp>` stream is available, not an
+    embedded `unify` job.
+  - `cmd/nats-client` runs as a separate systemd service from `cmd/unify`.
+  - `cmd/spread` remains a separate service only on nodes that need spread disk
+    snapshots.
 
-- `[ ]` Redis cache refresh remains a singleton cron/timer job on one dedicated
-  node, not an embedded `unify` job.
-- `[ ]` Ledger remains a singleton cron/timer job on the log aggregation node,
-  not an embedded `unify` job.
-- `[ ]` `cmd/nats-client`, `cmd/spread`, and `cmd/winloss` remain separate
-  commands.
+## Carry Forward
+
 - `[ ]` Middleman bidder runtime moves to M20.
 
 ## Verification

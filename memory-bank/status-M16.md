@@ -36,7 +36,7 @@ behavior yet.
 
 - `[+]` Build the Summer/Genelet bidder portal and admin approval backend in
   M17.
-- `[ ]` Complete Summer template modernization in M18.
+- `[+]` Complete Summer template modernization in M18.
 - `[ ]` Build route cache, synthetic-item eligibility checks, downstream OpenRTB
   fanout client, and fallback auction behavior in M20.
 - `[ ]` Add callback proxying, audit, operations, and advertiser reporting

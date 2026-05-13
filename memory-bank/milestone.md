@@ -453,7 +453,8 @@ Scope:
 
 - Use `../pzdesign/tmpls` for Summer HTML templates and `../pzdesign/www` for
   static UI assets in generated local config.
-- Keep `.g` templates in scope and defer `.e` cleanup.
+- Keep `.g` templates as the primary runtime surface; keep `.e` variants
+  parse-clean where practical.
 - Convert Genelet HTML, login, error, and mail template rendering to
   `html/template`.
 - Add advertiser and admin bidder `.g` pages to `pzdesign/tmpls`.
@@ -465,7 +466,8 @@ Acceptance:
   `html/template`.
 - Bidder advertiser/admin pages render in tests against the sibling template
   tree when it is present.
-- Existing `.e` template cleanup is explicitly deferred.
+- Existing `.e` variants are parse-clean as best-effort coverage but remain
+  secondary to the active `.g` templates.
 
 ## M19 - Maintenance Job Package Refactor `[+]`
 
