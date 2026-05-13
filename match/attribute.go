@@ -113,6 +113,10 @@ func getIFA(device *openrtb2.Device) string {
 			ifa = device.DIDSHA1
 		case device.DIDMD5 != "":
 			ifa = device.DIDMD5
+		case device.DPIDSHA1 != "":
+			ifa = device.DPIDSHA1
+		case device.DPIDMD5 != "":
+			ifa = device.DPIDMD5
 		case device.MACSHA1 != "":
 			ifa = device.MACSHA1
 		case device.MACMD5 != "":

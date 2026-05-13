@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
+	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 type SSPSiteToken string
@@ -28,10 +30,14 @@ func (self *SSPSiteToken) UnmarshalJSON(data []byte) error {
 }
 
 type SSPRequest struct {
-	ID       string       `json:"id,omitempty"`
-	Platform string       `json:"platform,omitempty"`
-	Site     SSPSiteToken `json:"site"`
-	AdUnits  []SSPAdUnit  `json:"adUnits"`
+	ID             string           `json:"id,omitempty"`
+	Platform       string           `json:"platform,omitempty"`
+	ResponseFormat string           `json:"responseFormat,omitempty"`
+	Site           SSPSiteToken     `json:"site"`
+	App            *openrtb2.App    `json:"app,omitempty"`
+	Device         *openrtb2.Device `json:"device,omitempty"`
+	User           *openrtb2.User   `json:"user,omitempty"`
+	AdUnits        []SSPAdUnit      `json:"adUnits"`
 }
 
 type SSPAdUnit struct {
@@ -118,7 +124,26 @@ func ParseSSPRequest(data []byte) (*SSPRequest, error) {
 	if len(req.AdUnits) == 0 {
 		return nil, fmt.Errorf("ssp request has no adUnits")
 	}
+	if _, err := req.NormalizedResponseFormat(); err != nil {
+		return nil, err
+	}
 	return req, nil
+}
+
+func (self *SSPRequest) NormalizedResponseFormat() (string, error) {
+	if self == nil {
+		return "", fmt.Errorf("ssp request is nil")
+	}
+	format := strings.ToLower(strings.TrimSpace(self.ResponseFormat))
+	if format == "" {
+		format = "html"
+	}
+	switch format {
+	case "html", "json", "openrtb":
+		return format, nil
+	default:
+		return "", fmt.Errorf("unsupported responseFormat %q", self.ResponseFormat)
+	}
 }
 
 func (self SSPAdUnit) legacySlotToken() string {

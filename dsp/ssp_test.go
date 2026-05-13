@@ -92,6 +92,38 @@ func TestParseSSPRequestCurrentPzdesignSample(t *testing.T) {
 	}
 }
 
+func TestParseSSPRequestSDKOpenRTBLikeFields(t *testing.T) {
+	req, err := ParseSSPRequest([]byte(`{
+		"id": "sdk-req",
+		"platform": "sdk",
+		"responseFormat": "openrtb",
+		"site": "AAAACAH774AAA",
+		"app": {"bundle": "example.com"},
+		"device": {"ifa": "ifa-123", "ua": "sdk-agent"},
+		"user": {"id": "user-123", "buyeruid": "buyer-123"},
+		"adUnits": [{
+			"code": "sdk-unit",
+			"slot": "AAAACAAUAMAAA",
+			"mediaTypes": {"banner": {"size": [300, 250]}}
+		}]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Platform != "sdk" || req.ResponseFormat != "openrtb" {
+		t.Fatalf("request contract = %#v", req)
+	}
+	if req.App == nil || req.App.Bundle != "example.com" {
+		t.Fatalf("app = %#v", req.App)
+	}
+	if req.Device == nil || req.Device.IFA != "ifa-123" || req.Device.UA != "sdk-agent" {
+		t.Fatalf("device = %#v", req.Device)
+	}
+	if req.User == nil || req.User.ID != "user-123" || req.User.BuyerUID != "buyer-123" {
+		t.Fatalf("user = %#v", req.User)
+	}
+}
+
 func TestParseSSPRequestLegacyHolidaySample(t *testing.T) {
 	req, err := ParseSSPRequest([]byte(legacyHolidaySSPSample))
 	if err != nil {

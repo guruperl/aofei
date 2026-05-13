@@ -7,11 +7,12 @@ managed by the existing `pub` role. It is separate from ADX/OpenRTB traffic on
 M28 wires runtime serving on `POST /pz`. M29 makes publisher slot pages generate
 working browser/API samples for that runtime path. M30 adds measurement
 semantics. M31 adds browser origin/referrer enforcement and documents the
-product boundary. The handler validates packed direct SSP tokens against the
+product boundary. M32 adds mobile/API request fields and explicit JSON/OpenRTB
+response formats. The handler validates packed direct SSP tokens against the
 publisher-by-id cache, enforces the browser page host against the cached site
 host, converts ad units into internal OpenRTB impressions, serves local Aofei
-demand, returns a JSON array of HTML strings in request order, and identifies
-SSP traffic separately in audits.
+demand, renders the requested response shape, and identifies SSP traffic
+separately in audits.
 
 ## V1 Browser Contract
 
@@ -55,6 +56,7 @@ Request fields:
 {
   "id": "optional-request-id",
   "platform": "browser",
+  "responseFormat": "html",
   "site": "AAAACAH774AAA",
   "adUnits": [
     {
@@ -92,21 +94,59 @@ Supported `mediaTypes` keys for the v1 contract are `banner`, `video`, and
 OpenRTB banner, video, or native impression.
 
 Valid requests always return `200 application/json` with one string per input
-ad unit. No-fill units are represented by `""` at the matching array position:
+ad unit when `responseFormat` is omitted or `"html"`. No-fill units are
+represented by `""` at the matching array position:
 
 ```json
 ["<iframe ...></iframe><img ...>", ""]
 ```
 
-API examples on publisher slot pages show the same request shape and the same
-HTML-string array response shape:
+`responseFormat:"json"` returns one object per input ad unit:
+
+```json
+[
+  {
+    "filled": true,
+    "adm": "<iframe ...></iframe>",
+    "impressionUrl": "https://aofei.example/imp?...",
+    "clickUrl": "https://aofei.example/clk?...",
+    "price": 1.2,
+    "currency": "USD",
+    "adId": "10000",
+    "campaignId": "10",
+    "creativeId": "10000",
+    "width": 300,
+    "height": 250
+  },
+  {
+    "filled": false
+  }
+]
+```
+
+Native fills include a parsed `native` object alongside `adm`.
+`responseFormat:"openrtb"` returns an OpenRTB `BidResponse`; all-no-fill
+requests still return `200` with an empty `seatbid`.
+
+API examples on publisher slot pages use the SDK JSON response shape:
 
 ```text
 POST https://aofei.example/pz
 
 {
   "platform": "sdk",
+  "responseFormat": "json",
   "site": "AAAACAH774AAA",
+  "app": {
+    "bundle": "example.com"
+  },
+  "device": {
+    "ifa": "00000000-0000-0000-0000-000000000000",
+    "ua": "ExampleSDK/1.0"
+  },
+  "user": {
+    "id": "example-user-id"
+  },
   "adUnits": [{
     "code": "pz-slot-13",
     "slot": "AAAACAAUAMAAA",
@@ -119,7 +159,19 @@ POST https://aofei.example/pz
 }
 
 Response:
-["<iframe ...></iframe>"]
+[{
+  "filled": true,
+  "adm": "<iframe ...></iframe>",
+  "impressionUrl": "https://aofei.example/imp?...",
+  "clickUrl": "https://aofei.example/clk?...",
+  "price": 1.2,
+  "currency": "USD",
+  "adId": "10000",
+  "campaignId": "10",
+  "creativeId": "10000",
+  "width": 300,
+  "height": 250
+}]
 ```
 
 Malformed JSON returns `400`, oversized bodies return `413`, and invalid direct
@@ -223,14 +275,16 @@ continues through the existing IP+UA fallback in attribute extraction, so cookie
 absence does not block serving.
 
 SDK and in-app requests are represented by `platform:"sdk"` in the v1 `/pz`
-contract. They are credentialless and cookie-free. The adapter leaves the
-synthesized OpenRTB `user` object empty unless a future contract adds explicit
-user or device IDs. With the current request shape, attribute extraction uses
-OpenRTB device identity if present and otherwise falls back to an MD5 of the
-request IP and user agent derived from `User-Agent`, `X-Forwarded-For`,
-`X-Real-IP`, or `RemoteAddr`.
+contract. They are credentialless and cookie-free. SDK requests may include
+OpenRTB-like `app`, `device`, and `user` objects. The adapter synthesizes
+OpenRTB `app` and leaves `site` empty. The validated cache-derived site string
+is authoritative for app identity; any supplied `app.id`, `app.bundle`, or
+`app.domain` must be empty or exactly match it. Body `device` IDs such as `ifa`,
+`didmd5`, `didsha1`, `dpidmd5`, and `dpidsha1` feed the normal attribute
+identity path, with HTTP headers used as fallback for IP, user agent, and
+language. Body `user.id` and `buyeruid` are honored for SDK requests only.
 
-M28-M31 intentionally serve local Aofei demand only. They reuse the existing
+M28-M32 intentionally serve local Aofei demand only. They reuse the existing
 candidate, frequency-cap, audience, creative rendering, tracker, and audit
 paths, but do not invoke middleman fallback. `/pz` does not write MySQL, refresh
 caches, add credentialed CORS, or wildcard publisher subdomains.
@@ -255,8 +309,9 @@ NATS/log audit payloads distinguish entrypoints:
   use `source:"adx", contract:"openrtb"`; SSP rows use
   `source:"ssp", contract:"pz-v1"`.
 
-Valid all-no-fill SSP requests still publish request and response audits with an
-HTML array of empty strings, but no attribute rows because no impression served.
+Valid all-no-fill SSP requests still publish request and response audits with the
+actual selected response format, but no attribute rows because no impression
+served.
 Malformed or invalid-token requests return HTTP errors and do not publish SSP
 audits.
 
@@ -267,10 +322,9 @@ metadata: request and response audit envelopes use `source:"ssp"` and
 `contract:"pz-v1"`, while attribute audits add the same fields. ADX/OpenRTB
 traffic remains on `/bid/{domain}` with `source:"adx"` and `contract:"openrtb"`.
 
-M31 does not add a database or cache field for publisher supply source. Richer
-supply taxonomy, API/mobile-native response formats, and non-HTML response
-contracts are future product work. The v1 browser and SDK/API examples continue
-to receive a JSON array of HTML strings.
+M32 does not add a database or cache field for publisher supply source. Richer
+supply taxonomy and separate SSP account/schema boundaries remain future ADR
+work.
 
 ## Publisher UI
 
@@ -284,5 +338,7 @@ in the browser with a Blob from the rendered sample.
 M29 wires publisher-facing tag generation, copy/download UI, stored slot sizes,
 external `ads.js` endpoint resolution, and permissive `/pz` CORS. M30 adds
 cookie fallback and audit/reporting semantics. M31 hardens browser
-origin/referrer policy and documents the direct SSP source boundary without
-changing `ads.js`, schema, cache shape, or response format.
+origin/referrer policy and documents the direct SSP source boundary. M32 adds
+SDK `app`/`device`/`user` parsing and explicit `"html"`, `"json"`, and
+`"openrtb"` response formats without changing `ads.js`, schema, cache shape, or
+account roles.

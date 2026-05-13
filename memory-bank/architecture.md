@@ -82,8 +82,13 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   valid `Origin` or `Referer` whose host exactly matches the cached site
 	   string, any present `Origin` or `Referer` must match, and only
 	   `platform:"sdk"` may omit both headers. SDK/in-app requests do not read,
-	   set, or propagate `aofei_pz_uid`; until a richer mobile contract exists,
-	   their identity remains the existing device-ID or UA+IP attribute fallback.
+	   set, or propagate `aofei_pz_uid`. M32 lets SDK requests include
+	   OpenRTB-like `app`, `device`, and `user` objects, synthesizes
+	   `BidRequest.App` from the validated cached site string, rejects supplied
+	   app id/bundle/domain mismatches, honors SDK body user IDs, merges body
+	   device identity with header IP/UA fallback, and renders explicit
+	   `responseFormat:"json"` fill objects or `"openrtb"` `BidResponse`
+	   payloads while preserving omitted/`"html"` browser array responses.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -207,9 +212,10 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP advanced API/mobile/native response contracts and richer supply
-  taxonomy remain future product work; M31 keeps the v1 JSON HTML-string array
-  response and identifies direct supply by `/pz` plus audit `source:"ssp"`.
+- Direct SSP richer supply taxonomy remains future product work; M32 keeps the
+  `/pz` plus audit `source:"ssp"` supply boundary and adds mobile/API JSON and
+  OpenRTB response contracts without schema, cache-shape, or account-role
+  changes.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

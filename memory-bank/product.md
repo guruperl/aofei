@@ -80,11 +80,14 @@ advertiser-owned endpoint and reporting schema boundary:
 	  separation, browser-only best-effort cookies with IP+UA fallback, and
 	  ledger compatibility checks. M31 adds exact cached-site-host
 	  origin/referrer enforcement for browser traffic while keeping `/pz` CORS
-	  credentialless, keeps SDK/in-app requests cookie-free on UA+IP fallback
-	  unless a future contract adds explicit IDs, keeps `/pz` plus audit
-	  `source:"ssp"` as the current direct SSP source boundary, and leaves richer
-	  supply taxonomy or non-HTML API/mobile response formats to later
-	  milestones.
+	  credentialless and keeps `/pz` plus audit `source:"ssp"` as the current
+	  direct SSP source boundary. M32 adds
+	  mobile/API serving on the same `/pz` and `pub` boundary by accepting
+	  SDK `app`, `device`, and `user` objects, honoring explicit
+	  `responseFormat:"json"` and `"openrtb"` outputs, and preserving omitted or
+	  `"html"` browser responses as the existing ordered HTML-string array.
+	  Richer supply taxonomy remains an ADR milestone rather than runtime schema
+	  work.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

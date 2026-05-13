@@ -13,6 +13,7 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
+	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
@@ -235,6 +236,83 @@ func TestOpenRTBFromSSPIgnoresSDKCookieAndKeepsIPUAFallback(t *testing.T) {
 	}
 }
 
+func TestOpenRTBFromSSPSDKSynthesizesAppDeviceUserAndNoCookie(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBodyWithFields(t, sspRequestBodyWithPlatform(t, "sdk", 1, 10, []sspAdUnitSpec{
+		{Code: "sdk-unit", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	}), map[string]any{
+		"app": map[string]any{
+			"id":     "example.com",
+			"bundle": "example.com",
+			"domain": "example.com",
+			"name":   "Example App",
+		},
+		"device": map[string]any{
+			"ifa":     "ifa-sdk-123",
+			"didmd5":  "did-md5",
+			"dpidmd5": "dpid-md5",
+		},
+		"user": map[string]any{
+			"id":       "user-sdk-123",
+			"buyeruid": "buyer-sdk-123",
+		},
+	})
+	sspReq, err := ParseSSPRequest(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/pz", nil)
+	req.RemoteAddr = "192.0.2.55:1234"
+	req.Header.Set("User-Agent", "sdk-header-agent")
+	req.AddCookie(&http.Cookie{Name: sspUserCookieName, Value: "valid_cookie_user_123"})
+	rr := httptest.NewRecorder()
+	if got := controller.resolveSSPUserCookieForPlatform(rr, req, sspReq.Platform); got != "" {
+		t.Fatalf("sdk cookie resolved user = %q, want ignored", got)
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("sdk Set-Cookie = %#v, want none", cookies)
+	}
+
+	bid, _, _, err := controller.openRTBFromSSP(req.Context(), req, sspReq, "valid_cookie_user_123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bid.Site != nil || bid.App == nil {
+		t.Fatalf("site/app = %#v/%#v, want app-only SDK request", bid.Site, bid.App)
+	}
+	if bid.App.ID != "example.com" || bid.App.Bundle != "example.com" || bid.App.Domain != "example.com" || bid.App.Name != "Example App" {
+		t.Fatalf("app = %#v", bid.App)
+	}
+	if bid.Device.IFA != "ifa-sdk-123" || bid.Device.DIDMD5 != "did-md5" || bid.Device.DPIDMD5 != "dpid-md5" || bid.Device.UA != "sdk-header-agent" || bid.Device.IP != "192.0.2.55" {
+		t.Fatalf("device = %#v", bid.Device)
+	}
+	if bid.User.ID != "user-sdk-123" || bid.User.BuyerUID != "buyer-sdk-123" {
+		t.Fatalf("user = %#v", bid.User)
+	}
+	attr, err := match.NewAttributeForImp(req.Context(), nil, bid, 0, controller.local.pubByID[1].Pub, timeNowForTest(), "pub.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attr.UserID != "buyer-sdk-123" || attr.IFA != "ifa-sdk-123" || !attr.IsApp {
+		t.Fatalf("attr identity = user %q ifa %q isApp %v", attr.UserID, attr.IFA, attr.IsApp)
+	}
+}
+
+func TestServeSSPRejectsSDKAppIdentityMismatch(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBodyWithFields(t, sspRequestBodyWithPlatform(t, "sdk", 1, 10, []sspAdUnitSpec{
+		{Code: "sdk-unit", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	}), map[string]any{
+		"app": map[string]any{"bundle": "other.example"},
+	})
+
+	rr := serveSSPWithHeaders(t, controller, body, nil)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
 func TestServeSSPPolicyRejectionDoesNotSetCookieOrPublishAudits(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	controller.audit = newAuditPublisher(nil, 10)
@@ -388,6 +466,79 @@ func TestServeSSPPartialFillReturnsEmptyString(t *testing.T) {
 	}
 	if len(html) != 2 || html[0] == "" || html[1] != "" {
 		t.Fatalf("html = %#v, want first fill and second no-fill", html)
+	}
+}
+
+func TestServeSSPJSONResponseReturnsFillObjectsAndNative(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBodyWithFields(t, sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+		{Code: "native-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Native: true, Floor: 1},
+		{Code: "unit-two", SlotID: 200, SizeID: match.SizeID2To1(320, 50), Banner: true, Floor: 100},
+	}), map[string]any{"responseFormat": "json"})
+
+	rr := serveSSP(t, controller, body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	var response []sspJSONAdUnitResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response) != 2 {
+		t.Fatalf("json response len = %d, want 2", len(response))
+	}
+	if !response[0].Filled || response[0].AdM == "" || len(response[0].Native) == 0 || response[0].ImpressionURL == "" || response[0].ClickURL == "" {
+		t.Fatalf("filled native response = %#v", response[0])
+	}
+	if response[0].Price <= 0 || response[0].Currency != "USD" || response[0].CampaignID != "10" || response[0].CreativeID != "10000" || response[0].AdID != "10000" || response[0].Width != 300 || response[0].Height != 250 {
+		t.Fatalf("filled metadata response = %#v", response[0])
+	}
+	if response[1].Filled || response[1].AdM != "" || len(response[1].Native) != 0 {
+		t.Fatalf("no-fill response = %#v, want filled false only", response[1])
+	}
+}
+
+func TestServeSSPOpenRTBResponseReturnsBidResponseAndEmptySeatBidOnNoFill(t *testing.T) {
+	tests := []struct {
+		name       string
+		floor      float64
+		wantFilled bool
+	}{
+		{name: "filled", floor: 1, wantFilled: true},
+		{name: "all no fill", floor: 100, wantFilled: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			body := sspRequestBodyWithFields(t, sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+				{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: tt.floor},
+			}), map[string]any{"responseFormat": "openrtb"})
+
+			rr := serveSSP(t, controller, body)
+			if rr.Code != http.StatusOK {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+			}
+			var response openrtb2.BidResponse
+			if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.ID != "ssp-test" || response.Cur != "USD" {
+				t.Fatalf("response identity = %#v", response)
+			}
+			if !tt.wantFilled {
+				if len(response.SeatBid) != 0 {
+					t.Fatalf("seatbid = %#v, want empty no-fill response", response.SeatBid)
+				}
+				return
+			}
+			if len(response.SeatBid) != 1 || response.SeatBid[0].Seat != "10" || len(response.SeatBid[0].Bid) != 1 {
+				t.Fatalf("seatbid = %#v", response.SeatBid)
+			}
+			bid := response.SeatBid[0].Bid[0]
+			if bid.ImpID != "unit-one" || bid.AdM == "" || bid.CID != "10" || bid.CrID != "10000" || bid.AdID != "10000" || bid.W != 300 || bid.H != 250 {
+				t.Fatalf("bid = %#v", bid)
+			}
+		})
 	}
 }
 
@@ -621,6 +772,22 @@ func sspRequestBodyWithPlatform(t *testing.T, platform string, pubID, siteID uin
 	}
 	if platform != "" {
 		payload["platform"] = platform
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func sspRequestBodyWithFields(t *testing.T, body []byte, fields map[string]any) []byte {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range fields {
+		payload[key] = value
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

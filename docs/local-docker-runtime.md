@@ -264,9 +264,11 @@ starts and consumes live NATS cache messages.
 
 The sibling `../pzdesign/cmd/unify` serves the direct publisher SSP endpoint at
 `POST /pz`. Browser requests use packed `site` and `adUnits[].slot` tokens and
-return a JSON array of HTML strings. Redis mode validates those tokens through
-`pubmap:by-id`; local/static mode derives the same lookup from
-`.local/spread/pubmap/`.
+omitted or `responseFormat:"html"` requests return a JSON array of HTML
+strings. `responseFormat:"json"` returns ordered fill/no-fill objects, and
+`responseFormat:"openrtb"` returns an OpenRTB `BidResponse`. Redis mode
+validates those tokens through `pubmap:by-id`; local/static mode derives the
+same lookup from `.local/spread/pubmap/`.
 
 `/pz` keeps permissive, credentialless CORS for `POST` and `OPTIONS`, but the
 validated `POST` request enforces browser origin/referrer policy. Browser
@@ -276,8 +278,10 @@ both headers, but any supplied `Origin` or `Referer` must also match. Policy
 rejections return `403` before cookies, bidding, or audit publication.
 The `aofei_pz_uid` cookie is browser-only, meaning empty or omitted `platform`
 and `platform:"browser"` requests can read or set it. `platform:"sdk"` traffic
-does not read, set, or propagate that cookie and continues through the existing
-UA+IP identity fallback when no explicit device identity exists.
+does not read, set, or propagate that cookie. SDK requests may include body
+`app`, `device`, and `user` objects; the validated cached site string is the
+authoritative app identity, body device/user identity is honored, and headers
+remain fallback for IP and user agent.
 
 ## Operational Commands
 

@@ -48,6 +48,12 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	responseFormat, err := sspReq.NormalizedResponseFormat()
+	if err != nil {
+		metricSSPMalformed.Add(1)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	pub, units, err := self.validateSSPSupply(ctx, sspReq)
 	if err != nil {
@@ -75,31 +81,16 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	html := make([]string, len(units))
-	audits := make([]bidAudit, 0, len(units))
-	for impIndex := range bid.Imp {
-		dspBid, audit, err := self.bidForImp(ctx, bid, pub.Pub, current, pub.Domain, impIndex)
-		if err != nil {
-			continue
-		}
-		winloss := dspBid.WinLoss(StatusBid)
-		rspBid, err := dspBid.NewBid(winloss)
-		if err != nil {
-			continue
-		}
-		html[impIndex] = rspBid.AdM
-		audits = append(audits, audit)
-	}
-
-	for _, value := range html {
-		if value == "" {
+	results, audits := self.localSSPBidResults(ctx, bid, pub, current)
+	for _, result := range results {
+		if !result.Filled {
 			metricSSPNoFillAdUnits.Add(1)
 		} else {
 			metricSSPFilledAdUnits.Add(1)
 		}
 	}
 
-	rawResponse, err := json.Marshal(html)
+	rawResponse, err := renderSSPResponse(responseFormat, bid, results)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -166,12 +157,25 @@ func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPu
 	}
 	bid := &openrtb2.BidRequest{
 		ID:     req.ID,
-		Site:   siteFromSSP(r, pub, units[0]),
 		Device: deviceFromSSPHeaders(r),
 		User:   &openrtb2.User{},
 		Imp:    make([]openrtb2.Imp, 0, len(units)),
 	}
-	if cookieUserID != "" {
+	if sspPlatformIsSDK(req.Platform) {
+		app, err := appFromSSP(req.App, pub, units[0])
+		if err != nil {
+			return nil, err
+		}
+		bid.App = app
+		bid.Device = deviceFromSSP(r, req.Device)
+		if req.User != nil {
+			user := *req.User
+			bid.User = &user
+		}
+	} else {
+		bid.Site = siteFromSSP(r, pub, units[0])
+	}
+	if cookieUserID != "" && !sspPlatformIsSDK(req.Platform) {
 		bid.User.ID = cookieUserID
 		bid.User.BuyerUID = cookieUserID
 	}
@@ -186,6 +190,161 @@ func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPu
 		bid.Imp = append(bid.Imp, imp)
 	}
 	return bid, nil
+}
+
+type sspBidResult struct {
+	Filled        bool
+	Bid           openrtb2.Bid
+	Seat          string
+	ImpressionURL string
+	ClickURL      string
+}
+
+type sspJSONAdUnitResponse struct {
+	Filled        bool            `json:"filled"`
+	AdM           string          `json:"adm,omitempty"`
+	Native        json.RawMessage `json:"native,omitempty"`
+	ImpressionURL string          `json:"impressionUrl,omitempty"`
+	ClickURL      string          `json:"clickUrl,omitempty"`
+	Price         float64         `json:"price,omitempty"`
+	Currency      string          `json:"currency,omitempty"`
+	AdID          string          `json:"adId,omitempty"`
+	CampaignID    string          `json:"campaignId,omitempty"`
+	CreativeID    string          `json:"creativeId,omitempty"`
+	Width         int64           `json:"width,omitempty"`
+	Height        int64           `json:"height,omitempty"`
+}
+
+func (self *Controller) localSSPBidResults(ctx context.Context, bid *openrtb2.BidRequest, pub *acl.DirectPub, current time.Time) ([]sspBidResult, []bidAudit) {
+	results := make([]sspBidResult, len(bid.Imp))
+	audits := make([]bidAudit, 0, len(bid.Imp))
+	for impIndex := range bid.Imp {
+		dspBid, audit, err := self.bidForImp(ctx, bid, pub.Pub, current, pub.Domain, impIndex)
+		if err != nil {
+			continue
+		}
+		winloss := dspBid.WinLoss(StatusBid)
+		rspBid, err := dspBid.NewBid(winloss)
+		if err != nil {
+			continue
+		}
+		results[impIndex] = sspBidResult{
+			Filled:        true,
+			Bid:           rspBid,
+			Seat:          dspBid.seat(),
+			ImpressionURL: winloss.ImpURL(),
+			ClickURL:      clickURLForSSPBid(dspBid, winloss),
+		}
+		audits = append(audits, audit)
+	}
+	return results, audits
+}
+
+func clickURLForSSPBid(dspBid *DSP, winloss *WinLoss) string {
+	if dspBid == nil || dspBid.creative == nil || winloss == nil {
+		return ""
+	}
+	landing, err := dspBid.creative.LandingURL(winloss.Macro(), dspBid.Macro())
+	if err != nil {
+		return ""
+	}
+	return winloss.ClkRedirectURL(landing)
+}
+
+func renderSSPResponse(format string, bid *openrtb2.BidRequest, results []sspBidResult) ([]byte, error) {
+	switch format {
+	case "json":
+		return json.Marshal(sspJSONResponse(results))
+	case "openrtb":
+		return json.Marshal(sspOpenRTBResponse(bid, results))
+	default:
+		return json.Marshal(sspHTMLResponse(results))
+	}
+}
+
+func sspHTMLResponse(results []sspBidResult) []string {
+	html := make([]string, len(results))
+	for i, result := range results {
+		if result.Filled {
+			html[i] = result.Bid.AdM
+		}
+	}
+	return html
+}
+
+func sspJSONResponse(results []sspBidResult) []sspJSONAdUnitResponse {
+	response := make([]sspJSONAdUnitResponse, len(results))
+	for i, result := range results {
+		if !result.Filled {
+			response[i] = sspJSONAdUnitResponse{Filled: false}
+			continue
+		}
+		response[i] = sspJSONAdUnitResponse{
+			Filled:        true,
+			AdM:           result.Bid.AdM,
+			ImpressionURL: result.ImpressionURL,
+			ClickURL:      result.ClickURL,
+			Price:         result.Bid.Price,
+			Currency:      "USD",
+			AdID:          result.Bid.AdID,
+			CampaignID:    result.Bid.CID,
+			CreativeID:    result.Bid.CrID,
+			Width:         result.Bid.W,
+			Height:        result.Bid.H,
+		}
+		if native := nativeRawFromAdM(result.Bid.AdM); len(native) != 0 {
+			response[i].Native = native
+		}
+	}
+	return response
+}
+
+func nativeRawFromAdM(adm string) json.RawMessage {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(adm), &raw); err != nil {
+		return nil
+	}
+	native := raw["native"]
+	if len(native) == 0 {
+		return nil
+	}
+	return native
+}
+
+func sspOpenRTBResponse(bid *openrtb2.BidRequest, results []sspBidResult) *openrtb2.BidResponse {
+	response := &openrtb2.BidResponse{Cur: "USD"}
+	if bid != nil {
+		response.ID = bid.ID
+	}
+	seatBids := make(map[string][]openrtb2.Bid)
+	seatOrder := make([]string, 0)
+	for _, result := range results {
+		if !result.Filled {
+			continue
+		}
+		seat := result.Seat
+		if seat == "" {
+			seat = result.Bid.CID
+		}
+		if seat == "" {
+			seat = "aofei"
+		}
+		if _, ok := seatBids[seat]; !ok {
+			seatOrder = append(seatOrder, seat)
+		}
+		if response.BidID == "" {
+			response.BidID = result.Bid.ID
+		}
+		seatBids[seat] = append(seatBids[seat], result.Bid)
+	}
+	for _, seat := range seatOrder {
+		response.SeatBid = append(response.SeatBid, openrtb2.SeatBid{
+			Seat:  seat,
+			Group: 0,
+			Bid:   seatBids[seat],
+		})
+	}
+	return response
 }
 
 func validateSSPRequestPolicy(r *http.Request, req *SSPRequest, units []SSPValidatedUnit) error {
@@ -225,12 +384,16 @@ func validateSSPRequestPolicy(r *http.Request, req *SSPRequest, units []SSPValid
 }
 
 func sspPlatformMayOmitBrowserHeaders(platform string) bool {
-	return strings.EqualFold(strings.TrimSpace(platform), "sdk")
+	return sspPlatformIsSDK(platform)
 }
 
 func sspPlatformUsesBrowserCookie(platform string) bool {
 	normalized := strings.TrimSpace(platform)
 	return normalized == "" || strings.EqualFold(normalized, "browser")
+}
+
+func sspPlatformIsSDK(platform string) bool {
+	return strings.EqualFold(strings.TrimSpace(platform), "sdk")
 }
 
 func validatedSSPHeaderHosts(r *http.Request, header string) ([]string, bool, error) {
@@ -378,6 +541,44 @@ func siteFromSSP(r *http.Request, pub *acl.DirectPub, unit SSPValidatedUnit) *op
 	return site
 }
 
+func appFromSSP(body *openrtb2.App, pub *acl.DirectPub, unit SSPValidatedUnit) (*openrtb2.App, error) {
+	appID := strings.TrimSpace(unit.SiteStr)
+	if appID == "" {
+		return nil, fmt.Errorf("sdk SSP request has no validated app identity")
+	}
+	app := &openrtb2.App{}
+	if body != nil {
+		if err := validateSSPAppIdentity("app.id", body.ID, appID); err != nil {
+			return nil, err
+		}
+		if err := validateSSPAppIdentity("app.bundle", body.Bundle, appID); err != nil {
+			return nil, err
+		}
+		if err := validateSSPAppIdentity("app.domain", body.Domain, appID); err != nil {
+			return nil, err
+		}
+		*app = *body
+	}
+	app.ID = appID
+	app.Bundle = appID
+	app.Domain = appID
+	app.Publisher = &openrtb2.Publisher{
+		ID: strconv.FormatUint(uint64(unit.RPub.PubID), 10),
+	}
+	if pub != nil {
+		app.Publisher.Domain = pub.Domain
+	}
+	return app, nil
+}
+
+func validateSSPAppIdentity(field, value, want string) error {
+	value = strings.TrimSpace(value)
+	if value == "" || value == want {
+		return nil
+	}
+	return fmt.Errorf("%s %q does not match validated site %q", field, value, want)
+}
+
 func deviceFromSSPHeaders(r *http.Request) *openrtb2.Device {
 	device := &openrtb2.Device{}
 	if r == nil {
@@ -389,6 +590,24 @@ func deviceFromSSPHeaders(r *http.Request) *openrtb2.Device {
 		device.Language = strings.TrimSpace(strings.Split(lang, ",")[0])
 	}
 	return device
+}
+
+func deviceFromSSP(r *http.Request, body *openrtb2.Device) *openrtb2.Device {
+	headers := deviceFromSSPHeaders(r)
+	if body == nil {
+		return headers
+	}
+	device := *body
+	if device.UA == "" {
+		device.UA = headers.UA
+	}
+	if device.IP == "" {
+		device.IP = headers.IP
+	}
+	if device.Language == "" {
+		device.Language = headers.Language
+	}
+	return &device
 }
 
 func browserIP(r *http.Request) string {

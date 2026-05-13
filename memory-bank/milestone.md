@@ -832,6 +832,48 @@ Result:
 - API/mobile/native response formats and richer supply taxonomy remain future
   product work.
 
+## M32 - SSP Mobile/API Contract And Response Formats `[+]`
+
+Add mobile/API serving to the existing `/pz` endpoint without changing browser
+defaults or account/schema/cache boundaries.
+
+Scope:
+
+- Accept explicit `responseFormat` values: omitted/`"html"`, `"json"`, and
+  `"openrtb"`.
+- For `platform:"sdk"`, accept OpenRTB-like body `app`, `device`, and `user`
+  fields.
+- Synthesize app traffic from the validated direct SSP cache while keeping
+  `site` and `adUnits[].slot` tokens authoritative.
+- Keep `ads.js`, schema, cache shape, CORS credentials, and account roles out of
+  scope.
+
+Acceptance:
+
+- Existing browser `/pz` HTML-array behavior remains compatible.
+- SDK requests synthesize `BidRequest.App`, do not use cookies, and honor body
+  device/user identity.
+- App identity mismatches against the validated site token return `400`.
+- JSON responses return ordered fill/no-fill objects with native JSON where
+  applicable.
+- OpenRTB responses return a valid `BidResponse`, including `200` with empty
+  `seatbid` on all-no-fill.
+
+## M33 - SSP Middleman Fallback `[ ]`
+
+Let direct SSP local no-fill requests use existing middleman fallback and gated
+`Always` behavior while preserving the M32 response formats.
+
+## M34 - Richer Supply Taxonomy ADR `[ ]`
+
+Keep runtime on the `pub` role and write an ADR for taxonomy fields,
+cache/audit impact, admin UI changes, and migration path before schema work.
+
+## M35 - SSP Account/Schema ADR `[ ]`
+
+Decide whether a separate SSP account boundary is still needed after M32-M34
+evidence. Do not implement a separate account in this milestone.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

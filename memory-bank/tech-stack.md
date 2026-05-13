@@ -209,9 +209,14 @@ from `.local/spread/pubmap/`; it does not add a separate spread directory. The
 direct cache includes slot-size metadata, and `/pz` rejects slot tokens whose
 packed size does not match the configured slot size.
 `POST /pz` is served by `dsp.Controller.ServeSSP` through
-`../pzdesign/cmd/unify`; valid requests return `200 application/json` arrays of
-HTML strings, while malformed JSON, invalid direct tokens, missing slots,
-unsupported media, and cache validation failures return HTTP errors.
+`../pzdesign/cmd/unify`; valid omitted or `responseFormat:"html"` requests
+return `200 application/json` arrays of HTML strings. `responseFormat:"json"`
+returns ordered fill/no-fill objects with markup, tracker URLs, price/currency,
+ids, dimensions, and parsed native payloads when applicable.
+`responseFormat:"openrtb"` returns an OpenRTB `BidResponse`, including `200`
+with an empty `seatbid` on all-no-fill. Malformed JSON, unsupported response
+formats, invalid direct tokens, missing slots, unsupported media, and cache
+validation failures return HTTP errors.
 `../pzdesign/cmd/unify` also handles `OPTIONS /pz` and applies permissive CORS
 headers only on `/pz`: origin `*`, methods `POST, OPTIONS`, and header
 `Content-Type`. Publisher slot pages load `../pzdesign/www/js/ads.js`; the
@@ -230,9 +235,13 @@ site host, and any present `Origin` or `Referer` must match. `platform:"sdk"`
 may omit both headers, but supplied headers must still match. Rejections return
 `403` before cookies, bidding, or audit publishing and increment
 `aofei_ssp_policy_rejections_total`.
-Current SDK/in-app `/pz` requests synthesize no OpenRTB `user` unless a future
-contract adds explicit user or device IDs. Attribute extraction uses the
-existing identity precedence, including UA+IP fallback from request headers.
+SDK/in-app `/pz` requests may include body `app`, `device`, and `user` objects.
+They synthesize `BidRequest.App` and leave `BidRequest.Site` nil. The validated
+cached site string becomes authoritative app id/bundle/domain, and mismatched
+supplied app identity fields return `400`. Body `device` identity fields feed
+the existing attribute identity precedence, with request headers as IP/UA
+fallback. Body `user.id` and `buyeruid` are honored for SDK only; browser
+traffic keeps browser-only `aofei_pz_uid`.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX request/response logs remain raw OpenRTB JSON, and
 attribute logs include additive `source`/`contract` fields.
