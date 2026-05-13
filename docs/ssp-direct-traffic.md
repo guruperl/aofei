@@ -11,8 +11,10 @@ product boundary. M32 adds mobile/API request fields and explicit JSON/OpenRTB
 response formats. M33 lets valid direct SSP auctions use the existing
 middleman fallback and gated `Always` runtime after local matching. M34 records
 the future richer supply taxonomy direction in
-[ADR 0001](adr/0001-richer-supply-taxonomy.md). The handler validates packed
-direct SSP tokens against the publisher-by-id cache, enforces
+[ADR 0001](adr/0001-richer-supply-taxonomy.md). M35 records the account/schema
+boundary decision in [ADR 0002](adr/0002-ssp-account-schema-boundary.md): keep
+the existing `pub` ownership model. The handler validates packed direct SSP
+tokens against the publisher-by-id cache, enforces
 the browser page host against the cached site host, converts ad units into
 internal OpenRTB impressions, serves local Aofei demand, optionally fans out to
 middleman bidders, renders the requested response shape, and identifies SSP
@@ -355,8 +357,16 @@ accepts ADR 0001 as the future taxonomy direction:
   exists.
 
 Until that later implementation, `/pz` plus audit `source:"ssp"` and
-`contract:"pz-v1"` remains the current runtime audit boundary. The separate SSP
-account/schema question remains M35 ADR work.
+`contract:"pz-v1"` remains the current runtime audit boundary.
+
+M35 accepts ADR 0002 as the account/schema boundary decision. Aofei will not add
+a separate `ssp` account role or separate SSP-owned inventory schema for the
+current direct SSP path. The existing `pub`, `pub_site`, and `pub_slot` model
+continues to own publisher accounts, sites, apps, and slots. A later milestone
+should reopen the account-boundary decision only for concrete legal/settlement
+owner separation, reseller/intermediary ownership, materially different
+permissions, incompatible compliance/reporting isolation, or third-party
+partner credentials that cannot belong to publisher accounts.
 
 ## Publisher UI
 
@@ -375,4 +385,6 @@ SDK `app`/`device`/`user` parsing and explicit `"html"`, `"json"`, and
 `"openrtb"` response formats. M33 adds middleman fallback/`Always` use for
 valid `/pz` auctions without changing `ads.js`, schema, cache shape, or account
 roles. M34 adds ADR 0001 for future richer supply taxonomy while making no
-runtime, schema, cache payload, audit payload, ledger, or admin UI change.
+runtime, schema, cache payload, audit payload, ledger, or admin UI change. M35
+adds ADR 0002 and closes the separate SSP account/schema question by keeping
+the existing `pub` boundary.

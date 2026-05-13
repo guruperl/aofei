@@ -93,9 +93,11 @@ advertiser-owned endpoint and reporting schema boundary:
 	  additive nullable/defaulted fields on existing publisher tables while
 	  keeping `pub`, `pub_site`, and `pub_slot` as the ownership boundary and
 	  keeping `/pz` plus audit `source:"ssp"`/`contract:"pz-v1"` as the current
-	  runtime boundary until a later schema/cache milestone. M35 remains the
-	  separate ADR for deciding whether an SSP account/schema boundary is still
-	  needed.
+	  runtime boundary until a later schema/cache milestone. M35 decides that no
+	  separate `ssp` account role or SSP-owned inventory schema is needed for the
+	  current `/pz` path; future schema work should extend the existing
+	  publisher model unless new legal, settlement, intermediary, permission,
+	  compliance, or partner-credential requirements reopen the boundary.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

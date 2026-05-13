@@ -99,7 +99,11 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   slot/media intent, and quality/source metadata; extend direct publisher
 	   cache and audits additively only after schema support exists; and keep
 	   `source:"ssp"`/`contract:"pz-v1"` as the runtime audit boundary until
-	   then.
+	   then. M35 closes the account/schema boundary question by keeping the
+	   existing `pub`, `pub_site`, and `pub_slot` ownership model for the current
+	   `/pz` path and deferring any separate SSP account model until concrete
+	   legal, settlement, intermediary, permission, compliance, or
+	   partner-credential requirements exist.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -231,6 +235,10 @@ legacy definers or legacy named database auth references.
   remains future product work: M34 changes no schema, cache payload, runtime
   behavior, audit payload, ledger table, or admin UI code. The current runtime
   boundary remains `/pz` plus audit `source:"ssp"` and `contract:"pz-v1"`.
+- Direct SSP account/schema ownership is documented in
+  [ADR 0002](../docs/adr/0002-ssp-account-schema-boundary.md). M35 decides not
+  to add a separate `ssp` account role or separate SSP-owned inventory schema
+  for the current direct SSP path.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.

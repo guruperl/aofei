@@ -907,10 +907,37 @@ Result:
 - M34 changes docs and memory only; schema, cache payloads, runtime behavior,
   audit payloads, ledgers, and Summer/Genelet admin code remain unchanged.
 
-## M35 - SSP Account/Schema ADR `[ ]`
+## M35 - SSP Account/Schema ADR `[+]`
 
 Decide whether a separate SSP account boundary is still needed after M32-M34
 evidence. Do not implement a separate account in this milestone.
+
+Scope:
+
+- Decide the account/schema boundary for current direct SSP `/pz` traffic.
+- Keep this milestone ADR-only with no schema, runtime, cache payload, audit
+  payload, ledger, or Summer/Genelet admin UI change.
+- Record concrete future triggers for reopening the separate SSP account
+  question.
+
+Acceptance:
+
+- ADR 0002 records the decision to keep `pub`, `pub_site`, and `pub_slot` as the
+  publisher account and inventory ownership boundary.
+- No separate `ssp` account role or separate SSP-owned inventory schema is added
+  for the current `/pz` path.
+- Future SSP schema work follows the additive M34 taxonomy direction unless a
+  later milestone reopens the account-boundary decision.
+
+Result:
+
+- [ADR 0002](../docs/adr/0002-ssp-account-schema-boundary.md) decides not to add
+  a separate `ssp` account role or separate SSP-owned inventory schema for the
+  current direct SSP path.
+- `pub`, `pub_site`, and `pub_slot` remain the publisher account and inventory
+  ownership boundary.
+- Future reconsideration requires concrete legal, settlement, intermediary,
+  permission, compliance, or partner-credential requirements.
 
 ## Post-M25 Middleman Backlog
 
