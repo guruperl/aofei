@@ -112,6 +112,9 @@ Install the package command binaries:
   and MaxMind inventory.
 - [docs/maxmind-runtime.md](docs/maxmind-runtime.md): MaxMind config,
   external geodata assets, generation, and test behavior.
+- [docs/performance-roadmap.md](docs/performance-roadmap.md): advisory
+  performance roadmap for measurement, same-stack scaling, and conditional
+  technology swaps.
 - [../pzdesign/docs/genelet-manual.md](../pzdesign/docs/genelet-manual.md):
   Genelet config, routes, auth, component, CRUD, upload, CORS, and error
   contracts.
