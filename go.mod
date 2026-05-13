@@ -1,4 +1,4 @@
-module github.com/genelet/winter
+module github.com/guruperl/aofei
 
 go 1.22
 
@@ -7,15 +7,15 @@ toolchain go1.23.5
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/IncSW/geoip2 v0.1.3
-	github.com/delongw/go-int-cipher v0.0.0-20151122132803-cb275de15ba8
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/mediocregopher/radix/v4 v4.1.4
 	github.com/mileusna/useragent v1.3.5
 	github.com/nats-io/nats.go v1.38.0
 	github.com/prebid/openrtb/v20 v20.3.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.33.0
 )
+
+require golang.org/x/net v0.33.0 // indirect
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect

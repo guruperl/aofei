@@ -5,7 +5,7 @@ a new runtime contract.
 
 ## HTTP Flow
 
-`cmd/unify` registers these DSP endpoints:
+`../pzdesign/cmd/unify` registers these DSP endpoints:
 
 | Method | Path | Handler | Purpose |
 |---|---|---|---|

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/genelet/winter/acl"
-	"github.com/genelet/winter/match"
+	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/match"
 )
 
 type localStaticCache struct {

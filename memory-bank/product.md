@@ -4,7 +4,7 @@
 
 `aofei` / `winter` is a Go DSP package for OpenRTB-style real-time bidding. It
 combines bid request handling, advertiser/campaign matching, publisher and slot
-mapping, audience and creative selection, frequency capping, admin data models,
+mapping, audience and creative selection, frequency capping, admin integration,
 and local service orchestration.
 
 The package is currently runnable from a clean local Docker harness: MySQL is
@@ -43,7 +43,9 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 - Redis cache refresh and ledger aggregation remain singleton scheduled jobs,
   normally on dedicated cache and log aggregation nodes rather than every
   `cmd/unify` node.
-- Summer/Genelet code provides admin-model plumbing over the same schema.
+- The sibling `github.com/guruperl/pzdesign` module provides Summer/Genelet
+  admin-model plumbing over the same schema and imports this module's domain
+  packages where needed.
 
 ## Current Product Direction
 

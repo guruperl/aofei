@@ -1,9 +1,11 @@
 # Aofei / Winter DSP
 
-`github.com/genelet/winter` is a Go package for an OpenRTB-oriented DSP stack.
+`github.com/guruperl/aofei` is a Go package for an OpenRTB-oriented DSP stack.
 It contains the bid path, campaign and publisher matching logic, Summer/Genelet
-admin models, cache population commands, local Docker service helpers, and SQL
-baseline data needed to run the package locally.
+integration, cache population commands, local Docker service helpers, and SQL
+baseline data needed to run the package locally. The Summer/Genelet source tree
+now lives in the sibling `../pzdesign` module,
+`github.com/guruperl/pzdesign`.
 
 Current local development uses Docker MySQL, Docker Redis, and Docker NATS. The
 active database baseline is [etc/step4_init.sql](etc/step4_init.sql); generated
@@ -61,11 +63,8 @@ to exercise `dsp.Controller.ServeBid` through `httptest`.
 Run the admin compatibility checks against Docker MySQL:
 
 ```bash
-GOWORK=off SUMMER="$PWD/etc/summer.local.json" \
-  go test ./summer ./summer/pub ./summer/slot
-
-GOWORK=off SUMMER="$PWD/etc/summer.local.json" \
-  go test ./genelet
+(cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" \
+  go test ./genelet ./summer ./summer/pub ./summer/slot)
 ```
 
 The helper starts:
@@ -113,10 +112,12 @@ Install the package command binaries:
   and MaxMind inventory.
 - [docs/maxmind-runtime.md](docs/maxmind-runtime.md): MaxMind config,
   external geodata assets, generation, and test behavior.
-- [docs/genelet-manual.md](docs/genelet-manual.md): Genelet config, routes,
-  auth, component, CRUD, upload, CORS, and error contracts.
-- [docs/summer-ui-structure.md](docs/summer-ui-structure.md): Summer module
-  layout, component conventions, registry, UI options, and cache side effects.
+- [../pzdesign/docs/genelet-manual.md](../pzdesign/docs/genelet-manual.md):
+  Genelet config, routes, auth, component, CRUD, upload, CORS, and error
+  contracts.
+- [../pzdesign/docs/summer-ui-structure.md](../pzdesign/docs/summer-ui-structure.md):
+  Summer module layout, component conventions, registry, UI options, and cache
+  side effects.
 - [docs/dsp-architecture.zh.md](docs/dsp-architecture.zh.md): historical DSP
   architecture note in Chinese.
 - [docs/legacy-operations.md](docs/legacy-operations.md): historical manual

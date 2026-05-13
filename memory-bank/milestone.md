@@ -299,8 +299,9 @@ Acceptance:
   malformed inputs instead of panics.
 - Summer request-specific UI selections do not mutate shared `LARGES` option
   data, and cache side effects use typed storage helpers.
-- `docs/genelet-manual.md` and `docs/summer-ui-structure.md` describe the
-  current framework/operator contracts.
+- `../pzdesign/docs/genelet-manual.md` and
+  `../pzdesign/docs/summer-ui-structure.md` describe the current
+  framework/operator contracts.
 
 ## M12 - OpenRTB And Audience Matching Review `[+]`
 

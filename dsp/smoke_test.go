@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/genelet/winter/maxmind"
+	"github.com/guruperl/aofei/maxmind"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"go.uber.org/zap"

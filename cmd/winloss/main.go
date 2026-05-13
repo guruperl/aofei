@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/match"
+	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 
 	_ "github.com/go-sql-driver/mysql"

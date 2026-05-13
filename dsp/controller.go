@@ -18,9 +18,9 @@ import (
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"go.uber.org/zap"
 
-	"github.com/genelet/winter/acl"
-	"github.com/genelet/winter/match"
-	"github.com/genelet/winter/maxmind"
+	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/match"
+	"github.com/guruperl/aofei/maxmind"
 )
 
 const (

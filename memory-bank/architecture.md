@@ -4,7 +4,6 @@
 
 | Path | Role |
 |---|---|
-| `cmd/unify` | Main combined service entrypoint for Summer/Genelet admin and DSP handlers. |
 | `internal/jobs/cache`, `cmd/redis-cache` | Populates Redis or spread cache files from MySQL state. |
 | `cmd/nats-client` | Local NATS client/log consumer command. |
 | `cmd/spread` | Spread/cache command support. |
@@ -12,8 +11,6 @@
 | `dsp/` | DSP config, controller, bid handling, and win/loss logic. |
 | `match/` | Runtime matching models for advertisers, creatives, audience maps, caps, sizes, and Redis/spread serialization. |
 | `acl/` | Access/control and publisher mapping helpers used by bid and cache paths. |
-| `summer/` | Admin UI data models, filters, components, and OpenRTB-oriented admin entities, including advertiser-owned bidder endpoint modules. |
-| `genelet/` | Local web/admin framework helpers used by Summer. |
 | `maxmind/` | Geo/IP lookup helpers and tests. |
 | `etc/` | Active SQL baseline, sample configs, generated local configs, samples, and data-load helper code. |
 | `scripts/` | Local Docker service helper scripts. |
@@ -21,6 +18,12 @@
 | `docs/` | Stable long-form references. |
 | `memory-bank/` | Current product, architecture, tech stack, milestone, and status memory. |
 | `evolution/` | Versioned history of direction changes. |
+
+The sibling `../pzdesign` checkout is the Go module
+`github.com/guruperl/pzdesign`. It owns `cmd/unify`, `genelet/`, `summer/`,
+`tmpls/`, `www/`, and Summer/Genelet docs under `docs/`; its command and Summer
+packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
+`uploaded/`.
 
 ## Runtime Data Flow
 
@@ -39,8 +42,9 @@
    messages should become `.local/spread/` file snapshots; on startup it
    best-effort bootstraps those snapshots from Redis when Redis and MySQL are
    reachable.
-5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
-   and serves DSP bid paths using the same MySQL/Redis/NATS config.
+5. `../pzdesign/cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet
+   admin routes, and serves DSP bid paths using the same MySQL/Redis/NATS
+   config.
 6. Bid/win/loss/log flows use Redis for mutable runtime state and NATS/spread/log
    paths for message and log transport. Local/spread bid mode loads static
    cache snapshots into memory at controller startup and through an explicit
@@ -102,19 +106,21 @@ request-path flushes.
 
 ## Admin Runtime Boundary
 
-Summer/Genelet admin code uses the generated `SUMMER` config and Docker MySQL.
-Admin tests that need a database read `etc/summer.local.json`; they must not use
-the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
-`Template`, and `UploadDir`.
+Summer/Genelet admin code lives in the sibling `../pzdesign` module and uses
+the generated `SUMMER` config and Docker MySQL. Admin tests that need a database
+read `../aofei/etc/summer.local.json` when run from `../pzdesign`; they must
+not use the lower-case DSP `AOFEI` config because Genelet expects
+`ConnectArray`, `Template`, and `UploadDir`.
 
 ## Active Configuration Boundary
 
 - `etc/aofei.json` and `etc/summer.json` are checked-in examples.
 - `etc/aofei.local.json` and `etc/summer.local.json` are generated local files
   and must remain ignored.
-- Summer/Genelet UI templates live in the sibling `../pzdesign/tmpls` tree, and
-  static UI assets live under `../pzdesign/www`; generated local Summer config
-  points `Template` and `DocumentRoot` at those paths.
+- Summer/Genelet code, UI templates, and static UI assets live in the sibling
+  `../pzdesign` module. Generated local Summer config points `ProjectRoot` at
+  that checkout, `Template` at `../pzdesign/tmpls`, and `DocumentRoot` at
+  `../pzdesign/www`.
 - Production configs default to `/etc/aofei/aofei.json` and
   `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`.
 - `etc/maxmind.json` is the active MaxMind config reference.

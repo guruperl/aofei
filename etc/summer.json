@@ -1,5 +1,5 @@
 {
-    "ProjectRoot" : ".",
+    "ProjectRoot" : "../pzdesign",
     "Script"       : "/goto",
     "ServerURL"   : "http://localhost:8080",
     "CORSOrigins" : [],

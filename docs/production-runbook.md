@@ -13,7 +13,7 @@ Long-running services:
 
 | Service | Binary | Purpose |
 |---|---|---|
-| `aofei-unify.service` | `cmd/unify` | HTTP admin, DSP bid, win/loss, impression, and click endpoints. |
+| `aofei-unify.service` | `../pzdesign/cmd/unify` | HTTP admin, DSP bid, win/loss, impression, and click endpoints. |
 | `aofei-nats-client.service` | `cmd/nats-client` | Consumes NATS log subjects into interval files. |
 | `aofei-spread.service` | `cmd/spread` | Persists spread/cache NATS messages to files. |
 
@@ -285,7 +285,8 @@ Build artifacts from a reviewed commit:
 
 ```bash
 GOWORK=off go test ./...
-GOWORK=off go install ./cmd/unify ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
+GOWORK=off go install ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
+(cd ../pzdesign && GOWORK=off go test ./... && GOWORK=off go install ./cmd/unify)
 ```
 
 Copy binaries into a versioned release directory, update the active symlink or

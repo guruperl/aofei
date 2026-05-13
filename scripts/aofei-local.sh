@@ -302,7 +302,7 @@ JSON
 
 	cat >"$SUMMER_CONFIG" <<JSON
 {
-  "ProjectRoot": "$ROOT",
+  "ProjectRoot": "$PZDESIGN_ROOT",
   "Script": "/goto",
   "ServerURL": "http://localhost:8080",
   "CORSOrigins": [],
@@ -536,9 +536,12 @@ install_commands() {
 			./cmd/maxmind \
 			./cmd/nats-client \
 			./cmd/redis-cache \
-			./cmd/unify \
 			./cmd/winloss \
 			./cmd/spread
+	)
+	(
+		cd "$PZDESIGN_ROOT"
+		GOWORK=off go install ./cmd/unify
 	)
 }
 

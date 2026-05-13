@@ -10,8 +10,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/genelet/winter/dsp"
-	cachejob "github.com/genelet/winter/internal/jobs/cache"
+	"github.com/guruperl/aofei/dsp"
+	cachejob "github.com/guruperl/aofei/internal/jobs/cache"
 	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/genelet/winter/acl"
-	"github.com/genelet/winter/dsp"
+	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/dsp"
 	_ "github.com/go-sql-driver/mysql"
 )
 

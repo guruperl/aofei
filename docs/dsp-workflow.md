@@ -5,9 +5,9 @@ response and measurement publishing.
 
 ## Request Entry
 
-`cmd/unify` wires `POST /bid/{domain}` to `dsp.Controller.ServeBid`. The route
-domain is the primary publisher key. The bid body is limited to 1 MiB before
-JSON unmarshalling.
+`../pzdesign/cmd/unify` wires `POST /bid/{domain}` to
+`dsp.Controller.ServeBid`. The route domain is the primary publisher key. The
+bid body is limited to 1 MiB before JSON unmarshalling.
 
 The active validation boundary requires:
 

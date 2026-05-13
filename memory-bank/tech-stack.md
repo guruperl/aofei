@@ -3,7 +3,8 @@
 ## Languages And Module
 
 - Language: Go
-- Module: `github.com/genelet/winter`
+- Main module: `github.com/guruperl/aofei`
+- Sibling admin/design module: `github.com/guruperl/pzdesign`
 - `go.mod`: Go 1.22 with toolchain 1.23.5
 
 Use `GOWORK=off` for local commands from this repository. The parent `go.work`
@@ -78,9 +79,10 @@ Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
 The checked-in Summer config includes `admin`, `adv`, `pub`, and `agent` roles.
 Middleman bidder endpoints use the existing `adv` role through the `adv_bidder`
-module. HTML templates are tracked in the sibling `../pzdesign/tmpls` tree,
-static UI assets live under `../pzdesign/www`, and generated local Summer config
-points `Template` and `DocumentRoot` at those paths.
+module. Summer/Genelet code lives in the sibling `../pzdesign` checkout together
+with HTML templates under `../pzdesign/tmpls` and static UI assets under
+`../pzdesign/www`. Generated local Summer config points `ProjectRoot`,
+`Template`, and `DocumentRoot` at that checkout.
 
 Production defaults are `/etc/aofei/aofei.json` and
 `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The production
@@ -88,8 +90,8 @@ runbook is [docs/production-runbook.md](../docs/production-runbook.md).
 Summer/Genelet CORS allows the exact `ServerURL` origin plus exact entries in
 `CORSOrigins`.
 Genelet framework contracts are documented in
-`docs/genelet-manual.md`; Summer admin module and cache-side-effect conventions
-are documented in `docs/summer-ui-structure.md`.
+`../pzdesign/docs/genelet-manual.md`; Summer admin module and cache-side-effect
+conventions are documented in `../pzdesign/docs/summer-ui-structure.md`.
 
 ## Schema Baseline Commands
 
@@ -256,7 +258,7 @@ Canonical package verification:
 GOWORK=off go test ./...
 ```
 
-`GOWORK=off go list ./...` should not include `github.com/genelet/winter/backup`;
+`GOWORK=off go list ./...` should not include `github.com/guruperl/aofei/backup`;
 historical Go helpers in `backup/` carry the `ignore` build tag.
 
 Useful non-gating local checks:
@@ -266,7 +268,8 @@ bash -n scripts/aofei-doc-check.sh
 ./scripts/aofei-doc-check.sh
 bash -n scripts/aofei-cache-smoke.sh
 GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
-GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger ./cmd/unify
+GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger
+(cd ../pzdesign && GOWORK=off go test ./cmd/unify)
 GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
 GOWORK=off go test ./maxmind ./maxmind/ipsearch
 GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
@@ -275,17 +278,17 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
 GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 GOWORK=off staticcheck -checks=SA* ./...
-GOWORK=off staticcheck ./dsp ./match ./acl ./uploaded ./cmd/spread ./cmd/winloss ./cmd/unify ./cmd/redis-cache ./cmd/ledger ./internal/jobs/cache ./internal/jobs/ledger
+GOWORK=off staticcheck ./dsp ./match ./acl ./uploaded ./cmd/spread ./cmd/winloss ./cmd/redis-cache ./cmd/ledger ./internal/jobs/cache ./internal/jobs/ledger
+(cd ../pzdesign && GOWORK=off staticcheck ./cmd/unify)
 git diff --check
-(cd ../pzdesign && go run ./tools/check-templates.go -ext=.g && go run ./tools/check-templates.go -ext=.e && git diff --check)
+(cd ../pzdesign && GOWORK=off go test ./... && go run ./tools/check-templates.go -ext=.g && go run ./tools/check-templates.go -ext=.e && git diff --check)
 ```
 
 Admin compatibility verification:
 
 ```bash
 ./scripts/aofei-local.sh reset-sample
-GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./summer ./summer/pub ./summer/slot
-GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./genelet
+(cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" go test ./genelet ./summer ./summer/pub ./summer/slot)
 ```
 
 Schema baseline verification:

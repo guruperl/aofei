@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/genelet/winter/acl"
+	"github.com/guruperl/aofei/acl"
 )
 
 func TestMiddlemanRouteEntryEligibility(t *testing.T) {

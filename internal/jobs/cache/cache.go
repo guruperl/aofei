@@ -9,9 +9,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/genelet/winter/acl"
-	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/match"
+	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )

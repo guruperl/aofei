@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/genelet/winter/dsp"
+	"github.com/guruperl/aofei/dsp"
 	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"

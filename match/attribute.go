@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/genelet/winter/acl"
-	"github.com/genelet/winter/advice"
-	"github.com/genelet/winter/demo"
-	"github.com/genelet/winter/dh"
-	"github.com/genelet/winter/maxmind"
+	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/advice"
+	"github.com/guruperl/aofei/demo"
+	"github.com/guruperl/aofei/dh"
+	"github.com/guruperl/aofei/maxmind"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 

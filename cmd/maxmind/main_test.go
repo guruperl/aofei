@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/genelet/winter/maxmind"
+	"github.com/guruperl/aofei/maxmind"
 )
 
 const maxmindTestDriverName = "maxmindtest"

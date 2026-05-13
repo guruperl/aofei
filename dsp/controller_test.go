@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/genelet/winter/match"
+	"github.com/guruperl/aofei/match"
 )
 
 func TestControllerOptionsCanDisableNATSAndMaxMindIndependently(t *testing.T) {

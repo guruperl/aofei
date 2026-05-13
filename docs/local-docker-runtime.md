@@ -73,10 +73,17 @@ point at Docker MySQL, Redis, and NATS endpoints created by the helper.
 Generated local DSP config also includes a local-only `tracking_secret` used to
 sign DSP tracker and click redirect URLs.
 
-The generated Summer `Template` path is the sibling `../pzdesign/tmpls`, and
-`DocumentRoot` points at `../pzdesign/www` for the CSS/JS/image assets those
-templates reference. Override `AOFEI_PZDESIGN_ROOT` when the sibling checkout is
-elsewhere. Generated local uploads and logs remain under `.local/`.
+The generated Summer `ProjectRoot` is the sibling `../pzdesign` checkout.
+`Template` points at `../pzdesign/tmpls`, and `DocumentRoot` points at
+`../pzdesign/www` for the CSS/JS/image assets those templates reference.
+Override `AOFEI_PZDESIGN_ROOT` when the sibling checkout is elsewhere.
+Generated local uploads and logs remain under `.local/`.
+
+If a local `systemctl --user` `aofei-unify.service` is used for port 8200, its
+`WorkingDirectory` must be the sibling `../pzdesign` checkout because
+`cmd/unify` now lives there. The service can still pass Aofei-owned config
+files such as `.local/aofei.8200.json` and `.local/summer.8200.json`; the Summer
+8200 config must set `ProjectRoot` to the pzdesign checkout.
 
 The generated DSP log directories are:
 
@@ -96,8 +103,8 @@ Run the Summer/Genelet admin compatibility checks against Docker MySQL:
 
 ```bash
 ./scripts/aofei-local.sh reset-sample
-GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./summer ./summer/pub ./summer/slot
-GOWORK=off SUMMER="$PWD/etc/summer.local.json" go test ./genelet
+(cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" \
+  go test ./genelet ./summer ./summer/pub ./summer/slot)
 ```
 
 `SUMMER` must point at `etc/summer.local.json`, not the lower-case `AOFEI`

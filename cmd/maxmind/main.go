@@ -12,8 +12,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/maxmind"
+	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/maxmind"
 	_ "github.com/go-sql-driver/mysql"
 )
 

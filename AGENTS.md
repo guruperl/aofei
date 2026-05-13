@@ -2,9 +2,10 @@
 
 ## Purpose
 
-`aofei` / `github.com/genelet/winter` is a Go DSP package with OpenRTB bid
-handling, campaign and publisher matching, Summer/Genelet admin models, local
-cache population commands, and a Docker-backed local runtime.
+`aofei` / `github.com/guruperl/aofei` is a Go DSP package with OpenRTB bid
+handling, campaign and publisher matching, local cache population commands, and
+a Docker-backed local runtime. The sibling `../pzdesign` checkout owns the
+Summer/Genelet module `github.com/guruperl/pzdesign`.
 
 Use this file as the agent bootstrap guide. Keep it short and keep detailed
 project state in the memory bank.
@@ -27,10 +28,11 @@ point.
 
 This repository owns:
 
-- The Go module `github.com/genelet/winter`.
-- DSP bid handling and win/loss handling under `dsp/` and `cmd/unify`.
+- The Go module `github.com/guruperl/aofei`.
+- DSP bid handling and win/loss handling under `dsp/`; the HTTP/UI/ADX service
+  command is owned by `../pzdesign/cmd/unify`.
 - Campaign, publisher, slot, audience, creative, ACL, and matching models.
-- Summer/Genelet admin model code that maps onto the active MySQL schema.
+- The active MySQL schema and domain packages consumed by Summer/Genelet.
 - Local Docker MySQL, Redis, and NATS setup for development.
 - The active schema/data baseline at `etc/step4_init.sql`.
 
@@ -43,6 +45,8 @@ Out of scope:
 - Treating historical files in `backup/` as active runtime inputs.
 - Real MaxMind database payloads or production log directories.
 - External ad exchanges and OpenRTB traffic sources beyond local fixtures.
+- The Summer/Genelet source tree, templates, and static assets now owned by
+  `../pzdesign`.
 
 Rule of thumb: if a change alters current runtime config, schema, cache
 contracts, or operator workflow, update the memory bank and relevant docs in the
@@ -64,6 +68,8 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 
 GOWORK=off go test ./...
+
+(cd ../pzdesign && GOWORK=off go test ./...)
 
 git diff --check
 ```

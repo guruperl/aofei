@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/genelet/winter/dsp"
+	"github.com/guruperl/aofei/dsp"
 )
 
 func TestFileWritersWriteKnownSubjects(t *testing.T) {

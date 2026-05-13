@@ -17,7 +17,7 @@ Use these commands as separate process roles:
 
 | Role | Command | Placement |
 |---|---|---|
-| HTTP/UI/ADX | `cmd/unify` | every HTTP node |
+| HTTP/UI/ADX | `../pzdesign/cmd/unify` | every HTTP node |
 | NATS log writer | `cmd/nats-client` | separate systemd service on nodes that write/aggregate logs |
 | Redis cache refresh | `cmd/redis-cache -cache=redis` | singleton cron/timer on one cache node |
 | Middleman callback retry | `cmd/mid-callback-retry` | singleton cron/timer on one operations node |
@@ -311,7 +311,8 @@ Notes:
 Build and focused package tests:
 
 ```bash
-GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger ./cmd/unify
+GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger
+(cd ../pzdesign && GOWORK=off go test ./cmd/unify)
 GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
 GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
 ```

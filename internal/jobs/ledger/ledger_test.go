@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/match"
+	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/match"
 	_ "github.com/go-sql-driver/mysql"
 )
 

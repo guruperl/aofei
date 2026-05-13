@@ -9,7 +9,7 @@ target.
 
 - `[+]` Reproduce current package discovery state.
   - `GOWORK=off go list ./...` initially discovered
-    `github.com/genelet/winter/backup`.
+    `github.com/guruperl/aofei/backup`.
   - After adding `ignore` build tags to historical helpers, `backup` is absent
     from package discovery.
 

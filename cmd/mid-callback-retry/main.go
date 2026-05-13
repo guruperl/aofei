@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/internal/jobs/midcallback"
+	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/jobs/midcallback"
 
 	_ "github.com/go-sql-driver/mysql"
 )
