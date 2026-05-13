@@ -74,6 +74,7 @@ func newLocalBidPathController(t *testing.T) *Controller {
 
 	pub := &acl.Pub{
 		PubID:            1,
+		Active:           true,
 		DefaultWebSiteID: 10,
 		DefaultWebSlotID: 100,
 		Sites:            map[string]uint32{"example.com": 10},

@@ -691,7 +691,7 @@ Acceptance:
   publisher/site/slot data without MySQL on the request path.
 - Existing `/bid/{domain}` behavior and cache reads remain unchanged.
 
-## M28 - SSP Runtime Adapter `[ ]`
+## M28 - SSP Runtime Adapter `[+]`
 
 Serve direct browser ad-tag requests through the existing Aofei bid engine.
 
@@ -710,6 +710,18 @@ Acceptance:
 - Direct SSP impressions and clicks carry real publisher, site, slot, and size
   IDs.
 - `/pz` does not write MySQL or refresh caches.
+
+Result:
+
+- `dsp.Controller.ServeSSP` reads the v1 browser JSON body with the existing bid
+  body limit, validates direct tokens through local/Redis `pubmap:by-id`, and
+  returns a JSON HTML-string array in input order.
+- The adapter synthesizes OpenRTB browser metadata from request headers and
+  cache-derived site/slot strings, then reuses the existing local candidate,
+  cap, audience, creative rendering, tracker, and audit paths.
+- `../pzdesign/cmd/unify` registers `POST /pz` before the Genelet catch-all.
+- M28 keeps middleman fallback, cookies, CORS/origin policy changes, publisher
+  tag UI, and reporting-semantics separation out of scope.
 
 ## M29 - Publisher Tag UI And Download `[ ]`
 

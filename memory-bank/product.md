@@ -71,11 +71,11 @@ advertiser-owned endpoint and reporting schema boundary:
   `middleman_always_enabled`; when enabled, eligible marked-up middleman bids
   compete with local bids by effective CPM.
 - Direct publisher SSP traffic is the next post-M26 product direction. The
-  existing `pub` role remains the publisher account and inventory owner. The
-  planned v1 browser contract is `POST /pz` with packed `site` and
-  `adUnits[].slot` tokens and a JSON array of HTML strings in ad-unit order.
-  M27 only establishes the contract, parser, and by-publisher-id cache lookup;
-  runtime serving and publisher tag UI are later milestones.
+  existing `pub` role remains the publisher account and inventory owner. The v1
+  browser contract is `POST /pz` with packed `site` and `adUnits[].slot` tokens
+  and a JSON array of HTML strings in ad-unit order. M28 serves valid requests
+  through the existing local Aofei bid path; publisher tag UI, cookies,
+  origin/referrer hardening, and reporting separation are later milestones.
 - Root documentation should be short, current, and operational.
 - Detailed project memory should live in `memory-bank/`.
 

@@ -3,6 +3,7 @@ package dsp
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
@@ -48,6 +49,35 @@ type SSPMediaTypes struct {
 	Banner *SSPBanner `json:"banner,omitempty"`
 	Video  *SSPVideo  `json:"video,omitempty"`
 	Native *SSPNative `json:"native,omitempty"`
+
+	unsupported []string
+}
+
+func (self *SSPMediaTypes) UnmarshalJSON(data []byte) error {
+	raw := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	for key, value := range raw {
+		switch key {
+		case "banner":
+			if err := json.Unmarshal(value, &self.Banner); err != nil {
+				return err
+			}
+		case "video":
+			if err := json.Unmarshal(value, &self.Video); err != nil {
+				return err
+			}
+		case "native":
+			if err := json.Unmarshal(value, &self.Native); err != nil {
+				return err
+			}
+		default:
+			self.unsupported = append(self.unsupported, key)
+		}
+	}
+	sort.Strings(self.unsupported)
+	return nil
 }
 
 type SSPBanner struct {
@@ -99,7 +129,7 @@ func (self SSPAdUnit) legacySlotToken() string {
 }
 
 func (self SSPAdUnit) EffectiveMediaTypes() SSPMediaTypes {
-	if self.MediaTypes.Banner != nil || self.MediaTypes.Video != nil || self.MediaTypes.Native != nil {
+	if self.MediaTypes.Banner != nil || self.MediaTypes.Video != nil || self.MediaTypes.Native != nil || len(self.MediaTypes.unsupported) != 0 {
 		return self.MediaTypes
 	}
 	return SSPMediaTypes{
@@ -107,6 +137,16 @@ func (self SSPAdUnit) EffectiveMediaTypes() SSPMediaTypes {
 		Video:  self.LegacyVideo,
 		Native: self.LegacyNative,
 	}
+}
+
+func (self SSPMediaTypes) Validate() error {
+	if len(self.unsupported) != 0 {
+		return fmt.Errorf("unsupported mediaTypes: %v", self.unsupported)
+	}
+	if self.Banner == nil && self.Video == nil && self.Native == nil {
+		return fmt.Errorf("missing supported mediaTypes")
+	}
+	return nil
 }
 
 func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, error) {

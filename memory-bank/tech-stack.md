@@ -206,6 +206,10 @@ Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
 Direct SSP local/static serving derives its by-publisher-id lookup in memory
 from `.local/spread/pubmap/`; it does not add a separate spread directory.
+`POST /pz` is served by `dsp.Controller.ServeSSP` through
+`../pzdesign/cmd/unify`; valid requests return `200 application/json` arrays of
+HTML strings, while malformed JSON, invalid direct tokens, missing slots,
+unsupported media, and cache validation failures return HTTP errors.
 
 ## Operational Commands
 

@@ -1,12 +1,13 @@
 # SSP Direct Publisher Traffic
 
-Direct SSP traffic is the planned browser/API publisher tag entrypoint for
-publishers managed by the existing `pub` role. It is separate from ADX/OpenRTB
-traffic on `/bid/{domain}`.
+Direct SSP traffic is the browser/API publisher tag entrypoint for publishers
+managed by the existing `pub` role. It is separate from ADX/OpenRTB traffic on
+`/bid/{domain}`.
 
-M27 defines the request contract and cache lookup foundation only. Runtime
-serving on `/pz` is intentionally not active until the later SSP runtime
-milestone.
+M28 wires runtime serving on `POST /pz`. The handler validates packed direct
+SSP tokens against the publisher-by-id cache, converts ad units into internal
+OpenRTB impressions, serves local Aofei demand, and returns a JSON array of
+HTML strings in request order.
 
 ## V1 Browser Contract
 
@@ -48,8 +49,20 @@ that shape for compatibility tests, but supply validation for the v1 contract
 requires `slot`.
 
 Supported `mediaTypes` keys for the v1 contract are `banner`, `video`, and
-`native`. The current foundation parses these fields; runtime conversion into
-OpenRTB impressions is a later milestone.
+`native`. Runtime conversion uses the trusted `size_id` from
+`adUnits[].slot`, not browser-supplied dimensions, when building the internal
+OpenRTB banner, video, or native impression.
+
+Valid requests always return `200 application/json` with one string per input
+ad unit. No-fill units are represented by `""` at the matching array position:
+
+```json
+["<iframe ...></iframe><img ...>", ""]
+```
+
+Malformed JSON returns `400`, oversized bodies return `413`, and invalid direct
+tokens, missing slots, unsupported media, unknown publishers, or site/slot
+mismatches return `400`.
 
 ## Cache Lookup
 
@@ -71,7 +84,7 @@ to the site and slot strings used by ACL matching.
 Local/static mode derives the same by-id lookup in memory from the loaded
 `pubmap` snapshot. It does not add a separate spread file family.
 
-Validation checks performed by the foundation:
+Validation checks performed on the `/pz` request path:
 
 - unpack `site` into `pub_id` and `site_id`;
 - look up the active publisher by `pub_id`;
@@ -80,15 +93,34 @@ Validation checks performed by the foundation:
 - validate the site/slot pair against cached publisher metadata;
 - reconstruct site and slot strings for future ACL matching.
 
-No MySQL read is required on the future `/pz` request path.
+No MySQL read is required on the `/pz` request path. Redis mode reads
+`pubmap:by-id`; local/static mode reads the derived in-memory by-id lookup from
+the loaded `pubmap` snapshot.
+
+## Runtime Adapter
+
+`../pzdesign/cmd/unify` registers `POST /pz` before the Genelet catch-all
+handler. The adapter builds minimal browser metadata from HTTP headers:
+
+- `User-Agent` -> OpenRTB `device.ua`;
+- `X-Forwarded-For`, then `X-Real-IP`, then `RemoteAddr` -> OpenRTB
+  `device.ip`;
+- `Referer` -> OpenRTB `site.ref`;
+- `Host` -> OpenRTB `site.name`.
+
+The cache-derived `siteStr` is used as OpenRTB `site.domain`, and the
+cache-derived `slotStr` is used as each impression `tagid`. `adUnits[].code`
+is used only as the internal impression/debug id and response ordering aid; it
+is never used as publisher, site, slot, or size identity.
+
+M28 intentionally serves local Aofei demand only. It reuses the existing
+candidate, frequency-cap, audience, creative rendering, tracker, and audit
+paths, but it does not invoke middleman fallback. `/pz` does not write MySQL,
+refresh caches, set cookies, change CORS/origin policy, or add separate SSP
+reporting semantics.
 
 ## Milestone Boundary
 
-M27 does not wire `POST /pz`, return ads, set cookies, publish SSP audits, or
-change publisher UI snippets. Those behaviors belong to M28 through M31.
-
-The stable v1 browser response shape for those later milestones remains:
-
-```json
-["<div>renderable ad html</div>", ""]
-```
+M28 wires `POST /pz` and returns ads. Cookie handling, origin/referrer controls,
+publisher tag UI/download changes, and direct-SSP-specific reporting semantics
+belong to M29 through M31.

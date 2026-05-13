@@ -59,10 +59,15 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    signed by token and store selected-bid context in Redis. Native click links
    use `/clk` as a tracking redirect with a direct advertiser fallback; banner
    creatives opt into the same redirect through `{CLICK_URL}`.
-   Direct publisher SSP traffic is planned as a separate `POST /pz` entrypoint.
-   M27 defines the contract and cache lookup only: `site` packs `(pub_id,
-   site_id)`, `adUnits[].slot` packs `(slot_id, size_id)`, and the browser DOM
-   `code` is not trusted as supply identity. `/pz` serving is not wired yet.
+   Direct publisher SSP traffic is a separate `POST /pz` entrypoint. The
+   browser contract uses `site` packed as `(pub_id, site_id)` and
+   `adUnits[].slot` packed as `(slot_id, size_id)`; the browser DOM `code` is
+   not trusted as supply identity. The `/pz` adapter validates these tokens
+   against the direct publisher cache, synthesizes internal OpenRTB browser
+   impressions from headers and cache-derived site/slot strings, reuses the
+   local Aofei bid path, and returns a JSON HTML-string array in ad-unit order
+   with `""` for no-fill units. M28 does not invoke middleman fallback for SSP
+   traffic.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files. The ledger job consumes `winloss.<stamp>` files into
    interval and daily ledger tables through standalone `cmd/ledger`; missing
@@ -160,11 +165,11 @@ but refresh through Redis optimistic transactions to avoid concurrent lost
 updates.
 Direct SSP uses an additive `pubmap:by-id` Redis hash derived from `pubmap`.
 The value includes publisher domain, the active publisher object, and reverse
-site/slot metadata so a future `/pz` request can validate packed direct tag
-tokens and reconstruct site and slot strings for ACL matching without a MySQL
-read. Local/static mode derives the same lookup from the loaded `pubmap`
-snapshot in memory; `/bid/{domain}` continues to read the existing domain-keyed
-publisher cache.
+site/slot metadata so `/pz` can validate packed direct tag tokens and
+reconstruct site and slot strings for ACL matching without a MySQL read.
+Local/static mode derives the same lookup from the loaded `pubmap` snapshot in
+memory; `/bid/{domain}` continues to read the existing domain-keyed publisher
+cache.
 
 ## Database Boundary
 
@@ -185,8 +190,8 @@ legacy definers or legacy named database auth references.
 - Redis and spread campaign cache payloads use typed version envelopes for
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
-- Direct SSP runtime serving, cookie handling, origin/referrer controls,
-  reporting semantics, and publisher tag download UI are planned for M28-M31.
+- Direct SSP cookie handling, origin/referrer controls, reporting semantics,
+  and publisher tag download UI are planned for M29-M31.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
   component metadata and request-driven filters; handwritten module SQL should
   continue to use narrow allowlists for any interpolated identifiers.
