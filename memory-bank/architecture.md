@@ -63,11 +63,11 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
    browser contract uses `site` packed as `(pub_id, site_id)` and
    `adUnits[].slot` packed as `(slot_id, size_id)`; the browser DOM `code` is
    not trusted as supply identity. The `/pz` adapter validates these tokens
-   against the direct publisher cache, synthesizes internal OpenRTB browser
-   impressions from headers and cache-derived site/slot strings, reuses the
-   local Aofei bid path, and returns a JSON HTML-string array in ad-unit order
-   with `""` for no-fill units. M28 does not invoke middleman fallback for SSP
-   traffic.
+   against the direct publisher cache, including the configured slot size,
+   synthesizes internal OpenRTB browser impressions from headers and
+   cache-derived site/slot strings, reuses the local Aofei bid path, and returns
+   a JSON HTML-string array in ad-unit order with `""` for no-fill units. M28
+   does not invoke middleman fallback for SSP traffic.
    M29 publisher tags are generated from the `pub` slot UI using configured
    `ServerURL`, stored `pub_slot.size_id`, DOM ids of the form
    `pz-slot-<slot_id>`, and banner `mediaTypes` samples. `www/js/ads.js`
@@ -170,9 +170,10 @@ tracker updates keep the `bothcap:<user_id>` hash and binary `BothCap` payload,
 but refresh through Redis optimistic transactions to avoid concurrent lost
 updates.
 Direct SSP uses an additive `pubmap:by-id` Redis hash derived from `pubmap`.
-The value includes publisher domain, the active publisher object, and reverse
-site/slot metadata so `/pz` can validate packed direct tag tokens and
-reconstruct site and slot strings for ACL matching without a MySQL read.
+The value includes publisher domain, the active publisher object, reverse
+site/slot metadata, and slot-size metadata so `/pz` can validate packed direct
+tag tokens and reconstruct site and slot strings for ACL matching without a
+MySQL read.
 Local/static mode derives the same lookup from the loaded `pubmap` snapshot in
 memory; `/bid/{domain}` continues to read the existing domain-keyed publisher
 cache.

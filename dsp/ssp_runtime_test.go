@@ -109,6 +109,7 @@ func TestServeSSPPartialFillReturnsEmptyString(t *testing.T) {
 func TestServeSSPRejectsMalformedOversizedAndInvalidInput(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	site, slot := directTokens(t, 1, 10, 100, match.SizeID2To1(300, 250))
+	_, wrongSizeSlot := directTokens(t, 1, 10, 100, match.SizeID2To1(320, 50))
 	tests := []struct {
 		name string
 		body []byte
@@ -121,6 +122,7 @@ func TestServeSSPRejectsMalformedOversizedAndInvalidInput(t *testing.T) {
 		{name: "invalid slot token", body: []byte(`{"site":"` + site + `","adUnits":[{"code":"x","slot":"bad","mediaTypes":{"banner":{}}}]}`), want: http.StatusBadRequest},
 		{name: "unknown publisher", body: sspRequestBody(t, 99, 10, []sspAdUnitSpec{{Code: "x", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true}}), want: http.StatusBadRequest},
 		{name: "site slot mismatch", body: sspRequestBody(t, 1, 999, []sspAdUnitSpec{{Code: "x", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true}}), want: http.StatusBadRequest},
+		{name: "slot size mismatch", body: []byte(`{"site":"` + site + `","adUnits":[{"code":"x","slot":"` + wrongSizeSlot + `","mediaTypes":{"banner":{}}}]}`), want: http.StatusBadRequest},
 		{name: "missing media", body: []byte(`{"site":"` + site + `","adUnits":[{"code":"x","slot":"` + slot + `"}]}`), want: http.StatusBadRequest},
 		{name: "unsupported media", body: []byte(`{"site":"` + site + `","adUnits":[{"code":"x","slot":"` + slot + `","mediaTypes":{"audio":{}}}]}`), want: http.StatusBadRequest},
 	}

@@ -26,6 +26,7 @@ type Pub struct {
 	DefaultAppSlotID uint32
 	Sites            map[string]uint32
 	Slots            map[uint32]map[string]uint32
+	SlotSizes        map[uint32]map[uint32]uint32
 }
 
 // Pack encodes a Pub object into a byte slice.
@@ -149,27 +150,28 @@ func DBGetPubByID(db *sql.DB, pubID string) (*Pub, string, error) {
 // DBGetPub retrieves the Pub from the database using domain
 func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	rows, err := db.Query(`
-SELECT p.pub_id, p.active, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id, b.limit_imp, b.current_imp
-FROM pub p
-INNER JOIN pub_site s USING (pub_id)
-INNER JOIN pub_slot t USING (site_id)
-LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
-WHERE domain = ?`, domain)
+	SELECT p.pub_id, p.active, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id, t.size_id, b.limit_imp, b.current_imp
+	FROM pub p
+	INNER JOIN pub_site s USING (pub_id)
+	INNER JOIN pub_slot t USING (site_id)
+	LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
+	WHERE domain = ?`, domain)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	p := &Pub{
-		Sites: make(map[string]uint32),
-		Slots: make(map[uint32]map[string]uint32),
+		Sites:     make(map[string]uint32),
+		Slots:     make(map[uint32]map[string]uint32),
+		SlotSizes: make(map[uint32]map[uint32]uint32),
 	}
 	for rows.Next() {
-		var siteID, slotID uint32
+		var siteID, slotID, sizeID uint32
 		var limitImps, currentImps sql.NullInt64
 		var slotName, foreignID, siteType string
 		var active sql.NullString
-		err = rows.Scan(&p.PubID, &active, &foreignID, &siteID, &siteType, &slotName, &slotID, &limitImps, &currentImps)
+		err = rows.Scan(&p.PubID, &active, &foreignID, &siteID, &siteType, &slotName, &slotID, &sizeID, &limitImps, &currentImps)
 		if err != nil {
 			return nil, err
 		}
@@ -188,8 +190,14 @@ WHERE domain = ?`, domain)
 		if _, ok := p.Slots[siteID]; !ok {
 			p.Slots[siteID] = make(map[string]uint32)
 		}
+		if _, ok := p.SlotSizes[siteID]; !ok {
+			p.SlotSizes[siteID] = make(map[uint32]uint32)
+		}
 		if _, ok := p.Slots[siteID][slotName]; !ok {
 			p.Slots[siteID][slotName] = slotID
+		}
+		if _, ok := p.SlotSizes[siteID][slotID]; !ok {
+			p.SlotSizes[siteID][slotID] = sizeID
 		}
 		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
 			p.DefaultWebSiteID = siteID
@@ -218,6 +226,13 @@ VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 		self.Slots[siteID] = make(map[string]uint32)
 	}
 	self.Slots[siteID][slotStr] = slotID
+	if self.SlotSizes == nil {
+		self.SlotSizes = make(map[uint32]map[uint32]uint32)
+	}
+	if self.SlotSizes[siteID] == nil {
+		self.SlotSizes[siteID] = make(map[uint32]uint32)
+	}
+	self.SlotSizes[siteID][slotID] = defaultPubSlotSizeID
 	return slotID, nil
 }
 
@@ -249,9 +264,10 @@ VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
 		return nil, err
 	}
 	pub := &Pub{
-		PubID: pubID,
-		Sites: make(map[string]uint32),
-		Slots: make(map[uint32]map[string]uint32),
+		PubID:     pubID,
+		Sites:     make(map[string]uint32),
+		Slots:     make(map[uint32]map[string]uint32),
+		SlotSizes: make(map[uint32]map[uint32]uint32),
 	}
 
 	if pub.DefaultAppSiteID, err = pub.addSite(db, SITEDefaultApp, "App"); err == nil {

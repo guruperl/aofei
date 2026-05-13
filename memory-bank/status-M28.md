@@ -30,6 +30,11 @@ the existing local Aofei bid path.
   - Updated `docs/ssp-direct-traffic.md`, product, architecture, tech stack, and
     milestone state.
 
+- `[+]` Resolve M27-M29 deep-review runtime findings.
+  - `/pz` now validates the full site/slot/size tuple against cache metadata.
+  - `cmd/unify -local` no longer overrides config `is_local` when the flag is
+    omitted, and enabling it explicitly reloads local static snapshots.
+
 - `[+]` Run required verification and record results.
 
 ## Acceptance

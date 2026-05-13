@@ -6,6 +6,8 @@ const (
 	SITEDefaultApp = "defaultApp"
 	SITEDefaultWeb = "defaultWeb"
 	SLOTDefault    = "defaultSlot"
+
+	defaultPubSlotSizeID = 4194368
 )
 
 type SiteType uint8

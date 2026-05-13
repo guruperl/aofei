@@ -205,7 +205,9 @@ fallback-only legacy `middleman:routes`, and
 Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
 Direct SSP local/static serving derives its by-publisher-id lookup in memory
-from `.local/spread/pubmap/`; it does not add a separate spread directory.
+from `.local/spread/pubmap/`; it does not add a separate spread directory. The
+direct cache includes slot-size metadata, and `/pz` rejects slot tokens whose
+packed size does not match the configured slot size.
 `POST /pz` is served by `dsp.Controller.ServeSSP` through
 `../pzdesign/cmd/unify`; valid requests return `200 application/json` arrays of
 HTML strings, while malformed JSON, invalid direct tokens, missing slots,
@@ -215,6 +217,9 @@ headers only on `/pz`: origin `*`, methods `POST, OPTIONS`, and header
 `Content-Type`. Publisher slot pages load `../pzdesign/www/js/ads.js`; the
 script posts to the origin it was loaded from plus `/pz` unless
 `pzLoadAds(payload, {endpoint: "..."})` is used.
+`cmd/unify -local` is an explicit override: when omitted, the Aofei config's
+`is_local` value is preserved; when enabled, local static snapshots are loaded
+before serving requests.
 
 ## Operational Commands
 

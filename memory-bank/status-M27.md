@@ -46,6 +46,12 @@ tokens resolvable from cache before runtime `/pz` serving is added.
   - The legacy code-as-slot parser helper is unexported so future runtime
     serving code uses validated `slot` tokens.
 
+- `[+]` Resolve M27-M29 deep-review direct cache finding.
+  - Direct publisher cache payloads now include `pub_slot.size_id` metadata for
+    each cached slot.
+  - `/pz` supply validation rejects forged slot tokens whose packed `size_id`
+    does not match the configured cached slot size.
+
 ## Acceptance
 
 - `[+]` No `/pz` runtime serving is wired in M27.

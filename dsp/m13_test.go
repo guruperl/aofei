@@ -81,6 +81,9 @@ func newLocalBidPathController(t *testing.T) *Controller {
 		Slots: map[uint32]map[string]uint32{
 			10: map[string]uint32{"slot-one": 100, "slot-two": 200},
 		},
+		SlotSizes: map[uint32]map[uint32]uint32{
+			10: map[uint32]uint32{100: sizeOne, 200: sizeTwo},
+		},
 	}
 	writePubSnapshot(t, top, "pub.example", pub)
 	writeRAdvsSnapshot(t, top, sizeOne, 100, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Weight: 1, CostType: 2, Cost: 2}})

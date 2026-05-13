@@ -17,11 +17,11 @@ const currentPzdesignSSPSample = `{
         "size": [300, 250]
       }
     }
-  },{
-    "code": "pz-video-5678",
-    "slot": "AAAACAH677776",
-    "mediaTypes": {
-      "video": {
+	},{
+	    "code": "pz-video-5678",
+	    "slot": "CYBQAAH677776",
+	    "mediaTypes": {
+	      "video": {
         "context": "instream",
         "playerSize": [640, 480]
       }
@@ -160,8 +160,15 @@ func directSSPTestPub() *acl.DirectPub {
 		Slots: map[uint32]map[string]uint32{
 			65535: map[string]uint32{
 				"banner-slot": 65536,
-				"video-slot":  65536,
+				"video-slot":  790,
 				"native-slot": 789,
+			},
+		},
+		SlotSizes: map[uint32]map[uint32]uint32{
+			65535: map[uint32]uint32{
+				65536: 788,
+				790:   4294967294,
+				789:   65535,
 			},
 		},
 	}

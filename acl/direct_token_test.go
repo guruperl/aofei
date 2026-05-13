@@ -65,9 +65,10 @@ func TestUnpackDirectTokenRejectsMalformedLengths(t *testing.T) {
 
 func TestDirectPubMapValidatesAndReconstructsSupplyStrings(t *testing.T) {
 	pub := &Pub{
-		PubID:  42,
-		Active: true,
-		Sites:  map[string]uint32{"example.com": 7},
+		PubID:     42,
+		Active:    true,
+		Sites:     map[string]uint32{"example.com": 7},
+		SlotSizes: map[uint32]map[uint32]uint32{7: {99: 12345}},
 		Slots: map[uint32]map[string]uint32{
 			7: map[string]uint32{"leaderboard": 99},
 		},
@@ -81,27 +82,31 @@ func TestDirectPubMapValidatesAndReconstructsSupplyStrings(t *testing.T) {
 	if direct.Domain != "pub.example" {
 		t.Fatalf("domain = %q, want pub.example", direct.Domain)
 	}
-	siteStr, slotStr, ok := direct.Validate(7, 99)
+	siteStr, slotStr, ok := direct.Validate(7, 99, 12345)
 	if !ok {
 		t.Fatal("expected direct supply to validate")
 	}
 	if siteStr != "example.com" || slotStr != "leaderboard" {
 		t.Fatalf("reverse strings = %q, %q; want example.com, leaderboard", siteStr, slotStr)
 	}
-	if _, _, ok := direct.Validate(7, 100); ok {
+	if _, _, ok := direct.Validate(7, 100, 12345); ok {
 		t.Fatal("wrong slot validated")
 	}
-	if _, _, ok := direct.Validate(8, 99); ok {
+	if _, _, ok := direct.Validate(8, 99, 12345); ok {
 		t.Fatal("wrong site validated")
+	}
+	if _, _, ok := direct.Validate(7, 99, 54321); ok {
+		t.Fatal("wrong size validated")
 	}
 }
 
 func TestDirectPubPackRoundTrip(t *testing.T) {
 	pub := &Pub{
-		PubID:  42,
-		Active: true,
-		Sites:  map[string]uint32{"example.com": 7},
-		Slots:  map[uint32]map[string]uint32{7: map[string]uint32{"leaderboard": 99}},
+		PubID:     42,
+		Active:    true,
+		Sites:     map[string]uint32{"example.com": 7},
+		Slots:     map[uint32]map[string]uint32{7: map[string]uint32{"leaderboard": 99}},
+		SlotSizes: map[uint32]map[uint32]uint32{7: map[uint32]uint32{99: 12345}},
 	}
 	direct := NewDirectPub("pub.example", pub)
 	data, err := direct.Pack()
@@ -112,7 +117,7 @@ func TestDirectPubPackRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Pub.PubID != 42 || got.Sites[7] != "example.com" || got.Slots[7][99] != "leaderboard" {
+	if got.Pub.PubID != 42 || got.Sites[7] != "example.com" || got.Slots[7][99] != "leaderboard" || got.SlotSizes[7][99] != 12345 {
 		t.Fatalf("round trip = %#v", got)
 	}
 }

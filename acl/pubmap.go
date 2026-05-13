@@ -15,10 +15,11 @@ import (
 type PubMap map[string]*Pub
 
 type DirectPub struct {
-	Domain string
-	Pub    *Pub
-	Sites  map[uint32]string
-	Slots  map[uint32]map[uint32]string
+	Domain    string
+	Pub       *Pub
+	Sites     map[uint32]string
+	Slots     map[uint32]map[uint32]string
+	SlotSizes map[uint32]map[uint32]uint32
 }
 
 type DirectPubMap map[uint32]*DirectPub
@@ -108,10 +109,11 @@ var HashNamePubByID = "pubmap:by-id"
 
 func NewDirectPub(domain string, pub *Pub) *DirectPub {
 	direct := &DirectPub{
-		Domain: domain,
-		Pub:    pub,
-		Sites:  make(map[uint32]string),
-		Slots:  make(map[uint32]map[uint32]string),
+		Domain:    domain,
+		Pub:       pub,
+		Sites:     make(map[uint32]string),
+		Slots:     make(map[uint32]map[uint32]string),
+		SlotSizes: make(map[uint32]map[uint32]uint32),
 	}
 	if pub == nil {
 		return direct
@@ -128,6 +130,16 @@ func NewDirectPub(domain string, pub *Pub) *DirectPub {
 		for slotStr, slotID := range slots {
 			if _, ok := direct.Slots[siteID][slotID]; !ok {
 				direct.Slots[siteID][slotID] = slotStr
+			}
+		}
+	}
+	for siteID, slots := range pub.SlotSizes {
+		if direct.SlotSizes[siteID] == nil {
+			direct.SlotSizes[siteID] = make(map[uint32]uint32)
+		}
+		for slotID, sizeID := range slots {
+			if _, ok := direct.SlotSizes[siteID][slotID]; !ok {
+				direct.SlotSizes[siteID][slotID] = sizeID
 			}
 		}
 	}
@@ -160,7 +172,7 @@ func UnpackDirectPub(data []byte) (*DirectPub, error) {
 	return &pub, err
 }
 
-func (self *DirectPub) Validate(siteID, slotID uint32) (string, string, bool) {
+func (self *DirectPub) Validate(siteID, slotID, sizeID uint32) (string, string, bool) {
 	if self == nil || self.Pub == nil {
 		return "", "", false
 	}
@@ -174,6 +186,14 @@ func (self *DirectPub) Validate(siteID, slotID uint32) (string, string, bool) {
 	}
 	slotStr, ok := slots[slotID]
 	if !ok {
+		return "", "", false
+	}
+	sizes := self.SlotSizes[siteID]
+	if sizes == nil {
+		return "", "", false
+	}
+	configuredSizeID, ok := sizes[slotID]
+	if !ok || configuredSizeID != sizeID {
 		return "", "", false
 	}
 	return siteStr, slotStr, true
@@ -254,10 +274,10 @@ func PubMapFromIO(top string) (PubMap, error) {
 // DBGetPubMap retrieves the PubMap from the database
 func DBGetPubMap(db *sql.DB) (PubMap, error) {
 	rows, err := db.Query(`
-SELECT domain, p.pub_id, p.active, foreign_id, s.site_id, t.slot_name, t.slot_id, b.limit_imp, b.current_imp
-FROM pub p
-INNER JOIN pub_site s USING (pub_id)
-INNER JOIN pub_slot t USING (site_id)
+	SELECT domain, p.pub_id, p.active, foreign_id, s.site_id, t.slot_name, t.slot_id, t.size_id, b.limit_imp, b.current_imp
+	FROM pub p
+	INNER JOIN pub_site s USING (pub_id)
+	INNER JOIN pub_slot t USING (site_id)
 LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
 `)
 	if err != nil {
@@ -267,19 +287,20 @@ LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
 
 	pubMap := make(map[string]*Pub)
 	for rows.Next() {
-		var pubID, siteID, slotID uint32
+		var pubID, siteID, slotID, sizeID uint32
 		var limitImps, currentImps sql.NullInt64
 		var active sql.NullString
 		var domain, slotName, foreignID string
-		err = rows.Scan(&domain, &pubID, &active, &foreignID, &siteID, &slotName, &slotID, &limitImps, &currentImps)
+		err = rows.Scan(&domain, &pubID, &active, &foreignID, &siteID, &slotName, &slotID, &sizeID, &limitImps, &currentImps)
 		if err != nil {
 			return nil, err
 		}
 		if _, ok := pubMap[domain]; !ok {
 			pubMap[domain] = &Pub{
-				PubID: pubID,
-				Sites: make(map[string]uint32),
-				Slots: make(map[uint32]map[string]uint32),
+				PubID:     pubID,
+				Sites:     make(map[string]uint32),
+				Slots:     make(map[uint32]map[string]uint32),
+				SlotSizes: make(map[uint32]map[uint32]uint32),
 			}
 		}
 		if active.Valid && active.String == "Yes" {
@@ -297,8 +318,14 @@ LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
 		if _, ok := pubMap[domain].Slots[siteID]; !ok {
 			pubMap[domain].Slots[siteID] = make(map[string]uint32)
 		}
+		if _, ok := pubMap[domain].SlotSizes[siteID]; !ok {
+			pubMap[domain].SlotSizes[siteID] = make(map[uint32]uint32)
+		}
 		if _, ok := pubMap[domain].Slots[siteID][slotName]; !ok {
 			pubMap[domain].Slots[siteID][slotName] = slotID
+		}
+		if _, ok := pubMap[domain].SlotSizes[siteID][slotID]; !ok {
+			pubMap[domain].SlotSizes[siteID][slotID] = sizeID
 		}
 		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
 			pubMap[domain].DefaultAppSiteID = siteID

@@ -74,7 +74,8 @@ Request fields:
 `adUnits[].slot` is the same packing of `(slot_id, size_id)`.
 `pub_slot.size_id` stores the publisher-configured packed width/height used for
 generated slot tags; the browser-supplied dimensions remain advisory runtime
-media metadata.
+media metadata. Runtime validation rejects a slot token whose `size_id` does not
+match the cached configured size for that slot.
 
 `adUnits[].code` is only the publisher page DOM element id. It is echoed for UI
 and debug use, but it is not trusted as supply identity in the v1 contract.
@@ -103,8 +104,6 @@ POST https://aofei.example/pz
 {
   "platform": "sdk",
   "site": "AAAACAH774AAA",
-  "ua": "ANY_UA_STRING",
-  "ip": "ANY_IP_STRING",
   "adUnits": [{
     "code": "pz-slot-13",
     "slot": "AAAACAAUAMAAA",
@@ -122,7 +121,7 @@ Response:
 
 Malformed JSON returns `400`, oversized bodies return `413`, and invalid direct
 tokens, missing slots, unsupported media, unknown publishers, or site/slot
-mismatches return `400`.
+mismatches, including size mismatches, return `400`.
 
 ## Cache Lookup
 
@@ -138,8 +137,8 @@ pubmap:by-id
 ```
 
 Keys are decimal `pub_id` values. Values contain the active publisher object,
-the domain string, and reverse maps from `site_id` and `(site_id, slot_id)` back
-to the site and slot strings used by ACL matching.
+the domain string, reverse maps from `site_id` and `(site_id, slot_id)` back to
+the site and slot strings used by ACL matching, and cached slot-size metadata.
 
 Local/static mode derives the same by-id lookup in memory from the loaded
 `pubmap` snapshot. It does not add a separate spread file family.
@@ -150,7 +149,7 @@ Validation checks performed on the `/pz` request path:
 - look up the active publisher by `pub_id`;
 - reject mismatched publisher ids;
 - unpack each `adUnits[].slot` into `slot_id` and `size_id`;
-- validate the site/slot pair against cached publisher metadata;
+- validate the site/slot/size tuple against cached publisher metadata;
 - reconstruct site and slot strings for future ACL matching.
 
 No MySQL read is required on the `/pz` request path. Redis mode reads

@@ -35,6 +35,10 @@ sizes, and allowing external browser embeds to call `/pz`.
 
 - `[+]` Add focused tests for slot filtering/tag output and `/pz` CORS.
 
+- `[+]` Resolve M27-M29 deep-review publisher sample finding.
+  - Publisher API snippets no longer show body-level `ua` or `ip` fields,
+    because M28 derives request metadata from HTTP headers.
+
 - `[+]` Update SSP docs, database docs, and memory bank files.
 
 - `[+]` Run required verification and record results.

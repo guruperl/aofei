@@ -181,9 +181,9 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 		if err != nil {
 			return nil, fmt.Errorf("adUnits[%d] invalid slot token: %w", i, err)
 		}
-		siteStr, slotStr, ok := pub.Validate(siteID, slotID)
+		siteStr, slotStr, ok := pub.Validate(siteID, slotID, sizeID)
 		if !ok {
-			return nil, fmt.Errorf("adUnits[%d] invalid site/slot pair: site_id=%d slot_id=%d", i, siteID, slotID)
+			return nil, fmt.Errorf("adUnits[%d] invalid site/slot/size tuple: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
 		}
 		units = append(units, SSPValidatedUnit{
 			Code:    adUnit.Code,
