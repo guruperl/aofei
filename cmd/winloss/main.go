@@ -32,6 +32,7 @@ func usage() {
 var sConf string
 var address string
 var how string
+var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 func init() {
 	flag.Usage = usage
@@ -61,7 +62,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,32 +91,32 @@ func main() {
 	switch how {
 	case "win":
 		log.Printf("win %s", trackers.nurl.String())
-		rspns, err = http.Get(trackers.nurl.String())
+		rspns, err = httpClient.Get(trackers.nurl.String())
 		if err == nil {
 			time.Sleep(1 * time.Second)
 			log.Printf("impression %s", trackers.imp.String())
-			impRspns, err = http.Get(trackers.imp.String())
+			impRspns, err = httpClient.Get(trackers.imp.String())
 		}
 	case "loss":
 		log.Printf("loss %s", trackers.lurl.String())
-		rspns, err = http.Get(trackers.lurl.String())
+		rspns, err = httpClient.Get(trackers.lurl.String())
 	case "imp":
 		log.Printf("impression %s", trackers.imp.String())
-		impRspns, err = http.Get(trackers.imp.String())
+		impRspns, err = httpClient.Get(trackers.imp.String())
 	case "clk":
 		log.Printf("clicking %s", trackers.click.String())
-		clkRspns, err = http.Get(trackers.click.String())
+		clkRspns, err = httpClient.Get(trackers.click.String())
 	default:
 		if rand.Intn(10) < 5 {
-			if rspns, err = http.Get(trackers.nurl.String()); err == nil {
+			if rspns, err = httpClient.Get(trackers.nurl.String()); err == nil {
 				time.Sleep(1 * time.Second)
-				if impRspns, err = http.Get(trackers.imp.String()); err == nil && rand.Intn(10) < 5 {
+				if impRspns, err = httpClient.Get(trackers.imp.String()); err == nil && rand.Intn(10) < 5 {
 					time.Sleep(2 * time.Second)
-					clkRspns, err = http.Get(trackers.click.String())
+					clkRspns, err = httpClient.Get(trackers.click.String())
 				}
 			}
 		} else {
-			rspns, err = http.Get(trackers.lurl.String())
+			rspns, err = httpClient.Get(trackers.lurl.String())
 		}
 	}
 	if err != nil {

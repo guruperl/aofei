@@ -64,9 +64,10 @@
             "Issuers": {
                 "db": {
 		    "Default": true,
-                    "Screen": 1,
-                    "Sql": "proc_adv",
+                    "Screen": 0,
+                    "Sql": "SELECT p.adv_id, p.email AS a_email, a.company AS a_company, a.contact AS a_contact, p.timezone_id AS a_timezone_id, p.passwd FROM adv p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.active='Yes'",
                     "Sql_as": "proc_adv_as",
+                    "Password_hash": "passwd",
                     "Credential": [ "email", "passwd", "direct", "gadv" ],
                     "ConditionURI" : [
                         ["uC01","/goto/adv/e/","_md5","/goto/adv/e/campaign?action=topics"],
@@ -88,9 +89,10 @@
             "Issuers": {
                 "db": {
 		    "Default": true,
-                    "Screen": 1,
-                    "Sql": "proc_pub",
+                    "Screen": 0,
+                    "Sql": "SELECT p.pub_id, p.email AS p_email, a.company AS p_company, a.contact AS p_contact, p.timezone_id AS p_timezone_id, p.passwd FROM pub p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.active='Yes'",
                     "Sql_as": "proc_pub_as",
+                    "Password_hash": "passwd",
                     "Credential": ["email", "passwd", "direct", "gpub"],
                     "ConditionURI" : [
                         ["uC01","/goto/pub/e/","_md5","/goto/pub/e/site?action=topics"],
@@ -114,7 +116,8 @@
                     "Default": true,
                     "Credential": [ "login", "passwd", "direct", "gagent" ],
                     "Sql_as": "SELECT agent_id, login, level FROM agent WHERE login=? AND active='Yes'",
-                    "Sql": "SELECT agent_id, login, level FROM agent WHERE login=? AND passwd=SHA1(CONCAT(?,login)) AND active='Yes'"
+                    "Sql": "SELECT agent_id, login AS agent_login, level AS agent_level, passwd FROM agent WHERE login=? AND active='Yes'",
+                    "Password_hash": "passwd"
                 }
             }
         },
@@ -133,7 +136,8 @@
                 "db": {
 		"Default": true,
                     "Credential": [ "login", "passwd", "direct", "gadmin" ],
-                    "Sql": "SELECT admin_id, login FROM admin WHERE login=? AND passwd=SHA1(CONCAT(?,login)) AND active='Yes'"
+                    "Sql": "SELECT admin_id, login AS admin_login, passwd FROM admin WHERE login=? AND active='Yes'",
+                    "Password_hash": "passwd"
                 }
             }
         }
