@@ -1,13 +1,9 @@
-// Description: The ledger package provides the ledger data structure and methods to insert ledger data into database.
-// The ledger data structure contains the database connection, the directory of the winloss file, the interval in minutes,
-// the active time, the current timestamp, the slots, and the items existing in the database.
-//
-// StatisticsToLedger should run very interval, e.g. 10 minutes, to insert the statistics of the winloss file into the ledger database.
-// InsertDaily should run daily to aggregate the ledger data pf the previous day, or a given day, into daily ledger.
-package main
+// Package ledger aggregates win/loss logs into interval and daily ledger tables.
+package ledger
 
 import (
 	"bufio"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -39,16 +35,20 @@ type Ledger struct {
 	LogWinLoss string
 	Interval   int
 	Active     time.Time
-	current    int64
+	Current    int64
 	slots      map[uint32][2]uint32
 	creatives  map[uint32][3]uint32
 }
 
-// NewLedger creates a new Ledger with the given database and interval in minutes.
-// The active time is the time of the previous timestamp of the current time by default,
-// unless the timestamp is passed as an argument.
-// If the active time is already existing in the database, nil will be returned.
-func NewLedger(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
+type IntervalResult struct {
+	Current int64
+	Skipped bool
+}
+
+func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
+	if interval <= 0 {
+		return nil, fmt.Errorf("ledger interval must be positive")
+	}
 	var current int64
 	if len(stamp) > 0 {
 		current = int64(stamp[0])
@@ -112,19 +112,58 @@ INNER JOIN adv_campaign c USING (campaign_id)`)
 		LogWinLoss: dir,
 		Interval:   interval,
 		Active:     active,
-		current:    current,
+		Current:    current,
 		slots:      slots,
 		creatives:  creatives,
 	}, nil
 }
 
-// Statistics returns the statistics of the winloss file of the specific timestamp.
+func RunInterval(db *sql.DB, dir string, interval int, stamp ...int) (IntervalResult, error) {
+	l, err := New(db, dir, interval, stamp...)
+	if err != nil {
+		return IntervalResult{}, err
+	}
+	if l == nil {
+		return IntervalResult{Skipped: true}, nil
+	}
+	if err := l.StatisticsToLedger(); err != nil {
+		return IntervalResult{Current: l.Current}, err
+	}
+	return IntervalResult{Current: l.Current}, nil
+}
+
+func RunIntervalEmbedded(db *sql.DB, dir string, interval int, stamp ...int) (IntervalResult, error) {
+	result, err := RunInterval(db, dir, interval, stamp...)
+	if errors.Is(err, ErrMissingInput) {
+		result.Skipped = true
+		return result, nil
+	}
+	return result, err
+}
+
+func Every(ctx context.Context, every time.Duration, run func(context.Context)) {
+	if every <= 0 {
+		return
+	}
+	run(ctx)
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run(ctx)
+		}
+	}
+}
+
 func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, map[uint32]map[uint32]int, map[uint32]map[uint32]int, map[uint32]map[uint32]float32, error) {
 	imps := make(map[uint32]map[uint32]int)
 	clis := make(map[uint32]map[uint32]int)
 	spes := make(map[uint32]map[uint32]float32)
 
-	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.current)
+	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.Current)
 	fh, err := os.Open(name)
 	if err != nil && os.IsNotExist(err) {
 		return nil, nil, nil, nil, nil, &MissingInputError{Path: name}
@@ -177,8 +216,6 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 	return slots, creatives, imps, clis, spes, nil
 }
 
-// StatisticsToLedger calculates the statistics of the winloss file of the specific timestamp
-// and inserts them into the ledger database.
 func (self *Ledger) StatisticsToLedger() error {
 	slots, creatives, imps, clis, spes, err := self.Statistics()
 	if err != nil {
@@ -188,13 +225,6 @@ func (self *Ledger) StatisticsToLedger() error {
 	return insertLedger(self.DB, myDay, slots, creatives, imps, clis, spes)
 }
 
-// insertLedger inserts ledger data into database.
-// myDay is the date of the ledger datetime
-// slots is a map of slot_id to site_id and pub_id
-// creatives is a map of creative_id to item_id, campaign_id and adv_id
-// imps is a map of slot_id to creative_id to impressions
-// clis is a map of slot_id to creative_id to clicks
-// spes is a map of slot_id to creative_id to spend
 func insertLedger(db *sql.DB, myDay string, slots map[uint32][2]uint32, creatives map[uint32][3]uint32, imps, clis map[uint32]map[uint32]int, spes map[uint32]map[uint32]float32) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -305,7 +335,6 @@ SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, 
 	return tx.Commit()
 }
 
-// InsertDaily aggregates daily data of the previous day, or the given day into daily ledger.
 func InsertDaily(db *sql.DB, myDays ...string) error {
 	var myDay string
 	if len(myDays) == 0 {

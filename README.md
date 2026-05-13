@@ -46,8 +46,9 @@ GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./c
 ```
 
 See [docs/operational-commands.md](docs/operational-commands.md) for the local
-contracts for `cmd/ledger`, `cmd/nats-client`, `cmd/winloss`, `cmd/spread`, and
-`cmd/maxmind`.
+contracts for `cmd/redis-cache`, `cmd/ledger`, `cmd/nats-client`,
+`cmd/winloss`, `cmd/spread`, and `cmd/maxmind`, including where each command
+should run in production.
 
 See [docs/maxmind-runtime.md](docs/maxmind-runtime.md) for the active
 `etc/maxmind.json` contract, expected external GeoLite2 City path, ignored

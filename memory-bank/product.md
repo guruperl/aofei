@@ -39,6 +39,9 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 - DSP runtime code reads request data, config, cache entries, mutable Redis
   state, MaxMind lookup data, and logging paths to produce bid responses and
   win/loss records.
+- Redis cache refresh and ledger aggregation remain singleton scheduled jobs,
+  normally on dedicated cache and log aggregation nodes rather than every
+  `cmd/unify` node.
 - Summer/Genelet code provides admin-model plumbing over the same schema.
 
 ## Current Product Direction

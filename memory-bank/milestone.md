@@ -467,7 +467,28 @@ Acceptance:
   tree when it is present.
 - Existing `.e` template cleanup is explicitly deferred.
 
-## M19 - Middleman Bidder Runtime `[ ]`
+## M19 - Maintenance Job Package Refactor `[+]`
+
+Refactor cache and ledger jobs for reuse, keep Redis cache population as a
+singleton scheduled command, and keep ledger on the log aggregation node.
+
+Scope:
+
+- Refactor `cmd/redis-cache` and `cmd/ledger` logic into reusable internal job
+  packages while keeping the standalone command flags.
+- Keep Redis cache refresh, ledger, `cmd/nats-client`, `cmd/spread`, and
+  `cmd/winloss` separate commands.
+
+Acceptance:
+
+- `cmd/unify` behavior remains HTTP UI and ADX serving only.
+- Redis cache refresh remains a singleton cron/timer job on one dedicated node.
+- Ledger runs only on the node where `cmd/nats-client` aggregates win/loss log
+  files.
+- Standalone cache and ledger commands remain available for cron, timers, and
+  manual operation.
+
+## M20 - Middleman Bidder Runtime `[ ]`
 
 Wire approved bidders into fallback runtime after local campaign matching
 returns no bid.

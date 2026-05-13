@@ -1,4 +1,4 @@
-package main
+package ledger
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestStatisticsMissingWinLossFileReturnsMissingInput(t *testing.T) {
-	ledger := &Ledger{LogWinLoss: t.TempDir(), current: 123}
+	ledger := &Ledger{LogWinLoss: t.TempDir(), Current: 123}
 
 	_, _, _, _, _, err := ledger.Statistics()
 	if !errors.Is(err, ErrMissingInput) {
@@ -21,11 +21,19 @@ func TestStatisticsMissingWinLossFileReturnsMissingInput(t *testing.T) {
 	}
 }
 
+func TestRunIntervalEmbeddedTreatsMissingInputAsSkip(t *testing.T) {
+	ledger := &Ledger{LogWinLoss: t.TempDir(), Current: 123}
+	err := ledger.StatisticsToLedger()
+	if !errors.Is(err, ErrMissingInput) {
+		t.Fatalf("StatisticsToLedger error = %v, want ErrMissingInput", err)
+	}
+}
+
 func TestStatisticsScansLargeLinesAndAggregatesByCreativeID(t *testing.T) {
 	dir := t.TempDir()
 	ledger := &Ledger{
 		LogWinLoss: dir,
-		current:    123,
+		Current:    123,
 		slots: map[uint32][2]uint32{
 			10: {20, 30},
 		},
@@ -64,7 +72,7 @@ func TestStatisticsScansLargeLinesAndAggregatesByCreativeID(t *testing.T) {
 		t.Fatalf("clicks by creative = %v, want 1 for creative 99", clis)
 	}
 	if spend[10][99] != 1.25 {
-		t.Fatalf("spend by creative = %v, want 1.25 for creative 99", spend)
+		t.Fatalf("spend by creative = %v, want 1.25", spend)
 	}
 	if _, ok := imps[10][77]; ok {
 		t.Fatalf("statistics used item id as creative id: %v", imps[10])

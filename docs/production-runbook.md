@@ -25,6 +25,20 @@ Scheduled or manual jobs:
 | MaxMind refresh | `cmd/maxmind` | Rebuilds MaxMind JSON country/state maps from MySQL. |
 | Cache population | `cmd/redis-cache` | Populates Redis and/or spread cache from MySQL. |
 
+Command placement:
+
+| Node role | Run | Do not run |
+|---|---|---|
+| HTTP/UI/ADX node | `aofei-unify.service`; `aofei-nats-client.service` when this node publishes logs that should be written locally or forwarded by the deployment | `cmd/ledger`; `cmd/redis-cache` timers |
+| Cache-maintenance node | `cmd/redis-cache -cache=redis` from cron or a systemd timer; optional `-cache=spread|all` for full spread republish workflows | per-HTTP-node cache refreshers |
+| Log aggregation node | `aofei-nats-client.service`; `cmd/ledger` interval and daily timers | HTTP-node-local ledger jobs |
+| Spread/local-cache node | `aofei-spread.service` only when this node needs spread disk snapshots | ledger unless it is also the log aggregation node |
+
+If log files are written on every HTTP node, production must either ship/merge
+those files to one log aggregation node before ledger runs, or run separate
+database-safe aggregation for each shard. The active recommendation is one log
+aggregation node for ledger input.
+
 External dependencies:
 
 - MySQL for schema, admin data, campaign data, and ledger tables.
@@ -72,6 +86,11 @@ SUMMER=/etc/aofei/summer.json
 `cmd/nats-client`, `cmd/spread`, `cmd/ledger`, `cmd/maxmind`, and
 `cmd/redis-cache` read `AOFEI`.
 
+Run Redis cache population as a singleton cron job or systemd timer on one
+dedicated node with `cmd/redis-cache -cache=redis`; do not run one cache
+refresher per `unify` node. Run `cmd/ledger` only on the log aggregation node
+where the complete `log_winloss/winloss.<stamp>` stream is available.
+
 Checked-in `etc/aofei.json` and `etc/summer.json` are examples. Generated
 `etc/*.local.json` files are local-only artifacts and must not be copied into
 production as-is.
@@ -113,8 +132,124 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
+Keep `nats-client` separate when ledger files are required, keep `spread`
+separate when spread/cache NATS messages should become disk snapshots, keep
+`redis-cache` as a singleton scheduled job, and run `ledger` only on the log
+aggregator node.
+
+Example `aofei-nats-client.service`, installed separately from `unify`:
+
+```ini
+[Unit]
+Description=Aofei NATS log file writer
+After=network-online.target nats.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aofei
+Group=aofei
+Environment=AOFEI=/etc/aofei/aofei.json
+ExecStart=/opt/aofei/bin/nats-client -interval=10
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Example singleton Redis cache timer on the cache-maintenance node:
+
+```ini
+[Unit]
+Description=Aofei Redis cache refresh
+
+[Service]
+Type=oneshot
+User=aofei
+Group=aofei
+Environment=AOFEI=/etc/aofei/aofei.json
+ExecStart=/opt/aofei/bin/redis-cache -cache=redis
+NoNewPrivileges=true
+PrivateTmp=true
+```
+
+```ini
+[Unit]
+Description=Run Aofei Redis cache refresh every 15 minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=15m
+Unit=aofei-redis-cache.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Example ledger interval timer on the log aggregation node:
+
+```ini
+[Unit]
+Description=Aofei interval ledger aggregation
+
+[Service]
+Type=oneshot
+User=aofei
+Group=aofei
+Environment=AOFEI=/etc/aofei/aofei.json
+ExecStart=/opt/aofei/bin/ledger -interval=10
+NoNewPrivileges=true
+PrivateTmp=true
+```
+
+```ini
+[Unit]
+Description=Run Aofei interval ledger aggregation every 10 minutes
+
+[Timer]
+OnBootSec=12m
+OnUnitActiveSec=10m
+Unit=aofei-ledger.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Example daily ledger timer on the log aggregation node:
+
+```ini
+[Unit]
+Description=Aofei daily ledger aggregation
+
+[Service]
+Type=oneshot
+User=aofei
+Group=aofei
+Environment=AOFEI=/etc/aofei/aofei.json
+ExecStart=/opt/aofei/bin/ledger -daily
+NoNewPrivileges=true
+PrivateTmp=true
+```
+
+```ini
+[Unit]
+Description=Run Aofei daily ledger aggregation
+
+[Timer]
+OnCalendar=*-*-* 00:20:00
+Persistent=true
+Unit=aofei-ledger-daily.service
+
+[Install]
+WantedBy=timers.target
+```
+
 Use the same `User`, `Group`, `Environment`, restart policy, and hardening
-pattern for `nats-client` and `spread`, changing only `ExecStart`.
+pattern for `spread`, changing only `ExecStart`. `redis-cache` and `ledger`
+should normally be oneshot timer services, not long-running services.
 
 The current server commands do not document an application-level graceful
 shutdown protocol. Operators should use systemd stop timeouts, observe logs, and
@@ -138,6 +273,9 @@ sudo systemctl daemon-reload
 sudo systemctl restart aofei-spread.service
 sudo systemctl restart aofei-nats-client.service
 sudo systemctl restart aofei-unify.service
+sudo systemctl enable --now aofei-redis-cache.timer
+sudo systemctl enable --now aofei-ledger.timer
+sudo systemctl enable --now aofei-ledger-daily.timer
 sudo systemctl status aofei-unify.service
 ```
 
@@ -150,6 +288,8 @@ Smoke checks:
 - In local/spread static-cache mode, spread files exist and bid nodes have
   loaded a current in-process static generation.
 - NATS log subjects are written into the configured log directories.
+- Ledger timers run only on the log aggregation node and see complete
+  `log_winloss/winloss.<stamp>` files.
 - No unexpected HTTP 403 appears for configured admin origins.
 
 Rollback by restoring the previous binary release and restarting the same
@@ -200,6 +340,8 @@ NATS requirements:
 
 - Provide the URL in `AOFEI`.
 - Monitor service availability, subscription health, and dropped messages.
+- Run `nats-client` as a separate service from `unify`; do not embed it in the
+  HTTP process.
 - Run `spread` on nodes that use local/spread static-cache mode so static
   snapshots can be persisted and reloaded.
 - Restart `nats-client` and `spread` after NATS outages if subscriptions do not
@@ -221,6 +363,13 @@ log_winloss/winloss.<stamp>
 errors, not successful empty intervals. Run interval ledger jobs after the
 matching log rotation window closes, then run daily jobs after interval jobs for
 that day are complete.
+
+Use standalone `cmd/ledger` for targeted replays with explicit `-timestamp`
+values.
+
+Run ledger only where the complete win/loss log stream is present. If each HTTP
+node writes local `winloss.<stamp>` files, ship or merge those files into the
+log aggregation node before the ledger timer runs.
 
 Keep logs on persistent storage with rotation, backup, and retention policies
 defined by operations. The repository does not own production log retention.

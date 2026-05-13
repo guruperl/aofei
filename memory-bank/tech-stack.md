@@ -157,6 +157,18 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=all
 ```
 
+Run Redis cache refresh from one dedicated node only, normally through cron or a
+systemd timer:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=redis
+```
+
+Do not run a Redis cache refresher from every `unify` node. When spread mode is
+used, keep `cmd/spread` running on nodes whose local disk snapshots should be
+updated from NATS messages.
+
 Expected Redis cache families are `pubmap`, `audience`, `creative`, and
 `slot:<size_id>` hashes keyed by slot id. Expected spread directories are
 `.local/spread/pubmap/`, `.local/spread/audience/`,
@@ -175,6 +187,9 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -daily -timesta
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/exchange.example.test win
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
 ```
+
+Run ledger from the node where `cmd/nats-client` aggregates log files. Do not
+run ledger on every `unify` node.
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and
@@ -220,6 +235,7 @@ bash -n scripts/aofei-doc-check.sh
 ./scripts/aofei-doc-check.sh
 bash -n scripts/aofei-cache-smoke.sh
 GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
+GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger ./cmd/unify
 GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
 GOWORK=off go test ./maxmind ./maxmind/ipsearch
 GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
@@ -228,7 +244,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
 GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
 GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
 GOWORK=off staticcheck -checks=SA* ./...
-GOWORK=off staticcheck ./dsp ./match ./acl ./uploaded ./cmd/spread ./cmd/winloss ./cmd/unify ./cmd/redis-cache
+GOWORK=off staticcheck ./dsp ./match ./acl ./uploaded ./cmd/spread ./cmd/winloss ./cmd/unify ./cmd/redis-cache ./cmd/ledger ./internal/jobs/cache ./internal/jobs/ledger
 git diff --check
 ```
 

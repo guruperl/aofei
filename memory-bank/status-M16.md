@@ -38,9 +38,9 @@ behavior yet.
   M17.
 - `[ ]` Complete Summer template modernization in M18.
 - `[ ]` Build route cache, synthetic-item eligibility checks, downstream OpenRTB
-  fanout client, and fallback auction behavior in M19.
+  fanout client, and fallback auction behavior in M20.
 - `[ ]` Add callback proxying, audit, operations, and advertiser reporting
-  integration in M20/M21.
+  integration in M21/M22.
 
 ## Verification
 

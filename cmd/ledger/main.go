@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/genelet/winter/dsp"
+	ledgerjob "github.com/genelet/winter/internal/jobs/ledger"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -45,23 +46,22 @@ func main() {
 
 	if daily {
 		if stamp == "" {
-			err = InsertDaily(db)
+			err = ledgerjob.InsertDaily(db)
 			log.Printf("Daily ledger of %s done", time.Now().AddDate(0, 0, -1).Format("2006-01-02"))
 		} else {
-			err = InsertDaily(db, stamp)
+			err = ledgerjob.InsertDaily(db, stamp)
 			log.Printf("Daily ledger of %s done", stamp)
 		}
 	} else {
-		var ledger *Ledger
+		var result ledgerjob.IntervalResult
 		var i int
 		if stamp == "" {
-			ledger, err = NewLedger(db, sc.C.LogWinLoss, interval)
+			result, err = ledgerjob.RunInterval(db, sc.C.LogWinLoss, interval)
 		} else if i, err = strconv.Atoi(stamp); err == nil {
-			ledger, err = NewLedger(db, sc.C.LogWinLoss, interval, i)
+			result, err = ledgerjob.RunInterval(db, sc.C.LogWinLoss, interval, i)
 		}
-		if err == nil && ledger != nil {
-			err = ledger.StatisticsToLedger()
-			log.Printf("Ledger %d at %d minutes done", ledger.current, ledger.Interval)
+		if err == nil && !result.Skipped {
+			log.Printf("Ledger %d at %d minutes done", result.Current, interval)
 		}
 	}
 

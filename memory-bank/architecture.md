@@ -5,10 +5,10 @@
 | Path | Role |
 |---|---|
 | `cmd/unify` | Main combined service entrypoint for Summer/Genelet admin and DSP handlers. |
-| `cmd/redis-cache` | Populates Redis or spread cache files from MySQL state. |
+| `internal/jobs/cache`, `cmd/redis-cache` | Populates Redis or spread cache files from MySQL state. |
 | `cmd/nats-client` | Local NATS client/log consumer command. |
 | `cmd/spread` | Spread/cache command support. |
-| `cmd/ledger`, `cmd/winloss`, `cmd/maxmind` | Operational commands for ledger, win/loss, and geodata workflows. |
+| `internal/jobs/ledger`, `cmd/ledger`, `cmd/winloss`, `cmd/maxmind` | Operational commands for ledger, win/loss, and geodata workflows. |
 | `dsp/` | DSP config, controller, bid handling, and win/loss logic. |
 | `match/` | Runtime matching models for advertisers, creatives, audience maps, caps, sizes, and Redis/spread serialization. |
 | `acl/` | Access/control and publisher mapping helpers used by bid and cache paths. |
@@ -29,12 +29,14 @@
 2. `etc/step4_init.sql` initializes the active MySQL schema and baseline data.
 3. `etc/demand.sql` plus `go run ./etc pub` can load sample local demand and
    publisher data.
-4. `cmd/redis-cache` reads MySQL through `dsp.Config`, builds `PubMap`, `RAdv`,
+4. The cache job reads MySQL through `dsp.Config`, builds `PubMap`, `RAdv`,
    audience, and creative caches, discovers active creative size IDs from the
    schema, then replaces Redis cache entries or publishes spread/NATS reset and
-   snapshot messages. `cmd/spread` must be running when spread messages should
-   become `.local/spread/` file snapshots; on startup it best-effort bootstraps
-   those snapshots from Redis when Redis and MySQL are reachable.
+   snapshot messages. It runs through standalone `cmd/redis-cache` or opt-in
+   `cmd/unify` background flags. `cmd/spread` must be running when spread
+   messages should become `.local/spread/` file snapshots; on startup it
+   best-effort bootstraps those snapshots from Redis when Redis and MySQL are
+   reachable.
 5. `cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet admin routes,
    and serves DSP bid paths using the same MySQL/Redis/NATS config.
 6. Bid/win/loss/log flows use Redis for mutable runtime state and NATS/spread/log
@@ -50,8 +52,10 @@
    redirect with a direct advertiser fallback; banner creatives opt into the
    same redirect through `{CLICK_URL}`.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
-   interval files, and `cmd/ledger` consumes `winloss.<stamp>` files into
-   interval and daily ledger tables.
+   interval files. The ledger job consumes `winloss.<stamp>` files into
+   interval and daily ledger tables through standalone `cmd/ledger` or opt-in
+   `cmd/unify` background flags; missing input remains retryable and non-fatal
+   in embedded mode.
 8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
    regenerates the configured MaxMind runtime JSON without loading the existing
    geodata file first.
@@ -101,7 +105,10 @@ the lower-case DSP `AOFEI` config because Genelet expects `ConnectArray`,
   recreated.
 - Operational commands use the generated `AOFEI` config. `cmd/ledger`,
   `cmd/winloss`, and `cmd/maxmind` disable controller NATS and MaxMind startup
-  explicitly when they only need database/config access.
+  explicitly when they only need database/config access. Redis cache refresh
+  remains a singleton scheduled `cmd/redis-cache` job on one dedicated node.
+  Ledger runs as a singleton scheduled `cmd/ledger` job on the node where
+  `cmd/nats-client` aggregates win/loss log files.
 
 ## Cache Boundary
 

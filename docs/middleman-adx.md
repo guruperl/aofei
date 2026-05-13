@@ -113,8 +113,8 @@ If no downstream bid survives validation and markup checks, the response remains
   synthetic reporting chain creation.
 - M18: Summer template modernization on `../pzdesign/tmpls`, `html/template`,
   and bidder page integration.
-- M19: route cache, synthetic eligibility checks, downstream OpenRTB client, and
+- M20: route cache, synthetic eligibility checks, downstream OpenRTB client, and
   fallback auction integration after local no-bid.
-- M20: callback proxying, audit, and operations.
-- M21: advertiser and operator reporting using synthetic campaign/item/creative
+- M21: callback proxying, audit, and operations.
+- M22: advertiser and operator reporting using synthetic campaign/item/creative
   rows.

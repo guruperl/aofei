@@ -11,6 +11,23 @@ export AOFEI="$PWD/etc/aofei.local.json"
 Do not use the retired root config directory or legacy MySQL credentials for
 these commands.
 
+## Production Placement
+
+Use these commands as separate process roles:
+
+| Role | Command | Placement |
+|---|---|---|
+| HTTP/UI/ADX | `cmd/unify` | every HTTP node |
+| NATS log writer | `cmd/nats-client` | separate systemd service on nodes that write/aggregate logs |
+| Redis cache refresh | `cmd/redis-cache -cache=redis` | singleton cron/timer on one cache node |
+| Ledger | `cmd/ledger` | singleton cron/timer on the log aggregation node |
+| Spread snapshots | `cmd/spread` | nodes that need spread disk cache |
+| MaxMind refresh | `cmd/maxmind` | manual or scheduled maintenance node |
+| Win/loss simulator | `cmd/winloss` | manual smoke/CI only |
+
+Do not run Redis cache refresh or ledger on every `unify` node. Ledger must run
+where the complete `log_winloss/winloss.<stamp>` files are available.
+
 ## Common Prerequisites
 
 - Docker MySQL, Redis, and NATS are started by `./scripts/aofei-local.sh up`.
@@ -142,6 +159,12 @@ Notes:
 - Interval and daily writes run inside transactions.
 - Demand dimensions are counted by `creative_id`.
 
+Ledger should run only on the node where `cmd/nats-client` aggregates
+`log_winloss/winloss.<stamp>` files. Do not run it on every `unify` node.
+Redis cache population is also a singleton operational job; run
+`cmd/redis-cache -cache=redis` from cron or a systemd timer on one dedicated
+node.
+
 ## `cmd/winloss`
 
 Purpose: simulate an exchange calling the local DSP bid endpoint, then fire win,
@@ -215,6 +238,7 @@ Notes:
 Build and focused package tests:
 
 ```bash
+GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger ./cmd/unify
 GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
 GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
 ```

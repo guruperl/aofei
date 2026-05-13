@@ -32,10 +32,10 @@ func init() {
 	flag.StringVar(&gConf, "g", os.Getenv("SUMMER"), "Genelet Config")
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "Ssp Config")
 	flag.BoolVar(&isLocal, "local", false, "local mode")
-	flag.Parse()
 }
 
 func main() {
+	flag.Parse()
 	ctx := context.Background()
 	logger, err := zap.NewDevelopment()
 	if err != nil {

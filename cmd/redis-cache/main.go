@@ -1,21 +1,17 @@
 // this runs every 15 minutes to update redis caches of pubmap and demand-side
-// RAdvs, audiences and creatives. It also writes the pubmap to a file.
+// RAdvs, audiences and creatives. It can also publish the static cache to NATS
+// for the spread receiver.
 package main
 
 import (
-	"bufio"
 	"context"
-	"database/sql"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/genelet/winter/acl"
 	"github.com/genelet/winter/dsp"
-	"github.com/genelet/winter/match"
-	"github.com/mediocregopher/radix/v4"
+	cachejob "github.com/genelet/winter/internal/jobs/cache"
 	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -32,12 +28,12 @@ var interval int
 var stamp int
 var update bool
 var read bool
-var cache string
+var cacheMode string
 
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
-	flag.StringVar(&cache, "cache", "redis", "cache type")
+	flag.StringVar(&cacheMode, "cache", cachejob.ModeRedis, "cache type")
 	flag.BoolVar(&update, "update", false, "update pubmap with new attribute log")
 	flag.BoolVar(&read, "read", false, "read caches from redis")
 	flag.IntVar(&interval, "interval", 10, "if update, divider in minutes")
@@ -47,7 +43,7 @@ func init() {
 func main() {
 	flag.Parse()
 
-	if err := validateCacheMode(cache); err != nil {
+	if err := cachejob.ValidateMode(cacheMode); err != nil {
 		log.Fatal(err)
 	}
 
@@ -63,52 +59,15 @@ func main() {
 	defer redis.Close()
 	defer db.Close()
 
-	var top string
-	switch cache {
-	case "spread", "all":
-		top = c.Spread
-		err = os.MkdirAll(top, 0755)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	sizeIDs, err := match.DBGetActiveCreativeSizeIDs(ctx, db)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	if read {
-		switch cache {
-		case "spread":
-			err = spreadRead(top, sizeIDs)
-		case "redis":
-			err = redisRead(ctx, redis, sizeIDs)
-		case "all":
-			if err = spreadRead(top, sizeIDs); err == nil {
-				err = redisRead(ctx, redis, sizeIDs)
-			}
-		}
-		if err != nil {
+		if err := cachejob.Read(ctx, os.Stdout, c, redis, db, cacheMode); err != nil {
 			log.Fatal(err)
 		}
-		os.Exit(0)
-	}
-
-	pubmap, err := acl.DBGetPubMap(db)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if update {
-		err = pubmapUpdate(c, db, pubmap)
-		if err != nil {
-			log.Fatal(err)
-		}
+		return
 	}
 
 	var nc *nats.Conn
-	if cache == "spread" || cache == "all" {
+	if cacheMode == cachejob.ModeSpread || cacheMode == cachejob.ModeAll {
 		nc, err = nats.Connect(c.NatsURL)
 		if err != nil {
 			log.Fatal(err)
@@ -116,272 +75,13 @@ func main() {
 		defer nc.Drain()
 	}
 
-	switch cache {
-	case "spread":
-		err = writeToSpread(ctx, nc, db, pubmap, sizeIDs)
-	case "redis":
-		err = writeToRedis(ctx, redis, db, pubmap, sizeIDs)
-	case "all":
-		if err = writeToSpread(ctx, nc, db, pubmap, sizeIDs); err == nil {
-			err = writeToRedis(ctx, redis, db, pubmap, sizeIDs)
-		}
-	}
+	err = cachejob.Run(ctx, c, redis, db, nc, cachejob.Options{
+		Mode:           cacheMode,
+		UpdatePubMap:   update,
+		UpdateInterval: interval,
+		UpdateStamp:    stamp,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func validateCacheMode(cache string) error {
-	switch cache {
-	case "redis", "spread", "all":
-		return nil
-	default:
-		return fmt.Errorf("unknown cache mode %q; expected redis, spread, or all", cache)
-	}
-}
-
-func redisRead(ctx context.Context, redis radix.Client, sizeIDs []uint32) error {
-	log.Printf("reading PubMap from redis\n")
-	pubmap, err := acl.PubMapFromRedis(ctx, redis)
-	if err != nil {
-		return err
-	}
-	bs, err := json.MarshalIndent(pubmap, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("pubmap:\n%s\n", bs)
-
-	for _, sizeID := range sizeIDs {
-		width, height := match.SizeID1To2(sizeID)
-		hash, err := match.RAdvsFromRedisBySizeID(ctx, redis, sizeID)
-		if err != nil {
-			return err
-		}
-		bs, err = json.MarshalIndent(hash, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Printf("\nRAdvs for sizeID %d x %d:\n%s\n", width, height, bs)
-	}
-
-	audiences, err := match.AudienceMapFromRedis(ctx, redis)
-	if err != nil {
-		return err
-	}
-	bs, err = json.MarshalIndent(audiences, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("\nAudiences:\n%s\n", bs)
-
-	creatives, err := match.CreativeMapFromRedis(ctx, redis)
-	if err != nil {
-		return err
-	}
-	bs, err = json.MarshalIndent(creatives, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("\nCreatives:\n%s\n", bs)
-	return nil
-}
-
-func writeToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
-	if err := resetRedisStaticCaches(ctx, redis); err != nil {
-		return err
-	}
-
-	log.Printf("new PubMap is written to redis\n")
-	err := pubmap.ToRedis(ctx, redis)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("retrieve RAdvs from DB and write to redis")
-	for _, sizeID := range sizeIDs {
-		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, redis, db, sizeID)
-		if err != nil {
-			return err
-		}
-	}
-
-	log.Printf("retrieve Audiences from DB and write to redis")
-	err = match.DBGetAudiencesToRedis(ctx, redis, db)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("retrieve Creatives from DB and write to redis")
-	err = match.DBGetCreativesToRedisSpread(ctx, redis, db)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func spreadRead(top string, sizeIDs []uint32) error {
-	log.Printf("reading PubMap from IO\n")
-	pubmap, err := acl.PubMapFromIO(top)
-	if err != nil {
-		return err
-	}
-	bs, err := json.MarshalIndent(pubmap, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("pubmap:\n%s\n", bs)
-
-	for _, sizeID := range sizeIDs {
-		width, height := match.SizeID1To2(sizeID)
-		hash, err := match.RAdvsFromIOBySizeID(top, sizeID)
-		if err != nil {
-			return err
-		}
-		bs, err = json.MarshalIndent(hash, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Printf("\nRAdvs for sizeID %d x %d:\n%s\n", width, height, bs)
-	}
-
-	audiences, err := match.AudienceMapFromIO(top)
-	if err != nil {
-		return err
-	}
-	bs, err = json.MarshalIndent(audiences, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("\nAudiences:\n%s\n", bs)
-
-	creatives, err := match.CreativeMapFromIO(top)
-	if err != nil {
-		return err
-	}
-	bs, err = json.MarshalIndent(creatives, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Printf("\nCreatives:\n%s\n", bs)
-
-	return nil
-}
-
-func writeToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
-	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
-		if err := publishSpreadReset(nc, family); err != nil {
-			return err
-		}
-	}
-
-	log.Printf("new PubMap is written to nats\n")
-	err := pubmap.ToSpread(nc)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("retrieve RAdvs from DB and write to nats")
-	for _, sizeID := range sizeIDs {
-		err = match.DBGetRAdvsToRedisSpreadBySizeID(ctx, nc, db, sizeID)
-		if err != nil {
-			return err
-		}
-	}
-
-	log.Printf("retrieve Audiences from DB and write to nats")
-	err = match.DBGetAudiencesToSpread(nc, db)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("retrieve Creatives from DB and write to nats")
-	err = match.DBGetCreativesToRedisSpread(ctx, nc, db)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func resetRedisStaticCaches(ctx context.Context, redis radix.Client) error {
-	for _, name := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative} {
-		if err := redis.Do(ctx, radix.Cmd(nil, "DEL", name)); err != nil {
-			return err
-		}
-	}
-	return deleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*")
-}
-
-func deleteRedisKeysByPattern(ctx context.Context, redis radix.Client, pattern string) error {
-	const chunk = 256
-	var keys []string
-	scanner := (radix.ScannerConfig{Command: "SCAN", Pattern: pattern, Count: chunk}).New(redis)
-	for {
-		var key string
-		if !scanner.Next(ctx, &key) {
-			break
-		}
-		keys = append(keys, key)
-		if len(keys) == chunk {
-			if err := redis.Do(ctx, radix.Cmd(nil, "DEL", keys...)); err != nil {
-				return err
-			}
-			keys = keys[:0]
-		}
-	}
-	if err := scanner.Close(); err != nil {
-		return err
-	}
-	if len(keys) > 0 {
-		return redis.Do(ctx, radix.Cmd(nil, "DEL", keys...))
-	}
-	return nil
-}
-
-func publishSpreadReset(nc *nats.Conn, family string) error {
-	return nc.Publish(family+":__reset__", nil)
-}
-
-// pubmapUpdate updates the pubmap with new attribute log
-func pubmapUpdate(c *dsp.Config, db *sql.DB, pubmap acl.PubMap) error {
-	var stampObject *dsp.Stamp
-	if stamp > 0 {
-		stampObject = dsp.NewStamp(interval, stamp)
-	} else {
-		stampObject = dsp.NewStamp(interval)
-	}
-	fn := c.NewLogfileName(dsp.SUBJECTAttribute, stampObject)
-	fh, err := os.Open(fn)
-	if err != nil && os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	defer fh.Close()
-
-	scanner := bufio.NewScanner(fh)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-		plus := new(match.AttributePlus)
-		err := json.Unmarshal([]byte(line), plus)
-		if err != nil {
-			log.Fatal(err)
-		}
-		acl := plus.Attribute.ACL
-		siteType := "Web"
-		if plus.Attribute.IsApp {
-			siteType = "App"
-		}
-		pub, err := pubmap.DBAddNew(db, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pubmap[acl.PubStr] = pub
-	}
-	return scanner.Err()
 }

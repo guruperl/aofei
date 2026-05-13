@@ -159,6 +159,14 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=all
 ```
 
+In multi-node deployments, Redis cache refresh should run from one dedicated
+node only, normally through cron or a systemd timer:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -cache=redis
+```
+
 `-cache` accepts only `redis`, `spread`, or `all`. Unknown values fail before
 cache writes are attempted.
 
