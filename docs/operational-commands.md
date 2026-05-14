@@ -140,6 +140,8 @@ Notes:
 - `DELETE` payloads remove individual snapshots.
 - `cleanup` suffixes are slot-only and clear the relevant size directory before
   writing the next snapshot.
+- `SIGINT` and `SIGTERM` stop the service through a signal-aware context and
+  drain the NATS connection before exit.
 
 ## `cmd/ledger`
 
@@ -231,6 +233,9 @@ Outputs:
 - Loopback, private, link-local, unspecified, multicast, and DNS-rebinding
   callback targets are rejected before forwarding.
 - Retry rows marked `Succeeded`, `Retrying`, or `Abandoned`.
+- One summary line with `due`, `stale_processing`, `selected`, `succeeded`,
+  `retrying`, and `abandoned` counts. Alert when `stale_processing` remains
+  non-zero across runs or when `due` grows faster than the singleton job drains.
 
 Notes:
 

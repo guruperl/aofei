@@ -4,6 +4,11 @@ Date: 2026-05-13
 
 Status: Accepted
 
+Related ADRs:
+
+- ADR 0002 refines the account/schema boundary and keeps the current direct SSP
+  path on the existing publisher ownership model.
+
 ## Context
 
 Direct SSP traffic currently enters Aofei through `POST /pz` while ADX/OpenRTB

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -277,7 +278,8 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 			MiddlemanTimeoutMS:       100,
 			MiddlemanCallbackBaseURL: "http://aofei.example",
 		},
-		client: server.Client(),
+		client:           server.Client(),
+		callbackURLGuard: func(context.Context, string) error { return nil },
 	}
 
 	raw, err := json.Marshal(bid)
@@ -320,6 +322,74 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	}
 	if got[0].DownstreamBidPrice != 2.0 || got[0].UpstreamBidPrice != 2.5 || got[0].DownstreamAdID != "downstream-ad" {
 		t.Fatalf("downstream accounting = %#v", got[0])
+	}
+}
+
+func TestCallMiddlemanBidderRejectsUnsafeEndpointWhenClientMissing(t *testing.T) {
+	controller := &Controller{
+		C: &Config{
+			ServerURL:               "http://aofei.example",
+			MiddlemanExchangeDomain: "aofei.example",
+			MiddlemanTimeoutMS:      100,
+		},
+	}
+	bid := &openrtb2.BidRequest{
+		ID:   "req-1",
+		TMax: 100,
+		Imp:  []openrtb2.Imp{{ID: "imp-1", BidFloorCur: "USD"}},
+	}
+	raw, err := json.Marshal(bid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = controller.callMiddlemanBidder(context.Background(), nil, bid, raw, time.Now(), middlemanAssignment{
+		Entry: match.MiddlemanRouteEntry{
+			EndpointURL:         "http://127.0.0.1:1/bid",
+			GroupTimeoutMS:      100,
+			BidderTimeoutMS:     100,
+			SyntheticCampaignID: 101,
+			SyntheticItemID:     102,
+			SyntheticCreativeID: 103,
+		},
+		EntriesByID: map[string]match.MiddlemanRouteEntry{"imp-1": {}},
+		AttrsByID:   map[string]*match.Attribute{"imp-1": {ACL: &acl.ACL{}}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsafe callback host") {
+		t.Fatalf("callMiddlemanBidder error = %v, want unsafe endpoint rejection", err)
+	}
+}
+
+func TestCallMiddlemanBidderRejectsUnsafeEndpointWithCustomClient(t *testing.T) {
+	controller := &Controller{
+		C: &Config{
+			ServerURL:               "http://aofei.example",
+			MiddlemanExchangeDomain: "aofei.example",
+			MiddlemanTimeoutMS:      100,
+		},
+	}
+	bid := &openrtb2.BidRequest{
+		ID:   "req-1",
+		TMax: 100,
+		Imp:  []openrtb2.Imp{{ID: "imp-1", BidFloorCur: "USD"}},
+	}
+	raw, err := json.Marshal(bid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = controller.callMiddlemanBidder(context.Background(), http.DefaultClient, bid, raw, time.Now(), middlemanAssignment{
+		Entry: match.MiddlemanRouteEntry{
+			EndpointURL:         "http://127.0.0.1:1/bid",
+			GroupTimeoutMS:      100,
+			BidderTimeoutMS:     100,
+			SyntheticCampaignID: 101,
+			SyntheticItemID:     102,
+			SyntheticCreativeID: 103,
+		},
+		EntriesByID: map[string]match.MiddlemanRouteEntry{"imp-1": {}},
+		AttrsByID:   map[string]*match.Attribute{"imp-1": {ACL: &acl.ACL{}}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsafe callback host") {
+		t.Fatalf("callMiddlemanBidder error = %v, want unsafe endpoint rejection", err)
 	}
 }
 

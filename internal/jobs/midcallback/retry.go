@@ -67,6 +67,11 @@ type Result struct {
 	Abandoned int
 }
 
+type BacklogStats struct {
+	Due             int
+	StaleProcessing int
+}
+
 func Enqueue(ctx context.Context, db *sql.DB, failure Failure) error {
 	if db == nil {
 		return nil
@@ -167,6 +172,33 @@ func RetryableForward(status string, code int) bool {
 	default:
 		return false
 	}
+}
+
+func Backlog(ctx context.Context, db *sql.DB, opts Options) (BacklogStats, error) {
+	if db == nil {
+		return BacklogStats{}, fmt.Errorf("database is nil")
+	}
+	opts = opts.withDefaults()
+	now := opts.now().UTC()
+	staleCutoff := now.Add(-opts.StaleProcessingAfter)
+	var due, stale sql.NullInt64
+	err := db.QueryRowContext(ctx, `
+SELECT
+  SUM(CASE WHEN status IN ('Pending', 'Retrying') AND next_attempt_at <= ? THEN 1 ELSE 0 END) AS due_rows,
+  SUM(CASE WHEN status = 'Processing' AND (claimed_at IS NULL OR claimed_at < ?) THEN 1 ELSE 0 END) AS stale_processing_rows
+FROM mid_callback_retry
+WHERE attempts < ?`, now, staleCutoff, opts.MaxAttempts).Scan(&due, &stale)
+	if err != nil {
+		return BacklogStats{}, err
+	}
+	stats := BacklogStats{}
+	if due.Valid {
+		stats.Due = int(due.Int64)
+	}
+	if stale.Valid {
+		stats.StaleProcessing = int(stale.Int64)
+	}
+	return stats, nil
 }
 
 func dueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int, now, staleCutoff time.Time) ([]Row, error) {

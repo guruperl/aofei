@@ -327,6 +327,8 @@ func bannerAdM(src string, w, h uint16, impTrackers []string) string {
 }
 
 func applyBannerMacros(content, clickURL, landingURL string) string {
+	// clickURL and landingURL are internally generated and escaped when banner
+	// markup is rendered; do not pass raw user input through this helper.
 	content = strings.ReplaceAll(content, "{CLICK_URL}", clickURL)
 	content = strings.ReplaceAll(content, "${CLICK_URL}", clickURL)
 	content = strings.ReplaceAll(content, "{LANDING_URL}", landingURL)

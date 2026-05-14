@@ -400,9 +400,16 @@ NATS requirements:
 ## Logs And Ledger
 
 The unified HTTP service exposes stdlib expvar metrics at `/debug/vars`,
-including bid/no-bid counters, audit queue drops and publish errors, middleman
-callback forwarding results, local cache reload status, direct SSP request
-results, and `aofei_ssp_policy_rejections_total`.
+including bid/no-bid counters, audit queue depth/drops and publish errors,
+middleman callback forwarding results, local cache reload and freshness status,
+direct SSP request results, cap-refresh contention counters, and
+`aofei_ssp_policy_rejections_total`. Local cache freshness includes
+`aofei_local_cache_loaded_at_unix`, scrape-time
+`aofei_local_cache_age_seconds`, and `aofei_local_cache_stale`. Alert on
+non-zero sustained `aofei_audit_dropped_total`, rising
+`aofei_bothcap_refresh_conflicts_total`, stale `aofei_local_cache_stale`, and
+middleman callback retry command output where `stale_processing` stays
+non-zero.
 
 `cmd/unify` publishes request, response, attribute, and win/loss events when
 NATS is enabled. `cmd/nats-client` writes those subjects to:

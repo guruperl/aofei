@@ -68,6 +68,9 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 
 GOWORK=off go test ./...
+GOWORK=off go vet ./...
+GOWORK=off staticcheck ./...
+GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
 
 (cd ../pzdesign && GOWORK=off go test ./...)
 

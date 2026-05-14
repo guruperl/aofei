@@ -66,6 +66,9 @@ func (self *DSP) WithTrackingSecret(secret string) *DSP {
 
 // impID returns the impID of the bid.
 func (self *DSP) impID() string {
+	if self == nil || self.bid == nil || self.impIndex < 0 || self.impIndex >= len(self.bid.Imp) {
+		return ""
+	}
 	return self.bid.Imp[self.impIndex].ID
 }
 

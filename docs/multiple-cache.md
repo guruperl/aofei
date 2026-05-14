@@ -75,6 +75,12 @@ static lookups from memory.
 - The initial snapshot is loaded at controller startup when `is_local=true`.
 - Later refreshes use the explicit local static-cache reload hook after spread
   files have been replaced.
+- Local cache staleness is alert-only: `local_cache_max_age_seconds` sets the
+  freshness threshold for the scrape-time `aofei_local_cache_stale` expvar,
+  while `aofei_local_cache_loaded_at_unix` records the loaded snapshot timestamp
+  and `aofei_local_cache_age_seconds` reports the current snapshot age. The bid
+  path does not fail closed solely because a static snapshot is old; operators
+  should alert and reload or restart the affected node.
 - Missing audience entries remain wildcard matches.
 - Bids with no caps/uploads can complete without Redis.
 - Bids that require frequency caps or uploaded audience membership fail closed
@@ -131,8 +137,9 @@ best-effort analytics; use JetStream only if replay or durability becomes a
 product requirement.
 
 Cache reloads can cause CPU and IO spikes during full snapshot decode and map
-swap. Work here includes typed/versioned payloads, incremental generation
-builds, and reload metrics.
+swap. Current reload/freshness metrics expose reload duration, reload errors,
+entry count, snapshot age, and stale status. Future work includes
+typed/versioned payloads and incremental generation builds.
 
 MySQL and cache compiler work should stay off the bid path. Bottlenecks there
 affect admin/cache freshness rather than live bid latency.

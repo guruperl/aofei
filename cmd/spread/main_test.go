@@ -1,11 +1,18 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nats-io/nats.go"
+
+	"github.com/guruperl/aofei/dsp"
 )
 
 func TestHandleSpreadMessageWritesSnapshot(t *testing.T) {
@@ -215,6 +222,79 @@ func TestHandleSpreadMessageIgnoresSubjects(t *testing.T) {
 		if handled {
 			t.Fatalf("expected %s to be ignored", subject)
 		}
+	}
+}
+
+type fakeSpreadConn struct {
+	handler nats.MsgHandler
+	drained bool
+}
+
+func (f *fakeSpreadConn) ConnectedUrl() string { return "fake://spread" }
+
+func (f *fakeSpreadConn) Subscribe(_ string, handler nats.MsgHandler) (*nats.Subscription, error) {
+	f.handler = handler
+	return nil, nil
+}
+
+func (f *fakeSpreadConn) Drain() error {
+	f.drained = true
+	return nil
+}
+
+func TestRunSpreadExitsOnContextCancelAndDrains(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	conn := &fakeSpreadConn{}
+	var logs bytes.Buffer
+	cfg := &dsp.Config{
+		Spread:                      t.TempDir(),
+		ConnectArray:                []string{"mysql", "missing"},
+		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
+		TrackingSignatureTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanCallbackBaseURL:    "http://localhost",
+	}
+
+	if err := runSpread(ctx, cfg, conn, log.New(&logs, "", 0)); err != nil {
+		t.Fatal(err)
+	}
+	if conn.handler == nil {
+		t.Fatal("expected spread subscription handler to be registered")
+	}
+	if !conn.drained {
+		t.Fatal("expected NATS connection to be drained on shutdown")
+	}
+	if !strings.Contains(logs.String(), "spread bootstrap skipped") {
+		t.Fatalf("logs = %q, want bootstrap skip note", logs.String())
+	}
+}
+
+type failingDrainSpreadConn struct {
+	fakeSpreadConn
+}
+
+func (f *failingDrainSpreadConn) Drain() error {
+	return errors.New("drain failed")
+}
+
+func TestRunSpreadReturnsDrainError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cfg := &dsp.Config{
+		Spread:                      t.TempDir(),
+		ConnectArray:                []string{"mysql", "missing"},
+		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
+		TrackingSignatureTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanCallbackBaseURL:    "http://localhost",
+	}
+
+	err := runSpread(ctx, cfg, &failingDrainSpreadConn{}, log.New(&bytes.Buffer{}, "", 0))
+	if err == nil || !strings.Contains(err.Error(), "drain failed") {
+		t.Fatalf("runSpread error = %v, want drain failed", err)
 	}
 }
 

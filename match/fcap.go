@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"expvar"
 	"fmt"
 	"strconv"
 	"time"
@@ -19,6 +20,13 @@ const (
 )
 
 var ErrBothCapRefreshConflict = errors.New("bothcap refresh conflict")
+
+var (
+	metricBothCapRefreshes        = expvar.NewInt("aofei_bothcap_refresh_total")
+	metricBothCapRefreshRetries   = expvar.NewInt("aofei_bothcap_refresh_retries_total")
+	metricBothCapRefreshConflicts = expvar.NewInt("aofei_bothcap_refresh_conflicts_total")
+	metricBothCapRefreshLastMS    = expvar.NewInt("aofei_bothcap_refresh_last_ms")
+)
 
 // Fcap is frequecy cap class
 // Total is total number of access since the starting time
@@ -149,6 +157,11 @@ func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, 
 	if !isImp && !isCli {
 		return nil
 	}
+	started := time.Now()
+	defer func() {
+		metricBothCapRefreshLastMS.Set(time.Since(started).Milliseconds())
+	}()
+	metricBothCapRefreshes.Add(1)
 	if conn == nil {
 		return fmt.Errorf("redis client is nil")
 	}
@@ -219,7 +232,9 @@ func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, 
 		if !retry {
 			return nil
 		}
+		metricBothCapRefreshRetries.Add(1)
 	}
+	metricBothCapRefreshConflicts.Add(1)
 	return ErrBothCapRefreshConflict
 }
 

@@ -26,7 +26,6 @@ type Config struct {
 	DocumentRoot                string   `json:"document_root"`
 	ServerURL                   string   `json:"server_url"`
 	ServerPort                  string   `json:"server_port"`
-	HhLock                      string   `json:"hhlock,omitempty"`
 	Ips                         string   `json:"ips,omitempty"`
 	Redis                       *Red     `json:"redis,omitempty"`
 	NatsURL                     string   `json:"nats_url,omitempty"`
@@ -35,6 +34,7 @@ type Config struct {
 	ConnectArray                []string `json:"connect_array,omitempty"`
 	Spread                      string   `json:"spread,omitempty"`
 	IsLocal                     bool     `json:"is_local,omitempty"`
+	LocalCacheMaxAgeSeconds     int      `json:"local_cache_max_age_seconds,omitempty"`
 	MiddlemanEnabled            bool     `json:"middleman_enabled,omitempty"`
 	MiddlemanAlwaysEnabled      bool     `json:"middleman_always_enabled,omitempty"`
 	MiddlemanTimeoutMS          int      `json:"middleman_timeout_ms,omitempty"`
@@ -80,9 +80,6 @@ func NewConfig(filename string) (*Config, error) {
 
 	if parsed.Ips == "" {
 		parsed.Ips = "qq-pz.dat"
-	}
-	if parsed.HhLock == "" {
-		parsed.HhLock = "/var/tmp/hh.lock"
 	}
 	if parsed.ConnectArray == nil {
 		if os.Getenv("DBUSER") != "" && os.Getenv("DBPASS") != "" && os.Getenv("DBNAME") != "" {
@@ -198,6 +195,9 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	}
 	if self.MiddlemanCallbackTimeoutMS <= 0 {
 		return fmt.Errorf("middleman_callback_timeout_ms must be positive")
+	}
+	if self.LocalCacheMaxAgeSeconds < 0 {
+		return fmt.Errorf("local_cache_max_age_seconds must be non-negative")
 	}
 
 	needNATS := false

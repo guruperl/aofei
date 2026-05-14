@@ -4,6 +4,11 @@ Date: 2026-05-13
 
 Status: Accepted
 
+Related ADRs:
+
+- ADR 0001 defines the richer supply taxonomy direction that this account
+  boundary decision follows.
+
 ## Context
 
 Direct SSP traffic currently enters Aofei through `POST /pz`. ADX/OpenRTB

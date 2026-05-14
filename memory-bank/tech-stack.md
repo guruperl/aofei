@@ -257,7 +257,11 @@ SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 attribute logs include additive `source`/`contract` fields.
 `cmd/unify -local` is an explicit override: when omitted, the Aofei config's
 `is_local` value is preserved; when enabled, local static snapshots are loaded
-before serving requests.
+before serving requests. `local_cache_max_age_seconds` is an alert-only
+freshness threshold for local/static mode. Loaded local snapshots publish
+`aofei_local_cache_loaded_at_unix`; scrape-time
+`aofei_local_cache_age_seconds` and `aofei_local_cache_stale` continue to update
+while traffic is idle, but stale snapshots do not fail closed by age alone.
 
 ## Operational Commands
 
@@ -280,7 +284,8 @@ ledger also fills `ledger_mid` and `daily_mid`; advertiser reports use pay-side
 spend, while admin reports expose charge, pay, and margin.
 Run `cmd/mid-callback-retry` as a singleton operations job for retryable
 downstream middleman callback forwarding failures. It forwards downstream only
-and does not republish win/loss records.
+and does not republish win/loss records. Its output includes due and stale
+processing backlog counts for operator alerting.
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and
@@ -310,7 +315,7 @@ City `.mmdb`; otherwise they fall back to `external/GeoLite2-City.mmdb` and then
 
 ## Verification
 
-Canonical package verification:
+Package gate:
 
 ```bash
 GOWORK=off go test ./...
@@ -319,27 +324,24 @@ GOWORK=off go test ./...
 `GOWORK=off go list ./...` should not include `github.com/guruperl/aofei/backup`;
 historical Go helpers in `backup/` carry the `ignore` build tag.
 
-Useful non-gating local checks:
+Runtime hardening checks:
 
 ```bash
-bash -n scripts/aofei-doc-check.sh
+GOWORK=off go vet ./...
+GOWORK=off staticcheck ./...
+GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
 ./scripts/aofei-doc-check.sh
-bash -n scripts/aofei-cache-smoke.sh
-GOWORK=off go test ./cmd/redis-cache ./cmd/spread -run '^$'
-GOWORK=off go test ./internal/jobs/cache ./internal/jobs/ledger ./cmd/redis-cache ./cmd/ledger
-(cd ../pzdesign && GOWORK=off go test ./cmd/unify)
-GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
-GOWORK=off go test ./maxmind ./maxmind/ipsearch
-GOWORK=off go test ./dsp -run 'Controller|Win|Loss|^$'
-GOWORK=off go test ./cmd/spread -run 'Test'
-GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
-GOWORK=off go test ./match -run 'Test.*Cap|TestFcap'
-GOWORK=off go test ./cmd/redis-cache ./cmd/nats-client ./cmd/spread ./etc ./dsp ./acl ./match -run '^$'
-GOWORK=off staticcheck -checks=SA* ./...
-GOWORK=off staticcheck ./dsp ./match ./acl ./uploaded ./cmd/spread ./cmd/winloss ./cmd/redis-cache ./cmd/ledger ./internal/jobs/cache ./internal/jobs/ledger
-(cd ../pzdesign && GOWORK=off staticcheck ./cmd/unify)
 git diff --check
-(cd ../pzdesign && GOWORK=off go test ./... && go run ./tools/check-templates.go -ext=.g && go run ./tools/check-templates.go -ext=.e && git diff --check)
+```
+
+Integration and smoke checks are explicit command families rather than hidden
+package-test requirements:
+
+```bash
+./scripts/aofei-cache-smoke.sh
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'
+(cd ../pzdesign && GOWORK=off go test ./cmd/unify)
+(cd ../pzdesign && GOWORK=off staticcheck ./cmd/unify)
 ```
 
 Admin compatibility verification:

@@ -2,10 +2,13 @@ package dsp
 
 import (
 	"errors"
+	"expvar"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/uploaded"
@@ -83,6 +86,53 @@ func TestLocalStaticCacheReloadsGeneration(t *testing.T) {
 	}
 	if creative.CreativeName != "new" {
 		t.Fatalf("creative name = %q, want new", creative.CreativeName)
+	}
+}
+
+func TestLocalStaticCacheFreshnessMetricsAreAlertOnly(t *testing.T) {
+	controller := &Controller{
+		C:     &Config{IsLocal: true, LocalCacheMaxAgeSeconds: 60},
+		local: newLocalStaticCache(),
+	}
+	loadedAt := time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)
+	controller.local.mu.Lock()
+	controller.local.loadedAt = loadedAt
+	controller.local.mu.Unlock()
+	controller.publishLocalCacheFreshnessState()
+
+	if got := expvar.Get("aofei_local_cache_loaded_at_unix").String(); got != strconv.FormatInt(loadedAt.Unix(), 10) {
+		t.Fatalf("loaded_at metric = %s, want %d", got, loadedAt.Unix())
+	}
+	if got := localCacheAgeSecondsAt(loadedAt.Add(30 * time.Second)); got != 30 {
+		t.Fatalf("fresh age metric = %d, want 30", got)
+	}
+	if got := localCacheStaleAt(loadedAt.Add(30 * time.Second)); got != 0 {
+		t.Fatalf("fresh stale metric = %d, want 0", got)
+	}
+
+	if got := localCacheAgeSecondsAt(loadedAt.Add(90 * time.Second)); got != 90 {
+		t.Fatalf("stale age metric = %d, want 90", got)
+	}
+	if got := localCacheStaleAt(loadedAt.Add(90 * time.Second)); got != 1 {
+		t.Fatalf("stale metric = %d, want 1", got)
+	}
+}
+
+func TestLocalStaticCacheFreshnessMetricsAdvanceWithoutCacheRead(t *testing.T) {
+	loadedAt := time.Now().Add(-2 * time.Second)
+	setLocalCacheFreshnessMetrics(loadedAt, 0)
+
+	first, err := strconv.ParseInt(expvar.Get("aofei_local_cache_age_seconds").String(), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1100 * time.Millisecond)
+	second, err := strconv.ParseInt(expvar.Get("aofei_local_cache_age_seconds").String(), 10, 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second <= first {
+		t.Fatalf("age metric did not advance without cache read: first=%d second=%d", first, second)
 	}
 }
 

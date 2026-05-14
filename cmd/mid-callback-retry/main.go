@@ -67,15 +67,20 @@ func main() {
 		defer lock.Release(context.Background())
 	}
 
-	result, err := midcallback.Run(ctx, db, midcallback.Options{
+	opts := midcallback.Options{
 		Limit:       limit,
 		MaxAttempts: maxAttempts,
 		Timeout:     timeout,
 		DryRun:      dryRun || readOnly,
-	})
+	}
+	backlog, err := midcallback.Backlog(ctx, db, opts)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("selected=%d succeeded=%d retrying=%d abandoned=%d\n",
-		result.Selected, result.Succeeded, result.Retrying, result.Abandoned)
+	result, err := midcallback.Run(ctx, db, opts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("due=%d stale_processing=%d selected=%d succeeded=%d retrying=%d abandoned=%d\n",
+		backlog.Due, backlog.StaleProcessing, result.Selected, result.Succeeded, result.Retrying, result.Abandoned)
 }

@@ -52,9 +52,11 @@ func (p *auditPublisher) Enqueue(subject string, data []byte) {
 	select {
 	case p.queue <- msg:
 		metricAuditEnqueued.Add(1)
+		metricAuditQueueDepth.Set(int64(len(p.queue)))
 	default:
 		p.drops.Add(1)
 		metricAuditDropped.Add(1)
+		metricAuditQueueDepth.Set(int64(len(p.queue)))
 	}
 }
 
@@ -86,6 +88,7 @@ func (p *auditPublisher) Close() {
 func (p *auditPublisher) run() {
 	defer p.wg.Done()
 	for msg := range p.queue {
+		metricAuditQueueDepth.Set(int64(len(p.queue)))
 		if p.nc == nil {
 			continue
 		}

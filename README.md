@@ -40,6 +40,17 @@ Run the canonical package verification gate from this repository:
 GOWORK=off go test ./...
 ```
 
+Use the broader verification split when changing runtime behavior, cache
+contracts, command workflows, or shared libraries:
+
+```bash
+GOWORK=off go vet ./...
+GOWORK=off staticcheck ./...
+GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
+./scripts/aofei-doc-check.sh
+git diff --check
+```
+
 Review operational command prerequisites, invocations, outputs, and known
 blockers:
 
@@ -139,5 +150,12 @@ and uses the `aofei` database user.
 `AOFEI` points at the lower-case DSP JSON config. `SUMMER` points at the
 upper-case Summer/Genelet JSON config.
 
-Docker smoke checks, admin DB checks, schema drift checks, and staticcheck are
-useful local follow-ups, but the package gate is `GOWORK=off go test ./...`.
+The test taxonomy is:
+
+- package gate: `GOWORK=off go test ./...`;
+- runtime hardening: `go vet`, `staticcheck`, and the scoped `-race` command
+  above;
+- Docker smoke: `./scripts/aofei-cache-smoke.sh` and
+  `AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'`;
+- admin integration: sibling `../pzdesign` Summer/Genelet tests with `SUMMER`;
+- schema drift: `./scripts/aofei-local.sh check-sql` and `diff-schema`.

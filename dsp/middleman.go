@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"go.uber.org/zap"
@@ -100,9 +101,6 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 	}
 
 	client := self.client
-	if client == nil {
-		client = http.DefaultClient
-	}
 	logger := self.Logger
 	if logger == nil {
 		logger = zap.NewNop()
@@ -250,6 +248,12 @@ func middlemanCandidateLess(a, b middlemanCandidate) bool {
 }
 
 func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Client, bid *openrtb2.BidRequest, rawRequest []byte, started time.Time, assignment middlemanAssignment) ([]middlemanDownstreamBid, error) {
+	if err := self.validateMiddlemanBidderEndpoint(ctx, assignment.Entry.EndpointURL); err != nil {
+		return nil, err
+	}
+	if client == nil {
+		client = safehttp.NewCallbackClient(nil)
+	}
 	headers, err := middlemanCredentialHeaders(assignment.Entry.CredentialRef)
 	if err != nil {
 		return nil, err
@@ -376,6 +380,13 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 		}
 	}
 	return out, nil
+}
+
+func (self *Controller) validateMiddlemanBidderEndpoint(ctx context.Context, raw string) error {
+	if self != nil && self.callbackURLGuard != nil {
+		return self.callbackURLGuard(ctx, raw)
+	}
+	return safehttp.ValidateCallbackURL(ctx, raw)
 }
 
 func (self *Controller) middlemanClickNotifyURLs(requestToken string, entries map[string]match.MiddlemanRouteEntry) (map[string]string, error) {

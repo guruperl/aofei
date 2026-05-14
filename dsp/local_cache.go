@@ -19,6 +19,7 @@ type localStaticCache struct {
 	radvs     map[uint32]map[uint32]match.RAdvs
 	audiences map[uint32]*match.Audience
 	creatives map[uint32]*match.Creative
+	loadedAt  time.Time
 }
 
 func newLocalStaticCache() *localStaticCache {
@@ -93,6 +94,7 @@ func (self *Controller) ReloadLocalStaticCache() error {
 	}
 	metricLocalCacheReloads.Add(1)
 	metricLocalCacheReloadEntries.Set(int64(count))
+	self.publishLocalCacheFreshnessState()
 	return nil
 }
 
@@ -130,6 +132,7 @@ func (c *localStaticCache) load(top string) (int, error) {
 	c.audiences = audiences
 	c.creatives = creatives
 	c.radvs = radvs
+	c.loadedAt = time.Now()
 	count := len(pubmap) + len(audiences) + len(creatives)
 	for _, bySlot := range radvs {
 		count += len(bySlot)
@@ -166,4 +169,17 @@ func localRAdvsFromIO(top string) (map[uint32]map[uint32]match.RAdvs, error) {
 		}
 	}
 	return all, nil
+}
+
+func (self *Controller) publishLocalCacheFreshnessState() {
+	if self == nil || self.C == nil || !self.C.IsLocal {
+		return
+	}
+	setLocalCacheFreshnessMetrics(self.localStaticCache().loadedAtTime(), self.C.LocalCacheMaxAgeSeconds)
+}
+
+func (c *localStaticCache) loadedAtTime() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.loadedAt
 }

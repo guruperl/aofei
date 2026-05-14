@@ -111,6 +111,35 @@ func TestRunDryRunDoesNotClaimRows(t *testing.T) {
 	}
 }
 
+func TestBacklogReportsDueAndStaleProcessingRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`(?s)SELECT\s+SUM\(CASE WHEN status IN \('Pending', 'Retrying'\).*FROM mid_callback_retry\s+WHERE attempts < \?`).
+		WithArgs(now, now.Add(-10*time.Minute), 5).
+		WillReturnRows(sqlmock.NewRows([]string{"due_rows", "stale_processing_rows"}).AddRow(3, 1))
+
+	stats, err := Backlog(context.Background(), db, Options{
+		MaxAttempts: 5,
+		Now: func() time.Time {
+			return now
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Due != 3 || stats.StaleProcessing != 1 {
+		t.Fatalf("backlog = %#v, want due 3 stale 1", stats)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRunReclaimsStaleProcessingRows(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

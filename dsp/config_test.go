@@ -208,6 +208,12 @@ func TestConfigValidateModes(t *testing.T) {
 	if err := noSpread.Validate(ConfigModeSpread); err == nil {
 		t.Fatal("expected empty spread path to fail spread mode")
 	}
+
+	badLocalCacheAge := *c
+	badLocalCacheAge.LocalCacheMaxAgeSeconds = -1
+	if err := badLocalCacheAge.Validate(); err == nil {
+		t.Fatal("expected negative local_cache_max_age_seconds to fail")
+	}
 }
 
 func TestLocalConfigSmoke(t *testing.T) {

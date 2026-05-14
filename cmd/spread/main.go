@@ -15,6 +15,7 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cmdboot"
 	"github.com/guruperl/aofei/match"
 	"github.com/nats-io/nats.go"
 
@@ -42,6 +43,9 @@ func init() {
 func main() {
 	flag.Parse()
 
+	ctx, stop := cmdboot.SignalContext(context.Background())
+	defer stop()
+
 	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
@@ -55,40 +59,52 @@ func main() {
 	}
 	defer nc.Close()
 
-	top := c.Spread
-	if err := os.MkdirAll(top, os.ModePerm); err != nil {
+	if err := runSpread(ctx, c, nc, log.Default()); err != nil {
 		log.Fatal(err)
 	}
-	if err := bootstrapSpreadFromRedis(context.Background(), c, top); err != nil {
-		log.Printf("spread bootstrap skipped: %v", err)
+}
+
+type spreadConn interface {
+	ConnectedUrl() string
+	Subscribe(string, nats.MsgHandler) (*nats.Subscription, error)
+	Drain() error
+}
+
+func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Logger) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if logger == nil {
+		logger = log.Default()
+	}
+	top := c.Spread
+	if err := os.MkdirAll(top, os.ModePerm); err != nil {
+		return err
+	}
+	if err := bootstrapSpreadFromRedis(ctx, c, top); err != nil {
+		logger.Printf("spread bootstrap skipped: %v", err)
 	}
 
-	log.Printf("Listening on [%s]", nc.ConnectedUrl())
-	successchan := make(chan bool)
-	errchan := make(chan error)
-
-	_, err = nc.Subscribe(spreadSubjectPattern, func(m *nats.Msg) {
+	logger.Printf("Listening on [%s]", nc.ConnectedUrl())
+	_, err := nc.Subscribe(spreadSubjectPattern, func(m *nats.Msg) {
 		handled, err := handleSpreadMessage(top, m)
 		if err != nil {
-			errchan <- err
+			logger.Printf("error: %v", err)
 			return
 		}
 		if handled {
-			log.Printf("write %s", m.Subject)
+			logger.Printf("write %s", m.Subject)
 		}
-		successchan <- true
 	})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	for {
-		select {
-		case <-successchan:
-		case errs := <-errchan:
-			log.Printf("error: %v", errs)
-		}
+	<-ctx.Done()
+	if err := nc.Drain(); err != nil {
+		return err
 	}
+	return nil
 }
 
 func handleSpreadMessage(top string, m *nats.Msg) (bool, error) {
