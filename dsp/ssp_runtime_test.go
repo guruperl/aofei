@@ -334,6 +334,51 @@ func TestServeSSPPolicyRejectionDoesNotSetCookieOrPublishAudits(t *testing.T) {
 	}
 }
 
+func TestServeSSPRejectsDuplicateAdUnitCodeBeforeSideEffects(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	controller.audit = newAuditPublisher(nil, 10)
+	runtime := &recordingMiddlemanRuntime{}
+	enableSSPMiddleman(controller, true, runtime)
+	body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{
+		{Code: "dup-code", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+		{Code: "dup-code", SlotID: 200, SizeID: match.SizeID2To1(320, 50), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSPWithHeaders(t, controller, body, map[string]string{"Origin": "https://example.com"})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("cookies = %#v, want none", cookies)
+	}
+	if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+		t.Fatalf("audit messages = %#v, want none", messages)
+	}
+	if runtime.calls != 0 {
+		t.Fatalf("middleman calls = %d, want 0", runtime.calls)
+	}
+}
+
+func TestServeSSPAllowsRepeatedEmptyAdUnitCodes(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+		{SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+		{SlotID: 200, SizeID: match.SizeID2To1(320, 50), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSP(t, controller, body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	var html []string
+	if err := json.Unmarshal(rr.Body.Bytes(), &html); err != nil {
+		t.Fatal(err)
+	}
+	if len(html) != 2 || html[0] == "" || html[1] == "" {
+		t.Fatalf("html = %#v, want both empty-code units fill", html)
+	}
+}
+
 func TestServeSSPPublishesSourceAuditsForFilledAndAllNoFillResponses(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -428,7 +473,7 @@ func TestServeSSPSmokeFixturesForDirectWebTagAndAppLikeAPI(t *testing.T) {
 func TestPublishBidAuditsKeepsADXRawRequestResponseAndMarksAttributes(t *testing.T) {
 	controller := &Controller{audit: newAuditPublisher(nil, 10)}
 	attr := &match.Attribute{UserID: "user"}
-	if err := controller.publishBidAudits([]byte(`{"id":"adx"}`), []byte(`{"id":"rsp"}`), []bidAudit{{Attr: attr, One: match.RAdv{}, Elapsed: 3}}); err != nil {
+	if err := controller.publishBidAudits([]byte(`{"id":"adx"}`), []byte(`{"id":"rsp"}`), []bidAudit{{Attr: attr, One: match.RAdv{}, Elapsed: 3 * time.Millisecond}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -448,6 +493,13 @@ func TestPublishBidAuditsKeepsADXRawRequestResponseAndMarksAttributes(t *testing
 	}
 	if plus.Source != "adx" || plus.Contract != "openrtb" {
 		t.Fatalf("attribute source = %q/%q, want adx/openrtb", plus.Source, plus.Contract)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(messages[2].data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := raw["elapsed"].(float64); !ok || got != 3 {
+		t.Fatalf("attribute elapsed = %#v, want millisecond number 3", raw["elapsed"])
 	}
 }
 

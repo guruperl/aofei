@@ -90,6 +90,9 @@ match the cached configured size for that slot.
 
 `adUnits[].code` is only the publisher page DOM element id. It is echoed for UI
 and debug use, but it is not trusted as supply identity in the v1 contract.
+Non-empty `code` values must be unique within a request because they become the
+OpenRTB impression ids used by downstream bid responses. Omitted or empty
+values are allowed and receive generated internal `ssp-<index>` impression ids.
 Older Holiday samples used `code` as the slot token; the parser can recognize
 that shape for compatibility tests, but supply validation for the v1 contract
 requires `slot`.
@@ -228,6 +231,7 @@ Validation checks performed on the `/pz` request path:
 - unpack `site` into `pub_id` and `site_id`;
 - look up the active publisher by `pub_id`;
 - reject mismatched publisher ids;
+- reject duplicate non-empty `adUnits[].code` values;
 - unpack each `adUnits[].slot` into `slot_id` and `size_id`;
 - validate the site/slot/size tuple against cached publisher metadata;
 - reconstruct site and slot strings for future ACL matching.

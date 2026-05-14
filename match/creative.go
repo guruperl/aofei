@@ -83,6 +83,10 @@ func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.
 	if err != nil {
 		return err
 	}
+	filterSQL, filterValue, err := creativeCacheFilter(extra...)
+	if err != nil {
+		return err
+	}
 	var pars []interface{}
 	str := `
 SELECT r.creative_id, r.size_id, c.iurl, i.item_click, i.imp_url, i.click_url, c.foreign_id, r.creative_name, r.content
@@ -90,17 +94,9 @@ FROM adv_creative r
 INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
 WHERE r.active="Yes"`
-	if len(extra) > 0 {
-		switch extra[0] {
-		case "item_id":
-			str += " AND i.item_id=?"
-		case "campaign_id":
-			str += " AND c.campaign_id=?"
-		case "creative_id":
-			str += " AND r.creative_id=?"
-		default:
-		}
-		pars = append(pars, extra[1])
+	if filterSQL != "" {
+		str += filterSQL
+		pars = append(pars, filterValue)
 	}
 	rows, err := db.Query(str, pars...)
 	if err != nil {
@@ -151,6 +147,28 @@ WHERE r.active="Yes"`
 		}
 	}
 	return rows.Err()
+}
+
+func creativeCacheFilter(extra ...string) (string, string, error) {
+	if len(extra) == 0 {
+		return "", "", nil
+	}
+	if len(extra) != 2 {
+		return "", "", fmt.Errorf("creative cache filter requires key and value, got %d arguments", len(extra))
+	}
+	if strings.TrimSpace(extra[1]) == "" {
+		return "", "", fmt.Errorf("creative cache filter %q has empty value", extra[0])
+	}
+	switch extra[0] {
+	case "item_id":
+		return " AND i.item_id=?", extra[1], nil
+	case "campaign_id":
+		return " AND c.campaign_id=?", extra[1], nil
+	case "creative_id":
+		return " AND r.creative_id=?", extra[1], nil
+	default:
+		return "", "", fmt.Errorf("unsupported creative cache filter %q", extra[0])
+	}
 }
 
 // DBGetCreative retrieves category audience from the database.

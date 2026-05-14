@@ -224,6 +224,9 @@ routes only when `middleman_always_enabled` is also true. Middleman SSP fanout
 uses the synthesized internal OpenRTB request. Middleman JSON responses omit
 local-only `impressionUrl` and `clickUrl`; OpenRTB responses group bids by the
 final winner seat.
+Duplicate non-empty `adUnits[].code` values are invalid and return `400` before
+cookies, bidding, middleman fanout, or audit publishing. Empty or omitted codes
+remain valid and receive generated `ssp-<index>` OpenRTB impression ids.
 `../pzdesign/cmd/unify` also handles `OPTIONS /pz` and applies permissive CORS
 headers only on `/pz`: origin `*`, methods `POST, OPTIONS`, and header
 `Content-Type`. Publisher slot pages load `../pzdesign/www/js/ads.js`; the

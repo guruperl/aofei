@@ -1,6 +1,7 @@
 package dsp
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,6 +91,49 @@ func TestApplyDBPoolDefaultsAndOverrides(t *testing.T) {
 	stats = db.Stats()
 	if stats.MaxOpenConnections != 12 {
 		t.Fatalf("override max open = %d, want 12", stats.MaxOpenConnections)
+	}
+}
+
+func TestGetRedisDBClosesDBWhenRedisPoolCreationFails(t *testing.T) {
+	dsn := "get_redis_db_close_on_redis_error"
+	db, mock, err := sqlmock.NewWithDSN(dsn, sqlmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectPing()
+	mock.ExpectClose()
+
+	c := &Config{
+		ConnectArray:                []string{"sqlmock", dsn},
+		Redis:                       &Red{Network: "unix", Addr: filepath.Join(t.TempDir(), "missing.sock")},
+		TrackingSignatureTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanCallbackBaseURL:    "http://localhost",
+	}
+	redis, openedDB, err := c.GetRedisDB(context.Background())
+	if err == nil {
+		if redis != nil {
+			_ = redis.Close()
+		}
+		if openedDB != nil {
+			_ = openedDB.Close()
+		}
+		t.Fatal("expected redis pool creation to fail")
+	}
+	if redis != nil || openedDB != nil {
+		t.Fatalf("redis/db = %#v/%#v, want nil/nil on redis failure", redis, openedDB)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+
+	mock.ExpectClose()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 

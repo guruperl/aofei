@@ -80,7 +80,7 @@ The bid path publishes these NATS subjects after a successful HTTP response:
 | Subject | Payload | Consumer |
 |---|---|---|
 | `request` | ADX raw request body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and raw request `payload` | `cmd/nats-client` writes `log_request/request.<stamp>`. |
-| `response` | ADX raw response body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and HTML-array `payload` | `cmd/nats-client` writes `log_response/response.<stamp>`. |
+| `response` | ADX raw response body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and selected response `payload` | `cmd/nats-client` writes `log_response/response.<stamp>`. |
 | `attribute` | `match.AttributePlus` JSON, one per served impression, with additive `source` and `contract` fields | `cmd/nats-client` writes `log_attribute/attribute.<stamp>`. |
 | `winloss` | `dsp.WinLoss` JSON | `cmd/nats-client` writes `log_winloss/winloss.<stamp>`. |
 
@@ -94,7 +94,8 @@ ADX `/bid` request and response audits remain raw OpenRTB payloads for
 compatibility. Direct SSP `/pz` request and response audits are wrapped only for
 SSP traffic so operators can distinguish the entrypoint without changing ADX log
 readers. Attribute audits use `source:"adx", contract:"openrtb"` for `/bid` and
-`source:"ssp", contract:"pz-v1"` for `/pz`.
+`source:"ssp", contract:"pz-v1"` for `/pz`; their `elapsed` field is an integer
+millisecond count.
 
 `cmd/spread` ignores the four log subjects and handles only cache/spread
 subjects.

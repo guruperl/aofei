@@ -285,6 +285,7 @@ func (self *Config) GetRedisDB(ctx context.Context, modes ...ConfigMode) (radix.
 	}
 	redis, err := cfg.New(ctx, red.Network, red.Addr)
 	if err != nil {
+		_ = db.Close()
 		return nil, nil, err
 	}
 	return redis, db, nil

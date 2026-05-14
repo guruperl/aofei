@@ -195,9 +195,16 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 	if pub.Pub.PubID != pubID {
 		return nil, fmt.Errorf("site token pub_id %d does not match cached pub_id %d", pubID, pub.Pub.PubID)
 	}
+	seenCodes := make(map[string]int, len(self.AdUnits))
 
 	units := make([]SSPValidatedUnit, 0, len(self.AdUnits))
 	for i, adUnit := range self.AdUnits {
+		if adUnit.Code != "" {
+			if first, ok := seenCodes[adUnit.Code]; ok {
+				return nil, fmt.Errorf("adUnits[%d] duplicate code %q already used by adUnits[%d]", i, adUnit.Code, first)
+			}
+			seenCodes[adUnit.Code] = i
+		}
 		slotToken := adUnit.Slot
 		if slotToken == "" {
 			return nil, fmt.Errorf("adUnits[%d] missing slot", i)

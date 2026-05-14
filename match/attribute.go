@@ -33,9 +33,9 @@ type Attribute struct {
 type AttributePlus struct {
 	Attribute
 	RAdv
-	Elapsed  time.Duration `json:"elapsed"`
-	Source   string        `json:"source,omitempty"`
-	Contract string        `json:"contract,omitempty"`
+	Elapsed  int64  `json:"elapsed"`
+	Source   string `json:"source,omitempty"`
+	Contract string `json:"contract,omitempty"`
 }
 
 // NewAttribute creates a new Attribute from a bid request.

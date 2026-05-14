@@ -200,6 +200,10 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 			p.SlotSizes[siteID][slotID] = sizeID
 		}
 		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
+			p.DefaultAppSiteID = siteID
+			p.DefaultAppSlotID = slotID
+		}
+		if foreignID == SITEDefaultWeb && slotName == SLOTDefault {
 			p.DefaultWebSiteID = siteID
 			p.DefaultWebSlotID = slotID
 		}

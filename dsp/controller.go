@@ -761,7 +761,7 @@ func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr 
 		bs, err := json.Marshal(match.AttributePlus{
 			Attribute: *audit.Attr,
 			RAdv:      audit.One,
-			Elapsed:   time.Duration(audit.Elapsed.Milliseconds()),
+			Elapsed:   audit.Elapsed.Milliseconds(),
 			Source:    source.Source,
 			Contract:  source.Contract,
 		})
