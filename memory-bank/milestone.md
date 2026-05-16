@@ -1046,6 +1046,33 @@ Result:
   RAdv SQL-null cleanup, HMAC allocation benchmarking, auction function
   cleanup, and local-cache pointer-swap work remain deferred.
 
+## M38 - Prebid/OpenRTB Pattern Adoption Review `[+]`
+
+Create a documentation-only review of Prebid Server OpenRTB patterns that may
+be worth adopting in `aofei`.
+
+Scope:
+
+- Use Prebid Server as an external design reference, not a dependency.
+- Summarize relevant OpenRTB flow: request parsing, bidder splitting, adapter
+  calls, bid normalization, validation, targeting/cache/debug response
+  assembly, and observability.
+- Classify adoption candidates for performance, matching, validation,
+  security/privacy, and observability as `Adopt soon`,
+  `Research/benchmark first`, `Only for middleman fanout`, or
+  `Not applicable to aofei`.
+- Name later implementation milestones without changing runtime code, schema,
+  cache payloads, config, public APIs, or operator workflow.
+
+Acceptance:
+
+- [docs/prebid-openrtb-adoption.md](../docs/prebid-openrtb-adoption.md)
+  records the review and deferred implementation candidates.
+- Performance and dependency recommendations are measurement-gated.
+- `memory-bank/status-M38.md` tracks the documentation tasks and verification.
+- Required verification is `./scripts/aofei-doc-check.sh` and
+  `git diff --check`.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

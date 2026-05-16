@@ -126,6 +126,10 @@ Install the package command binaries:
 - [docs/performance-roadmap.md](docs/performance-roadmap.md): advisory
   performance roadmap for measurement, same-stack scaling, and conditional
   technology swaps.
+- [docs/prebid-openrtb-adoption.md](docs/prebid-openrtb-adoption.md):
+  documentation-only review of Prebid Server OpenRTB patterns to consider for
+  later `aofei` validation, matching, middleman, performance, privacy, and
+  observability milestones.
 - [../pzdesign/docs/genelet-manual.md](../pzdesign/docs/genelet-manual.md):
   Genelet config, routes, auth, component, CRUD, upload, CORS, and error
   contracts.
