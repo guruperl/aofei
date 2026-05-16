@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,13 +14,23 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const logQueueSize = 1024
+const (
+	logQueueSize = 1024
+	logDirMode   = 0750
+	logFileMode  = 0640
+)
 
 var ErrIgnoredSubject = errors.New("ignored nats log subject")
 
 type logMessage struct {
 	subject string
 	data    []byte
+}
+
+type natsLogConn interface {
+	Subscribe(string, nats.MsgHandler) (*nats.Subscription, error)
+	Drain() error
+	ConnectedUrl() string
 }
 
 // FileWriters is a struct that contains the file handlers for writing logs
@@ -40,8 +52,12 @@ func getCurrent(interval int) int {
 }
 
 func newFileWriter(name string) (*os.File, error) {
-	fh, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	fh, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE, logFileMode)
 	if err != nil {
+		return nil, err
+	}
+	if err := fh.Chmod(logFileMode); err != nil {
+		_ = fh.Close()
 		return nil, err
 	}
 	return fh, nil
@@ -50,24 +66,53 @@ func newFileWriter(name string) (*os.File, error) {
 // NewFileWriters creates a new FileWriters with the given directory names, and intervals in minutes
 func NewFileWriters(request, response, attribute, winloss string, interval int) (*FileWriters, error) {
 	existing := getCurrent(interval)
-	if err := os.MkdirAll(request, os.ModePerm); err != nil {
+	if err := ensureLogDir(request); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(response, os.ModePerm); err != nil {
+	if err := ensureLogDir(response); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(attribute, os.ModePerm); err != nil {
+	if err := ensureLogDir(attribute); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(winloss, os.ModePerm); err != nil {
+	if err := ensureLogDir(winloss); err != nil {
 		return nil, err
 	}
 	fw := &FileWriters{existing: int(existing), request: request, response: response, attribute: attribute, winloss: winloss, Interval: interval, current: getCurrent}
 	return fw, nil
 }
 
+func ensureLogDir(name string) error {
+	if err := os.MkdirAll(name, logDirMode); err != nil {
+		return err
+	}
+	return os.Chmod(name, logDirMode)
+}
+
+type logPrintf interface {
+	Printf(string, ...any)
+}
+
+func runNATSClient(ctx context.Context, c *dsp.Config, nc natsLogConn, interval int, logger logPrintf) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if logger == nil {
+		logger = log.New(io.Discard, "", 0)
+	}
+	filewriters, err := NewFileWriters(c.LogRequest, c.LogResponse, c.LogAttribute, c.LogWinLoss, interval)
+	if err != nil {
+		return err
+	}
+	logger.Printf("Listening on [%s]", nc.ConnectedUrl())
+	return filewriters.ReceiveLogs(ctx, nc)
+}
+
 // ReceiveLogs receives logs from nats server and writes them to files
-func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
+func (self *FileWriters) ReceiveLogs(ctx context.Context, nc natsLogConn) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	msgs := make(chan logMessage, logQueueSize)
 	errs := make(chan error, 1)
 
@@ -78,7 +123,7 @@ func (self *FileWriters) ReceiveLogs(nc *nats.Conn) error {
 		return err
 	}
 
-	return self.writerLoop(msgs, errs)
+	return self.writerLoop(ctx, nc, msgs, errs)
 }
 
 func enqueueLogMessage(msgs chan<- logMessage, errs chan<- error, subject string, data []byte) {
@@ -93,7 +138,7 @@ func enqueueLogMessage(msgs chan<- logMessage, errs chan<- error, subject string
 	}
 }
 
-func (self *FileWriters) writerLoop(msgs <-chan logMessage, errs <-chan error) error {
+func (self *FileWriters) writerLoop(ctx context.Context, nc natsLogConn, msgs <-chan logMessage, errs <-chan error) error {
 	defer self.Close()
 	for {
 		select {
@@ -105,6 +150,28 @@ func (self *FileWriters) writerLoop(msgs <-chan logMessage, errs <-chan error) e
 			}
 		case err := <-errs:
 			return err
+		case <-ctx.Done():
+			if err := nc.Drain(); err != nil {
+				return err
+			}
+			return self.drainQueuedLogs(msgs, errs)
+		}
+	}
+}
+
+func (self *FileWriters) drainQueuedLogs(msgs <-chan logMessage, errs <-chan error) error {
+	for {
+		select {
+		case msg := <-msgs:
+			if handled, err := self.writeLog(msg); err != nil {
+				return err
+			} else if !handled {
+				log.Printf("%v: %s", ErrIgnoredSubject, msg.subject)
+			}
+		case err := <-errs:
+			return err
+		default:
+			return nil
 		}
 	}
 }

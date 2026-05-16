@@ -95,9 +95,15 @@ Outputs:
 Notes:
 
 - File rotation is based on `-interval` minutes.
+- Log directories are created or tightened to `0750`; generated log files are
+  created or tightened to `0640`. Ledger input files should never be
+  world-readable or group/world-writable.
 - Unknown subjects are logged as ignored.
 - A full internal log queue is returned as an error instead of blocking the NATS
   callback.
+- `SIGINT` and `SIGTERM` stop the service through a signal-aware context. On
+  shutdown the command drains NATS, flushes queued log messages, and closes open
+  file handles before exiting.
 
 ## `cmd/spread`
 
@@ -219,6 +225,13 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/mid-callback-retry -read
 ```
 
+Stable JSON summary for alerting:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/mid-callback-retry -read -json
+```
+
 Inputs:
 
 - Docker MySQL from `AOFEI`.
@@ -236,6 +249,7 @@ Outputs:
 - One summary line with `due`, `stale_processing`, `selected`, `succeeded`,
   `retrying`, and `abandoned` counts. Alert when `stale_processing` remains
   non-zero across runs or when `due` grows faster than the singleton job drains.
+  Use `-json` for automation; the default text output is for humans.
 
 Notes:
 

@@ -1004,6 +1004,48 @@ Result:
   hardening, Docker smoke, admin integration, and schema verification commands.
 - `cron_halfhour` cleanup remains deferred as a schema-baseline decision.
 
+## M37 - Operational Follow-Up Hardening `[+]`
+
+Resolve the confirmed follow-up risks from the `review.md` disposition without
+changing schema shape, cache payload shape, or bid/SSP product semantics.
+
+Scope:
+
+- Make `cmd/nats-client` signal-aware and testable, with graceful NATS drain,
+  queued-message flush, and file-handle close on shutdown.
+- Tighten `cmd/nats-client` generated log directory and file permissions for
+  ledger input logs.
+- Add stable JSON output to `cmd/mid-callback-retry` for backlog alerting while
+  preserving the existing text output.
+- Record deferred review findings separately from this operational hardening
+  milestone.
+
+Acceptance:
+
+- Context cancellation of the extracted NATS client run path drains the NATS
+  connection and writes queued messages before exit.
+- Generated log directories have no world permissions and no group/world write
+  bits; generated log files have no world permissions and no group/world write
+  bits.
+- `cmd/mid-callback-retry -json` emits `due`, `stale_processing`, `selected`,
+  `succeeded`, `retrying`, and `abandoned`; default text output remains
+  unchanged for current operators.
+- Operator docs and memory bank describe shutdown, permissions, and JSON
+  alerting behavior.
+
+Result:
+
+- `cmd/nats-client` now uses `cmdboot.SignalContext`, drains NATS on
+  cancellation, flushes queued log messages, closes files, and is covered by a
+  fake-connection shutdown test.
+- `cmd/nats-client` creates or tightens log directories to `0750` and log files
+  to `0640`, with tests asserting private generated modes.
+- `cmd/mid-callback-retry` keeps its existing summary line by default and adds
+  `-json` for stable automation.
+- Pubmap envelope compatibility, source-specific SSP/middleman fanout metrics,
+  RAdv SQL-null cleanup, HMAC allocation benchmarking, auction function
+  cleanup, and local-cache pointer-swap work remain deferred.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

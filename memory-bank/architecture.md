@@ -105,11 +105,13 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   legal, settlement, intermediary, permission, compliance, or
 	   partner-credential requirements exist.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
-   interval files. The ledger job consumes `winloss.<stamp>` files into
-   interval and daily ledger tables through standalone `cmd/ledger`; missing
-   input remains retryable command input. Middleman callback metadata also
-   populates `ledger_mid` and `daily_mid` for advertiser pay-side reports and
-   admin settlement views.
+   interval files, runs under signal-aware shutdown, drains NATS on exit, and
+   flushes its queued log messages before closing files. Generated log
+   directories are tightened to `0750` and generated log files to `0640`. The
+   ledger job consumes `winloss.<stamp>` files into interval and daily ledger
+   tables through standalone `cmd/ledger`; missing input remains retryable
+   command input. Middleman callback metadata also populates `ledger_mid` and
+   `daily_mid` for advertiser pay-side reports and admin settlement views.
 8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
    regenerates the configured MaxMind runtime JSON without loading the existing
    geodata file first.
@@ -146,7 +148,10 @@ chain and middleman-specific charge/pay/margin facts through `ledger_mid` and
 `daily_mid`. Retryable downstream callback forwarding failures are stored in
 MySQL `mid_callback_retry` by `/mid/*` handlers only, never by `/bid`; the
 singleton `cmd/mid-callback-retry` job claims rows as `Processing` and retries
-downstream forwards without republishing ledger events.
+downstream forwards without republishing ledger events. Its default output
+remains a human-readable summary line, and `-json` emits stable fields
+`due`, `stale_processing`, `selected`, `succeeded`, `retrying`, and
+`abandoned` for automation.
 
 Request, response, and attribute audit messages are best-effort analytics.
 `dsp.Controller` enqueues them to a bounded in-process queue after writing the

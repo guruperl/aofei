@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -16,7 +18,7 @@ import (
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: mid-callback-retry -s=dsp_config -limit=100 -max-attempts=5 -timeout=2s -dry-run\n")
+	fmt.Fprintf(os.Stderr, "usage: mid-callback-retry -s=dsp_config -limit=100 -max-attempts=5 -timeout=2s [-dry-run|-read] [-json]\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -28,6 +30,7 @@ var (
 	timeout     time.Duration
 	dryRun      bool
 	readOnly    bool
+	jsonOutput  bool
 	lockTTL     time.Duration
 )
 
@@ -39,6 +42,7 @@ func init() {
 	flag.DurationVar(&timeout, "timeout", 2*time.Second, "downstream callback HTTP timeout")
 	flag.BoolVar(&dryRun, "dry-run", false, "read due rows without forwarding or updating")
 	flag.BoolVar(&readOnly, "read", false, "alias for -dry-run")
+	flag.BoolVar(&jsonOutput, "json", false, "write stable JSON summary output")
 	flag.DurationVar(&lockTTL, "lock-ttl", 30*time.Minute, "singleton lock TTL for mutating runs")
 }
 
@@ -81,6 +85,38 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("due=%d stale_processing=%d selected=%d succeeded=%d retrying=%d abandoned=%d\n",
-		backlog.Due, backlog.StaleProcessing, result.Selected, result.Succeeded, result.Retrying, result.Abandoned)
+	if err := writeRetryReport(os.Stdout, jsonOutput, backlog, result); err != nil {
+		log.Fatal(err)
+	}
+}
+
+type retryReport struct {
+	Due             int `json:"due"`
+	StaleProcessing int `json:"stale_processing"`
+	Selected        int `json:"selected"`
+	Succeeded       int `json:"succeeded"`
+	Retrying        int `json:"retrying"`
+	Abandoned       int `json:"abandoned"`
+}
+
+func newRetryReport(backlog midcallback.BacklogStats, result midcallback.Result) retryReport {
+	return retryReport{
+		Due:             backlog.Due,
+		StaleProcessing: backlog.StaleProcessing,
+		Selected:        result.Selected,
+		Succeeded:       result.Succeeded,
+		Retrying:        result.Retrying,
+		Abandoned:       result.Abandoned,
+	}
+}
+
+func writeRetryReport(w io.Writer, asJSON bool, backlog midcallback.BacklogStats, result midcallback.Result) error {
+	report := newRetryReport(backlog, result)
+	if asJSON {
+		enc := json.NewEncoder(w)
+		return enc.Encode(report)
+	}
+	_, err := fmt.Fprintf(w, "due=%d stale_processing=%d selected=%d succeeded=%d retrying=%d abandoned=%d\n",
+		report.Due, report.StaleProcessing, report.Selected, report.Succeeded, report.Retrying, report.Abandoned)
+	return err
 }

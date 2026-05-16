@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/guruperl/aofei/dsp"
+	"github.com/nats-io/nats.go"
 )
 
 func TestFileWritersWriteKnownSubjects(t *testing.T) {
@@ -71,6 +77,27 @@ func TestFileWritersRotationReopensFiles(t *testing.T) {
 	assertFile(t, filepath.Join(fw.request, "request.101"), "second\n")
 }
 
+func TestFileWritersUsePrivatePermissions(t *testing.T) {
+	fw := newTestFileWriters(t)
+	if err := fw.WriteLog(dsp.SUBJECTWinLoss, []byte("ledger input")); err != nil {
+		t.Fatal(err)
+	}
+	fw.Close()
+
+	for _, dir := range []string{fw.request, fw.response, fw.attribute, fw.winloss} {
+		info, err := os.Stat(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertPrivateMode(t, dir, info.Mode().Perm(), true)
+	}
+	info, err := os.Stat(filepath.Join(fw.winloss, "winloss.100"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPrivateMode(t, info.Name(), info.Mode().Perm(), false)
+}
+
 func TestEnqueueLogMessageCopiesDataAndReportsFullQueue(t *testing.T) {
 	msgs := make(chan logMessage, 1)
 	errs := make(chan error, 1)
@@ -93,6 +120,46 @@ func TestEnqueueLogMessageCopiesDataAndReportsFullQueue(t *testing.T) {
 	default:
 		t.Fatal("expected queue full error")
 	}
+}
+
+func TestRunNATSClientDrainsOnContextCancelAndFlushesQueuedLogs(t *testing.T) {
+	root := t.TempDir()
+	cfg := &dsp.Config{
+		LogRequest:   filepath.Join(root, "request"),
+		LogResponse:  filepath.Join(root, "response"),
+		LogAttribute: filepath.Join(root, "attribute"),
+		LogWinLoss:   filepath.Join(root, "winloss"),
+	}
+	nc := newFakeNATSLogConn()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+
+	go func() {
+		done <- runNATSClient(ctx, cfg, nc, 10, log.New(io.Discard, "", 0))
+	}()
+	nc.waitSubscribed(t)
+	nc.publish(dsp.SUBJECTWinLoss, []byte("queued winloss"))
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runNATSClient did not exit after context cancellation")
+	}
+	if !nc.drained() {
+		t.Fatal("NATS connection was not drained")
+	}
+	matches, err := filepath.Glob(filepath.Join(cfg.LogWinLoss, "winloss.*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("winloss files = %v, want one file", matches)
+	}
+	assertFile(t, matches[0], "queued winloss\n")
 }
 
 func newTestFileWriters(t *testing.T) *FileWriters {
@@ -126,4 +193,74 @@ func assertFile(t *testing.T, name, want string) {
 	if string(got) != want {
 		t.Fatalf("%s = %q, want %q", name, string(got), want)
 	}
+}
+
+func assertPrivateMode(t *testing.T, name string, mode os.FileMode, isDir bool) {
+	t.Helper()
+	if mode&0007 != 0 {
+		t.Fatalf("%s mode %04o has world permissions", name, mode)
+	}
+	if mode&0022 != 0 {
+		t.Fatalf("%s mode %04o has group/other write permissions", name, mode)
+	}
+	if isDir && mode&0700 != 0700 {
+		t.Fatalf("%s mode %04o is not owner-accessible", name, mode)
+	}
+	if !isDir && mode&0600 != 0600 {
+		t.Fatalf("%s mode %04o is not owner-readable/writable", name, mode)
+	}
+}
+
+type fakeNATSLogConn struct {
+	mu         sync.Mutex
+	handler    nats.MsgHandler
+	wasDrained bool
+	subscribed chan struct{}
+}
+
+func newFakeNATSLogConn() *fakeNATSLogConn {
+	return &fakeNATSLogConn{subscribed: make(chan struct{})}
+}
+
+func (f *fakeNATSLogConn) Subscribe(subject string, handler nats.MsgHandler) (*nats.Subscription, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.handler = handler
+	close(f.subscribed)
+	return nil, nil
+}
+
+func (f *fakeNATSLogConn) Drain() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.wasDrained = true
+	return nil
+}
+
+func (f *fakeNATSLogConn) ConnectedUrl() string {
+	return "nats://test"
+}
+
+func (f *fakeNATSLogConn) publish(subject string, data []byte) {
+	f.mu.Lock()
+	handler := f.handler
+	f.mu.Unlock()
+	if handler != nil {
+		handler(&nats.Msg{Subject: subject, Data: data})
+	}
+}
+
+func (f *fakeNATSLogConn) waitSubscribed(t *testing.T) {
+	t.Helper()
+	select {
+	case <-f.subscribed:
+	case <-time.After(time.Second):
+		t.Fatal("fake NATS subscription was not registered")
+	}
+}
+
+func (f *fakeNATSLogConn) drained() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.wasDrained
 }

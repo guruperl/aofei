@@ -392,6 +392,8 @@ NATS requirements:
 - Monitor service availability, subscription health, and dropped messages.
 - Run `nats-client` as a separate service from `unify`; do not embed it in the
   HTTP process.
+- Keep `nats-client` ledger-input directories at `0750` and generated log files
+  at `0640`; they should not be world-readable or group/world-writable.
 - Run `spread` on nodes that use local/spread static-cache mode so static
   snapshots can be persisted and reloaded.
 - Restart `nats-client` and `spread` after NATS outages if subscriptions do not
@@ -409,7 +411,9 @@ direct SSP request results, cap-refresh contention counters, and
 non-zero sustained `aofei_audit_dropped_total`, rising
 `aofei_bothcap_refresh_conflicts_total`, stale `aofei_local_cache_stale`, and
 middleman callback retry command output where `stale_processing` stays
-non-zero.
+non-zero. Use `cmd/mid-callback-retry -json` for alerting automation; its stable
+fields are `due`, `stale_processing`, `selected`, `succeeded`, `retrying`, and
+`abandoned`.
 
 `cmd/unify` publishes request, response, attribute, and win/loss events when
 NATS is enabled. `cmd/nats-client` writes those subjects to:

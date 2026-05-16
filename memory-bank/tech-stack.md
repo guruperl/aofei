@@ -274,6 +274,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -daily -timestamp=YYYY-MM-DD
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -read -json
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/exchange.example.test win
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
 ```
@@ -285,13 +286,16 @@ spend, while admin reports expose charge, pay, and margin.
 Run `cmd/mid-callback-retry` as a singleton operations job for retryable
 downstream middleman callback forwarding failures. It forwards downstream only
 and does not republish win/loss records. Its output includes due and stale
-processing backlog counts for operator alerting.
+processing backlog counts for operator alerting; use `-json` for stable
+automation fields.
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and
-`.local/logs/log_winloss/`. `cmd/maxmind` reads MySQL country/state tables and
-atomically writes the configured MaxMind JSON path, normally
-`etc/maxmind.json`.
+`.local/logs/log_winloss/`. `cmd/nats-client` creates or tightens these
+directories to `0750` and generated interval files to `0640`; ledger input logs
+should not be world-readable or group/world-writable. `cmd/maxmind` reads MySQL
+country/state tables and atomically writes the configured MaxMind JSON path,
+normally `etc/maxmind.json`.
 
 ## MaxMind Assets
 

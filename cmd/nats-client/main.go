@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cmdboot"
 	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -31,6 +33,8 @@ func init() {
 
 func main() {
 	flag.Parse()
+	ctx, stop := cmdboot.SignalContext(context.Background())
+	defer stop()
 	c, err := dsp.NewConfig(sConf)
 	if err != nil {
 		log.Fatal(err)
@@ -42,16 +46,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer nc.Drain()
 
-	filewriters, err := NewFileWriters(c.LogRequest, c.LogResponse, c.LogAttribute, c.LogWinLoss, interval)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Listening on [%s]", nc.ConnectedUrl())
-	err = filewriters.ReceiveLogs(nc)
-	if err != nil {
+	if err := runNATSClient(ctx, c, nc, interval, log.Default()); err != nil {
 		log.Fatal(err)
 	}
 }
