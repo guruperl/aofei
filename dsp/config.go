@@ -43,6 +43,7 @@ type Config struct {
 	MiddlemanCallbackTTLSeconds int      `json:"middleman_callback_ttl_seconds,omitempty"`
 	MiddlemanCallbackTimeoutMS  int      `json:"middleman_callback_timeout_ms,omitempty"`
 	MiddlemanCallbackBaseURL    string   `json:"middleman_callback_base_url,omitempty"`
+	TrustedProxyCIDRs           []string `json:"trusted_proxy_cidrs,omitempty"`
 	LogRequest                  string   `json:"log_request,omitempty"`
 	LogResponse                 string   `json:"log_response,omitempty"`
 	LogAttribute                string   `json:"log_attribute,omitempty"`
@@ -198,6 +199,9 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	}
 	if self.LocalCacheMaxAgeSeconds < 0 {
 		return fmt.Errorf("local_cache_max_age_seconds must be non-negative")
+	}
+	if _, err := parseTrustedProxyCIDRs(self.TrustedProxyCIDRs); err != nil {
+		return err
 	}
 
 	needNATS := false

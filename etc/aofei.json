@@ -14,6 +14,7 @@
 	"middleman_callback_ttl_seconds": 86400,
 	"middleman_callback_timeout_ms": 1000,
 	"middleman_callback_base_url": "http://localhost:8080",
+	"trusted_proxy_cidrs": [],
 	"redis": {"Addr": "127.0.0.1:6379", "User": "", "Pass": ""},
 	"connect_array": ["mysql", "aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei?parseTime=true"],
 	"spread": ".local/spread",

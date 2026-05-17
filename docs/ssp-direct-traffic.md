@@ -259,10 +259,14 @@ policy is the serving authority.
 The adapter builds minimal browser metadata from HTTP headers:
 
 - `User-Agent` -> OpenRTB `device.ua`;
-- `X-Forwarded-For`, then `X-Real-IP`, then `RemoteAddr` -> OpenRTB
-  `device.ip`;
+- `RemoteAddr` -> OpenRTB `device.ip` by default;
+- `X-Forwarded-For`, then `X-Real-IP` -> OpenRTB `device.ip` only when the
+  request peer is listed in `trusted_proxy_cidrs`;
 - `Referer` -> OpenRTB `site.ref`;
 - `Host` -> OpenRTB `site.name`.
+
+`trusted_proxy_cidrs` accepts explicit proxy IPs or CIDR ranges. Leave it empty
+when `cmd/unify` is directly internet-facing.
 
 The cache-derived `siteStr` is used as OpenRTB `site.domain`, and the
 cache-derived `slotStr` is used as each impression `tagid`. `adUnits[].code`

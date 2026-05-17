@@ -311,6 +311,7 @@ generate_configs() {
   "middleman_callback_ttl_seconds": 86400,
   "middleman_callback_timeout_ms": 1000,
   "middleman_callback_base_url": "http://localhost:8080",
+  "trusted_proxy_cidrs": [],
   "redis": {"Addr": "$REDIS_ADDR", "User": "", "Pass": ""},
   "connect_array": ["mysql", "$DSN"],
   "db_max_open_conns": 32,

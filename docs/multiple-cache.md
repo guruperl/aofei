@@ -18,9 +18,10 @@ Static bid-serving data is local:
 
 - `pubmap/<domain>` publisher/site/slot routing.
 - Direct SSP derives publisher-by-id routing from `pubmap`, including reverse
-  site/slot and configured slot-size metadata for `/pz` validation. Redis mode
-  also publishes the additive `pubmap:by-id` hash for `/pz` serving; local mode
-  derives the same lookup in memory and does not add a spread directory.
+  active site/slot and configured slot-size metadata for `/pz` validation.
+  Redis mode also publishes the additive `pubmap:by-id` hash for `/pz`
+  serving; local mode derives the same lookup in memory and does not add a
+  spread directory.
 - `slot/<size_id>/<slot_id>` compiled `match.RAdvs` candidates.
 - `audience/<item_id>` compiled audience predicates.
 - `creative/<creative_id>` creative metadata, trackers, landing URL, failback,

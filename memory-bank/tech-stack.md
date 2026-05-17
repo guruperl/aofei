@@ -68,6 +68,9 @@ These files are local artifacts and are ignored by git.
 `/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
 the fallback. `tracking_signature_ttl_seconds` bounds signed URL replay and
 defaults to 86400.
+`trusted_proxy_cidrs` is empty by default. `/pz` uses `RemoteAddr` for OpenRTB
+`device.ip` unless the peer address matches an explicit proxy IP or CIDR in
+that list, in which case it accepts `X-Forwarded-For` or `X-Real-IP`.
 Middleman fallback is controlled by `middleman_enabled`,
 `middleman_timeout_ms`, `middleman_max_bidders_per_imp`, and
 `middleman_exchange_domain`. `trigger_mode='Always'` fanout also requires
@@ -207,7 +210,8 @@ Middleman route caches are Redis-only and are populated by the singleton
 Direct SSP local/static serving derives its by-publisher-id lookup in memory
 from `.local/spread/pubmap/`; it does not add a separate spread directory. The
 direct cache includes slot-size metadata, and `/pz` rejects slot tokens whose
-packed size does not match the configured slot size.
+packed size does not match the configured slot size. Inactive publisher sites
+and slots are omitted from the direct SSP cache.
 `POST /pz` is served by `dsp.Controller.ServeSSP` through
 `../pzdesign/cmd/unify`; valid omitted or `responseFormat:"html"` requests
 return `200 application/json` arrays of HTML strings. `responseFormat:"json"`

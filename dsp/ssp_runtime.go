@@ -74,7 +74,7 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 			self.resolveSSPUserCookieForPlatform(w, r, sspReq.Platform)
 		}
 	}
-	bid, err := openRTBFromValidatedSSP(r, sspReq, pub, units, cookieUserID)
+	bid, err := self.openRTBFromValidatedSSP(r, sspReq, pub, units, cookieUserID)
 	if err != nil {
 		metricSSPValidationErrors.Add(1)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -123,7 +123,7 @@ func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req
 	if len(cookieUserID) != 0 && sspPlatformUsesBrowserCookie(req.Platform) {
 		userID = cookieUserID[0]
 	}
-	bid, err := openRTBFromValidatedSSP(r, req, pub, units, userID)
+	bid, err := self.openRTBFromValidatedSSP(r, req, pub, units, userID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -149,7 +149,7 @@ func (self *Controller) validateSSPSupply(ctx context.Context, req *SSPRequest) 
 	return pub, units, nil
 }
 
-func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPub, units []SSPValidatedUnit, cookieUserID string) (*openrtb2.BidRequest, error) {
+func (self *Controller) openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPub, units []SSPValidatedUnit, cookieUserID string) (*openrtb2.BidRequest, error) {
 	if req == nil {
 		return nil, fmt.Errorf("ssp request is nil")
 	}
@@ -164,7 +164,7 @@ func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPu
 	}
 	bid := &openrtb2.BidRequest{
 		ID:     req.ID,
-		Device: deviceFromSSPHeaders(r),
+		Device: self.deviceFromSSPHeaders(r),
 		User:   &openrtb2.User{},
 		Imp:    make([]openrtb2.Imp, 0, len(units)),
 	}
@@ -174,7 +174,7 @@ func openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPu
 			return nil, err
 		}
 		bid.App = app
-		bid.Device = deviceFromSSP(r, req.Device)
+		bid.Device = self.deviceFromSSP(r, req.Device)
 		if req.User != nil {
 			user := *req.User
 			bid.User = &user
@@ -616,21 +616,21 @@ func validateSSPAppIdentity(field, value, want string) error {
 	return fmt.Errorf("%s %q does not match validated site %q", field, value, want)
 }
 
-func deviceFromSSPHeaders(r *http.Request) *openrtb2.Device {
+func (self *Controller) deviceFromSSPHeaders(r *http.Request) *openrtb2.Device {
 	device := &openrtb2.Device{}
 	if r == nil {
 		return device
 	}
 	device.UA = r.Header.Get("User-Agent")
-	device.IP = browserIP(r)
+	device.IP = self.browserIP(r)
 	if lang := r.Header.Get("Accept-Language"); lang != "" {
 		device.Language = strings.TrimSpace(strings.Split(lang, ",")[0])
 	}
 	return device
 }
 
-func deviceFromSSP(r *http.Request, body *openrtb2.Device) *openrtb2.Device {
-	headers := deviceFromSSPHeaders(r)
+func (self *Controller) deviceFromSSP(r *http.Request, body *openrtb2.Device) *openrtb2.Device {
+	headers := self.deviceFromSSPHeaders(r)
 	if body == nil {
 		return headers
 	}
@@ -647,25 +647,76 @@ func deviceFromSSP(r *http.Request, body *openrtb2.Device) *openrtb2.Device {
 	return &device
 }
 
-func browserIP(r *http.Request) string {
+func (self *Controller) browserIP(r *http.Request) string {
 	if r == nil {
 		return ""
 	}
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		for _, part := range strings.Split(xff, ",") {
-			if ip := strings.TrimSpace(part); ip != "" {
-				return ip
+	remoteIP := remoteAddrIP(r.RemoteAddr)
+	if self.trustsProxyIP(remoteIP) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			for _, part := range strings.Split(xff, ",") {
+				if ip := strings.TrimSpace(part); ip != "" {
+					return ip
+				}
 			}
 		}
+		if xrip := strings.TrimSpace(r.Header.Get("X-Real-IP")); xrip != "" {
+			return xrip
+		}
 	}
-	if xrip := strings.TrimSpace(r.Header.Get("X-Real-IP")); xrip != "" {
-		return xrip
+	if remoteIP != "" {
+		return remoteIP
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	return r.RemoteAddr
+}
+
+func remoteAddrIP(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
 	if err == nil {
 		return host
 	}
-	return r.RemoteAddr
+	return strings.TrimSpace(remoteAddr)
+}
+
+func (self *Controller) trustsProxyIP(raw string) bool {
+	ip := net.ParseIP(strings.TrimSpace(raw))
+	if ip == nil || self == nil || self.C == nil || len(self.C.TrustedProxyCIDRs) == 0 {
+		return false
+	}
+	networks, err := parseTrustedProxyCIDRs(self.C.TrustedProxyCIDRs)
+	if err != nil {
+		return false
+	}
+	for _, network := range networks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseTrustedProxyCIDRs(values []string) ([]*net.IPNet, error) {
+	networks := make([]*net.IPNet, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if ip := net.ParseIP(value); ip != nil {
+			bits := 32
+			if ip.To4() == nil {
+				bits = 128
+			}
+			networks = append(networks, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+			continue
+		}
+		_, network, err := net.ParseCIDR(value)
+		if err != nil {
+			return nil, fmt.Errorf("trusted_proxy_cidrs entry %q is invalid", value)
+		}
+		networks = append(networks, network)
+	}
+	return networks, nil
 }
 
 func openRTBImpFromSSPUnit(adUnit SSPAdUnit, unit SSPValidatedUnit, index int) (openrtb2.Imp, error) {

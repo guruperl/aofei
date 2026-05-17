@@ -36,3 +36,26 @@ func TestDBGetPubSetsDefaultAppAndWebSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDBGetPubFiltersInactiveSitesAndSlots(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{
+		"pub_id", "active", "foreign_id", "site_id", "site_type", "slot_name", "slot_id", "size_id", "limit_imp", "current_imp",
+	}).
+		AddRow(7, "Yes", "example.com", 11, "Web", "leaderboard", 101, 300250, nil, nil)
+	mock.ExpectQuery(`(?s)WHERE domain = \? AND s\.active='Yes' AND t\.active='Yes'`).
+		WithArgs("pub.example").
+		WillReturnRows(rows)
+
+	if _, err := DBGetPub(db, "pub.example"); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -278,7 +278,8 @@ func DBGetPubMap(db *sql.DB) (PubMap, error) {
 	FROM pub p
 	INNER JOIN pub_site s USING (pub_id)
 	INNER JOIN pub_slot t USING (site_id)
-LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
+	LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
+	WHERE s.active='Yes' AND t.active='Yes'
 `)
 	if err != nil {
 		return nil, err

@@ -145,7 +145,10 @@ missing browser headers, mismatched hosts, and subdomain variants return `403`
 before cookies, bidding, or audit publishing. `platform:"sdk"` may omit both
 headers, but any supplied `Origin` or `Referer` must also match. The
 `aofei_pz_uid` cookie is browser-only; SDK/in-app requests do not read or set it
-and use the existing device identity or UA+IP fallback path.
+and use the existing device identity or UA+IP fallback path. `/pz` uses
+`RemoteAddr` for OpenRTB `device.ip` unless the peer address is in
+`trusted_proxy_cidrs`; only trusted proxies may supply `X-Forwarded-For` or
+`X-Real-IP`.
 
 ## systemd Units
 

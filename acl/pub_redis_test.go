@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -87,5 +88,31 @@ func TestPubToRedisDeletesPubmapAndDirectPubByID(t *testing.T) {
 				t.Fatalf("direct by-id delete command = %s, want %s", redis.commands[1], wantByID)
 			}
 		})
+	}
+}
+
+func TestDBGetPubMapFiltersInactiveSitesAndSlots(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{
+		"domain", "pub_id", "active", "foreign_id", "site_id", "slot_name", "slot_id", "size_id", "limit_imp", "current_imp",
+	}).
+		AddRow("pub.example", 42, "Yes", "example.com", 7, "leaderboard", 99, 300250, nil, nil)
+	mock.ExpectQuery(`(?s)WHERE s\.active='Yes' AND t\.active='Yes'`).
+		WillReturnRows(rows)
+
+	pubmap, err := DBGetPubMap(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pubmap["pub.example"].Slots[7]["leaderboard"] != 99 {
+		t.Fatalf("pubmap = %#v", pubmap)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }

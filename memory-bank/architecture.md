@@ -81,11 +81,13 @@ packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
 	   valid `Origin` or `Referer` whose host exactly matches the cached site
 	   string, any present `Origin` or `Referer` must match, and only
 	   `platform:"sdk"` may omit both headers. SDK/in-app requests do not read,
-	   set, or propagate `aofei_pz_uid`. M32 lets SDK requests include
-	   OpenRTB-like `app`, `device`, and `user` objects, synthesizes
-	   `BidRequest.App` from the validated cached site string, rejects supplied
-	   app id/bundle/domain mismatches, honors SDK body user IDs, merges body
-	   device identity with header IP/UA fallback, and renders explicit
+	   set, or propagate `aofei_pz_uid`. The direct SSP cache includes only
+	   active publisher site/slot tuples, and `/pz` trusts forwarded IP headers
+	   only from peers configured in `trusted_proxy_cidrs`. M32 lets SDK
+	   requests include OpenRTB-like `app`, `device`, and `user` objects,
+	   synthesizes `BidRequest.App` from the validated cached site string,
+	   rejects supplied app id/bundle/domain mismatches, honors SDK body user
+	   IDs, merges body device identity with header IP/UA fallback, and renders explicit
 	   `responseFormat:"json"` fill objects or `"openrtb"` `BidResponse`
 	   payloads while preserving omitted/`"html"` browser array responses. M33
 	   runs the existing middleman runtime for valid `/pz` auctions after local
@@ -209,9 +211,9 @@ but refresh through Redis optimistic transactions to avoid concurrent lost
 updates.
 Direct SSP uses an additive `pubmap:by-id` Redis hash derived from `pubmap`.
 The value includes publisher domain, the active publisher object, reverse
-site/slot metadata, and slot-size metadata so `/pz` can validate packed direct
-tag tokens and reconstruct site and slot strings for ACL matching without a
-MySQL read.
+active site/slot metadata, and slot-size metadata so `/pz` can validate packed
+direct tag tokens and reconstruct site and slot strings for ACL matching
+without a MySQL read.
 Local/static mode derives the same lookup from the loaded `pubmap` snapshot in
 memory; `/bid/{domain}` continues to read the existing domain-keyed publisher
 cache.

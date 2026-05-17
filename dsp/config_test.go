@@ -69,6 +69,9 @@ func TestConfig(t *testing.T) {
 	if c.MiddlemanCallbackBaseURL != "http://localhost" {
 		t.Errorf("MiddlemanCallbackBaseURL = %q, want server_url default", c.MiddlemanCallbackBaseURL)
 	}
+	if len(c.TrustedProxyCIDRs) != 0 {
+		t.Errorf("TrustedProxyCIDRs = %#v, want default empty", c.TrustedProxyCIDRs)
+	}
 }
 
 func TestApplyDBPoolDefaultsAndOverrides(t *testing.T) {
@@ -167,6 +170,20 @@ func TestConfigValidateBidRequiresTrackingSecret(t *testing.T) {
 	}
 	if err := c.Validate(ConfigModeBid); err == nil {
 		t.Fatal("expected bid validation to require tracking_secret")
+	}
+}
+
+func TestConfigRejectsInvalidTrustedProxyCIDR(t *testing.T) {
+	c := &Config{
+		TrackingSignatureTTLSeconds: 86400,
+		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
+		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		TrustedProxyCIDRs:           []string{"not-a-cidr"},
+	}
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected invalid trusted_proxy_cidrs entry to fail")
 	}
 }
 

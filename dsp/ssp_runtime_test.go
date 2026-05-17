@@ -835,6 +835,7 @@ func TestServeSSPDoesNotPublishAuditForInvalidToken(t *testing.T) {
 
 func TestOpenRTBFromSSPUsesHeaderMetadataAndValidatedSupply(t *testing.T) {
 	controller := newLocalBidPathController(t)
+	controller.C.TrustedProxyCIDRs = []string{"192.0.2.0/24"}
 	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
 		{Code: "debug-code", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1.25},
 	})
@@ -861,6 +862,30 @@ func TestOpenRTBFromSSPUsesHeaderMetadataAndValidatedSupply(t *testing.T) {
 	}
 	if got := bid.Imp[0]; got.ID != "debug-code" || got.TagID != "slot-one" || got.Banner == nil || *got.Banner.W != 300 || *got.Banner.H != 250 {
 		t.Fatalf("imp = %#v", got)
+	}
+}
+
+func TestOpenRTBFromSSPIgnoresForwardedIPFromUntrustedRemote(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+		{Code: "debug-code", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1.25},
+	})
+	sspReq, err := ParseSSPRequest(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/pz", nil)
+	req.RemoteAddr = "192.0.2.55:1234"
+	req.Header.Set("User-Agent", "ua-test")
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+	req.Header.Set("X-Real-IP", "203.0.113.10")
+
+	bid, _, _, err := controller.openRTBFromSSP(req.Context(), req, sspReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bid.Device.IP != "192.0.2.55" {
+		t.Fatalf("device IP = %q, want untrusted remote address", bid.Device.IP)
 	}
 }
 

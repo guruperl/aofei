@@ -155,7 +155,7 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	INNER JOIN pub_site s USING (pub_id)
 	INNER JOIN pub_slot t USING (site_id)
 	LEFT JOIN adv_balance b ON (p.total_balance_id=b.balance_id)
-	WHERE domain = ?`, domain)
+	WHERE domain = ? AND s.active='Yes' AND t.active='Yes'`, domain)
 	if err != nil {
 		return nil, err
 	}

@@ -49,6 +49,9 @@ schema, cache payloads, config, public APIs, or operator workflow.
   every `ext.prebid` block is stripped before adapter calls. The review keeps
   the adoption guidance focused on bidder-specific preprocessing and
   sanitization.
+- `[+]` 2026-05-17 follow-up review fixes: direct SSP publisher caches now omit
+  inactive `pub_site`/`pub_slot` tuples, and `/pz` only trusts forwarded IP
+  headers from configured `trusted_proxy_cidrs`.
 - `[+]` No open M38 review findings remain.
 
 ## Notes
