@@ -19,6 +19,7 @@ import (
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
+	"go.uber.org/zap"
 )
 
 const (
@@ -207,6 +208,13 @@ func (self *Controller) trackingSignatureTTL() time.Duration {
 	return time.Duration(self.C.TrackingSignatureTTLSeconds) * time.Second
 }
 
+func (self *Controller) capStateTTL() time.Duration {
+	if self == nil || self.C == nil || self.C.CapStateTTLSeconds <= 0 {
+		return defaultCapStateTTL
+	}
+	return time.Duration(self.C.CapStateTTLSeconds) * time.Second
+}
+
 func (self *Controller) middlemanCallbackBaseURL() string {
 	if self == nil || self.C == nil {
 		return ""
@@ -244,7 +252,7 @@ func validateMiddlemanSignature(secret, path string, args url.Values, ttl time.D
 	if got == "" {
 		return fmt.Errorf("tracking signature missing")
 	}
-	if err := validateTrackingSignatureTimestamp(args, ttl); err != nil {
+	if _, err := validateTrackingSignatureTimestamp(args, ttl); err != nil {
 		return err
 	}
 	signable := middlemanSignableValues(path, args)
@@ -563,7 +571,11 @@ func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value 
 	if midcallback.RetryableForward(status, code) {
 		queued, err := self.enqueueMiddlemanCallbackRetry(ctx, value, source, target, prices, status, code, lastErr)
 		if err != nil && self.Logger != nil {
-			self.Logger.Sugar().Warnf("middleman callback retry enqueue failed: %v", err)
+			self.Logger.Warn("middleman callback retry enqueue failed",
+				zap.String("callback_token", value.Token),
+				zap.String("source", source),
+				zap.Error(err),
+			)
 		}
 		if !queued {
 			_ = self.callbackStore().ClearNotify(ctx, value.Token, source)

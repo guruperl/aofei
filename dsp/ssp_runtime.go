@@ -69,10 +69,7 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 
 	cookieUserID := ""
 	if sspPlatformUsesBrowserCookie(sspReq.Platform) {
-		cookieUserID = self.resolveSSPUserCookieForPlatform(nil, r, sspReq.Platform)
-		if cookieUserID == "" {
-			self.resolveSSPUserCookieForPlatform(w, r, sspReq.Platform)
-		}
+		cookieUserID = self.resolveSSPUserCookieForPlatform(w, r, sspReq.Platform)
 	}
 	bid, err := self.openRTBFromValidatedSSP(r, sspReq, pub, units, cookieUserID)
 	if err != nil {
@@ -472,8 +469,11 @@ func (self *Controller) resolveSSPUserCookie(w http.ResponseWriter, r *http.Requ
 	if cookie, err := r.Cookie(sspUserCookieName); err == nil && validSSPUserCookie(cookie.Value) {
 		return cookie.Value
 	}
+	if w == nil {
+		return ""
+	}
 	value, err := newSSPUserCookieValue()
-	if err != nil || w == nil {
+	if err != nil {
 		return ""
 	}
 	http.SetCookie(w, &http.Cookie{

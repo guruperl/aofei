@@ -105,8 +105,8 @@ func TestRAdvSelectOne(t *testing.T) {
 	}
 	if probs[0] < 9000 || probs[0] > 11000 ||
 		probs[1] < 19000 || probs[1] > 21000 ||
-		probs[2] < 29000 || probs[1] > 31000 ||
-		probs[3] < 39000 || probs[1] > 41000 {
+		probs[2] < 29000 || probs[2] > 31000 ||
+		probs[3] < 39000 || probs[3] > 41000 {
 		t.Errorf("%v", probs)
 	}
 }
@@ -115,6 +115,32 @@ func TestSelectOneAllZeroReturnsNoMatch(t *testing.T) {
 	if got := selectOne([]float32{0, 0}); got != -1 {
 		t.Fatalf("selectOne all zero = %d, want -1", got)
 	}
+}
+
+func TestSelectOneFallsBackToLastPositiveWeight(t *testing.T) {
+	weights := []float32{0.1, 0, 0.2}
+	if got := selectOneAt(weights, 0.3, 2); got != 2 {
+		t.Fatalf("selectOneAt = %d, want final positive index 2", got)
+	}
+	before := append([]float32(nil), weights...)
+	_ = selectOne(weights)
+	for i := range weights {
+		if weights[i] != before[i] {
+			t.Fatalf("weights mutated: got %v want %v", weights, before)
+		}
+	}
+}
+
+func BenchmarkSelectOneParallel(b *testing.B) {
+	weights := []float32{0.5, 1, 2, 4, 8, 3, 1.5, 0.25}
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if selectOne(weights) < 0 {
+				b.Error("selectOne returned no match")
+			}
+		}
+	})
 }
 
 func TestRAdvECPMAndCurrencySelection(t *testing.T) {

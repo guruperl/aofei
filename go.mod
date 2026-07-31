@@ -7,6 +7,7 @@ toolchain go1.23.5
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/IncSW/geoip2 v0.1.3
+	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/mediocregopher/radix/v4 v4.1.4
 	github.com/mileusna/useragent v1.3.5
@@ -23,6 +24,7 @@ require (
 	github.com/nats-io/nkeys v0.4.9 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/tilinna/clock v1.0.2 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect

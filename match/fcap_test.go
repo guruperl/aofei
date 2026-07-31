@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -65,12 +66,24 @@ func TestBothCapRefreshExpiredImpAndClick(t *testing.T) {
 	}
 }
 
+func TestFcapRefreshSaturatesTotal(t *testing.T) {
+	when := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	fcap := NewFcap(when)
+	fcap.Total = 254
+	fcap.Refresh(when)
+	fcap.Refresh(when)
+	if fcap.Total != 255 {
+		t.Fatalf("Total = %d, want saturated 255", fcap.Total)
+	}
+}
+
 func TestMustRefreshBothCapConcurrent(t *testing.T) {
+	server := miniredis.RunT(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	client, err := (radix.PoolConfig{Size: 4}).New(ctx, "tcp", "127.0.0.1:6379")
+	client, err := (radix.PoolConfig{Size: 4}).New(ctx, "tcp", server.Addr())
 	if err != nil {
-		t.Skipf("Redis unavailable for concurrent cap test: %v", err)
+		t.Fatal(err)
 	}
 	defer client.Close()
 
@@ -104,5 +117,101 @@ func TestMustRefreshBothCapConcurrent(t *testing.T) {
 	}
 	if bothcap.Imp.Total != 2 {
 		t.Fatalf("Imp.Total = %d, want 2", bothcap.Imp.Total)
+	}
+	var ttl int64
+	if err := client.Do(ctx, radix.Cmd(&ttl, "TTL", key)); err != nil {
+		t.Fatal(err)
+	}
+	if ttl <= 0 {
+		t.Fatalf("TTL = %d, want positive", ttl)
+	}
+}
+
+func TestMustRefreshBothCapDoesNotShortenLongerTTL(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	key := HashNameBothCap("fcap-ttl-test")
+	defer client.Do(ctx, radix.Cmd(nil, "DEL", key))
+	if err := client.Do(ctx, radix.Cmd(nil, "HSET", key, "1", "old")); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "EXPIRE", key, "7200")); err != nil {
+		t.Fatal(err)
+	}
+	when := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	if err := MustRefreshBothCapWithTTL(ctx, client, when, "fcap-ttl-test", 2, Cap{CapPeriod: 60}, time.Hour, true, false); err != nil {
+		t.Fatal(err)
+	}
+	var ttl int64
+	if err := client.Do(ctx, radix.Cmd(&ttl, "TTL", key)); err != nil {
+		t.Fatal(err)
+	}
+	if ttl < 7100 {
+		t.Fatalf("TTL = %d, want existing longer TTL preserved", ttl)
+	}
+}
+
+func TestBothCapsToRedisWithTTLPreservesLongerExpiry(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	key := HashNameBothCap("bulk-longer-ttl")
+	if err := client.Do(ctx, radix.Cmd(nil, "HSET", key, "1", "old")); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "EXPIRE", key, "7200")); err != nil {
+		t.Fatal(err)
+	}
+	state := NewBothCap(time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC))
+	state.Imp.Refresh(state.Imp.GetStart())
+	if err := BothCapsToRedisWithTTL(ctx, client, "bulk-longer-ttl", map[uint32]BothCap{2: state}, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if ttl := server.TTL(key); ttl < 119*time.Minute {
+		t.Fatalf("TTL = %s, want existing longer TTL preserved", ttl)
+	}
+	if server.HGet(key, "2") == "" {
+		t.Fatal("bulk cap data was not committed")
+	}
+}
+
+func TestBothCapsToRedisWithTTLAtomicallyAddsExpiry(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	state := NewBothCap(time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC))
+	for _, pid := range []string{"bulk-new", "bulk-persistent"} {
+		key := HashNameBothCap(pid)
+		if pid == "bulk-persistent" {
+			if err := client.Do(ctx, radix.Cmd(nil, "HSET", key, "1", "old")); err != nil {
+				t.Fatal(err)
+			}
+			if ttl := server.TTL(key); ttl != 0 {
+				t.Fatalf("persistent setup TTL = %s, want 0", ttl)
+			}
+		}
+		if err := BothCapsToRedisWithTTL(ctx, client, pid, map[uint32]BothCap{2: state}, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+		if server.HGet(key, "2") == "" {
+			t.Fatalf("%s data was not committed", pid)
+		}
+		if ttl := server.TTL(key); ttl <= 0 {
+			t.Fatalf("%s TTL = %s, want data and positive expiry together", pid, ttl)
+		}
 	}
 }

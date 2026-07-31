@@ -2,6 +2,7 @@ package dsp
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -15,8 +16,50 @@ const (
 	trackingSignatureParam          = "sig"
 	trackingSignatureTimestampParam = "sig_ts"
 	defaultTrackingSignatureTTL     = 24 * time.Hour
+	defaultTrackingProcessingTTL    = 30 * time.Second
+	trackingClaimOperationTimeout   = 2 * time.Second
+	defaultCapStateTTL              = 90 * 24 * time.Hour
 	maxTrackingSignatureFutureSkew  = 5 * time.Minute
 )
+
+type trackingClaimOutcome uint8
+
+const (
+	trackingClaimOwner trackingClaimOutcome = iota
+	trackingClaimDuplicate
+	trackingClaimUnkeyed
+	trackingClaimRedisFailOpen
+)
+
+type trackingEventClaim struct {
+	key     string
+	token   string
+	outcome trackingClaimOutcome
+}
+
+func (c trackingEventClaim) owned() bool {
+	return c.outcome == trackingClaimOwner && c.key != "" && c.token != ""
+}
+
+func (c trackingEventClaim) records() bool {
+	return c.outcome != trackingClaimDuplicate
+}
+
+func (c trackingEventClaim) keyed() bool {
+	return c.key != ""
+}
+
+func (c trackingEventClaim) capMarkerKey() string {
+	return c.key + ":cap"
+}
+
+func newTrackingEventClaimToken() (string, error) {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf[:]), nil
+}
 
 var winLossMacroKeys = map[string]struct{}{
 	"auction_id":       {},
@@ -40,30 +83,35 @@ func addTrackingSignature(secret, path string, args url.Values) {
 	args.Set(trackingSignatureParam, signTrackingValues(secret, path, args))
 }
 
-func validateTrackingSignature(secret, path string, args url.Values, ttl ...time.Duration) error {
+// validateTrackingSignature validates args and returns the exact instant at
+// which the signed request stops being valid. A timestamp accepted within the
+// future-skew window therefore remains valid for the full configured TTL from
+// that signed timestamp.
+func validateTrackingSignature(secret, path string, args url.Values, ttl time.Duration) (time.Time, error) {
 	if secret == "" {
-		return fmt.Errorf("tracking signature secret is not configured")
+		return time.Time{}, fmt.Errorf("tracking signature secret is not configured")
 	}
 	got := args.Get(trackingSignatureParam)
 	if got == "" {
-		return fmt.Errorf("tracking signature missing")
+		return time.Time{}, fmt.Errorf("tracking signature missing")
 	}
-	if err := validateTrackingSignatureTimestamp(args, ttl...); err != nil {
-		return err
+	validUntil, err := validateTrackingSignatureTimestamp(args, ttl)
+	if err != nil {
+		return time.Time{}, err
 	}
 	want := signTrackingValues(secret, path, args)
 	gotBytes, err := hex.DecodeString(got)
 	if err != nil {
-		return fmt.Errorf("tracking signature malformed")
+		return time.Time{}, fmt.Errorf("tracking signature malformed")
 	}
 	wantBytes, err := hex.DecodeString(want)
 	if err != nil {
-		return err
+		return time.Time{}, err
 	}
 	if !hmac.Equal(gotBytes, wantBytes) {
-		return fmt.Errorf("tracking signature invalid")
+		return time.Time{}, fmt.Errorf("tracking signature invalid")
 	}
-	return nil
+	return validUntil, nil
 }
 
 func equalHexSignature(got, want string) bool {
@@ -78,28 +126,28 @@ func equalHexSignature(got, want string) bool {
 	return hmac.Equal(gotBytes, wantBytes)
 }
 
-func validateTrackingSignatureTimestamp(args url.Values, ttl ...time.Duration) error {
+func validateTrackingSignatureTimestamp(args url.Values, ttl time.Duration) (time.Time, error) {
 	raw := args.Get(trackingSignatureTimestampParam)
 	if raw == "" {
-		return fmt.Errorf("tracking signature timestamp missing")
+		return time.Time{}, fmt.Errorf("tracking signature timestamp missing")
 	}
 	seconds, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return fmt.Errorf("tracking signature timestamp malformed")
+		return time.Time{}, fmt.Errorf("tracking signature timestamp malformed")
 	}
 	signedAt := time.Unix(seconds, 0)
-	limit := defaultTrackingSignatureTTL
-	if len(ttl) > 0 && ttl[0] > 0 {
-		limit = ttl[0]
+	if ttl <= 0 {
+		return time.Time{}, fmt.Errorf("tracking signature TTL must be positive")
 	}
 	now := time.Now()
 	if signedAt.After(now.Add(maxTrackingSignatureFutureSkew)) {
-		return fmt.Errorf("tracking signature timestamp is in the future")
+		return time.Time{}, fmt.Errorf("tracking signature timestamp is in the future")
 	}
-	if now.Sub(signedAt) > limit {
-		return fmt.Errorf("tracking signature expired")
+	validUntil := signedAt.Add(ttl)
+	if now.After(validUntil) {
+		return time.Time{}, fmt.Errorf("tracking signature expired")
 	}
-	return nil
+	return validUntil, nil
 }
 
 func canonicalTrackingPayload(path string, args url.Values) string {

@@ -3,9 +3,12 @@ package dsp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +16,202 @@ import (
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
+
+func TestMiddlemanRoutesRefreshesOnceForConcurrentRequests(t *testing.T) {
+	cache := &match.MiddlemanRouteCache{Version: match.MiddlemanRouteCacheVersion}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var loads atomic.Int32
+	controller := &Controller{
+		C: &Config{MiddlemanRouteCacheTTLMS: 5000, MiddlemanTimeoutMS: 1000},
+		middlemanRouteLoad: func(context.Context) (*match.MiddlemanRouteCache, error) {
+			if loads.Add(1) == 1 {
+				close(started)
+			}
+			<-release
+			return cache, nil
+		},
+	}
+	const callers = 16
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, err := controller.middlemanRoutes(context.Background())
+			if err == nil && got != cache {
+				err = errors.New("unexpected route cache pointer")
+			}
+			errs <- err
+		}()
+	}
+	<-started
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := loads.Load(); got != 1 {
+		t.Fatalf("route cache loads = %d, want 1", got)
+	}
+}
+
+func TestMiddlemanRoutesCachesRefreshErrorWithoutUsingStaleRoutes(t *testing.T) {
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	loads := 0
+	wantErr := errors.New("redis unavailable")
+	controller := &Controller{
+		C: &Config{MiddlemanRouteCacheTTLMS: 5000},
+		middlemanRouteNow: func() time.Time {
+			return now
+		},
+		middlemanRouteLoad: func(context.Context) (*match.MiddlemanRouteCache, error) {
+			loads++
+			if loads == 1 {
+				return &match.MiddlemanRouteCache{Version: match.MiddlemanRouteCacheVersion}, nil
+			}
+			return nil, wantErr
+		},
+	}
+	if _, err := controller.middlemanRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(6 * time.Second)
+	if cache, err := controller.middlemanRoutes(context.Background()); !errors.Is(err, wantErr) || cache != nil {
+		t.Fatalf("expired refresh = cache %#v, err %v", cache, err)
+	}
+	now = now.Add(time.Second)
+	if cache, err := controller.middlemanRoutes(context.Background()); !errors.Is(err, wantErr) || cache != nil {
+		t.Fatalf("cached refresh error = cache %#v, err %v", cache, err)
+	}
+	if loads != 2 {
+		t.Fatalf("route cache loads = %d, want 2", loads)
+	}
+}
+
+func TestMiddlemanRoutesCanceledCallerStillPopulatesSharedRefresh(t *testing.T) {
+	cache := &match.MiddlemanRouteCache{Version: match.MiddlemanRouteCacheVersion}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var loads atomic.Int32
+	controller := &Controller{
+		C: &Config{MiddlemanRouteCacheTTLMS: 5000, MiddlemanTimeoutMS: 1000},
+		middlemanRouteLoad: func(ctx context.Context) (*match.MiddlemanRouteCache, error) {
+			if loads.Add(1) == 1 {
+				close(started)
+			}
+			<-release
+			return cache, ctx.Err()
+		},
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := controller.middlemanRoutes(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled caller error = %v", err)
+	}
+	<-started
+	waiterResult := make(chan error, 1)
+	go func() {
+		got, err := controller.middlemanRoutes(context.Background())
+		if err == nil && got != cache {
+			err = errors.New("unexpected route cache pointer")
+		}
+		waiterResult <- err
+	}()
+	close(release)
+	if err := <-waiterResult; err != nil {
+		t.Fatalf("shared refresh waiter failed: %v", err)
+	}
+	if got := loads.Load(); got != 1 {
+		t.Fatalf("route cache loads = %d, want 1", got)
+	}
+}
+
+func TestMiddlemanRoutesInitiatorCancellationDoesNotFailWaiter(t *testing.T) {
+	started := make(chan struct{})
+	waiting := make(chan struct{})
+	release := make(chan struct{})
+	cache := &match.MiddlemanRouteCache{Version: match.MiddlemanRouteCacheVersion}
+	var loads atomic.Int32
+	controller := &Controller{
+		C: &Config{MiddlemanRouteCacheTTLMS: 5000, MiddlemanTimeoutMS: 1000},
+		middlemanRouteLoad: func(ctx context.Context) (*match.MiddlemanRouteCache, error) {
+			loads.Add(1)
+			close(started)
+			<-release
+			return cache, ctx.Err()
+		},
+		middlemanRouteWaitHook: func() {
+			close(waiting)
+		},
+	}
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderErr := make(chan error, 1)
+	go func() {
+		_, err := controller.middlemanRoutes(leaderCtx)
+		leaderErr <- err
+	}()
+	<-started
+
+	waiterResult := make(chan error, 1)
+	go func() {
+		got, err := controller.middlemanRoutes(context.Background())
+		if err == nil && got != cache {
+			err = errors.New("unexpected route cache pointer")
+		}
+		waiterResult <- err
+	}()
+	<-waiting
+	cancelLeader()
+
+	if err := <-leaderErr; !errors.Is(err, context.Canceled) {
+		t.Fatalf("leader error = %v, want context canceled", err)
+	}
+	close(release)
+	if err := <-waiterResult; err != nil {
+		t.Fatalf("waiter inherited initiator cancellation: %v", err)
+	}
+	if got := loads.Load(); got != 1 {
+		t.Fatalf("route cache loads = %d, want 1", got)
+	}
+}
+
+func TestMiddlemanRoutesCachesSharedLoadTimeoutWithoutStaleRoutes(t *testing.T) {
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	loads := 0
+	controller := &Controller{
+		C: &Config{MiddlemanRouteCacheTTLMS: 5000, MiddlemanTimeoutMS: 20},
+		middlemanRouteNow: func() time.Time {
+			return now
+		},
+		middlemanRouteLoad: func(ctx context.Context) (*match.MiddlemanRouteCache, error) {
+			loads++
+			if loads == 1 {
+				return &match.MiddlemanRouteCache{Version: match.MiddlemanRouteCacheVersion}, nil
+			}
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+	if _, err := controller.middlemanRoutes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(6 * time.Second)
+	if cache, err := controller.middlemanRoutes(context.Background()); !errors.Is(err, context.DeadlineExceeded) || cache != nil {
+		t.Fatalf("timed-out refresh = cache %#v, err %v", cache, err)
+	}
+	now = now.Add(time.Second)
+	if cache, err := controller.middlemanRoutes(context.Background()); !errors.Is(err, context.DeadlineExceeded) || cache != nil {
+		t.Fatalf("cached timeout = cache %#v, err %v", cache, err)
+	}
+	if loads != 2 {
+		t.Fatalf("route cache loads = %d, want 2", loads)
+	}
+}
 
 func TestMiddlemanCandidatesDedupAndCap(t *testing.T) {
 	slotType, slotID := match.EntityPointer(32, 30)

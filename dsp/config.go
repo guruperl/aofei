@@ -31,6 +31,7 @@ type Config struct {
 	NatsURL                     string   `json:"nats_url,omitempty"`
 	TrackingSecret              string   `json:"tracking_secret,omitempty"`
 	TrackingSignatureTTLSeconds int      `json:"tracking_signature_ttl_seconds,omitempty"`
+	CapStateTTLSeconds          int      `json:"cap_state_ttl_seconds,omitempty"`
 	ConnectArray                []string `json:"connect_array,omitempty"`
 	Spread                      string   `json:"spread,omitempty"`
 	IsLocal                     bool     `json:"is_local,omitempty"`
@@ -39,6 +40,7 @@ type Config struct {
 	MiddlemanAlwaysEnabled      bool     `json:"middleman_always_enabled,omitempty"`
 	MiddlemanTimeoutMS          int      `json:"middleman_timeout_ms,omitempty"`
 	MiddlemanMaxBiddersPerImp   int      `json:"middleman_max_bidders_per_imp,omitempty"`
+	MiddlemanRouteCacheTTLMS    int      `json:"middleman_route_cache_ttl_ms,omitempty"`
 	MiddlemanExchangeDomain     string   `json:"middleman_exchange_domain,omitempty"`
 	MiddlemanCallbackTTLSeconds int      `json:"middleman_callback_ttl_seconds,omitempty"`
 	MiddlemanCallbackTimeoutMS  int      `json:"middleman_callback_timeout_ms,omitempty"`
@@ -133,11 +135,17 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.TrackingSignatureTTLSeconds <= 0 {
 		parsed.TrackingSignatureTTLSeconds = int(defaultTrackingSignatureTTL.Seconds())
 	}
+	if parsed.CapStateTTLSeconds <= 0 {
+		parsed.CapStateTTLSeconds = int(defaultCapStateTTL.Seconds())
+	}
 	if parsed.MiddlemanTimeoutMS <= 0 {
 		parsed.MiddlemanTimeoutMS = 100
 	}
 	if parsed.MiddlemanMaxBiddersPerImp <= 0 {
 		parsed.MiddlemanMaxBiddersPerImp = 5
+	}
+	if parsed.MiddlemanRouteCacheTTLMS <= 0 {
+		parsed.MiddlemanRouteCacheTTLMS = 5000
 	}
 	if parsed.MiddlemanExchangeDomain == "" {
 		parsed.MiddlemanExchangeDomain = serverURLHost(parsed.ServerURL)
@@ -191,11 +199,17 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	if self.TrackingSignatureTTLSeconds <= 0 {
 		return fmt.Errorf("tracking_signature_ttl_seconds must be positive")
 	}
+	if self.CapStateTTLSeconds <= 0 {
+		return fmt.Errorf("cap_state_ttl_seconds must be positive")
+	}
 	if self.MiddlemanCallbackTTLSeconds <= 0 {
 		return fmt.Errorf("middleman_callback_ttl_seconds must be positive")
 	}
 	if self.MiddlemanCallbackTimeoutMS <= 0 {
 		return fmt.Errorf("middleman_callback_timeout_ms must be positive")
+	}
+	if self.MiddlemanRouteCacheTTLMS <= 0 {
+		return fmt.Errorf("middleman_route_cache_ttl_ms must be positive")
 	}
 	if self.LocalCacheMaxAgeSeconds < 0 {
 		return fmt.Errorf("local_cache_max_age_seconds must be non-negative")

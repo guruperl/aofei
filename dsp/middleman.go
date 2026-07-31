@@ -69,6 +69,12 @@ type controllerMiddlemanRuntime struct {
 	controller *Controller
 }
 
+type middlemanRouteState struct {
+	cache     *match.MiddlemanRouteCache
+	err       error
+	expiresAt time.Time
+}
+
 func (r controllerMiddlemanRuntime) Fallback(ctx context.Context, bid *openrtb2.BidRequest, rawRequest []byte, started time.Time, fallbackImps []middlemanFallbackImp) ([]middlemanDownstreamBid, error) {
 	return r.controller.middlemanFallback(ctx, bid, rawRequest, started, fallbackImps)
 }
@@ -87,7 +93,7 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 	if self.C == nil || !self.C.MiddlemanEnabled || self.Redis == nil || len(fallbackImps) == 0 {
 		return nil, nil
 	}
-	cache, err := match.MiddlemanRouteCacheFromRedis(ctx, self.Redis)
+	cache, err := self.middlemanRoutes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +111,6 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	glog := logger.Sugar()
 	results := make(chan []middlemanDownstreamBid, len(assignments))
 	var wg sync.WaitGroup
 	for _, assignment := range assignments {
@@ -117,7 +122,11 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 			if err == nil && len(bids) > 0 {
 				results <- bids
 			} else if err != nil {
-				glog.Infof("middleman bidder %d failed: %v", assignment.Entry.BidderID, err)
+				logger.Warn("middleman bidder request failed",
+					zap.String("request_id", bid.ID),
+					zap.Uint32("bidder_id", assignment.Entry.BidderID),
+					zap.Error(err),
+				)
 			}
 		}()
 	}
@@ -141,6 +150,98 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 		}
 	}
 	return winners, nil
+}
+
+func (self *Controller) middlemanRoutes(ctx context.Context) (*match.MiddlemanRouteCache, error) {
+	countedMiss := false
+	for {
+		now := self.middlemanRouteTime()
+		if state := self.middlemanRoute.Load(); state != nil && now.Before(state.expiresAt) {
+			metricMiddlemanRouteCacheHits.Add(1)
+			return state.cache, state.err
+		}
+		if !countedMiss {
+			metricMiddlemanRouteCacheMisses.Add(1)
+			countedMiss = true
+		}
+
+		self.middlemanRouteMu.Lock()
+		now = self.middlemanRouteTime()
+		if state := self.middlemanRoute.Load(); state != nil && now.Before(state.expiresAt) {
+			self.middlemanRouteMu.Unlock()
+			metricMiddlemanRouteCacheHits.Add(1)
+			return state.cache, state.err
+		}
+		wait := self.middlemanRouteWait
+		startedRefresh := false
+		if wait == nil {
+			wait = make(chan struct{})
+			self.middlemanRouteWait = wait
+			startedRefresh = true
+		}
+		self.middlemanRouteMu.Unlock()
+
+		if startedRefresh {
+			go self.refreshMiddlemanRoutes(ctx, wait)
+		} else if self.middlemanRouteWaitHook != nil {
+			self.middlemanRouteWaitHook()
+		}
+		select {
+		case <-wait:
+			continue
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (self *Controller) refreshMiddlemanRoutes(parent context.Context, wait chan struct{}) {
+	metricMiddlemanRouteCacheRefreshes.Add(1)
+	loader := self.middlemanRouteLoad
+	if loader == nil {
+		loader = func(ctx context.Context) (*match.MiddlemanRouteCache, error) {
+			return match.MiddlemanRouteCacheFromRedis(ctx, self.Redis)
+		}
+	}
+	loadCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), self.middlemanRouteLoadTimeout())
+	cache, err := loader(loadCtx)
+	cancel()
+	if err != nil {
+		metricMiddlemanRouteCacheErrors.Add(1)
+	}
+	self.middlemanRoute.Store(&middlemanRouteState{
+		cache:     cache,
+		err:       err,
+		expiresAt: self.middlemanRouteTime().Add(self.middlemanRouteTTL()),
+	})
+
+	self.middlemanRouteMu.Lock()
+	if self.middlemanRouteWait == wait {
+		self.middlemanRouteWait = nil
+		close(wait)
+	}
+	self.middlemanRouteMu.Unlock()
+}
+
+func (self *Controller) middlemanRouteTime() time.Time {
+	if self != nil && self.middlemanRouteNow != nil {
+		return self.middlemanRouteNow()
+	}
+	return time.Now()
+}
+
+func (self *Controller) middlemanRouteTTL() time.Duration {
+	if self == nil || self.C == nil || self.C.MiddlemanRouteCacheTTLMS <= 0 {
+		return 5 * time.Second
+	}
+	return time.Duration(self.C.MiddlemanRouteCacheTTLMS) * time.Millisecond
+}
+
+func (self *Controller) middlemanRouteLoadTimeout() time.Duration {
+	if self == nil || self.C == nil || self.C.MiddlemanTimeoutMS <= 0 {
+		return 100 * time.Millisecond
+	}
+	return time.Duration(self.C.MiddlemanTimeoutMS) * time.Millisecond
 }
 
 func (self *Controller) middlemanAssignments(bid *openrtb2.BidRequest, cache *match.MiddlemanRouteCache, fallbackImps []middlemanFallbackImp) []middlemanAssignment {

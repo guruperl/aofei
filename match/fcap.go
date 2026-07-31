@@ -17,6 +17,8 @@ import (
 const (
 	FCAPStartYear         = 2025
 	bothCapRefreshRetries = 8
+	defaultBothCapTTL     = 90 * 24 * time.Hour
+	bothCapCleanupTimeout = 2 * time.Second
 )
 
 var ErrBothCapRefreshConflict = errors.New("bothcap refresh conflict")
@@ -58,7 +60,9 @@ func NewFcap(when time.Time) Fcap {
 
 // Refresh adds one more count and update the last access time
 func (self *Fcap) Refresh(when time.Time) {
-	(*self).Total = self.Total + 1
+	if self.Total < ^uint8(0) {
+		self.Total++
+	}
 	(*self).Last = uint16(when.Sub(self.GetStart()) / time.Minute)
 }
 
@@ -154,8 +158,33 @@ func HashNameBothCap(pid string) string {
 
 // MustRefreshBothCap reads bothcap from Redis and refreshes it. And write it back to Redis.
 func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, cap Cap, isImp bool, isCli bool) error {
+	return MustRefreshBothCapWithTTL(ctx, conn, when, pid, itemID, cap, defaultBothCapTTL, isImp, isCli)
+}
+
+// MustRefreshBothCapWithTTL refreshes cap state and bounds idle Redis retention.
+func MustRefreshBothCapWithTTL(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, cap Cap, ttl time.Duration, isImp bool, isCli bool) error {
+	_, err := mustRefreshBothCapWithTTL(ctx, conn, when, pid, itemID, cap, ttl, "", 0, isImp, isCli)
+	return err
+}
+
+// MustRefreshBothCapOnceWithTTL refreshes cap state at most once for eventKey.
+// The cap value and event marker are committed in the same Redis transaction.
+func MustRefreshBothCapOnceWithTTL(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, cap Cap, ttl time.Duration, eventKey string, eventTTL time.Duration, isImp bool, isCli bool) (bool, error) {
+	if eventKey == "" {
+		return false, fmt.Errorf("bothcap event key is empty")
+	}
+	if eventTTL <= 0 {
+		return false, fmt.Errorf("bothcap event TTL must be positive")
+	}
+	return mustRefreshBothCapWithTTL(ctx, conn, when, pid, itemID, cap, ttl, eventKey, eventTTL, isImp, isCli)
+}
+
+func mustRefreshBothCapWithTTL(ctx context.Context, conn radix.Client, when time.Time, pid string, itemID uint32, cap Cap, ttl time.Duration, eventKey string, eventTTL time.Duration, isImp bool, isCli bool) (bool, error) {
 	if !isImp && !isCli {
-		return nil
+		return false, nil
+	}
+	if ttl <= 0 {
+		return false, fmt.Errorf("bothcap TTL must be positive")
 	}
 	started := time.Now()
 	defer func() {
@@ -163,25 +192,54 @@ func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, 
 	}()
 	metricBothCapRefreshes.Add(1)
 	if conn == nil {
-		return fmt.Errorf("redis client is nil")
+		return false, fmt.Errorf("redis client is nil")
 	}
 	key := HashNameBothCap(pid)
 	itemIDStr := fmt.Sprintf("%d", itemID)
+	ttlSeconds := int64((ttl + time.Second - 1) / time.Second)
+	eventTTLSeconds := int64((eventTTL + time.Second - 1) / time.Second)
 	for attempt := 0; attempt < bothCapRefreshRetries; attempt++ {
 		var retry bool
+		var applied bool
 		err := conn.Do(ctx, radix.WithConn(key, func(ctx context.Context, redisConn radix.Conn) (err error) {
-			if err = redisConn.Do(ctx, radix.Cmd(nil, "WATCH", key)); err != nil {
+			state := bothCapConnectionClean
+			watchKeys := []string{key}
+			if eventKey != "" {
+				watchKeys = append(watchKeys, eventKey)
+			}
+			if err = redisConn.Do(ctx, radix.Cmd(nil, "WATCH", watchKeys...)); err != nil {
 				return err
 			}
-			watching := true
+			state = bothCapConnectionWatching
 			defer func() {
-				if err != nil && watching {
-					_ = redisConn.Do(ctx, radix.Cmd(nil, "UNWATCH"))
+				if err == nil || state == bothCapConnectionClean {
+					return
+				}
+				if cleanupErr := cleanupBothCapConnection(redisConn, state); cleanupErr != nil {
+					err = cleanupErr
 				}
 			}()
 
+			if eventKey != "" {
+				var exists int
+				if err = redisConn.Do(ctx, radix.Cmd(&exists, "EXISTS", eventKey)); err != nil {
+					return err
+				}
+				if exists != 0 {
+					err = redisConn.Do(ctx, radix.Cmd(nil, "UNWATCH"))
+					if err == nil {
+						state = bothCapConnectionClean
+					}
+					return err
+				}
+			}
+
 			var data []byte
 			if err = redisConn.Do(ctx, radix.Cmd(&data, "HGET", key, itemIDStr)); err != nil {
+				return err
+			}
+			var currentTTL int64
+			if err = redisConn.Do(ctx, radix.Cmd(&currentTTL, "TTL", key)); err != nil {
 				return err
 			}
 
@@ -203,51 +261,105 @@ func MustRefreshBothCap(ctx context.Context, conn radix.Client, when time.Time, 
 			if err = redisConn.Do(ctx, radix.Cmd(nil, "MULTI")); err != nil {
 				return err
 			}
-			inMulti := true
-			defer func() {
-				if err != nil && inMulti {
-					_ = redisConn.Do(ctx, radix.Cmd(nil, "DISCARD"))
-				}
-			}()
+			state = bothCapConnectionMulti
 			if err = redisConn.Do(ctx, radix.Cmd(nil, "HSET", key, itemIDStr, string(packed))); err != nil {
 				return err
+			}
+			if currentTTL < ttlSeconds {
+				if err = redisConn.Do(ctx, radix.Cmd(nil, "EXPIRE", key, strconv.FormatInt(ttlSeconds, 10))); err != nil {
+					return err
+				}
+			}
+			if eventKey != "" {
+				if err = redisConn.Do(ctx, radix.Cmd(nil, "SETNX", eventKey, "1")); err != nil {
+					return err
+				}
+				if err = redisConn.Do(ctx, radix.Cmd(nil, "EXPIRE", eventKey, strconv.FormatInt(eventTTLSeconds, 10))); err != nil {
+					return err
+				}
 			}
 			var result []int
 			execResult := radix.Maybe{Rcv: &result}
 			if err = redisConn.Do(ctx, radix.Cmd(&execResult, "EXEC")); err != nil {
-				inMulti = false
-				watching = false
 				return err
 			}
-			inMulti = false
-			watching = false
+			state = bothCapConnectionClean
 			if execResult.Null {
 				retry = true
+			} else {
+				applied = true
 			}
 			return nil
 		}))
 		if err != nil {
-			return err
+			return false, err
 		}
 		if !retry {
-			return nil
+			return applied, nil
 		}
 		metricBothCapRefreshRetries.Add(1)
 	}
 	metricBothCapRefreshConflicts.Add(1)
-	return ErrBothCapRefreshConflict
+	return false, ErrBothCapRefreshConflict
+}
+
+type bothCapConnectionState uint8
+
+const (
+	bothCapConnectionClean bothCapConnectionState = iota
+	bothCapConnectionWatching
+	bothCapConnectionMulti
+)
+
+func cleanupBothCapConnection(conn radix.Conn, state bothCapConnectionState) error {
+	command := "UNWATCH"
+	if state == bothCapConnectionMulti {
+		command = "DISCARD"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), bothCapCleanupTimeout)
+	defer cancel()
+	if err := conn.Do(ctx, radix.Cmd(nil, command)); err != nil {
+		// Do not wrap the Redis error: WithConn pools must see this as a
+		// connection-state failure and discard the connection instead of
+		// returning potentially watched/transactional state to the pool.
+		return fmt.Errorf("bothcap Redis connection cleanup with %s failed: %v", command, err)
+	}
+	return nil
 }
 
 func BothCapsToRedis(ctx context.Context, conn radix.Client, pid string, bothcaps map[uint32]BothCap) error {
-	arr := []string{HashNameBothCap(pid)}
+	return BothCapsToRedisWithTTL(ctx, conn, pid, bothcaps, defaultBothCapTTL)
+}
+
+var bothCapsToRedisWithTTLScript = radix.NewEvalScript(`
+redis.call("HSET", KEYS[1], unpack(ARGV, 2))
+local current_ttl = redis.call("TTL", KEYS[1])
+local requested_ttl = tonumber(ARGV[1])
+if current_ttl < requested_ttl then
+  redis.call("EXPIRE", KEYS[1], requested_ttl)
+end
+return 1`)
+
+// BothCapsToRedisWithTTL writes cap state with bounded idle Redis retention.
+func BothCapsToRedisWithTTL(ctx context.Context, conn radix.Client, pid string, bothcaps map[uint32]BothCap, ttl time.Duration) error {
+	if ttl <= 0 {
+		return fmt.Errorf("bothcap TTL must be positive")
+	}
+	args := make([]string, 1, 1+2*len(bothcaps))
 	for itemID, bothcap := range bothcaps {
 		data, err := bothcap.Pack()
 		if err != nil {
 			return err
 		}
-		arr = append(arr, fmt.Sprintf("%d", itemID), string(data))
+		args = append(args, fmt.Sprintf("%d", itemID), string(data))
 	}
-	return conn.Do(ctx, radix.Cmd(nil, "HMSET", arr...))
+	if len(args) == 1 {
+		return nil
+	}
+	ttlSeconds := int64((ttl + time.Second - 1) / time.Second)
+	key := HashNameBothCap(pid)
+	args[0] = strconv.FormatInt(ttlSeconds, 10)
+	return conn.Do(ctx, bothCapsToRedisWithTTLScript.Cmd(nil, []string{key}, args...))
 }
 
 // BothCapsFromRedis retrieves bothcaps from Redis.

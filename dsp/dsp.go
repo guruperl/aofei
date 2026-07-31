@@ -2,6 +2,7 @@ package dsp
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -112,13 +113,17 @@ func (self bidID) String() string {
 
 // UnpackBidID unpacks the string from Bid.
 func UnpackBidID(data string) (bidID, error) {
-	var when int64
-	var userID string
-	_, err := fmt.Sscanf(data, "%16x%s", &when, &userID)
+	if len(data) < 16 {
+		return bidID{}, fmt.Errorf("invalid bid ID length")
+	}
+	when, err := strconv.ParseInt(data[:16], 16, 64)
+	if err != nil {
+		return bidID{}, err
+	}
 	return bidID{
 		When:   when,
-		UserID: userID,
-	}, err
+		UserID: data[16:],
+	}, nil
 }
 
 // responseBidID is the ID of openrtb2.Bid

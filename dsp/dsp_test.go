@@ -32,6 +32,16 @@ func TestBidID(t *testing.T) {
 	}
 }
 
+func TestUnpackBidIDAllowsEmptyUserID(t *testing.T) {
+	got, err := UnpackBidID("0000000000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.When != 1 || got.UserID != "" {
+		t.Fatalf("UnpackBidID = %+v, want timestamp 1 and empty user", got)
+	}
+}
+
 // TestresponseBidIDPack tests the Pack and Unpack functions of responseBidID.
 func TestResponseBidIDPack(t *testing.T) {
 	when := time.Now()

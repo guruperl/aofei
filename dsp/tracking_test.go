@@ -10,7 +10,7 @@ import (
 func TestTrackingSignatureRequiresTimestamp(t *testing.T) {
 	args := url.Values{"auction_id": []string{"auction"}}
 	args.Set(trackingSignatureParam, signTrackingValues("secret", "/imp", args))
-	if err := validateTrackingSignature("secret", "/imp", args); err == nil {
+	if _, err := validateTrackingSignature("secret", "/imp", args, time.Hour); err == nil {
 		t.Fatal("expected missing signature timestamp to fail")
 	}
 }
@@ -19,7 +19,7 @@ func TestTrackingSignatureRejectsExpiredTimestamp(t *testing.T) {
 	args := url.Values{"auction_id": []string{"auction"}}
 	args.Set(trackingSignatureTimestampParam, strconv.FormatInt(time.Now().Add(-2*time.Hour).Unix(), 10))
 	args.Set(trackingSignatureParam, signTrackingValues("secret", "/imp", args))
-	if err := validateTrackingSignature("secret", "/imp", args, time.Hour); err == nil {
+	if _, err := validateTrackingSignature("secret", "/imp", args, time.Hour); err == nil {
 		t.Fatal("expected expired signature timestamp to fail")
 	}
 }
@@ -30,7 +30,22 @@ func TestAddTrackingSignatureAddsTimestamp(t *testing.T) {
 	if args.Get(trackingSignatureTimestampParam) == "" {
 		t.Fatal("sig_ts was not added")
 	}
-	if err := validateTrackingSignature("secret", "/imp", args); err != nil {
+	if _, err := validateTrackingSignature("secret", "/imp", args, time.Hour); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTrackingSignatureReturnsSignedTimestampDeadline(t *testing.T) {
+	signedAt := time.Now().Add(4 * time.Minute).Truncate(time.Second)
+	args := url.Values{"auction_id": []string{"auction"}}
+	args.Set(trackingSignatureTimestampParam, strconv.FormatInt(signedAt.Unix(), 10))
+	args.Set(trackingSignatureParam, signTrackingValues("secret", "/imp", args))
+	validUntil, err := validateTrackingSignature("secret", "/imp", args, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := signedAt.Add(time.Hour)
+	if !validUntil.Equal(want) {
+		t.Fatalf("valid until = %s, want %s", validUntil, want)
 	}
 }

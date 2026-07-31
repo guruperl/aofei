@@ -48,6 +48,9 @@ func TestConfig(t *testing.T) {
 	if c.TrackingSecret != "env-secret" {
 		t.Errorf("TrackingSecret = %q, want env fallback", c.TrackingSecret)
 	}
+	if c.CapStateTTLSeconds != 90*24*60*60 {
+		t.Errorf("CapStateTTLSeconds = %d, want 90 days", c.CapStateTTLSeconds)
+	}
 	if c.MiddlemanEnabled {
 		t.Errorf("MiddlemanEnabled = true, want default false")
 	}
@@ -56,6 +59,9 @@ func TestConfig(t *testing.T) {
 	}
 	if c.MiddlemanMaxBiddersPerImp != 5 {
 		t.Errorf("MiddlemanMaxBiddersPerImp = %d, want 5", c.MiddlemanMaxBiddersPerImp)
+	}
+	if c.MiddlemanRouteCacheTTLMS != 5000 {
+		t.Errorf("MiddlemanRouteCacheTTLMS = %d, want 5000", c.MiddlemanRouteCacheTTLMS)
 	}
 	if c.MiddlemanExchangeDomain != "localhost" {
 		t.Errorf("MiddlemanExchangeDomain = %q, want localhost", c.MiddlemanExchangeDomain)
@@ -110,8 +116,10 @@ func TestGetRedisDBClosesDBWhenRedisPoolCreationFails(t *testing.T) {
 		ConnectArray:                []string{"sqlmock", dsn},
 		Redis:                       &Red{Network: "unix", Addr: filepath.Join(t.TempDir(), "missing.sock")},
 		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
 		MiddlemanCallbackTTLSeconds: 86400,
 		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanCallbackBaseURL:    "http://localhost",
 	}
 	redis, openedDB, err := c.GetRedisDB(context.Background())
@@ -176,10 +184,12 @@ func TestConfigValidateBidRequiresTrackingSecret(t *testing.T) {
 func TestConfigRejectsInvalidTrustedProxyCIDR(t *testing.T) {
 	c := &Config{
 		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		MiddlemanCallbackTTLSeconds: 86400,
 		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
 		TrustedProxyCIDRs:           []string{"not-a-cidr"},
 	}
 	if err := c.Validate(); err == nil {
@@ -192,12 +202,14 @@ func TestConfigValidateModes(t *testing.T) {
 		ServerURL:                   "http://localhost",
 		TrackingSecret:              "secret",
 		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		NatsURL:                     "nats://127.0.0.1:4222",
 		Spread:                      "/tmp/spread",
 		MiddlemanCallbackTTLSeconds: 86400,
 		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanCallbackBaseURL:    "http://localhost",
 	}
 	for _, mode := range []ConfigMode{

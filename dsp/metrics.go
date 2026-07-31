@@ -29,6 +29,10 @@ var (
 	metricMiddlemanCallbackSetupFailures = expvar.NewInt("aofei_middleman_callback_setup_failures_total")
 	metricMiddlemanForwardOK             = expvar.NewInt("aofei_middleman_forward_ok_total")
 	metricMiddlemanForwardErrors         = expvar.NewInt("aofei_middleman_forward_errors_total")
+	metricMiddlemanRouteCacheHits        = expvar.NewInt("aofei_middleman_route_cache_hits_total")
+	metricMiddlemanRouteCacheMisses      = expvar.NewInt("aofei_middleman_route_cache_misses_total")
+	metricMiddlemanRouteCacheRefreshes   = expvar.NewInt("aofei_middleman_route_cache_refreshes_total")
+	metricMiddlemanRouteCacheErrors      = expvar.NewInt("aofei_middleman_route_cache_refresh_errors_total")
 	metricLocalCacheReloads              = expvar.NewInt("aofei_local_cache_reloads_total")
 	metricLocalCacheReloadErrors         = expvar.NewInt("aofei_local_cache_reload_errors_total")
 	metricLocalCacheReloadMillis         = expvar.NewInt("aofei_local_cache_reload_last_ms")
@@ -39,6 +43,11 @@ var (
 	metricSSPPolicyRejections            = expvar.NewInt("aofei_ssp_policy_rejections_total")
 	metricSSPFilledAdUnits               = expvar.NewInt("aofei_ssp_filled_ad_units_total")
 	metricSSPNoFillAdUnits               = expvar.NewInt("aofei_ssp_no_fill_ad_units_total")
+	metricTrackingReplaySuppressed       = expvar.NewInt("aofei_tracking_replay_suppressed_total")
+	metricTrackingReplayFailOpen         = expvar.NewInt("aofei_tracking_replay_fail_open_total")
+	metricTrackingReplayRedisErrors      = expvar.NewInt("aofei_tracking_replay_redis_errors_total")
+	metricTrackingReplayUnkeyed          = expvar.NewInt("aofei_tracking_replay_unkeyed_total")
+	metricTrackingCapUpdateFailOpen      = expvar.NewInt("aofei_tracking_cap_update_fail_open_total")
 )
 
 func init() {

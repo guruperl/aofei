@@ -66,7 +66,7 @@ func TestServeBidSkipsUnsupportedCurrencyImpression(t *testing.T) {
 	}
 }
 
-func newLocalBidPathController(t *testing.T) *Controller {
+func newLocalBidPathController(t testing.TB) *Controller {
 	t.Helper()
 	top := t.TempDir()
 	sizeOne := match.SizeID2To1(300, 250)
@@ -115,7 +115,7 @@ func localBidRequest(curOne, curTwo string) *openrtb2.BidRequest {
 	}
 }
 
-func marshalBidRequest(t *testing.T, bid *openrtb2.BidRequest) []byte {
+func marshalBidRequest(t testing.TB, bid *openrtb2.BidRequest) []byte {
 	t.Helper()
 	data, err := json.Marshal(bid)
 	if err != nil {
@@ -124,7 +124,7 @@ func marshalBidRequest(t *testing.T, bid *openrtb2.BidRequest) []byte {
 	return data
 }
 
-func writePubSnapshot(t *testing.T, top, name string, pub *acl.Pub) {
+func writePubSnapshot(t testing.TB, top, name string, pub *acl.Pub) {
 	t.Helper()
 	path := filepath.Join(top, acl.HashNamePubmap, name)
 	mkdirParent(t, path)
@@ -138,7 +138,7 @@ func writePubSnapshot(t *testing.T, top, name string, pub *acl.Pub) {
 	}
 }
 
-func writeRAdvsSnapshot(t *testing.T, top string, sizeID, slotID uint32, radvs match.RAdvs) {
+func writeRAdvsSnapshot(t testing.TB, top string, sizeID, slotID uint32, radvs match.RAdvs) {
 	t.Helper()
 	data, err := radvs.Pack()
 	if err != nil {
@@ -151,7 +151,7 @@ func writeRAdvsSnapshot(t *testing.T, top string, sizeID, slotID uint32, radvs m
 	}
 }
 
-func writeCreativeSnapshot(t *testing.T, top string, creativeID uint32, creative *match.Creative) {
+func writeCreativeSnapshot(t testing.TB, top string, creativeID uint32, creative *match.Creative) {
 	t.Helper()
 	path := filepath.Join(top, match.HashNameCreative, strconvUint(creativeID))
 	mkdirParent(t, path)
@@ -165,7 +165,7 @@ func writeCreativeSnapshot(t *testing.T, top string, creativeID uint32, creative
 	}
 }
 
-func mkdirParent(t *testing.T, path string) {
+func mkdirParent(t testing.TB, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatal(err)

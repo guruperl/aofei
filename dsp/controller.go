@@ -2,7 +2,9 @@ package dsp
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +12,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mediocregopher/radix/v4"
@@ -34,25 +38,35 @@ const (
 )
 
 type Controller struct {
-	C                  *Config
-	Ips                *maxmind.IPSearch
-	Redis              radix.Client
-	DB                 *sql.DB
-	Nc                 *nats.Conn
-	Logger             *zap.Logger
-	IsLocal            bool
-	localMu            sync.Mutex
-	local              *localStaticCache
-	audit              *auditPublisher
-	client             *http.Client
-	middlemanStore     middlemanCallbackStore
-	callbackURLGuard   func(context.Context, string) error
-	middlemanRuntime   middlemanRuntime
-	trackingNotifyOnce func(context.Context, Status, string, time.Duration) (bool, error)
-	publishWinLossFunc func([]byte) error
-	ownRedis           bool
-	ownDB              bool
-	ownNATS            bool
+	C                      *Config
+	Ips                    *maxmind.IPSearch
+	Redis                  radix.Client
+	DB                     *sql.DB
+	Nc                     *nats.Conn
+	Logger                 *zap.Logger
+	IsLocal                bool
+	localMu                sync.Mutex
+	local                  *localStaticCache
+	auditMu                sync.Mutex
+	audit                  *auditPublisher
+	auditClosed            bool
+	auditFactory           func(*nats.Conn, int) *auditPublisher
+	client                 *http.Client
+	middlemanStore         middlemanCallbackStore
+	callbackURLGuard       func(context.Context, string) error
+	middlemanRuntime       middlemanRuntime
+	middlemanRoute         atomic.Pointer[middlemanRouteState]
+	middlemanRouteMu       sync.Mutex
+	middlemanRouteWait     chan struct{}
+	middlemanRouteLoad     func(context.Context) (*match.MiddlemanRouteCache, error)
+	middlemanRouteNow      func() time.Time
+	middlemanRouteWaitHook func()
+	trackingNotifyOnce     func(context.Context, Status, string, time.Duration) (bool, error)
+	trackingEventOnce      func(context.Context, Status, url.Values, time.Duration) (bool, error)
+	publishWinLossFunc     func([]byte) error
+	ownRedis               bool
+	ownDB                  bool
+	ownNATS                bool
 }
 
 type controllerOptions struct {
@@ -299,8 +313,12 @@ func applyControllerOptions(opts ...ControllerOption) controllerOptions {
 
 // Close closes the Controller.
 func (self *Controller) Close() {
-	if self.audit != nil {
-		self.audit.Close()
+	self.auditMu.Lock()
+	self.auditClosed = true
+	publisher := self.audit
+	self.auditMu.Unlock()
+	if publisher != nil {
+		publisher.Close()
 	}
 	if self.Redis != nil && self.ownRedis {
 		self.Redis.Close()
@@ -322,8 +340,6 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	glog := logger.Sugar()
-	glog.Info("0: initial")
 
 	current := time.Now()
 	ctx := r.Context()
@@ -331,42 +347,49 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	bidStr, err := io.ReadAll(io.LimitReader(r.Body, maxBidRequestBodyBytes+1))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		glog.Infof("%v", err)
+		logger.Error("bid request body read failed", zap.Error(err))
 		return
 	}
 	r.Body.Close()
 	if len(bidStr) > maxBidRequestBodyBytes {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		glog.Infof("bid request body exceeds %d bytes", maxBidRequestBodyBytes)
+		logger.Debug("bid request body rejected",
+			zap.Int("body_bytes", len(bidStr)),
+			zap.Int("max_body_bytes", maxBidRequestBodyBytes),
+		)
 		return
 	}
 
 	bid := &openrtb2.BidRequest{}
 	if err = json.Unmarshal(bidStr, bid); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		glog.Infof("%v", err)
+		logger.Debug("malformed bid request rejected", zap.Error(err))
 		return
 	}
 	if err = validateBidRequest(bid); err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
+		logger.Debug("invalid bid request rejected",
+			zap.String("request_id", bid.ID),
+			zap.Error(err),
+		)
 		return
 	}
 
 	pubStr, pubObj, err := self.getPub(ctx, r, bid)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
+		logger.Debug("bid request publisher rejected",
+			zap.String("request_id", bid.ID),
+			zap.Error(err),
+		)
 		return
 	}
 
-	glog.Infof("1: bid domain: %s => pub id: %d", pubStr, pubObj.PubID)
-	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pubObj, current, pubStr, bidStr, glog)
-	seatOrder, seatBids, audits, responseBidID, _ := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, glog)
+	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pubObj, current, pubStr, bidStr, logger)
+	seatOrder, seatBids, audits, responseBidID, _ := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, logger)
 	if len(audits) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		metricBidNoBids.Add(1)
-		glog.Infof("no impression produced a bid")
 		return
 	}
 
@@ -388,25 +411,34 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	rspnStr, err := json.Marshal(response)
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
-		glog.Infof("%v", err)
+		logger.Error("bid response marshal failed",
+			zap.String("request_id", bid.ID),
+			zap.Error(err),
+		)
 		return
 	}
 
-	glog.Info("10: response")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(rspnStr)
+	if _, err := w.Write(rspnStr); err != nil {
+		logger.Warn("bid response write failed",
+			zap.String("request_id", bid.ID),
+			zap.Error(err),
+		)
+	}
 	metricBidResponses.Add(1)
 
-	glog.Info("11: publish to nats")
 	elapsed := time.Since(current)
 	for i := range audits {
 		audits[i].Elapsed = elapsed
 	}
-	if self.Nc == nil {
-		glog.Info("nats unavailable: skipped bid audit publish")
-	} else if err = self.publishBidAudits(bidStr, rspnStr, audits); err != nil {
-		glog.Infof("nats error: %v", err)
+	if self.Nc != nil {
+		if err = self.publishBidAudits(bidStr, rspnStr, audits); err != nil {
+			logger.Warn("bid audit publish failed",
+				zap.String("request_id", bid.ID),
+				zap.Error(err),
+			)
+		}
 	}
 }
 
@@ -418,15 +450,19 @@ func (self *Controller) middlemanTriggerModesForNoBid() []string {
 	return []string{"Fallback"}
 }
 
-func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, rawMiddlemanRequest []byte, glog *zap.SugaredLogger) (map[int]bidWinner, map[int]bidWinner) {
+func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, rawMiddlemanRequest []byte, logger *zap.Logger) (map[int]bidWinner, map[int]bidWinner) {
 	var fallbackImps []middlemanFallbackImp
 	localWinners := make(map[int]bidWinner)
 	finalWinners := make(map[int]bidWinner)
 	for impIndex := range bid.Imp {
 		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex)
 		if err != nil {
-			if glog != nil {
-				glog.Infof("imp %d: %v", impIndex, err)
+			if logger != nil && !isLocalNoBid(err) {
+				logger.Warn("bid impression evaluation failed",
+					zap.String("request_id", bid.ID),
+					zap.Int("imp_index", impIndex),
+					zap.Error(err),
+				)
 			}
 			if audit.Attr != nil && isLocalNoBid(err) {
 				fallbackImps = append(fallbackImps, middlemanFallbackImp{
@@ -440,8 +476,12 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 		winloss := dspBid.WinLoss(StatusBid)
 		rspnsBid, err := dspBid.NewBid(winloss)
 		if err != nil {
-			if glog != nil {
-				glog.Infof("imp %d: %v", impIndex, err)
+			if logger != nil {
+				logger.Warn("bid impression materialization failed",
+					zap.String("request_id", bid.ID),
+					zap.Int("imp_index", impIndex),
+					zap.Error(err),
+				)
 			}
 			continue
 		}
@@ -471,8 +511,11 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 	if len(fallbackImps) != 0 {
 		middlemanBids, err := self.middleman().Fallback(ctx, bid, rawMiddlemanRequest, current, fallbackImps)
 		if err != nil {
-			if glog != nil {
-				glog.Infof("middleman fallback: %v", err)
+			if logger != nil {
+				logger.Warn("middleman fallback failed",
+					zap.String("request_id", bid.ID),
+					zap.Error(err),
+				)
 			}
 		}
 		for _, middlemanBid := range middlemanBids {
@@ -489,15 +532,12 @@ func localBidEffectiveCPM(dspBid *DSP, audit bidAudit, bid openrtb2.Bid) (float6
 	if dspBid == nil {
 		return 0, false
 	}
-	cpm, ok := audit.One.ECPM()
+	_, ok := audit.One.ECPM()
 	if !ok {
 		metricECPMErrors.Add(1)
 		return 0, false
 	}
-	if float64(cpm) != bid.Price {
-		return bid.Price, true
-	}
-	return float64(cpm), true
+	return bid.Price, true
 }
 
 func chooseMiddlemanWinner(current bidWinner, hasCurrent bool, middlemanBid middlemanDownstreamBid) (bidWinner, bool) {
@@ -518,7 +558,7 @@ func chooseMiddlemanWinner(current bidWinner, hasCurrent bool, middlemanBid midd
 	}, true
 }
 
-func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2.BidRequest, winners map[int]bidWinner, localWinners map[int]bidWinner, glog *zap.SugaredLogger) ([]string, map[string][]openrtb2.Bid, []bidAudit, string, []bidWinner) {
+func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2.BidRequest, winners map[int]bidWinner, localWinners map[int]bidWinner, logger *zap.Logger) ([]string, map[string][]openrtb2.Bid, []bidAudit, string, []bidWinner) {
 	var seatOrder []string
 	seatBids := make(map[string][]openrtb2.Bid)
 	var audits []bidAudit
@@ -536,8 +576,13 @@ func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2
 			middlemanBid := *winner.Middleman
 			if err := self.prepareMiddlemanCallback(ctx, bid, &middlemanBid); err != nil {
 				metricMiddlemanCallbackSetupFailures.Add(1)
-				if glog != nil {
-					glog.Infof("middleman bidder %d callback setup failed: %v", middlemanBid.Entry.BidderID, err)
+				if logger != nil {
+					logger.Warn("middleman callback setup failed",
+						zap.String("request_id", bid.ID),
+						zap.Int("imp_index", impIndex),
+						zap.Uint32("bidder_id", middlemanBid.Entry.BidderID),
+						zap.Error(err),
+					)
 				}
 				local, ok := localWinners[impIndex]
 				if !ok {
@@ -744,13 +789,9 @@ func wrapAuditPayload(source auditSource, payload []byte) ([]byte, error) {
 }
 
 func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr []byte, audits []bidAudit) error {
-	if self.Nc == nil && self.audit == nil {
-		return nil
-	}
-	publisher := self.audit
+	publisher := self.bidAuditPublisher()
 	if publisher == nil {
-		publisher = newAuditPublisher(self.Nc, defaultAuditQueueSize)
-		self.audit = publisher
+		return nil
 	}
 	publisher.Enqueue(SUBJECTRequest, bidStr)
 	publisher.Enqueue(SUBJECTResponse, rspnStr)
@@ -771,6 +812,26 @@ func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr 
 		publisher.Enqueue(SUBJECTAttribute, bs)
 	}
 	return nil
+}
+
+func (self *Controller) bidAuditPublisher() *auditPublisher {
+	self.auditMu.Lock()
+	defer self.auditMu.Unlock()
+	if self.auditClosed {
+		return nil
+	}
+	if self.audit != nil {
+		return self.audit
+	}
+	if self.Nc == nil {
+		return nil
+	}
+	factory := self.auditFactory
+	if factory == nil {
+		factory = newAuditPublisher
+	}
+	self.audit = factory(self.Nc, defaultAuditQueueSize)
+	return self.audit
 }
 
 func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
@@ -798,7 +859,7 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 		} else if ok {
 			if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
 				if self.Logger != nil {
-					self.Logger.Sugar().Infof("click tracking skipped before redirect: %v", err)
+					self.Logger.Debug("click tracking skipped before redirect", zap.Error(err))
 				}
 			}
 			http.Redirect(w, r, target, http.StatusFound)
@@ -834,7 +895,7 @@ func (self *Controller) clickRedirectTarget(args url.Values) (string, bool, erro
 			return "", true, fmt.Errorf("click redirect missing %s", key)
 		}
 	}
-	if err := validateTrackingSignature(self.trackingSecret(), "/clk", args); err != nil {
+	if _, err := validateTrackingSignature(self.trackingSecret(), "/clk", args, self.trackingSignatureTTL()); err != nil {
 		return "", true, err
 	}
 	return u.String(), true, nil
@@ -849,7 +910,32 @@ func (self *Controller) trackingSecret() string {
 
 // serverStatus sends the win, loss, impression and click trackers, refresh cap, and notify the NATS server.
 func (self *Controller) serveStatus(ctx context.Context, status Status, current time.Time, args url.Values) error {
+	var signatureValidUntil time.Time
+	switch status {
+	case StatusTrackClk, StatusTrackImp, StatusWin, StatusLoss:
+		var err error
+		signatureValidUntil, err = validateTrackingSignature(self.trackingSecret(), status.path(), args, self.trackingSignatureTTL())
+		if err != nil {
+			return err
+		}
+	}
+
 	var err error
+	var replayClaim trackingEventClaim
+	releaseReplayClaim := false
+	capUpdateFailOpen := false
+	measurementPublished := false
+	defer func() {
+		if capUpdateFailOpen && measurementPublished {
+			metricTrackingCapUpdateFailOpen.Add(1)
+		}
+		if !releaseReplayClaim {
+			return
+		}
+		if err := self.releaseTrackingEventClaim(replayClaim); err != nil {
+			metricTrackingReplayRedisErrors.Add(1)
+		}
+	}()
 	wl := &WinLoss{
 		Current:      current,
 		Status:       status,
@@ -885,31 +971,40 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 
 	switch status {
 	case StatusTrackClk, StatusTrackImp:
+		replayClaim = self.claimTrackingEvent(ctx, status, args, signatureValidUntil)
+		if !replayClaim.records() {
+			return nil
+		}
+		releaseReplayClaim = replayClaim.owned()
 		u := args.Get("cap")
 		if u == "" {
 			break
 		}
-		if err := validateTrackingSignature(self.trackingSecret(), status.path(), args); err != nil {
-			return err
-		}
 		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
 			var bid bidID
 			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
-				err = match.MustRefreshBothCap(ctx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, status == StatusTrackImp, status == StatusTrackClk)
+				if bid.UserID != "" {
+					if !replayClaim.keyed() {
+						capUpdateFailOpen = true
+					} else {
+						redisCtx, cancel := trackingRedisOperationContext(ctx)
+						_, capErr := match.MustRefreshBothCapOnceWithTTL(redisCtx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, self.capStateTTL(), replayClaim.capMarkerKey(), time.Until(signatureValidUntil), status == StatusTrackImp, status == StatusTrackClk)
+						cancel()
+						if capErr != nil {
+							capUpdateFailOpen = true
+						}
+					}
+				}
 			}
 		}
 		if err != nil {
-			return err
-		}
-	case StatusWin, StatusLoss:
-		if err := validateTrackingSignature(self.trackingSecret(), status.path(), args, self.trackingSignatureTTL()); err != nil {
 			return err
 		}
 	default:
 	}
 
 	if status == StatusWin || status == StatusLoss {
-		first, err := self.setTrackingNotifyOnce(ctx, status, wl.AuctionBidID)
+		first, err := self.setTrackingNotifyOnce(ctx, status, wl.AuctionBidID, signatureValidUntil)
 		if err != nil {
 			return err
 		}
@@ -922,26 +1017,167 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	if err != nil {
 		return err
 	}
-	return self.publishWinLoss(bs)
+	if err := self.publishWinLoss(bs); err != nil {
+		return err
+	}
+	measurementPublished = true
+	if replayClaim.owned() {
+		releaseReplayClaim = false
+		if err := self.completeTrackingEventClaim(replayClaim, signatureValidUntil); err != nil {
+			metricTrackingReplayRedisErrors.Add(1)
+			metricTrackingReplayFailOpen.Add(1)
+		}
+	}
+	return nil
 }
 
-func (self *Controller) setTrackingNotifyOnce(ctx context.Context, status Status, auctionBidID string) (bool, error) {
+func (self *Controller) setTrackingNotifyOnce(ctx context.Context, status Status, auctionBidID string, validUntil time.Time) (bool, error) {
 	if auctionBidID == "" {
 		return true, nil
 	}
+	remaining := time.Until(validUntil)
+	if remaining <= 0 {
+		return true, nil
+	}
 	if self != nil && self.trackingNotifyOnce != nil {
-		return self.trackingNotifyOnce(ctx, status, auctionBidID, self.trackingSignatureTTL())
+		return self.trackingNotifyOnce(ctx, status, auctionBidID, remaining)
 	}
 	if self == nil || self.Redis == nil {
 		return true, nil
 	}
+	redisCtx, cancel := trackingRedisOperationContext(ctx)
+	defer cancel()
 	var result string
-	err := self.Redis.Do(ctx, radix.Cmd(&result, "SET", trackingNotifyKey(status, auctionBidID), "1", "EX", strconv.Itoa(ttlSeconds(self.trackingSignatureTTL())), "NX"))
+	err := self.Redis.Do(redisCtx, radix.Cmd(&result, "SET", trackingNotifyKey(status, auctionBidID), "1", "EX", strconv.Itoa(ttlSeconds(remaining)), "NX"))
 	return result == "OK", err
 }
 
 func trackingNotifyKey(status Status, auctionBidID string) string {
 	return "tracking:notify:" + status.path() + ":" + url.PathEscape(auctionBidID)
+}
+
+var (
+	completeTrackingEventClaimScript = radix.NewEvalScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  redis.call("SET", KEYS[1], "done", "EXAT", ARGV[2])
+  return 1
+end
+return 0`)
+	releaseTrackingEventClaimScript = radix.NewEvalScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+return 0`)
+)
+
+func (self *Controller) claimTrackingEvent(ctx context.Context, status Status, args url.Values, validUntil time.Time) trackingEventClaim {
+	key, ok := trackingEventKey(status, args)
+	if !ok {
+		metricTrackingReplayUnkeyed.Add(1)
+		metricTrackingReplayFailOpen.Add(1)
+		return trackingEventClaim{outcome: trackingClaimUnkeyed}
+	}
+	remaining := time.Until(validUntil)
+	if remaining <= 0 {
+		metricTrackingReplayFailOpen.Add(1)
+		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+	}
+	if self != nil && self.trackingEventOnce != nil {
+		first, err := self.trackingEventOnce(ctx, status, args, remaining)
+		if err != nil {
+			metricTrackingReplayRedisErrors.Add(1)
+			metricTrackingReplayFailOpen.Add(1)
+			return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+		}
+		if !first {
+			metricTrackingReplaySuppressed.Add(1)
+			return trackingEventClaim{key: key, outcome: trackingClaimDuplicate}
+		}
+		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+	}
+	if self == nil || self.Redis == nil {
+		metricTrackingReplayFailOpen.Add(1)
+		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+	}
+	token, err := newTrackingEventClaimToken()
+	if err != nil {
+		metricTrackingReplayFailOpen.Add(1)
+		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+	}
+	processingDeadline := time.Now().Add(defaultTrackingProcessingTTL)
+	if validUntil.Before(processingDeadline) {
+		processingDeadline = validUntil
+	}
+	redisCtx, cancel := trackingRedisOperationContext(ctx)
+	defer cancel()
+	var result string
+	err = self.Redis.Do(redisCtx, radix.Cmd(&result, "SET", key, token, "PXAT", strconv.FormatInt(processingDeadline.UnixMilli(), 10), "NX"))
+	if err != nil {
+		metricTrackingReplayRedisErrors.Add(1)
+		metricTrackingReplayFailOpen.Add(1)
+		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+	}
+	if result != "OK" {
+		metricTrackingReplaySuppressed.Add(1)
+		return trackingEventClaim{key: key, outcome: trackingClaimDuplicate}
+	}
+	return trackingEventClaim{key: key, token: token, outcome: trackingClaimOwner}
+}
+
+func (self *Controller) completeTrackingEventClaim(claim trackingEventClaim, validUntil time.Time) error {
+	if !claim.owned() || self == nil || self.Redis == nil {
+		return nil
+	}
+	if !validUntil.After(time.Now()) {
+		return nil
+	}
+	ctx, cancel := trackingRedisOperationContext(context.Background())
+	defer cancel()
+	var completed int
+	if err := self.Redis.Do(ctx, completeTrackingEventClaimScript.Cmd(&completed, []string{claim.key}, claim.token, strconv.FormatInt(validUntil.Unix(), 10))); err != nil {
+		return err
+	}
+	if completed != 1 {
+		return fmt.Errorf("tracking event claim ownership lost before completion")
+	}
+	return nil
+}
+
+func (self *Controller) releaseTrackingEventClaim(claim trackingEventClaim) error {
+	if !claim.owned() || self == nil || self.Redis == nil {
+		return nil
+	}
+	ctx, cancel := trackingRedisOperationContext(context.Background())
+	defer cancel()
+	var released int
+	return self.Redis.Do(ctx, releaseTrackingEventClaimScript.Cmd(&released, []string{claim.key}, claim.token))
+}
+
+func trackingRedisOperationContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(parent), trackingClaimOperationTimeout)
+}
+
+func trackingEventKey(status Status, args url.Values) (string, bool) {
+	if status != StatusTrackImp && status != StatusTrackClk {
+		return "", false
+	}
+	parts := []string{
+		status.path(),
+		args.Get("auction_id"),
+		args.Get("auction_bid_id"),
+		args.Get("auction_imp_id"),
+	}
+	for _, part := range parts[1:] {
+		if part == "" {
+			return "", false
+		}
+	}
+	payload := strings.Join(parts, "\x00")
+	sum := sha256.Sum256([]byte(payload))
+	return "tracking:notify:" + status.path() + ":" + hex.EncodeToString(sum[:]), true
 }
 
 func (self Status) path() string {

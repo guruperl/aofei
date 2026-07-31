@@ -654,25 +654,31 @@ func (self RAdvs) PickIndexPrice(bidFloor float64, bidFoorCur string) (int, floa
 
 func selectOne(weights []float32) int {
 	total := float32(0.0)
-	n := len(weights)
-	for i := 0; i < n; i++ {
-		total += weights[i]
+	lastPositive := -1
+	for i, weight := range weights {
+		if weight > 0 {
+			total += weight
+			lastPositive = i
+		}
 	}
 	if total <= 0 {
 		return -1
 	}
-	for i := 0; i < n; i++ {
-		weights[i] /= total
-	}
-	randp := rand.Float32()
+	return selectOneAt(weights, rand.Float32()*total, lastPositive)
+}
+
+func selectOneAt(weights []float32, point float32, lastPositive int) int {
 	sump := float32(0.0)
-	for i := 0; i < n; i++ {
-		sump += weights[i]
-		if sump > randp {
+	for i, weight := range weights {
+		if weight <= 0 {
+			continue
+		}
+		sump += weight
+		if sump > point {
 			return i
 		}
 	}
-	return -1
+	return lastPositive
 }
 
 func supportedBidFloorCurrency(cur string) bool {
