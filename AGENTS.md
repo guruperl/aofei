@@ -3,9 +3,10 @@
 ## Purpose
 
 `aofei` / `github.com/guruperl/aofei` is a Go DSP package with OpenRTB bid
-handling, campaign and publisher matching, local cache population commands, and
-a Docker-backed local runtime. The sibling `../pzdesign` checkout owns the
-Summer/Genelet module `github.com/guruperl/pzdesign`.
+handling, campaign and publisher matching, direct publisher SSP serving on
+`POST /pz`, config-gated middleman AdX fallback, local cache population
+commands, and a Docker-backed local runtime. The sibling `../pzdesign` checkout
+owns the Summer/Genelet module `github.com/guruperl/pzdesign`.
 
 Use this file as the agent bootstrap guide. Keep it short and keep detailed
 project state in the memory bank.
@@ -29,8 +30,9 @@ point.
 This repository owns:
 
 - The Go module `github.com/guruperl/aofei`.
-- DSP bid handling and win/loss handling under `dsp/`; the HTTP/UI/ADX service
-  command is owned by `../pzdesign/cmd/unify`.
+- DSP bid handling, direct SSP `/pz` serving, middleman fallback, and win/loss
+  handling under `dsp/`; the HTTP/UI/ADX service command is owned by
+  `../pzdesign/cmd/unify`.
 - Campaign, publisher, slot, audience, creative, ACL, and matching models.
 - The active MySQL schema and domain packages consumed by Summer/Genelet.
 - Local Docker MySQL, Redis, and NATS setup for development.

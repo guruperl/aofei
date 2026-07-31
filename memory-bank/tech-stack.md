@@ -67,13 +67,20 @@ These files are local artifacts and are ignored by git.
 `tracking_secret` in the DSP config signs generated `/imp`, `/clk`, `/win`,
 `/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
 the fallback. `tracking_signature_ttl_seconds` bounds signed URL replay and
-defaults to 86400.
+defaults to 86400. `cap_state_ttl_seconds` bounds idle `bothcap:<user_id>`
+retention and defaults to 7776000 seconds (90 days); cap refresh does not
+shorten a longer existing TTL.
 `trusted_proxy_cidrs` is empty by default. `/pz` uses `RemoteAddr` for OpenRTB
 `device.ip` unless the peer address matches an explicit proxy IP or CIDR in
 that list, in which case it accepts `X-Forwarded-For` or `X-Real-IP`.
 Middleman fallback is controlled by `middleman_enabled`,
 `middleman_timeout_ms`, `middleman_max_bidders_per_imp`, and
-`middleman_exchange_domain`. `trigger_mode='Always'` fanout also requires
+`middleman_exchange_domain`. `middleman_route_cache_ttl_ms` defaults to 5000
+and bounds each worker's immutable decoded route snapshot; concurrent misses
+share one refresh and expired routes are not used after refresh failure. The
+shared load uses an independent deadline derived from `middleman_timeout_ms`;
+callers wait with their own contexts and cannot cancel the load for one another.
+`trigger_mode='Always'` fanout also requires
 `middleman_always_enabled`; the default is false. Middleman callback proxying is
 controlled by `middleman_callback_ttl_seconds`, `middleman_callback_timeout_ms`,
 and `middleman_callback_base_url`; it requires `tracking_secret` and Redis.
@@ -207,6 +214,8 @@ fallback-only legacy `middleman:routes`, and
 `.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
 Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
+Full Redis refreshes build internal `:next` shadows and install all live
+families with one transaction; live key names and payloads are unchanged.
 Direct SSP local/static serving derives its by-publisher-id lookup in memory
 from `.local/spread/pubmap/`; it does not add a separate spread directory. The
 direct cache includes slot-size metadata, and `/pz` rejects slot tokens whose
@@ -338,6 +347,7 @@ Runtime hardening checks:
 GOWORK=off go vet ./...
 GOWORK=off staticcheck ./...
 GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
+GOWORK=off go test ./dsp ./match -run '^$' -bench . -benchmem
 ./scripts/aofei-doc-check.sh
 git diff --check
 ```
@@ -366,8 +376,20 @@ Schema baseline verification:
 ./scripts/aofei-local.sh diff-schema
 ```
 
-Docker smoke/admin/schema checks and staticcheck are documented follow-ups, but
-they are not M8 package-gate blockers.
+GitHub Actions runs the package, vet, staticcheck, scoped race, documentation,
+and committed-range diff-hygiene gates on pushes and pull requests. Pull
+requests check merge-base-to-head and pushes check event `before`-to-`after`,
+with an empty-tree fallback for initial history. The local closeout command
+remains `git diff --check` so uncommitted whitespace is also covered. The
+sibling pzdesign
+workflow checks out public Aofei beside its own checkout to satisfy
+`replace github.com/guruperl/aofei => ../aofei`. That checkout is pinned to an
+explicit reviewed Aofei commit and must be bumped intentionally when pzdesign
+adopts a new revision. The workflow then runs tests, the `cmd/unify` race test,
+vet, staticcheck with the documented legacy style exclusions, and both
+template parsers. Both workflows use Go 1.23.5 and staticcheck v0.5.1. Docker smoke,
+database-backed admin tests, and schema checks remain explicit local/operator
+gates because hosted CI does not start the local service stack.
 
 ## External Requirements
 

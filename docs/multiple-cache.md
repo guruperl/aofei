@@ -50,9 +50,12 @@ static lookups from memory.
 
 `cmd/redis-cache` now treats full refreshes as replacement operations:
 
-- Redis mode deletes `pubmap`, `pubmap:by-id`, `audience`, `creative`,
-  `middleman:routes:v2`, legacy `middleman:routes`, and existing `slot:*` keys
-  before repopulating static cache state.
+- Redis mode builds `pubmap`, `pubmap:by-id`, `audience`, `creative`,
+  `middleman:routes:v2`, legacy `middleman:routes`, and every active `slot:*`
+  family under internal `:next` keys. One `MULTI/EXEC` renames populated
+  shadows over live keys and deletes empty or obsolete live families, so a
+  build failure leaves the old generation intact and readers never observe the
+  former delete-then-repopulate window.
 - Spread mode publishes `__reset__` family subjects before publishing new
   snapshots.
 - Item-level RAdv refreshes recompute affected creative sizes from MySQL slot
@@ -86,9 +89,31 @@ static lookups from memory.
 - Bids with no caps/uploads can complete without Redis.
 - Bids that require frequency caps or uploaded audience membership fail closed
   when Redis mutable state is unavailable.
+- Redis-mode middleman route reads use an immutable controller snapshot for
+  `middleman_route_cache_ttl_ms` (default 5000 ms). Concurrent misses share one
+  refresh; refresh errors are cached for the same short interval and do not
+  authorize fanout from an expired snapshot. The shared refresh has its own
+  `middleman_timeout_ms` deadline and is detached from each waiting request.
+  Canceling the initiating request therefore does not cancel the Redis load,
+  fail other waiters, or prevent the loaded/error snapshot from being cached.
 - Frequency-cap refresh keeps the existing `bothcap:<user_id>` hash and binary
   `BothCap` payload, but writes through a Redis optimistic transaction so
-  concurrent `/imp` and `/clk` callbacks do not lose increments.
+  concurrent `/imp` and `/clk` callbacks do not lose increments. Counters
+  saturate at 255, and each write ensures at least the configured
+  `cap_state_ttl_seconds` remains without shortening a longer existing TTL.
+  The default 90-day idle retention exceeds the packed format's maximum active
+  cap period and bounds abandoned user keys without changing payload layout.
+  Bulk compatibility writes use one Redis script to commit hash fields and add
+  expiry only for new, persistent, or shorter-lived keys, so they preserve a
+  longer TTL without exposing written data without its required expiry.
+- Impression and click replay keys are separate Redis mutable-state records.
+  Each starts as a short owned processing claim and becomes a
+  exact signature-deadline completion marker only after publication succeeds.
+  Pre-publication failures release the claim, while a transactional per-event
+  cap marker prevents retries from repeating cap mutation. Duplicate signed
+  events skip cap refresh and ledger publication. Claim and cap failures are
+  fail-open; keyed claim failures still use the idempotent cap marker, while
+  unkeyed events publish without cap mutation.
 
 ## Hardware Affinity Option
 

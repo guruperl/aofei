@@ -1073,6 +1073,209 @@ Acceptance:
 - Required verification is `./scripts/aofei-doc-check.sh` and
   `git diff --check`.
 
+## M39 - Tracking And Runtime Integrity `[+]`
+
+Close the confirmed tracking-signature, frequency-cap, and adjacent request
+correctness findings without changing schema or response formats.
+
+Scope:
+
+- Require valid configured-TTL signatures for every `/imp` and `/clk` event.
+- Bound Redis cap-state lifetime, saturate packed cap counters, and keep valid
+  signed measurement events recordable when no cap user identity exists.
+- Remove adjacent audit initialization, weighted-selection, and SSP cookie
+  correctness hazards.
+
+Acceptance:
+
+- Unsigned or expired impression/click events are rejected whether or not a
+  `cap` value is present.
+- Cap counters cannot wrap and every cap-state write has a positive TTL without
+  shortening a longer existing TTL.
+- Empty-user trackers still publish but do not mutate cap state; audit startup,
+  weighted selection, and SSP cookie resolution have focused regression tests.
+
+Result:
+
+- Impression and click signatures are unconditional and use the configured
+  replay TTL on tracker and redirect paths.
+- Packed cap counters saturate, Redis cap hashes receive bounded idle expiry,
+  and empty-user events remain measurable without attempting cap mutation.
+- Audit initialization is serialized, weighted selection has a deterministic
+  final-positive fallback, and SSP cookie creation happens once per request.
+- Reopened after the M39-M44 review found callback-time TTL reuse, request-bound
+  Redis transaction contexts, and an unconditional bulk cap expiry could break
+  validity and TTL guarantees.
+- Follow-up remediation now uses exact signature deadlines, detached two-second
+  tracking Redis contexts with confirmed transaction cleanup, and one atomic
+  bulk cap/conditional-expiry script.
+
+## M40 - Redis Cache Availability And Route Efficiency `[+]`
+
+Remove the serving gap during full Redis cache refresh and avoid fetching and
+decoding the complete middleman route cache on every eligible request.
+
+Scope:
+
+- Build static cache generations under shadow keys and atomically swap all
+  related live families in one Redis transaction.
+- Add a short-lived, single-flight controller snapshot for middleman routes.
+- Raise the cache attribute-log scanner limit to the ledger limit.
+
+Acceptance:
+
+- Failed cache builds leave the previous live generation untouched, successful
+  swaps cannot expose a partially deleted or mixed generation, and stale slot
+  keys are removed atomically.
+- Middleman route reads are memoized for a configurable interval and refresh
+  errors do not fan out using expired routes.
+- Attribute log lines up to 8 MiB are accepted.
+
+Result:
+
+- Full Redis refreshes build shadow families and atomically install one
+  complete generation; failed builds preserve live data and successful swaps
+  remove empty and obsolete families in the same transaction.
+- Workers memoize decoded middleman routes for a configurable five-second
+  default with context-aware single-flight refresh and short error caching.
+- Attribute log scanning now accepts lines up to 8 MiB, and miniredis plus
+  Docker smoke/serving-loop checks cover the replacement path.
+- Reopened to serialize every mutating cache mode on one resource lock and let
+  route-cache waiters retry after a canceled refresh leader.
+- Review remediation completed with one writer lock, cancellation-aware waiter
+  retry, and exact scanner/cap transaction coverage in CI.
+- Reopened after the follow-up review found that the initiating HTTP request
+  still owned and could cancel the shared route refresh.
+- Follow-up remediation now runs the shared load under its own
+  `middleman_timeout_ms` context while each caller waits independently.
+
+## M41 - Measurement Replay Idempotency `[+]`
+
+Suppress duplicate signed impression and click callbacks within the tracking
+signature lifetime while preserving request availability when Redis fails.
+
+Scope:
+
+- Deduplicate `/imp` and `/clk` independently by signed auction event identity.
+- Apply replay suppression before cap mutation and ledger publication.
+- Expose suppression, fail-open, and unkeyed-event metrics.
+
+Acceptance:
+
+- A repeated signed event publishes and mutates cap state once within the TTL.
+- Impression and click identities remain independent, normal HTTP/redirect
+  responses are preserved, and Redis failures remain fail-open.
+
+Result:
+
+- `/imp` and `/clk` use independent signature-TTL replay keys hashed from the
+  signed auction event identity before cap or ledger side effects.
+- Duplicate events preserve normal callback/redirect responses while skipping
+  cap refresh and publication; Redis and identity failures remain fail-open.
+- Suppression, fail-open, Redis-error, and unkeyed-event expvars document the
+  operational effect.
+- Reopened to finalize replay identity only after successful side effects and
+  make cap mutation idempotent when publication is retried.
+- Review remediation completed with owned processing claims, post-publication
+  completion markers, and transactional per-event cap markers.
+- Reopened after the follow-up review found implicit claim outcomes and cap
+  errors could still reject valid events or fall back to non-idempotent writes.
+- Follow-up remediation now retains keyed fail-open identity, skips unkeyed cap
+  mutation, publishes through claim/cap Redis errors, and finalizes owned claims
+  only after successful publication.
+
+## M42 - Unified HTTP Graceful Shutdown `[+]`
+
+Add signal-aware graceful shutdown to the sibling `../pzdesign/cmd/unify`
+service and drain Aofei audits after in-flight HTTP requests finish.
+
+Scope:
+
+- Use a standard-library signal context in `pzdesign` and extract a testable
+  HTTP server lifecycle.
+- Allow 15 seconds for graceful shutdown, then force close and report failure.
+- Update the Aofei production runbook for the new service behavior.
+
+Acceptance:
+
+- SIGINT/SIGTERM stop new work, wait for in-flight handlers, and close the
+  controller only after HTTP shutdown.
+- Timeout and normal shutdown paths have focused tests in `pzdesign`.
+
+Result:
+
+- `cmd/unify` now owns a standard-library SIGINT/SIGTERM context and a testable
+  listener/server lifecycle.
+- Normal shutdown drains in-flight HTTP for up to 15 seconds before controller
+  close; timeout forces close and returns the joined shutdown error.
+- Controller/logger defers execute inside the run function even when startup or
+  serving returns an error.
+
+## M43 - Repository CI Baseline `[+]`
+
+Turn the documented verification taxonomy into GitHub Actions gates for both
+the Aofei and pzdesign repositories.
+
+Scope:
+
+- Add test, vet, staticcheck, race/documentation, and template gates appropriate
+  to each repository.
+- Check out the public sibling Aofei repository beside pzdesign so its local Go
+  replace directive resolves in CI.
+- Pin the Go and staticcheck versions and keep workflow permissions read-only.
+
+Acceptance:
+
+- Pushes and pull requests run clean, reproducible checks in both repositories.
+- Pzdesign keeps its documented legacy staticcheck style exclusions rather
+  than starting with a permanently failing workflow.
+
+Result:
+
+- Aofei push/PR CI runs package tests, vet, pinned staticcheck, scoped race,
+  documentation, and diff-hygiene gates with read-only permissions.
+- Pzdesign checks out public Aofei as a sibling, then runs package tests, vet,
+  pinned staticcheck with established style exclusions, both template parsers,
+  and diff hygiene.
+- Both workflows pin Go 1.23.5, cancel superseded runs, and pass actionlint plus
+  the exact local command set.
+- Reopened after the M39-M44 review found that `git diff --check` on a clean
+  checkout did not inspect any committed event range.
+- Follow-up remediation fetches full primary history and checks PR
+  merge-base-to-head or push before-to-after committed ranges, with an
+  empty-tree initial-history fallback.
+
+## M44 - Bid-Path Logging And Benchmark Cleanup `[+]`
+
+Reduce avoidable bid-path logging/allocation work and measurement-gate any
+future weighted-selection optimization.
+
+Scope:
+
+- Replace sugared request-path logs with structured logging and remove numbered
+  progress messages and expected no-bid noise.
+- Simplify local effective-CPM selection without changing auction results.
+- Add parallel weighted-selection and representative bid-path benchmarks.
+
+Acceptance:
+
+- Bid responses and auction choices remain unchanged with materially quieter,
+  structured request logging.
+- Benchmarks record the selection and request-path baseline; `math/rand` is not
+  replaced without measured evidence.
+
+Result:
+
+- Bid handling, auction fallback, callback setup, and adjacent tracker failures
+  use structured `zap` fields; routine progress, success, NATS-unavailable, and
+  expected no-bid messages no longer produce process-log noise.
+- Local effective CPM validation retains the existing error metric and returns
+  the already-materialized bid price directly.
+- Parallel weighted-selection and successful two-impression local HTTP
+  benchmarks establish an allocation/time baseline without changing the RNG.
+- Deep review corrected the weighted-distribution test's bucket upper bounds,
+  and all Aofei/pzdesign closeout gates pass under the documented toolchains.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

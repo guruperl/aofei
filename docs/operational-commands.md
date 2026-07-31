@@ -30,6 +30,13 @@ Do not run Redis cache refresh or ledger on every `unify` node. Ledger must run
 where the complete `log_winloss/winloss.<stamp>` files are available.
 Mutating `redis-cache`, `ledger`, `mid-callback-retry`, and `winloss` runs take
 a Redis singleton lock by default; read-only modes skip the lock.
+Every mutating `redis-cache` mode (`redis`, `spread`, `all`, and `routes`) uses
+the same `aofei:redis-cache` lock because modes share live cache families,
+shadow keys, or source data and must not overlap.
+
+`cmd/unify` handles `SIGINT` and `SIGTERM`, drains in-flight HTTP requests for
+up to 15 seconds, and closes the DSP controller afterward so queued audits and
+owned service connections shut down in order.
 
 ## Common Prerequisites
 
@@ -45,10 +52,14 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 
 This refresh also compiles `middleman:routes:v2` for M25 middleman routing and
 the fallback-only legacy `middleman:routes` key for M24 rolling-deploy safety.
+Full Redis refreshes build shadow keys and atomically replace all static cache
+families, including removal of obsolete slot-size hashes, only after the new
+generation is complete. Failed builds leave the live generation unchanged.
 Run it only from the dedicated cache-maintenance node; `cmd/unify` does not
 refresh bidder routes itself. After operators edit route groups, route bidders,
 or route targets in Summer, run this refresh before expecting HTTP workers to
-use the new route state.
+use the new route state. Workers observe it after their configured
+`middleman_route_cache_ttl_ms` interval, default five seconds.
 
 To refresh only the middleman route cache:
 
@@ -351,3 +362,8 @@ Local runtime checks:
 ./scripts/aofei-local.sh nats-status
 find .local/logs -maxdepth 2 -type d | sort
 ```
+
+GitHub Actions performs committed-range whitespace checks. Pull requests diff
+the merge base of the event base/head SHAs through the head SHA; pushes diff the
+event `before` and `after` SHAs, using the empty tree for an initial history.
+Keep `git diff --check` as the local closeout check for uncommitted changes.

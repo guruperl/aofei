@@ -157,7 +157,12 @@ available.
 For `/imp` and `/clk`, the handler also unpacks cap state and refreshes Redis
 frequency caps for the user/item pair. Cap refresh uses Redis `WATCH`/`MULTI`/
 `EXEC` with bounded retry so concurrent tracker callbacks update the existing
-`bothcap:<user_id>` binary payload atomically.
+`bothcap:<user_id>` binary payload atomically. Signature validation precedes all
+Redis work. Claim and cap Redis failures are fail-open for valid measurement
+events, while malformed payloads remain errors. Keyed events use a transactional
+per-event cap marker even when replay-claim acquisition fails; unkeyed events
+publish without cap mutation. Redis operations run for at most two seconds on a
+context detached from HTTP cancellation.
 
 When `/clk` receives a valid HTTP(S) `redirect` query parameter and the normal
 packed tracking fields, it records the click best-effort and returns `302` to
@@ -169,6 +174,9 @@ endpoint and returns no content.
 ## Known Workflow Boundaries
 
 - Request, response, and attribute logs are best effort after response write.
+- Routine successful bids and expected no-bids do not emit process logs. Bid
+  request rejections use structured debug fields, while response, audit, and
+  middleman operational failures use structured warning or error fields.
 - Ledger spend is based on impression tracker records, not win records.
 - Redis remains the shared mutable-state backend. Redis mode can also serve
   static cache reads, while local/spread mode serves static publisher, slot,

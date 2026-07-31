@@ -113,6 +113,21 @@ active `adv_bidder`, `mid_route_group`, `mid_route_bidder`, and
 `mid_route_target` rows. `cmd/unify` does not refresh this cache after route
 edits.
 
+HTTP workers memoize the decoded preferred/fallback route result for
+`middleman_route_cache_ttl_ms`, default 5000 ms. Concurrent cache misses share
+one Redis fetch and decode. A failed refresh is cached for the same short
+interval and disables middleman fanout rather than reusing an expired route
+snapshot; an existing local winner remains eligible under the normal fallback
+rules. The shared fetch has an independent `middleman_timeout_ms` deadline.
+Each caller waits with its own request context, so cancellation of the caller
+that starts a refresh does not cancel the load or propagate its cancellation to
+other waiters; the eventual result or error is still cached. `/debug/vars`
+exposes route-cache hit, miss, refresh, and refresh-error counters as
+`aofei_middleman_route_cache_hits_total`,
+`aofei_middleman_route_cache_misses_total`,
+`aofei_middleman_route_cache_refreshes_total`, and
+`aofei_middleman_route_cache_refresh_errors_total`.
+
 M24 version-1 route payloads added optional metadata: generation time, entry
 count, source, route-table high-water timestamp, and a checksum over route
 entries. M25 writes version-2 payloads with `trigger_mode` under

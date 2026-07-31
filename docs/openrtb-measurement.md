@@ -52,9 +52,46 @@ signature. `/imp` and `/clk` signatures cover the full concrete query payload,
 including `redirect` on click URLs. `/win` and `/loss` sign immutable packed
 demand/supply fields and `sig_ts` so exchanges can still replace auction macros.
 Click redirects, win/loss notifications, and Redis cap mutations require a
-valid non-expired signature; unsigned, expired, or modified URLs return `400`.
+valid non-expired signature. Every `/imp` and `/clk` request is validated even
+when the served item has no cap or the `cap` query value is missing; unsigned,
+expired, or modified URLs return `400`.
 Duplicate `/win` and `/loss` notifications for the same auction bid are
-short-circuited for the signature TTL when Redis is available.
+short-circuited until the signed timestamp's exact validity deadline when Redis
+is available. Signed `/imp` and `/clk` events are also deduplicated independently
+until that deadline using a bounded hash of status, auction ID, bid ID, and
+impression ID. This preserves the full accepted lifetime of a signature whose
+timestamp is within the five-minute future-clock-skew allowance instead of
+starting a fresh configured TTL at callback time.
+
+The first event acquires a short owner-token processing claim, performs cap
+mutation and log publication, then converts the claim to the deadline-bound
+completion marker. A publication failure releases the claim for retry; cap
+mutation uses a separate transactional event marker so that retry does not
+increment the counter twice. A cap-state failure does not release an owned claim
+before publication. Successful publication still finalizes replay suppression.
+Duplicates preserve the normal `204` or click redirect response without
+repeating either side effect.
+
+This path is deliberately fail-open: claim or cap Redis errors do not reject an
+otherwise valid `/imp` or `/clk`. Keyed events still attempt the idempotent cap
+transaction when claim acquisition fails. Events with incomplete replay
+identity publish but skip non-idempotent cap mutation. Tracking Redis work has a
+two-second bound detached from HTTP cancellation, so one disconnected request
+cannot cancel shared Redis work or return watched/transactional state to the
+connection pool.
+
+Valid signed capped events with no user suffix in `auction_bid_id` still enter
+the measurement log but skip Redis cap mutation. Cap counters saturate at the
+packed `uint8` maximum instead of wrapping. `bothcap:<user_id>` hashes receive
+the configured `cap_state_ttl_seconds` idle TTL, default 90 days; refreshes do
+not shorten a longer existing TTL.
+
+Replay operations expose `aofei_tracking_replay_suppressed_total`,
+`aofei_tracking_replay_fail_open_total`,
+`aofei_tracking_replay_redis_errors_total`, and
+`aofei_tracking_replay_unkeyed_total` through `/debug/vars`.
+`aofei_tracking_cap_update_fail_open_total` counts valid events published
+without a successful cap update.
 
 Current tracker embedding is format-dependent: native and native-video markup
 include `/imp` trackers and use `/clk` as a redirecting primary link. Banner

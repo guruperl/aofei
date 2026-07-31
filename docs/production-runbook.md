@@ -92,6 +92,8 @@ refresher per `unify` node. Run `cmd/ledger` only on the log aggregation node
 where the complete `log_winloss/winloss.<stamp>` stream is available.
 Mutating `cmd/redis-cache`, `cmd/ledger`, `cmd/mid-callback-retry`, and
 `cmd/winloss` executions also acquire Redis singleton locks.
+All mutating `cmd/redis-cache` modes share the `aofei:redis-cache` lock; a
+partial route or spread run therefore cannot overlap a full generation build.
 
 Checked-in `etc/aofei.json` and `etc/summer.example.json` are examples. Generated
 `etc/*.local.json` files are local-only artifacts and must not be copied into
@@ -104,11 +106,27 @@ tracking secrets, or cloud keys. DSP tracking URLs use `tracking_secret` in
 `AOFEI`, or the `TRACKING_SECRET` environment fallback, to sign click redirect
 win/loss, middleman callback, and cap-mutation tracker payloads. Set
 `tracking_signature_ttl_seconds` to bound callback replay; the default is
-86400 seconds.
+86400 seconds. Set `cap_state_ttl_seconds` to bound idle Redis frequency-cap
+state; the default is 7776000 seconds (90 days), and refreshes never shorten a
+longer existing key TTL.
+Alert on increases in `aofei_tracking_replay_redis_errors_total` and
+`aofei_tracking_replay_unkeyed_total`; those events are accepted fail-open and
+can therefore retain at-least-once measurement behavior until Redis or event
+identity is corrected. Alert on
+`aofei_tracking_cap_update_fail_open_total` to detect valid measurement events
+published while their cap update could not be completed. Replay, cap-event, and
+win/loss markers expire at the signed timestamp's validity deadline, which may
+be up to the configured TTL plus the accepted five-minute future skew from the
+receiving worker's current time.
 
 Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
 When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
-`middleman_max_bidders_per_imp` deliberately. `trigger_mode='Always'` route
+`middleman_max_bidders_per_imp` deliberately. Set
+`middleman_route_cache_ttl_ms` for the worker-side decoded route snapshot; the
+default is 5000 ms, and refresh errors disable fanout until the short error
+cache expires. Shared route loads use `middleman_timeout_ms` independently of
+the initiating request, so client cancellation does not cancel refreshes needed
+by other workers. `trigger_mode='Always'` route
 fanout is ignored unless `middleman_always_enabled` is also true. Middleman
 callback proxying also requires `tracking_secret`, Redis, and a public
 `middleman_callback_base_url` that points back to the `cmd/unify` HTTP service; set
@@ -295,10 +313,13 @@ Use the same `User`, `Group`, `Environment`, restart policy, and hardening
 pattern for `spread`, changing only `ExecStart`. `redis-cache` and `ledger`
 should normally be oneshot timer services, not long-running services.
 
-The current server commands do not document an application-level graceful
-shutdown protocol. Operators should use systemd stop timeouts, observe logs, and
-avoid deploys during active ledger/cache maintenance windows until signal
-handling is hardened.
+`cmd/unify` handles `SIGINT` and `SIGTERM` through a signal-aware context. It
+stops accepting new HTTP work, allows up to 15 seconds for in-flight handlers,
+then closes the Aofei controller so the bounded audit publisher drains before
+owned NATS, Redis, and MySQL connections close. If HTTP draining exceeds the
+deadline, the server force-closes remaining connections and exits with an
+error. Set the systemd stop timeout above 15 seconds so the application gets
+its full drain window before the service manager escalates.
 
 ## Build And Rollout
 

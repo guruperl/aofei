@@ -289,7 +289,9 @@ When a later browser request returns a valid cookie value, the adapter sets
 synthesized OpenRTB `user.id` and `buyeruid` to that value. If the browser
 cookie is missing or invalid, the current request leaves `user` empty and
 continues through the existing IP+UA fallback in attribute extraction, so cookie
-absence does not block serving.
+absence does not block serving. Cookie lookup and optional creation happen once
+per request; a newly created cookie becomes identity only when a later request
+returns it.
 
 SDK and in-app requests are represented by `platform:"sdk"` in the v1 `/pz`
 contract. They are credentialless and cookie-free. SDK requests may include

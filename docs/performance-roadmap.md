@@ -38,6 +38,32 @@ covered and should not be re-opened as roadmap work without a new finding.
 | Hot-path pooling decision | M26 added bid-response marshal benchmarking and deferred pooling until measurements justify the extra complexity. |
 | Controller test seams | Redis, DB, NATS, IP search, HTTP client, callback guard, callback store, and logger dependencies can be injected for focused tests. |
 
+## M44 Microbenchmark Baseline
+
+M44 added parallel benchmarks before changing weighted selection or request
+path allocation behavior:
+
+```bash
+GOWORK=off go test ./dsp ./match -run '^$' \
+  -bench 'Benchmark(ServeBidLocalTwoImpressions|SelectOneParallel)$' \
+  -benchmem -count=3
+```
+
+On 2026-07-31 with Go 1.26.1 on linux/amd64 and the repository test fixture:
+
+| Benchmark | Observed range |
+|---|---|
+| `BenchmarkSelectOneParallel-8` | 150.8-156.8 ns/op, 0 B/op, 0 allocs/op |
+| `BenchmarkServeBidLocalTwoImpressions-8` | 145.7-212.7 us/op, 121.4-123.9 KB/op, 1,062-1,066 allocs/op |
+
+The bid benchmark covers a successful two-impression local-static-cache HTTP
+request, including request construction, OpenRTB decode, matching, creative
+materialization, tracking URLs, response encoding, and response recording.
+These numbers are a same-machine before/after baseline, not a production SLO.
+The parallel selection result does not justify replacing the default top-level
+`math/rand` source; any future RNG change still requires a measured improvement
+under the same benchmark.
+
 ## Near-Term Measurable Work
 
 These items fit the current stack and should be evaluated in this order. Each

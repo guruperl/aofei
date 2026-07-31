@@ -3,7 +3,9 @@
 `github.com/guruperl/aofei` is a Go package for an OpenRTB-oriented DSP stack.
 It contains the bid path, campaign and publisher matching logic, Summer/Genelet
 integration, cache population commands, local Docker service helpers, and SQL
-baseline data needed to run the package locally. The Summer/Genelet source tree
+baseline data needed to run the package locally. The same bid engine also serves
+direct publisher SSP traffic on `POST /pz` and can fall back to middleman AdX
+bidders when middleman config is enabled. The Summer/Genelet source tree
 now lives in the sibling `../pzdesign` module,
 `github.com/guruperl/pzdesign`.
 
@@ -55,13 +57,13 @@ Review operational command prerequisites, invocations, outputs, and known
 blockers:
 
 ```bash
-GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind
+GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind ./cmd/mid-callback-retry
 ```
 
 See [docs/operational-commands.md](docs/operational-commands.md) for the local
 contracts for `cmd/redis-cache`, `cmd/ledger`, `cmd/nats-client`,
-`cmd/winloss`, `cmd/spread`, and `cmd/maxmind`, including where each command
-should run in production.
+`cmd/winloss`, `cmd/spread`, `cmd/maxmind`, and `cmd/mid-callback-retry`,
+including where each command should run in production.
 
 See [docs/maxmind-runtime.md](docs/maxmind-runtime.md) for the active
 `etc/maxmind.json` contract, expected external GeoLite2 City path, ignored
@@ -118,9 +120,15 @@ Install the package command binaries:
   impression, click, NATS log, and ledger measurement behavior.
 - [docs/audience-matching.md](docs/audience-matching.md): attribute extraction,
   audience predicates, cache contracts, and matching order.
+- [docs/ssp-direct-traffic.md](docs/ssp-direct-traffic.md): direct publisher
+  `POST /pz` contract, packed token validation, browser/SDK policy, response
+  formats, and audit boundary.
+- [docs/middleman-adx.md](docs/middleman-adx.md): advertiser-owned bidder
+  endpoints, route cache, fallback and `Always` runtime, callback proxy, and
+  charge/pay/margin reporting.
 - [docs/operational-commands.md](docs/operational-commands.md): local
   operational command contracts for logs, ledger, spread, win/loss simulation,
-  and MaxMind inventory.
+  MaxMind inventory, and middleman callback retry processing.
 - [docs/maxmind-runtime.md](docs/maxmind-runtime.md): MaxMind config,
   external geodata assets, generation, and test behavior.
 - [docs/performance-roadmap.md](docs/performance-roadmap.md): advisory
@@ -130,6 +138,12 @@ Install the package command binaries:
   documentation-only review of Prebid Server OpenRTB patterns to consider for
   later `aofei` validation, matching, middleman, performance, privacy, and
   observability milestones.
+- [docs/adr/0001-richer-supply-taxonomy.md](docs/adr/0001-richer-supply-taxonomy.md):
+  future additive supply taxonomy direction for publisher tables, cache, and
+  audits.
+- [docs/adr/0002-ssp-account-schema-boundary.md](docs/adr/0002-ssp-account-schema-boundary.md):
+  decision to keep `pub`, `pub_site`, and `pub_slot` as the direct SSP account
+  and inventory ownership boundary.
 - [../pzdesign/docs/genelet-manual.md](../pzdesign/docs/genelet-manual.md):
   Genelet config, routes, auth, component, CRUD, upload, CORS, and error
   contracts.
@@ -163,3 +177,9 @@ The test taxonomy is:
   `AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'`;
 - admin integration: sibling `../pzdesign` Summer/Genelet tests with `SUMMER`;
 - schema drift: `./scripts/aofei-local.sh check-sql` and `diff-schema`.
+
+`.github/workflows/verify.yml` enforces the package, vet, staticcheck, scoped
+race, documentation, and committed-range diff-hygiene gates on pushes and pull
+requests. Local closeout still uses `git diff --check` for uncommitted changes.
+Docker smoke, database-backed admin integration, and schema drift remain
+explicit local/operator checks.
