@@ -140,6 +140,11 @@ func getItemIDs(db *sql.DB) ([]uint32, error) {
 
 // DBGetAudiencesToRedis retrieves audiences from the database and inserts them into Redis.
 func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+	return DBGetAudiencesToCache(ctx, RedisCacheSink{Client: conn}, db)
+}
+
+// DBGetAudiencesToCache writes database audiences through the supplied cache sink.
+func DBGetAudiencesToCache(ctx context.Context, sink CacheSink, db *sql.DB) error {
 	itemIDs, err := getItemIDs(db)
 	if err != nil {
 		return fmt.Errorf("failed to get item IDs: %w", err)
@@ -148,7 +153,14 @@ func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) e
 	for _, itemID := range itemIDs {
 		aud, err := DBGetAudience(db, itemID)
 		if err == nil {
-			err = aud.ToRedis(ctx, conn, itemID)
+			if aud == nil {
+				continue
+			}
+			var data []byte
+			data, err = aud.Pack()
+			if err == nil {
+				err = sink.PutAudience(ctx, itemID, data)
+			}
 		}
 		if err != nil {
 			return err

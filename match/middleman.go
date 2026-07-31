@@ -320,14 +320,19 @@ func middlemanRouteCacheFromRedisKey(ctx context.Context, conn radix.Client, key
 }
 
 func DBGetMiddlemanRoutesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) error {
+	return DBGetMiddlemanRoutesToRedisKeys(ctx, conn, db, HashNameMiddlemanRoutes, HashNameMiddlemanRoutesV2)
+}
+
+// DBGetMiddlemanRoutesToRedisKeys writes both route cache versions to explicit keys.
+func DBGetMiddlemanRoutesToRedisKeys(ctx context.Context, conn radix.Client, db *sql.DB, legacyKey, currentKey string) error {
 	cache, err := DBGetMiddlemanRouteCache(ctx, db)
 	if err != nil {
 		return err
 	}
-	if err := cache.legacyFallbackCache().ToRedisKey(ctx, conn, HashNameMiddlemanRoutes); err != nil {
+	if err := cache.legacyFallbackCache().ToRedisKey(ctx, conn, legacyKey); err != nil {
 		return err
 	}
-	return cache.ToRedis(ctx, conn)
+	return cache.ToRedisKey(ctx, conn, currentKey)
 }
 
 func (c *MiddlemanRouteCache) legacyFallbackCache() *MiddlemanRouteCache {

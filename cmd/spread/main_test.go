@@ -252,8 +252,10 @@ func TestRunSpreadExitsOnContextCancelAndDrains(t *testing.T) {
 		ConnectArray:                []string{"mysql", "missing"},
 		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
 		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
 		MiddlemanCallbackTTLSeconds: 86400,
 		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanCallbackBaseURL:    "http://localhost",
 	}
 
@@ -287,8 +289,10 @@ func TestRunSpreadReturnsDrainError(t *testing.T) {
 		ConnectArray:                []string{"mysql", "missing"},
 		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
 		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
 		MiddlemanCallbackTTLSeconds: 86400,
 		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanCallbackBaseURL:    "http://localhost",
 	}
 

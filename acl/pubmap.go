@@ -26,8 +26,13 @@ type DirectPubMap map[uint32]*DirectPub
 
 // ToRedis encodes the PubMap to a byte slice and stores it in Redis
 func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
-	arr := []string{HashNamePubmap}
-	byID := []string{HashNamePubByID}
+	return self.ToRedisKeys(ctx, conn, HashNamePubmap, HashNamePubByID)
+}
+
+// ToRedisKeys writes publisher caches to explicit Redis hash keys.
+func (self PubMap) ToRedisKeys(ctx context.Context, conn radix.Client, pubmapKey, byIDKey string) error {
+	arr := []string{pubmapKey}
+	byID := []string{byIDKey}
 	for k, v := range self {
 		var bs []byte
 		var err error
@@ -44,9 +49,9 @@ func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
 			}
 		} else {
 			// delete old pubmap
-			err = conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubmap, k))
+			err = conn.Do(ctx, radix.Cmd(nil, "HDEL", pubmapKey, k))
 			if err == nil && v != nil {
-				err = conn.Do(ctx, radix.Cmd(nil, "HDEL", HashNamePubByID, strconv.FormatUint(uint64(v.PubID), 10)))
+				err = conn.Do(ctx, radix.Cmd(nil, "HDEL", byIDKey, strconv.FormatUint(uint64(v.PubID), 10)))
 			}
 		}
 		if err != nil {

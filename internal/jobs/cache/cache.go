@@ -8,12 +8,20 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
+)
+
+const (
+	redisShadowSuffix        = ":next"
+	maxAttributeLogLineBytes = 8 * 1024 * 1024
 )
 
 const (
@@ -190,29 +198,146 @@ func RedisRead(ctx context.Context, out io.Writer, redis radix.Client, sizeIDs [
 }
 
 func WriteToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
-	if err := ResetRedisStaticCaches(ctx, redis); err != nil {
+	if err := cleanupRedisShadowCaches(ctx, redis); err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = cleanupRedisShadowCaches(context.Background(), redis)
+		}
+	}()
+
+	if err := pubmap.ToRedisKeys(ctx, redis, acl.HashNamePubmap+redisShadowSuffix, acl.HashNamePubByID+redisShadowSuffix); err != nil {
 		return err
 	}
 
-	if err := pubmap.ToRedis(ctx, redis); err != nil {
-		return err
-	}
-
+	sink := match.RedisCacheSink{Client: redis, KeySuffix: redisShadowSuffix}
 	for _, sizeID := range sizeIDs {
-		if err := match.DBGetRAdvsToRedisSpreadBySizeID(ctx, redis, db, sizeID); err != nil {
+		if err := match.DBGetRAdvsToRedisSpreadBySizeID(ctx, sink, db, sizeID); err != nil {
 			return err
 		}
 	}
 
-	if err := match.DBGetAudiencesToRedis(ctx, redis, db); err != nil {
+	if err := match.DBGetAudiencesToCache(ctx, sink, db); err != nil {
 		return err
 	}
 
-	if err := match.DBGetCreativesToRedisSpread(ctx, redis, db); err != nil {
+	if err := match.DBGetCreativesToRedisSpread(ctx, sink, db); err != nil {
 		return err
 	}
 
-	return match.DBGetMiddlemanRoutesToRedis(ctx, redis, db)
+	if err := match.DBGetMiddlemanRoutesToRedisKeys(ctx, redis, db, match.HashNameMiddlemanRoutes+redisShadowSuffix, match.HashNameMiddlemanRoutesV2+redisShadowSuffix); err != nil {
+		return err
+	}
+	if err := swapRedisStaticCaches(ctx, redis, sizeIDs); err != nil {
+		return err
+	}
+	committed = true
+	return cleanupRedisShadowCaches(ctx, redis)
+}
+
+func cleanupRedisShadowCaches(ctx context.Context, redis radix.Client) error {
+	keys := []string{
+		acl.HashNamePubmap + redisShadowSuffix,
+		acl.HashNamePubByID + redisShadowSuffix,
+		match.HashNameAudience + redisShadowSuffix,
+		match.HashNameCreative + redisShadowSuffix,
+		match.HashNameMiddlemanRoutes + redisShadowSuffix,
+		match.HashNameMiddlemanRoutesV2 + redisShadowSuffix,
+	}
+	if err := redis.Do(ctx, radix.Cmd(nil, "DEL", keys...)); err != nil {
+		return err
+	}
+	return DeleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*"+redisShadowSuffix)
+}
+
+func swapRedisStaticCaches(ctx context.Context, redis radix.Client, sizeIDs []uint32) error {
+	type keyPair struct {
+		live   string
+		shadow string
+		exists bool
+	}
+	pairs := []keyPair{
+		{live: acl.HashNamePubmap, shadow: acl.HashNamePubmap + redisShadowSuffix},
+		{live: acl.HashNamePubByID, shadow: acl.HashNamePubByID + redisShadowSuffix},
+		{live: match.HashNameAudience, shadow: match.HashNameAudience + redisShadowSuffix},
+		{live: match.HashNameCreative, shadow: match.HashNameCreative + redisShadowSuffix},
+		{live: match.HashNameMiddlemanRoutes, shadow: match.HashNameMiddlemanRoutes + redisShadowSuffix},
+		{live: match.HashNameMiddlemanRoutesV2, shadow: match.HashNameMiddlemanRoutesV2 + redisShadowSuffix},
+	}
+	newSlots := make(map[string]struct{})
+	for _, sizeID := range sizeIDs {
+		live := match.HashNameRAdvs(sizeID)
+		if _, ok := newSlots[live]; ok {
+			continue
+		}
+		newSlots[live] = struct{}{}
+		pairs = append(pairs, keyPair{live: live, shadow: live + redisShadowSuffix})
+	}
+	for i := range pairs {
+		var exists int
+		if err := redis.Do(ctx, radix.Cmd(&exists, "EXISTS", pairs[i].shadow)); err != nil {
+			return err
+		}
+		pairs[i].exists = exists != 0
+	}
+	liveSlots, err := redisLiveSlotKeys(ctx, redis)
+	if err != nil {
+		return err
+	}
+	return redis.Do(ctx, radix.WithConn("", func(ctx context.Context, conn radix.Conn) (err error) {
+		if err = conn.Do(ctx, radix.Cmd(nil, "MULTI")); err != nil {
+			return err
+		}
+		inMulti := true
+		defer func() {
+			if err != nil && inMulti {
+				_ = conn.Do(ctx, radix.Cmd(nil, "DISCARD"))
+			}
+		}()
+		for _, pair := range pairs {
+			if pair.exists {
+				err = conn.Do(ctx, radix.Cmd(nil, "RENAME", pair.shadow, pair.live))
+			} else {
+				err = conn.Do(ctx, radix.Cmd(nil, "DEL", pair.live))
+			}
+			if err != nil {
+				return err
+			}
+		}
+		for _, key := range liveSlots {
+			if _, ok := newSlots[key]; ok {
+				continue
+			}
+			if err = conn.Do(ctx, radix.Cmd(nil, "DEL", key)); err != nil {
+				return err
+			}
+		}
+		err = conn.Do(ctx, radix.Cmd(nil, "EXEC"))
+		inMulti = false
+		return err
+	}))
+}
+
+func redisLiveSlotKeys(ctx context.Context, redis radix.Client) ([]string, error) {
+	var keys []string
+	scanner := (radix.ScannerConfig{Command: "SCAN", Pattern: match.HashNameSlot + ":*", Count: 256}).New(redis)
+	for {
+		var key string
+		if !scanner.Next(ctx, &key) {
+			break
+		}
+		suffix := strings.TrimPrefix(key, match.HashNameSlot+":")
+		if _, err := strconv.ParseUint(suffix, 10, 32); err == nil {
+			keys = append(keys, key)
+		}
+	}
+	if err := scanner.Close(); err != nil {
+		return nil, err
+	}
+	sort.Strings(keys)
+	return keys, nil
 }
 
 func SpreadRead(out io.Writer, top string, sizeIDs []uint32) error {
@@ -346,7 +471,7 @@ func UpdatePubMap(c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp 
 	}
 	defer fh.Close()
 
-	scanner := bufio.NewScanner(fh)
+	scanner := newAttributeLogScanner(fh)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
@@ -368,4 +493,10 @@ func UpdatePubMap(c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp 
 		pubmap[acl.PubStr] = pub
 	}
 	return scanner.Err()
+}
+
+func newAttributeLogScanner(r io.Reader) *bufio.Scanner {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxAttributeLogLineBytes+1)
+	return scanner
 }

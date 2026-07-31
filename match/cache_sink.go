@@ -18,15 +18,20 @@ type CacheSink interface {
 }
 
 type RedisCacheSink struct {
-	Client radix.Client
+	Client    radix.Client
+	KeySuffix string
+}
+
+func (s RedisCacheSink) key(name string) string {
+	return name + s.KeySuffix
 }
 
 func (s RedisCacheSink) ResetRAdvs(ctx context.Context, sizeID uint32) error {
-	return s.Client.Do(ctx, radix.Cmd(nil, "DEL", HashNameRAdvs(sizeID)))
+	return s.Client.Do(ctx, radix.Cmd(nil, "DEL", s.key(HashNameRAdvs(sizeID))))
 }
 
 func (s RedisCacheSink) PutRAdvs(ctx context.Context, sizeID, slotID uint32, data []byte, _ bool) error {
-	return s.Client.Do(ctx, radix.Cmd(nil, "HSET", HashNameRAdvs(sizeID), strconv.FormatUint(uint64(slotID), 10), string(data)))
+	return s.Client.Do(ctx, radix.Cmd(nil, "HSET", s.key(HashNameRAdvs(sizeID)), strconv.FormatUint(uint64(slotID), 10), string(data)))
 }
 
 func (s RedisCacheSink) CleanupRAdvs(context.Context, uint32) error {
@@ -34,11 +39,11 @@ func (s RedisCacheSink) CleanupRAdvs(context.Context, uint32) error {
 }
 
 func (s RedisCacheSink) PutAudience(ctx context.Context, itemID uint32, data []byte) error {
-	return s.Client.Do(ctx, radix.Cmd(nil, "HSET", HashNameAudience, strconv.FormatUint(uint64(itemID), 10), string(data)))
+	return s.Client.Do(ctx, radix.Cmd(nil, "HSET", s.key(HashNameAudience), strconv.FormatUint(uint64(itemID), 10), string(data)))
 }
 
 func (s RedisCacheSink) PutCreative(ctx context.Context, creativeID uint32, data []byte) error {
-	return s.Client.Do(ctx, radix.Cmd(nil, "HSET", HashNameCreative, strconv.FormatUint(uint64(creativeID), 10), string(data)))
+	return s.Client.Do(ctx, radix.Cmd(nil, "HSET", s.key(HashNameCreative), strconv.FormatUint(uint64(creativeID), 10), string(data)))
 }
 
 type SpreadCacheSink struct {

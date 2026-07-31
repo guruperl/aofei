@@ -33,6 +33,8 @@ var read bool
 var cacheMode string
 var lockTTL time.Duration
 
+const redisCacheMutationLockKey = "aofei:redis-cache"
+
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
@@ -77,7 +79,7 @@ func main() {
 		}
 		return
 	}
-	lock, err := cmdboot.AcquireLock(ctx, redis, "aofei:redis-cache:"+cacheMode, lockTTL)
+	lock, err := cmdboot.AcquireLock(ctx, redis, cacheMutationLockKey(cacheMode), lockTTL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,4 +103,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func cacheMutationLockKey(string) string {
+	return redisCacheMutationLockKey
 }
