@@ -44,7 +44,8 @@ Out of scope:
   accounts.
 - Reintroducing the retired root config directory; active config templates and
   generated local configs live in `etc/`.
-- Treating historical files in `backup/` as active runtime inputs.
+- Reintroducing historical runtime, database, traffic, or geodata snapshots
+  under `backup/` or another tracked path.
 - Real MaxMind database payloads or production log directories.
 - External ad exchanges and OpenRTB traffic sources beyond local fixtures.
 - The Summer/Genelet source tree, templates, and static assets now owned by
@@ -96,7 +97,8 @@ maintained in [memory-bank/tech-stack.md](memory-bank/tech-stack.md).
   material into `etc/` or docs.
 - Keep generated local configs ignored: `etc/aofei.local.json` and
   `etc/summer.local.json`.
-- Treat `backup/` as historical reference only.
+- Keep `backup/` policy-only; operational backups belong in encrypted,
+  access-controlled storage outside Git.
 - Run the required verification before claiming a change is done.
 
 ## Work Cadence

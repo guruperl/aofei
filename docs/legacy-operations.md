@@ -70,8 +70,8 @@ to have it run at reboot.
 
 Chapter 3: Configuration
 
-3.1) pzutil/config historical examples are in backup/, product e.g. etc/aofei.local.json
-3.2) genet/config historical examples are in backup/, product e.g. etc/summer.local.json
+3.1) pzutil/config historical examples were removed from Git; current local examples are generated as etc/aofei.local.json
+3.2) genet/config historical examples were removed from Git; current local examples are generated as etc/summer.local.json
 
 
 Chapter 4: Run Test with the "gotest" database

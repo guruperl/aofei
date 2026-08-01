@@ -108,8 +108,10 @@ conventions are documented in `../pzdesign/docs/summer-ui-structure.md`.
 
 ## Schema Baseline Commands
 
-`etc/step4_init.sql` is the active schema and baseline-data contract. The local
-helper keeps schema stewardship commands under the same Docker workflow:
+`etc/step4_init.sql` is the active schema/reference-catalog contract;
+`etc/demand.sql` owns deterministic synthetic account and bid-path fixtures.
+The local helper keeps schema stewardship commands under the same Docker
+workflow:
 
 ```bash
 ./scripts/aofei-local.sh check-sql
@@ -288,7 +290,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -daily -timestamp=YYYY-MM-DD
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -read -json
-GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/exchange.example.test win
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/default win
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
 ```
 
@@ -339,7 +341,8 @@ GOWORK=off go test ./...
 ```
 
 `GOWORK=off go list ./...` should not include `github.com/guruperl/aofei/backup`;
-historical Go helpers in `backup/` carry the `ignore` build tag.
+`backup/` is policy-only; historical Go helpers and operational snapshots are
+not retained in Git.
 
 Runtime hardening checks:
 

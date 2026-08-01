@@ -6,14 +6,17 @@ The active local database baseline is:
 etc/step4_init.sql
 ```
 
-It was updated from the live database snapshot and then normalized for local
-Docker MySQL use.
+It contains the active schema and non-sensitive reference catalogs. Mutable
+development accounts and bid-path data are loaded separately from the fully
+synthetic `etc/demand.sql` fixture.
 
 ## Rules
 
 - `etc/step4_init.sql` must recreate the active local schema.
-- It should include tables, views, routines, triggers, and baseline data needed
-  by the local package.
+- It should include tables, views, routines, triggers, and non-sensitive
+  reference catalogs needed by the local package.
+- It must not contain account, campaign, publisher, ledger, login, traffic,
+  uploaded-media, production-derived, or personal records.
 - It must not contain explicit legacy MySQL definers.
 - It must not require or recreate legacy named MySQL users.
 - Tables use `utf8mb4` with `utf8mb4_0900_ai_ci` collation for the MySQL 8
@@ -34,10 +37,10 @@ Sample data can be added after the baseline:
 ./scripts/aofei-local.sh sample
 ```
 
-The sample loader checks for the default sample advertiser/campaign/item/creative
-instead of using a broad advertiser row count. If those sample records are
-already present, `etc/demand.sql` is skipped and the default publisher helper is
-still run.
+The sample loader checks the complete synthetic advertiser, publisher, admin,
+campaign, item, creative, site, and slot fixture instead of using broad table
+counts. It refuses a partial/conflicting fixture rather than overwriting local
+rows.
 
 Or together:
 
@@ -91,11 +94,14 @@ After `reset && load`, the expected inventory is:
 | Stored routines | 6 |
 | Triggers | 18 |
 | Events | 0 |
-| Advertisers | 1 |
-| Publishers | 14 |
+| Advertisers | 0 |
+| Publishers | 0 |
 | Advertiser bidder endpoints | 0 |
 
-Middleman AdX schema is present but starts empty. `adv_bidder` stores
+After `sample`, the expected local-only identities are `admin_local`,
+`advertiser@example.test`, and `publisher@example.test`; their documented
+development password is `local-demo-password`. Middleman AdX schema is present
+but starts empty. `adv_bidder` stores
 advertiser-owned OpenRTB endpoint metadata and optional synthetic
 campaign/item/creative reporting IDs. `mid_route_*` tables store
 operator-controlled fallback route configuration. `ledger_mid` and `daily_mid`

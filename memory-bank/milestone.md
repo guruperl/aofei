@@ -1276,6 +1276,42 @@ Result:
 - Deep review corrected the weighted-distribution test's bucket upper bounds,
   and all Aofei/pzdesign closeout gates pass under the documented toolchains.
 
+## M45 - Open-Source Security And Privacy Hygiene `[+]`
+
+Remove exposed credentials and production-derived data from both public
+repositories, make email disablement fail before account mutation, and prevent
+future repository leaks.
+
+Scope:
+
+- Disable compromised SMTP configuration and fail closed for public account
+  mail workflows while preserving login and authenticated portals.
+- Separate schema/reference catalogs from deterministic synthetic fixtures and
+  remove tracked backups, customer sources, captured traffic, and personal
+  deployment identifiers.
+- Rewrite every branch and tag in Aofei and pzdesign, then add full-history
+  Gitleaks and tracked-data gates.
+
+Acceptance:
+
+- No known credential, customer identifier, private path, or production-derived
+  payload remains in tracked files or reachable repository history.
+- Schema/load/cache/bid/admin checks pass against disposable Docker resources
+  without resetting the database used by w8m.com.
+- Existing deployed accounts still log in, while disabled registration and
+  password retrieval fail before writes.
+
+Result:
+
+- Summer account mail actions now require a complete SMTP block before model
+  mutation; the deployed block was removed and the service restarted.
+- The database baseline contains schema/reference catalogs only; one synthetic
+  fixture set owns documented local advertiser, publisher, and admin logins.
+- Historical backups and captured OpenRTB data were removed, customer DOCX
+  sources moved outside Git, and both repositories gained privacy/secret gates.
+- Every branch and tag was rewritten and independently verified before the
+  sanitized refs were published.
+
 ## Post-M25 Middleman Backlog
 
 These items remain intentionally outside M25:

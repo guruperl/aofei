@@ -50,6 +50,8 @@ GOWORK=off go vet ./...
 GOWORK=off staticcheck ./...
 GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
 ./scripts/aofei-doc-check.sh
+./scripts/aofei-public-data-check.sh
+gitleaks git --redact .
 git diff --check
 ```
 
@@ -86,9 +88,11 @@ The helper starts:
 - Redis `redis:7-alpine` on `127.0.0.1:6379`
 - NATS `nats:2-alpine` on `127.0.0.1:4222`
 
-`reset-sample` recreates the database, imports `etc/step4_init.sql`, and makes
-the sample publisher/demand state present. The sample demand import is
-idempotent against the current baseline.
+`reset-sample` recreates the database, imports the schema/reference-only
+`etc/step4_init.sql`, and loads the deterministic fixture in `etc/demand.sql`.
+The local-only logins are `admin_local`, `advertiser@example.test`, and
+`publisher@example.test`, all with password `local-demo-password`. Never copy
+these public development credentials into production.
 
 Stop the local services without deleting Docker volumes:
 
@@ -114,6 +118,8 @@ Install the package command binaries:
   面向系统运维与维护人员的中文手册，涵盖部署、缓存、作业、监控、
   故障处理、备份恢复和变更验证。
 - [AGENTS.md](AGENTS.md): bootstrap guide for agents working in this repo.
+- [SECURITY.md](SECURITY.md): private vulnerability reporting and repository
+  data-handling rules.
 - [memory-bank/](memory-bank/): active project source of truth.
 - [docs/local-docker-runtime.md](docs/local-docker-runtime.md): local Docker
   runtime commands and generated config notes.
@@ -163,7 +169,8 @@ Install the package command binaries:
   architecture note in Chinese.
 - [docs/legacy-operations.md](docs/legacy-operations.md): historical manual
   deployment notes retained for reference.
-- [backup/](backup/): historical files moved out of active runtime paths.
+- [backup/README.md](backup/README.md): policy prohibiting runtime snapshots,
+  database dumps, and third-party data in the repository.
 
 ## Development Notes
 

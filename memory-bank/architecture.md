@@ -14,7 +14,7 @@
 | `maxmind/` | Geo/IP lookup helpers and tests. |
 | `etc/` | Active SQL baseline, sample configs, generated local configs, samples, and data-load helper code. |
 | `scripts/` | Local Docker service helper scripts. |
-| `backup/` | Historical files moved out of active paths. |
+| `backup/` | Policy only; operational snapshots and third-party data stay outside Git. |
 | `docs/` | Stable long-form references. |
 | `memory-bank/` | Current product, architecture, tech stack, milestone, and status memory. |
 | `evolution/` | Versioned history of direction changes. |
@@ -247,10 +247,13 @@ cache.
 
 ## Database Boundary
 
-`etc/step4_init.sql` is the source-of-truth baseline for local MySQL. When Docker
-MySQL schema changes are intentionally made, export or otherwise update
-`etc/step4_init.sql` in the same change. The baseline must not contain explicit
-legacy definers or legacy named database auth references.
+`etc/step4_init.sql` is the source-of-truth schema and reference-catalog
+baseline for local MySQL. Mutable account, campaign, publisher, ledger, login,
+and traffic rows belong only in the synthetic `etc/demand.sql` fixture or in
+deployment-managed data. When Docker MySQL schema changes are intentionally
+made, export or otherwise update `etc/step4_init.sql` in the same change. The
+baseline must not contain explicit legacy definers, named database auth,
+production-derived records, or personal data.
 
 ## Known Architecture Gaps
 

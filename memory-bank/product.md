@@ -107,5 +107,6 @@ advertiser-owned endpoint and reporting schema boundary:
 - Using or documenting legacy named database credentials as active auth.
 - Building production deployment automation before local harness correctness is
   settled.
-- Treating moved historical files in `backup/` as active source inputs.
+- Reintroducing historical runtime, database, traffic, or geodata snapshots as
+  tracked source inputs.
 - Introducing a separate `ssp` account role for the v1 direct publisher path.

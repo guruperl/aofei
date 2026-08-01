@@ -25,9 +25,15 @@ Reset the database, load the active baseline, and add sample data:
 ./scripts/aofei-local.sh reset-sample
 ```
 
-`sample` checks for the default sample demand before importing
-`etc/demand.sql`, so it is deterministic after `load` even when the baseline
-already contains advertiser rows.
+`load` creates schema/reference catalogs with no accounts. `sample` loads the
+complete synthetic fixture from `etc/demand.sql`; a partial fixture is rejected
+instead of overwritten. The development-only advertiser, publisher, and admin
+password is `local-demo-password`.
+
+Never run destructive reset commands against a database used by a deployed
+service. On a host that also serves traffic, override every container, volume,
+port, database, and credential name and set `AOFEI_ALLOW_CUSTOM_DESTRUCTIVE=1`
+so verification uses disposable Docker resources.
 
 Show service and database status:
 

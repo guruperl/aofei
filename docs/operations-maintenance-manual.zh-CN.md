@@ -300,6 +300,8 @@ AOFEI=/etc/aofei/aofei.json \
 
 当前本地模式的活动基线为 `etc/step4_init.sql`。新环境先装入经评审的基线，再执行部署方管理的生产迁移。每次 schema 变更前：
 
+该基线只包含 schema 与非敏感参考目录，不包含广告主、流量方、登录、投放、账务、流量或上传文件记录。本地演示账户和竞价数据统一由完全合成的 `etc/demand.sql` 装入；公开开发密码不得用于生产。
+
 - 备份 MySQL；
 - 记录当前二进制版本和迁移版本；
 - 在具有代表数据的预发布库执行；
@@ -317,6 +319,8 @@ AOFEI=/etc/aofei/aofei.json \
 
 有意修改 schema 后，必须同步 `etc/step4_init.sql`、`etc/step5.notes`、数据库文档和相关 memory bank。基线不得包含显式旧 `DEFINER` 或旧 MySQL 账户。
 
+在同时承载线上网站的主机上，不得对线上数据库执行 `reset` 或 `reset-sample`。验证时必须为 MySQL、Redis、NATS 使用独立的容器名、卷、端口和数据库名，并设置 `AOFEI_ALLOW_CUSTOM_DESTRUCTIVE=1`。
+
 生产恢复不以“数据已导入”为结束。恢复 MySQL 后还必须重新编译 Redis/本地静态缓存，并完成 HTTP、管理 UI、竞价和账务 smoke。
 
 ### 9.2 MaxMind
@@ -333,6 +337,8 @@ AOFEI=/etc/aofei/aofei.json \
 ## 10. 安全检查
 
 - 生产密钥不进入代码库、MySQL、Redis、页面或工单明文；
+- 缺少完整 `Blks._gmail` 时，广告主和流量方注册、找回密码会在写库前返回“邮件服务暂时停用”；登录及已认证工作台不受影响。SMTP 凭据一旦泄漏，应先删除该配置并重启服务，再在供应商侧吊销凭据；
+- 提交前运行 `./scripts/aofei-public-data-check.sh` 与 `gitleaks git --redact .`，客户 DOCX、数据库/流量快照、运行日志、上传媒体和真实标识符不得进入 Git；
 - 管理 UI CORS 只允许 `ServerURL` 和明确列出的精确来源；
 - `/pz` 的预检虽然是无凭据宽松 CORS，但实际 `POST` 会在竞价前验证打包令牌和精确站点来源；
 - 只信任 `trusted_proxy_cidrs` 内代理提供的转发 IP；
@@ -417,7 +423,7 @@ AOFEI=/etc/aofei/aofei.json \
 4. `memory-bank/milestone.md`
 5. 当前里程碑对应的 `memory-bank/status-M*.md`
 
-任何改变当前运行配置、schema、缓存契约或运维流程的变更，都必须在同一变更中更新 memory bank 和相关文档。不要重新创建根级产品/架构/状态文档，也不要把 `backup/` 历史文件当运行输入。
+任何改变当前运行配置、schema、缓存契约或运维流程的变更，都必须在同一变更中更新 memory bank 和相关文档。不要重新创建根级产品/架构/状态文档；`backup/` 只保留策略说明，运行快照和第三方数据必须保存在 Git 之外的加密受控存储中。
 
 当前完整验证入口：
 

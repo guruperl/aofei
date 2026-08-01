@@ -119,6 +119,14 @@ win/loss markers expire at the signed timestamp's validity deadline, which may
 be up to the configured TTL plus the accepted five-minute future skew from the
 receiving worker's current time.
 
+Public advertiser and publisher registration/password-retrieval actions require
+a complete Summer `Blks._gmail` configuration. Removing that block is the
+supported emergency email-disable control: those submissions fail before
+account mutation with a maintenance error, while login and authenticated
+portals remain available. Revoke exposed SMTP credentials before considering a
+replacement; never preserve the old block in a rollback file beside the active
+configuration.
+
 Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
 When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
 `middleman_max_bidders_per_imp` deliberately. Set
@@ -487,6 +495,7 @@ otherwise Genelet cannot scan and verify the stored hash reliably.
 
 ## Historical Material
 
-[legacy-operations.md](legacy-operations.md) and `backup/` are historical-only.
+[legacy-operations.md](legacy-operations.md) is historical-only. `backup/`
+contains policy only; old runtime artifacts are intentionally absent from Git.
 Use them only as context when interpreting old deployments; do not use them as
 active setup instructions or as sources for credentials.
