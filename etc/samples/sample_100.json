@@ -1,0 +1,36 @@
+{
+  "id": "example-auction-100",
+  "imp": [
+    {
+      "id": "example-impression-100",
+      "native": {
+        "request": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":100}},{\"id\":2,\"required\":1,\"img\":{\"type\":1,\"wmin\":100,\"hmin\":100}}]}}",
+        "ver": "1.1"
+      },
+      "tagid": "defaultSlot",
+      "bidfloor": 0.01,
+      "bidfloorcur": "USD",
+      "secure": 1
+    }
+  ],
+  "app": {"id": "example-app", "bundle": "com.example.publisher"},
+  "device": {
+    "ua": "Aofei-OpenRTB-Sample/1.0",
+    "geo": {"country": "USA"},
+    "lmt": 1,
+    "ip": "192.0.2.10",
+    "devicetype": 1,
+    "make": "Example",
+    "model": "Test Device",
+    "os": "Other",
+    "osv": "1.0",
+    "connectiontype": 2,
+    "ifa": "00000000-0000-0000-0000-000000000000"
+  },
+  "user": {"id": "example-user", "gender": "O"},
+  "test": 1,
+  "at": 1,
+  "tmax": 700,
+  "cur": ["USD"],
+  "ext": {"request_domain": "default", "x-openrtb-version": "2.5"}
+}

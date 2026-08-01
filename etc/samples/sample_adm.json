@@ -1,0 +1,28 @@
+{
+  "native": {
+    "ver": "1.1",
+    "assets": [
+      {
+        "id": 1,
+        "required": 1,
+        "title": {"text": "Example native advertisement"}
+      },
+      {
+        "id": 2,
+        "required": 1,
+        "img": {
+          "type": 1,
+          "url": "https://cdn.example.test/native-icon-64.png",
+          "w": 64,
+          "h": 64
+        }
+      }
+    ],
+    "link": {
+      "url": "https://advertiser.example.test/landing?click=example",
+      "clicktrackers": ["https://tracking.example.test/click/example-auction-001"],
+      "fallback": "https://advertiser.example.test/fallback"
+    },
+    "imptrackers": ["https://tracking.example.test/impression/example-auction-001"]
+  }
+}

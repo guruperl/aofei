@@ -1,0 +1,8 @@
+Synthetic OpenRTB response reference
+
+- All auction, campaign, creative, and seat identifiers are fabricated.
+- Every hostname uses the reserved `.example.test` namespace.
+- `${AUCTION_*}` values demonstrate OpenRTB notification macros.
+- The native markup is intentionally small and contains no captured traffic.
+
+The machine-readable fixture is `sample_resp.json`.

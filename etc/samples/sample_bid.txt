@@ -1,0 +1,10 @@
+Synthetic OpenRTB request reference
+
+- `id` and `imp[].id` are fabricated auction identifiers.
+- `app.bundle` is the reserved sample bundle `com.example.publisher`.
+- `imp[].tagid` resolves to the local `defaultSlot` fixture.
+- `device.ip` uses the RFC 5737 documentation range and must not be treated as
+  a real user address.
+- `ext.request_domain` selects the synthetic `default` publisher.
+
+The machine-readable fixture is `sample_bid.json`.

@@ -1,0 +1,31 @@
+{
+  "id": "example-auction-001",
+  "seatbid": [
+    {
+      "bid": [
+        {
+          "id": "example-bid-001",
+          "impid": "example-impression-001",
+          "price": 0.5,
+          "nurl": "https://exchange.example.test/ad/win?auction_id=${AUCTION_ID}&auction_price=${AUCTION_PRICE}",
+          "lurl": "https://exchange.example.test/ad/loss?auction_id=${AUCTION_ID}&auction_loss=${AUCTION_LOSS}",
+          "adm": "{\"native\":{\"ver\":\"1.1\",\"assets\":[{\"id\":1,\"title\":{\"text\":\"Example native advertisement\"}},{\"id\":2,\"img\":{\"type\":1,\"url\":\"https://cdn.example.test/native-icon-64.png\",\"w\":64,\"h\":64}}],\"link\":{\"url\":\"https://advertiser.example.test/landing\"},\"imptrackers\":[\"https://tracking.example.test/impression/example-auction-001\"]}}",
+          "adid": "example-ad-001",
+          "bundle": "com.example.advertiser",
+          "iurl": "https://cdn.example.test/native-icon-64.png",
+          "cid": "example-campaign-001",
+          "crid": "example-creative-001",
+          "cat": ["IAB1"],
+          "w": 64,
+          "h": 64,
+          "exp": 3600
+        }
+      ],
+      "seat": "example-seat",
+      "group": 0
+    }
+  ],
+  "bidid": "example-bid-001",
+  "cur": "USD",
+  "ext": {"adtype": 2, "request_domain": "default", "x-openrtb-version": "2.5"}
+}

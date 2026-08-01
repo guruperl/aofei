@@ -1,0 +1,17 @@
+{
+  "remote_ip": "192.0.2.20",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "method": "GET",
+  "path": "/ad/win",
+  "query": {
+    "auction_bid_id": "example-bid-001",
+    "auction_imp_id": "example-impression-001",
+    "auction_price": "0.50",
+    "auction_currency": "USD",
+    "supply": "example-supply",
+    "demand": "example-demand",
+    "exp": "3600"
+  },
+  "status": 200,
+  "host": "exchange.example.test"
+}
