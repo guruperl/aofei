@@ -1,8 +1,8 @@
 # Step 5: local Docker runtime after step4_init.sql
 
-`step4_init.sql` is the active baseline dump. It is based on the live `aofei`
-snapshot and has been sanitized so Docker MySQL does not require the historical
-`eightran_*` database users or dump definers.
+`step4_init.sql` is the active schema and reference-catalog baseline. It does
+not contain production accounts, business activity, login history, traffic, or
+uploaded-media metadata.
 
 ## 1) Start local infrastructure
 
@@ -47,10 +47,9 @@ For a one-shot reset with sample helpers:
 scripts/aofei-local.sh reset-sample
 ```
 
-`sample` only imports `etc/demand.sql` when the default sample
-advertiser/campaign/item/creative set is missing. The current
-`step4_init.sql` already includes those sample demand rows, so this usually just
-ensures the default publisher exists.
+`sample` imports `etc/demand.sql` only when the complete synthetic advertiser,
+publisher, admin, campaign, item, creative, site, and slot set is absent. A
+partial/conflicting fixture fails rather than overwriting local rows.
 
 ## 3) Steward the schema baseline
 
@@ -115,5 +114,5 @@ export SUMMER=$PWD/etc/summer.local.json
 ```
 
 Then run the relevant commands directly with `go run` or installed binaries.
-The old systemd service examples and pre-step4 migration files are historical
-material and have been moved to `backup/`.
+Historical service examples, migrations, runtime configurations, and database
+dumps are intentionally not retained in this repository.

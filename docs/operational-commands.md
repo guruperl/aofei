@@ -283,7 +283,7 @@ Invocation:
 
 ```bash
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
-  go run ./cmd/winloss --bid=/bid/exchange.example.test win
+  go run ./cmd/winloss --bid=/bid/default win
 ```
 
 Modes:

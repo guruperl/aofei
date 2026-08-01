@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const smokePublisherDomain = "exchange.example.test"
+const smokePublisherDomain = "default"
 
 func TestServeBidSmoke(t *testing.T) {
 	controller := newSmokeController(t)

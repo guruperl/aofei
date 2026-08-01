@@ -448,24 +448,55 @@ SELECT COUNT(*)
 FROM adv a
 WHERE a.adv_id = 1
   AND a.email = 'advertiser@example.test'
-  AND a.domain = 'default'
+  AND a.domain = 'advertiser.example.test'
   AND EXISTS (
     SELECT 1 FROM adv_campaign c
-    WHERE c.adv_id = a.adv_id AND c.campaign_name = 'camp 001'
+    WHERE c.adv_id = a.adv_id AND c.campaign_name = 'Example App Campaign'
   )
   AND EXISTS (
     SELECT 1 FROM adv_item i
     JOIN adv_campaign c ON c.campaign_id = i.campaign_id
-    WHERE c.adv_id = a.adv_id AND i.item_name IN ('default', 'defaultItem1')
+    WHERE c.adv_id = a.adv_id AND i.item_name = 'Example App Ad Group'
   )
   AND EXISTS (
     SELECT 1 FROM adv_creative cr
     JOIN adv_item i ON i.item_id = cr.item_id
     JOIN adv_campaign c ON c.campaign_id = i.campaign_id
-    WHERE c.adv_id = a.adv_id AND cr.creative_name = 'creative 001'
+    WHERE c.adv_id = a.adv_id AND cr.creative_name = 'Example App Creative'
+  )
+  AND EXISTS (
+    SELECT 1 FROM admin
+    WHERE admin_id = 1 AND login = 'admin_local'
+  )
+  AND EXISTS (
+    SELECT 1 FROM pub p
+    JOIN pub_site s ON s.pub_id = p.pub_id
+    JOIN pub_slot t ON t.site_id = s.site_id
+    WHERE p.pub_id = 2
+      AND p.email = 'publisher@example.test'
+      AND p.domain = 'default'
+      AND s.foreign_id = 'com.example.publisher'
+      AND t.slot_name = 'defaultSlot'
   );
 " 2>/dev/null || printf '0')"
 	if [ "$sample_count" = "0" ]; then
+		local sample_conflicts
+		sample_conflicts="$(mysql_root --database="$DB_NAME" -N -B -e "
+SELECT
+  (SELECT COUNT(*) FROM admin WHERE admin_id = 1 OR login = 'admin_local') +
+  (SELECT COUNT(*) FROM adv WHERE adv_id = 1 OR email = 'advertiser@example.test') +
+  (SELECT COUNT(*) FROM pub WHERE pub_id = 2 OR email = 'publisher@example.test') +
+  (SELECT COUNT(*) FROM adv_campaign WHERE campaign_id IN (1, 2)) +
+  (SELECT COUNT(*) FROM adv_item WHERE item_id IN (1, 2)) +
+  (SELECT COUNT(*) FROM adv_creative WHERE creative_id IN (1, 2)) +
+  (SELECT COUNT(*) FROM pub_site WHERE site_id IN (1, 2)) +
+  (SELECT COUNT(*) FROM pub_slot WHERE slot_id IN (1, 2));
+" 2>/dev/null || printf '0')"
+		if [ "$sample_conflicts" != "0" ]; then
+			echo "The synthetic sample fixture is incomplete or conflicts with existing local rows." >&2
+			echo "Use './scripts/aofei-local.sh reset-sample' on a disposable local target instead of overwriting data." >&2
+			return 1
+		fi
 		mysql_root --database="$DB_NAME" <"$ROOT/etc/demand.sql"
 	else
 		echo "Skipping etc/demand.sql because the default sample demand is already present."

@@ -38,7 +38,7 @@ Goal: Add a reliable local proof that the DSP request path still works.
 - `[+]` Add a smoke test for valid bid request handling.
   - Files: `dsp/dsp_test.go` or a new focused test file under `dsp/`.
   - Result: `TestServeBidSmoke` reads `etc/samples/sample_bid.json`, clears
-    `device.ip`, sets path domain `exchange.example.test`, and asserts a
+    `device.ip`, sets path domain `default`, and asserts a
     valid OpenRTB bid response.
 
 - `[+]` Add a smoke test for config loading.

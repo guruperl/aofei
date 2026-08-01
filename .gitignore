@@ -12,3 +12,4 @@ etc/qq-pz.dat
 etc/aofei.local.json
 etc/summer.local.json
 .local/
+docs/*.docx

@@ -40,7 +40,7 @@ var lockTTL time.Duration
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
-	flag.StringVar(&address, "bid", "/bid/exchange.example.test", "bid url")
+	flag.StringVar(&address, "bid", "/bid/default", "bid url")
 	flag.BoolVar(&allowConcurrent, "allow-concurrent", false, "skip singleton lock for intentional load testing")
 	flag.DurationVar(&lockTTL, "lock-ttl", 30*time.Minute, "singleton lock TTL")
 }
@@ -268,7 +268,7 @@ var jsonBid = []byte(`
         "USD"
     ],
     "ext": {
-        "request_domain": "exchange.example.test",
+        "request_domain": "default",
         "x-openrtb-version": "2.5"
     }
 }`)
