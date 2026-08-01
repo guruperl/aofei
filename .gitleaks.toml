@@ -9,4 +9,6 @@ paths = [
   '''(^|/)\.local/''',
   '''^etc/aofei\.local\.json$''',
   '''^etc/summer\.local\.json$''',
+  '''^bootstrap/assets/js/docs\.min\.js$''',
+  '''^bootstrap/assets/js/src/application\.js$''',
 ]
