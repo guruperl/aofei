@@ -33,6 +33,12 @@ jobs:
           GOWORK=off "$(go env GOPATH)/bin/staticcheck" ./...
       - name: Documentation
         run: ./scripts/aofei-doc-check.sh
+      - name: Public data
+        run: ./scripts/aofei-public-data-check.sh
+      - name: Install Gitleaks
+        run: GOWORK=off go install github.com/zricethezav/gitleaks/v8@v8.30.1
+      - name: Secret history
+        run: "$(go env GOPATH)/bin/gitleaks" git --redact --no-banner .
       - name: Committed diff hygiene
         env:
           EVENT_NAME: ${{ github.event_name }}

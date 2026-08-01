@@ -1,0 +1,12 @@
+title = "Aofei secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignored local runtime material is never part of a repository checkout"
+paths = [
+  '''(^|/)\.local/''',
+  '''^etc/aofei\.local\.json$''',
+  '''^etc/summer\.local\.json$''',
+]
