@@ -19,7 +19,7 @@ check_pattern "AWS access-key identifiers" 'A(KIA|SIA)[0-9A-Z]{16}'
 check_pattern "private key material" 'BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY'
 check_pattern "a private home path" '/home/'peter
 check_pattern "customer email domains" 'kinet'"\\.com"
-check_pattern "retired customer exchange domains" 'leadsadx'"-trade\\.com|example-dsp|example-ad"
+check_pattern "retired customer exchange domains" 'leadsadx'"-trade\\.com|leads"'dsp|pine'"mobi"
 check_pattern "customer account identifiers" 'peter_'"00[0-9]"
 
 if git ls-files '*.docx' | grep -q .; then
