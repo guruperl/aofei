@@ -13,8 +13,8 @@
 
 生产依赖：
 
-- MySQL：账户、库存、投放、路由配置和账务的事实来源；
-- Redis：共享可变状态、Redis 模式静态缓存、中间商路由与回调上下文；
+- MySQL：账户、流量资源、投放、路由配置和账务的事实来源；
+- Redis：共享可变状态、Redis 模式静态缓存、外部需求方（内部名 `middleman`）路由与回调上下文；
 - NATS：尽力而为的审计日志传输和可选 spread 缓存分发；
 - 外部 GeoLite2 City `.mmdb`：IP 地理信息；
 - 持久化日志、上传和 spread 目录。
@@ -25,11 +25,11 @@
 
 | 节点/职责 | 进程或任务 | 约束 |
 |---|---|---|
-| HTTP/UI/ADX 节点 | `unify` | 每个 HTTP 节点运行；处理管理 UI、`/bid`、`/pz`、测量和中间商回调。 |
+| HTTP/UI/ADX 节点 | `unify` | 每个 HTTP 节点运行；处理管理 UI、`/bid`、`/pz`、测量和外部需求方回调。 |
 | 日志写入/聚合节点 | `nats-client` | 将 NATS 日志写成时间片文件。建议完整 win/loss 流汇聚到一个账务节点。 |
 | 缓存维护节点 | `redis-cache` 定时任务 | 只能单例运行，不能在每台 HTTP 节点分别刷新。 |
 | 账务聚合节点 | `ledger` 时间片和每日任务 | 只能在拥有完整 `log_winloss` 流的节点运行。 |
-| 中间商重试节点 | `mid-callback-retry` 定时任务 | 单例运行；只转发下游回调，不重复发布账务事件。 |
+| 外部需求方回调重试节点 | `mid-callback-retry` 定时任务 | 单例运行；只转发下游回调，不重复发布账务事件。 |
 | 本地静态缓存节点 | `spread` | 仅在采用 spread/local 静态缓存的节点运行。 |
 | 维护节点 | `maxmind`、`winloss` | MaxMind 可定时或人工执行；win/loss 模拟器只用于测试。 |
 
@@ -73,14 +73,14 @@ SUMMER=/etc/aofei/summer.json
 
 其他 Aofei 命令读取 `AOFEI`。DSP 配置使用小写 JSON 字段，Summer/Genelet 配置使用首字母大写字段；不能混用。仓库中的 `etc/aofei.json` 和 `etc/summer.example.json` 只是示例，本地生成的 `etc/*.local.json` 也不能原样复制到生产。
 
-不得提交数据库密码、Redis/NATS 凭据、SMTP 凭据、Session/OAuth 密钥、云密钥、跟踪密钥或真实中间商请求头。建议由部署系统或 root 拥有的环境文件注入。
+不得提交数据库密码、Redis/NATS 凭据、SMTP 凭据、Session/OAuth 密钥、云密钥、跟踪密钥或真实外部需求方请求头。建议由部署系统或 root 拥有的环境文件注入。
 
 重点配置：
 
-- `tracking_secret` 或环境变量 `TRACKING_SECRET`：签名 win/loss、展示、点击重定向和中间商回调；生产必须设置稳定且受保护的值；
+- `tracking_secret` 或环境变量 `TRACKING_SECRET`：签名 win/loss、展示、点击重定向和外部需求方回调；生产必须设置稳定且受保护的值；
 - `tracking_signature_ttl_seconds`：签名有效期，默认 86400 秒；接收端还接受最多 5 分钟未来时钟偏差；
 - `cap_state_ttl_seconds`：用户频控状态空闲 TTL，默认 90 天；更新不会缩短更长的现有 TTL；
-- `middleman_enabled`：中间商总开关；
+- `middleman_enabled`：外部 DSP / ADX 需求方竞价总开关；
 - `middleman_always_enabled`：`Always` 路由独立开关，默认关闭；
 - `middleman_exchange_domain`、`middleman_timeout_ms`、`middleman_max_bidders_per_imp`：转发身份与预算；
 - `middleman_route_cache_ttl_ms`：HTTP 进程内路由快照/错误缓存时间，默认 5 秒；
@@ -165,7 +165,7 @@ sudo systemctl status aofei-unify.service
 - `/debug/vars` 可抓取且关键计数器没有异常跳升；
 - Redis 静态缓存和路由生成时间正确；
 - NATS 日志开始写入；
-- 中间商重试与账务定时器仅在指定单例节点运行。
+- 外部需求方回调重试与账务定时器仅在指定单例节点运行。
 
 发生启动失败、持续竞价错误、缓存反序列化错误或账务写入错误时，恢复上一版本二进制并重启同一组服务。数据库变更必须使用预先准备的逆向方案或备份恢复，不能只回滚二进制。
 
@@ -184,10 +184,10 @@ AOFEI=/etc/aofei/aofei.json \
 
 | 模式 | 用途 |
 |---|---|
-| `-cache=redis` | 重建 Redis 全部静态缓存和中间商路由。 |
+| `-cache=redis` | 重建 Redis 全部静态缓存和外部需求方路由。 |
 | `-cache=spread` | 通过 NATS 发布 spread/local 静态快照。 |
 | `-cache=all` | 同时执行 spread 和 Redis 发布。 |
-| `-cache=routes` | 只刷新中间商路由，不改其他缓存族。 |
+| `-cache=routes` | 只刷新外部需求方路由，不改其他缓存族。 |
 | `-cache=routes -read` | 只读路由 JSON 与元数据，不取得写锁。 |
 
 关键 Redis 静态缓存族：
@@ -204,7 +204,7 @@ middleman:routes
 
 `middleman:routes:v2` 是当前优先格式；旧 `middleman:routes` 仅用于滚动发布兼容。管理 UI 中路由组、路由竞价方或目标的编辑只写 MySQL，不会自动刷新 Redis。编辑后必须在单例缓存节点运行完整或 route-only 刷新，并等待各 HTTP 进程的短期路由快照过期。
 
-路由刷新失败时，HTTP 进程会在短时间内缓存错误并禁用中间商 fanout，不会继续使用过期路由授权流量；本地已有赢家仍按正常规则保留。即使取消了发起刷新请求的客户端，共享加载也使用独立超时继续服务其他等待者。
+路由刷新失败时，HTTP 进程会在短时间内缓存错误并禁用外部需求方扇出，不会继续使用过期路由授权流量；本地已有赢家仍按正常规则保留。即使取消了发起刷新请求的客户端，共享加载也使用独立超时继续服务其他等待者。
 
 以下 Redis 数据是共享可变状态，静态缓存维护不能误删：
 
@@ -229,11 +229,11 @@ middleman:bill:<token>
 <spread>/slot/<size_id>/
 ```
 
-DSP 在启动时把这些文件载入内存，热请求不读取文件系统。后续必须通过显式重载钩子加载新快照，或按发布流程重启节点。中间商路由仍是 Redis-only；即使本地静态投放不依赖 Redis，启用中间商的节点仍需 Redis。
+DSP 在启动时把这些文件载入内存，热请求不读取文件系统。后续必须通过显式重载钩子加载新快照，或按发布流程重启节点。外部需求方路由仍是 Redis-only；即使本地静态投放不依赖 Redis，启用外部需求方竞价的节点仍需 Redis。
 
 本地缓存过旧不会自动停止竞价。必须监控缓存年龄和 stale 指标，并在告警后重载或重启受影响节点。
 
-## 8. 日志、账务与中间商重试
+## 8. 日志、账务与外部需求方回调重试
 
 ### 8.1 NATS 日志写入
 
@@ -273,7 +273,7 @@ AOFEI=/etc/aofei/aofei.json \
 
 必须等相应日志轮转窗口关闭后再跑时间片任务，并在当天所有时间片完成后跑每日任务。缺少 `winloss.<stamp>` 是可重试输入错误，不是“零数据成功”。常规账务以 `StatusTrackImp` 作为展示和花费、`StatusTrackClk` 作为点击；裸 win/loss 只是分析事件。
 
-### 8.3 中间商回调重试
+### 8.3 外部需求方回调重试
 
 只读检查和稳定 JSON 摘要：
 
@@ -336,7 +336,7 @@ AOFEI=/etc/aofei/aofei.json \
 - `/pz` 的预检虽然是无凭据宽松 CORS，但实际 `POST` 会在竞价前验证打包令牌和精确站点来源；
 - 只信任 `trusted_proxy_cidrs` 内代理提供的转发 IP；
 - 静态路径会清理并限制在 `DocumentRoot` 内，上传目录保持非公开；
-- 中间商回调出口保留 SSRF/DNS 重绑定防护，不以网络便利为由关闭；
+- 外部需求方回调出口保留 SSRF/DNS 重绑定防护，不以网络便利为由关闭；
 - 老旧 SHA1 账户密码上线前全部重置；
 - 配置、模板、GeoIP 和二进制使用版本化发布物并校验来源。
 
@@ -353,8 +353,8 @@ AOFEI=/etc/aofei/aofei.json \
 | `aofei_tracking_cap_update_fail_open_total` | 合法展示/点击已发布，但频控更新失败。 |
 | `aofei_tracking_replay_fail_open_total` | 重复控制不可用时接受的事件；注意至少一次计量风险。 |
 | `aofei_bothcap_refresh_conflicts_total` | 频控并发冲突；持续上升时检查 Redis 延迟和热点用户。 |
-| 中间商 route cache hit/miss/refresh/error | refresh error 会暂时禁用 fanout，且不会复用过期路由。 |
-| 中间商回调转发结果与 retry `due` | 检查下游端点、网络、429/5xx 和任务吞吐。 |
+| 外部需求方 route cache hit/miss/refresh/error | refresh error 会暂时禁用扇出，且不会复用过期路由。 |
+| 外部需求方回调转发结果与 retry `due` | 检查下游端点、网络、429/5xx 和任务吞吐。 |
 | `aofei_local_cache_loaded_at_unix`、`aofei_local_cache_age_seconds`、`aofei_local_cache_stale` | 本地静态缓存年龄；stale 时重载或重启。 |
 | `aofei_ssp_policy_rejections_total` | `/pz` 来源策略拒绝；结合 403 访问日志检查站点主机和代理。 |
 
@@ -368,7 +368,7 @@ AOFEI=/etc/aofei/aofei.json \
 2. 检查 `unify` 健康、错误日志和 `/debug/vars`。
 3. 检查 `pubmap`/`pubmap:by-id`、`slot:*`、`audience`、`creative` 是否属于当前世代。
 4. 检查活动时间、预算、状态、币种、尺寸、ACL、行业和人群定向。
-5. 中间商流量检查总开关、Always 开关、路由健康、凭据引用、路由缓存生成时间和刷新错误。
+5. 外部需求方流量检查总开关、Always 开关、路由健康、凭据引用、路由缓存生成时间和刷新错误。
 6. local/spread 模式检查缓存年龄及节点是否完成重载。
 
 ### 12.2 `/pz` 大量 `400` 或 `403`
@@ -383,7 +383,7 @@ AOFEI=/etc/aofei/aofei.json \
 - 静态 Redis 模式可能失去 publisher、candidate、audience 和 creative 读取；
 - local/spread 模式中不使用频控或上传人群的本地投放可继续，但需要这些共享可变状态的候选会 fail-closed；
 - 合法 `/imp`、`/clk` 的重复 claim 或 cap Redis 错误会 fail-open 并继续发布，计量可能至少一次；
-- 中间商依赖 Redis 路由和回调上下文，即使本地静态缓存可用也会受影响；
+- 外部需求方竞价依赖 Redis 路由和回调上下文，即使本地静态缓存可用也会受影响；
 - Redis 恢复或 failover 后重新发布静态缓存，且不要清除仍需保留的频控/上传/回调键族。
 
 ### 12.4 NATS 或日志故障
@@ -395,10 +395,10 @@ AOFEI=/etc/aofei/aofei.json \
 - 确认完整 `winloss.<stamp>` 已汇聚到唯一账务节点；
 - 不要把缺失文件当零流量；恢复输入后用明确 `-timestamp` 重跑；
 - 确认时间片已结束且每日任务在全部时间片之后；
-- 中间商报表同时检查 `ledger_mid`/`daily_mid` 和回调重试状态；
+- 外部需求方报表同时检查 `ledger_mid`/`daily_mid` 和回调重试状态；
 - 执行任何重放前确认任务自身的事务与单例锁，并保留原始日志备份。
 
-### 12.6 中间商路由修改未生效
+### 12.6 外部需求方路由修改未生效
 
 1. 在管理 UI `midroute?action=health` 检查无 target、无 bidder、竞价方未启用、凭据未批准或合成链非法等问题。
 2. 使用 `redis-cache -cache=routes -read` 比较 Redis 元数据与 MySQL 高水位时间。
@@ -444,14 +444,14 @@ CI 使用 Go 1.23.5 和 staticcheck v0.5.1，并检查 push 或 pull request 的
 
 ## 14. 备份、恢复与值班交接
 
-生产至少备份 MySQL、配置密文来源、上传资产、原始日志、部署清单和版本化二进制。Redis 静态缓存可从 MySQL 重建，但频控、上传人群和短期中间商状态是否需要持久化，必须由部署的 Redis 持久化与恢复策略明确决定。NATS Core 日志是尽力传输，不能当作唯一耐久备份。
+生产至少备份 MySQL、配置密文来源、上传资产、原始日志、部署清单和版本化二进制。Redis 静态缓存可从 MySQL 重建，但频控、上传人群和短期外部需求方状态是否需要持久化，必须由部署的 Redis 持久化与恢复策略明确决定。NATS Core 日志是尽力传输，不能当作唯一耐久备份。
 
 恢复演练应在非生产环境定期执行，并覆盖：
 
 - 恢复 MySQL 后的 schema/数据检查；
 - Redis 全量缓存重建和路由检查；
 - 本地 spread 快照重发、节点重载或重启；
-- 管理登录、DSP `/bid`、媒体 `/pz`、跟踪和中间商回调 smoke；
+- 管理登录、DSP `/bid`、流量方 `/pz`、跟踪和外部需求方回调 smoke；
 - 日志时间片、账务重放和报表核对；
 - 上一版本二进制回滚。
 
@@ -467,6 +467,6 @@ CI 使用 Go 1.23.5 和 staticcheck v0.5.1，并检查 push 或 pull request 的
 - [MaxMind 运行资产](maxmind-runtime.md)
 - [DSP 工作流](dsp-workflow.md)
 - [测量与账务](openrtb-measurement.md)
-- [直连媒体协议](ssp-direct-traffic.md)
-- [中间商 AdX](middleman-adx.md)
+- [流量方直连接入协议](ssp-direct-traffic.md)
+- [外部 DSP / ADX 需求方接入](middleman-adx.md)
 - [Genelet 框架运行约定](../../pzdesign/docs/genelet-manual.md)

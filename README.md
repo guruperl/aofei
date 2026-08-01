@@ -105,11 +105,11 @@ Install the package command binaries:
 ## Repository Map
 
 - [docs/advertiser-dsp-agent-manual.zh-CN.md](docs/advertiser-dsp-agent-manual.zh-CN.md):
-  面向广告主与 DSP 代理的中文投放手册，涵盖活动、项目、素材、定向、
-  计量和中间商竞价端点。
+  面向广告主与代理商的中文投放手册，涵盖广告活动、广告组、广告素材、
+  定向、计量和外部 DSP / ADX 需求方竞价端点。
 - [docs/publisher-manual.zh-CN.md](docs/publisher-manual.zh-CN.md):
-  面向媒体主的中文接入手册，涵盖站点、广告位、网页标签、SDK/API、
-  来源校验、报表和排障。
+  面向流量方（发布商）的中文接入手册，涵盖网站/App、广告位、网页标签、
+  SDK/API、来源校验、报表和排障。
 - [docs/operations-maintenance-manual.zh-CN.md](docs/operations-maintenance-manual.zh-CN.md):
   面向系统运维与维护人员的中文手册，涵盖部署、缓存、作业、监控、
   故障处理、备份恢复和变更验证。
