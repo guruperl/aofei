@@ -38,7 +38,7 @@ if git ls-files 'backup/*' | grep -vFx 'backup/README.md' | grep -q .; then
 fi
 
 mutable_tables='add_address|admin|adv|adv_balance|adv_campaign|adv_creative|adv_ip|adv_item|adv_media|cron_halfhour|ledger_adv|ledger_log|ledger_pub_adv|ledger_pub|pub|pub_site|pub_slot'
-if rg -n "^INSERT INTO \`(${mutable_tables})\`" etc/step4_init.sql; then
+if grep -En "^INSERT INTO \`(${mutable_tables})\`" etc/step4_init.sql; then
 	echo "public-data-check: the schema baseline contains mutable business rows" >&2
 	failed=1
 fi

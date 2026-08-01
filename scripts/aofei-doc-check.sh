@@ -16,7 +16,11 @@ run_rg() {
 	shift
 
 	set +e
-	rg -n -- "$pattern" "$@"
+	if command -v rg >/dev/null 2>&1; then
+		rg -n -- "$pattern" "$@"
+	else
+		grep -En -- "$pattern" "$@"
+	fi
 	local status=$?
 	set -e
 

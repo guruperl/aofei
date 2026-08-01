@@ -385,9 +385,9 @@ requests check merge-base-to-head and pushes check event `before`-to-`after`,
 with an empty-tree fallback for initial history. The local closeout command
 remains `git diff --check` so uncommitted whitespace is also covered. The
 sibling pzdesign
-workflow checks out public Aofei beside its own checkout to satisfy
-`replace github.com/guruperl/aofei => ../aofei`. That checkout is pinned to an
-explicit reviewed Aofei commit and must be bumped intentionally when pzdesign
+workflow checks out public Aofei and Genelet beside its own checkout to satisfy
+the sibling `replace` directives. Both checkouts are pinned to explicit
+reviewed commits and must be bumped intentionally when pzdesign
 adopts a new revision. The workflow then runs tests, the `cmd/unify` race test,
 vet, staticcheck with the documented legacy style exclusions, and both
 template parsers. Both workflows use Go 1.23.5 and staticcheck v0.5.1. Docker smoke,
