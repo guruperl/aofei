@@ -104,6 +104,15 @@ Install the package command binaries:
 
 ## Repository Map
 
+- [docs/advertiser-dsp-agent-manual.zh-CN.md](docs/advertiser-dsp-agent-manual.zh-CN.md):
+  面向广告主与 DSP 代理的中文投放手册，涵盖活动、项目、素材、定向、
+  计量和中间商竞价端点。
+- [docs/publisher-manual.zh-CN.md](docs/publisher-manual.zh-CN.md):
+  面向媒体主的中文接入手册，涵盖站点、广告位、网页标签、SDK/API、
+  来源校验、报表和排障。
+- [docs/operations-maintenance-manual.zh-CN.md](docs/operations-maintenance-manual.zh-CN.md):
+  面向系统运维与维护人员的中文手册，涵盖部署、缓存、作业、监控、
+  故障处理、备份恢复和变更验证。
 - [AGENTS.md](AGENTS.md): bootstrap guide for agents working in this repo.
 - [memory-bank/](memory-bank/): active project source of truth.
 - [docs/local-docker-runtime.md](docs/local-docker-runtime.md): local Docker
