@@ -278,4 +278,5 @@ legacy definers or legacy named database auth references.
   continue to use narrow allowlists for any interpolated identifiers.
 - Summer/Genelet admin auth verifies stored bcrypt password hashes through the
   `Password_hash` issuer field. SHA1-era credentials are legacy data that must
-  be reset before production use.
+  be reset before production use. Direct SQL issuers declare ordered `OutPars`
+  matching every selected column, including the password-hash column.

@@ -481,7 +481,9 @@ read-only deployed copy. Static UI assets should be served from the matching
 
 Current Summer admin and user flows verify stored bcrypt password hashes through
 Genelet's `Password_hash` issuer field. Existing SHA1-era credentials must be
-reset before production use.
+reset before production use. Each direct SQL issuer must also define `OutPars`
+in the exact order of its selected columns, including the `passwd` column;
+otherwise Genelet cannot scan and verify the stored hash reliably.
 
 ## Historical Material
 

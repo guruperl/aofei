@@ -86,7 +86,8 @@ SUMMER=/etc/aofei/summer.json
 - `middleman_route_cache_ttl_ms`：HTTP 进程内路由快照/错误缓存时间，默认 5 秒；
 - `middleman_callback_base_url`、回调 TTL 和回调超时：代理回调的公网地址和生命周期；
 - `trusted_proxy_cidrs`：仅列出真正受控的反向代理；否则客户端可伪造 IP；
-- Summer `ServerURL` 与 `CORSOrigins`：管理 UI 仅允许完全匹配的来源。
+- Summer `ServerURL` 与 `CORSOrigins`：管理 UI 仅允许完全匹配的来源；
+- Summer 数据库登录签发器：使用 `Password_hash: "passwd"` 校验 bcrypt 密码，并按查询返回列的顺序完整配置 `OutPars`，其中必须包含 `passwd`。
 
 每个活动中的 `adv_bidder.credential_ref` 只能保存环境变量名称。该变量对 `unify` 可见，值为 JSON HTTP 请求头对象，例如 `{"Authorization":"Bearer ..."}`。真实值不得写入 MySQL、Redis、管理页面或版本库。系统会拒绝 `Host`、`Connection`、`Content-Length` 等逐跳或不安全头。
 
