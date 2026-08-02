@@ -36,7 +36,7 @@ node.
 
 ## Carry Forward
 
-- `[ ]` Middleman bidder runtime moves to M20.
+- `[+]` Middleman bidder runtime moved to and was completed in M20.
 
 ## Verification
 

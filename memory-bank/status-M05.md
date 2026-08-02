@@ -1,4 +1,4 @@
-# Status M5 - Summer/Genelet Admin Compatibility
+# Status M05 - Summer/Genelet Admin Compatibility
 
 Milestone status: `[+]` Completed
 
@@ -71,7 +71,7 @@ Goal: Align admin models, filters, and components with the active Docker schema.
   - Result: docs and memory bank explain `SUMMER` vs `AOFEI` and admin test
     commands.
 
-- `[+]` Run M5 verification.
+- `[+]` Run M05 verification.
   - Command:
     ```bash
     ./scripts/aofei-local.sh reset-sample
@@ -130,7 +130,7 @@ Goal: Align admin models, filters, and components with the active Docker schema.
 
 ## Milestone Review - 2026-05-12
 
-- `[+]` Reviewed M5 after verification. No blocking regressions found in the
+- `[+]` Reviewed M05 after verification. No blocking regressions found in the
   Summer/Genelet config usage, active-schema test updates, upload path
   hardening, or access-control table/id whitelisting.
 - `[+]` Residual hardening was carried to M11 and resolved there: central

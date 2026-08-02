@@ -49,8 +49,8 @@ reporting.
 
 - `[+]` Advertiser/operator reporting using middleman price metadata completed
   in M22.
-- `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
-  middleman routes are still Redis-only runtime cache data.
+- `[+]` Optional spread/local route-snapshot ownership is consolidated in D03;
+  middleman routes remain Redis-only until D03 records its decision.
 - `[+]` Durable callback retry queues moved to M24 and are implemented for
   retryable downstream post-auction callback forwarding failures.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a

@@ -12,20 +12,25 @@ Redis owns shared mutable state:
 
 - `bothcap:<user_id>` frequency cap hashes.
 - `upload:<adv_id>:<marker>` uploaded audience membership sets.
-- Future pacing, budget, throttling, and distributed counters.
+- Atomic delivery reservations plus total/daily campaign and ad-group budget
+  counters under `delivery:*` keys.
 
 Static bid-serving data is local:
 
 - `pubmap/<domain>` publisher/site/slot routing.
 - Direct SSP derives publisher-by-id routing from `pubmap`, including reverse
-  active site/slot and configured slot-size metadata for `/pz` validation.
+  active site/slot plus cache-owned site type, configured slot size, and USD CPM
+  floor metadata for `/pz` validation.
   Redis mode also publishes the additive `pubmap:by-id` hash for `/pz`
   serving; local mode derives the same lookup in memory and does not add a
   spread directory.
 - `slot/<size_id>/<slot_id>` compiled `match.RAdvs` candidates.
 - `audience/<item_id>` compiled audience predicates.
-- `creative/<creative_id>` creative metadata, trackers, landing URL, failback,
-  size, and content.
+- `creative/<creative_id>` creative metadata, trackers, landing URL, optional
+  compatibility fallback, size, content, explicit media type, and recorded or
+  source-inferred MIME. Current database compilation leaves the fallback empty;
+  `adv_campaign.foreign_id` remains an external business identifier and is not
+  interpreted as a URL.
 
 Middleman bidder routes are Redis static data in M20:
 
@@ -75,16 +80,22 @@ static lookups from memory.
 - Publisher, slot candidate, audience, and creative reads are served from Go
   maps without request-path filesystem checks.
 - Direct SSP publisher-by-id and slot-size validation reads are derived from the
-  same publisher map in memory.
+- A P01 HTTP worker rejects a pre-P01 publisher entry without site type/floor
+  metadata. Older workers can decode the additive fields, so publish the new
+  complete publisher generation before rolling P01 HTTP workers; see
+  [publisher-activation.md](publisher-activation.md).
 - The initial snapshot is loaded at controller startup when `is_local=true`.
-- Later refreshes use the explicit local static-cache reload hook after spread
-  files have been replaced.
+- Later refreshes use a controller loop at one-third of the tightest configured
+  cache-age bound after spread files have been replaced; the explicit reload
+  hook remains available for tests and controlled operations.
 - Local cache staleness is alert-only: `local_cache_max_age_seconds` sets the
   freshness threshold for the scrape-time `aofei_local_cache_stale` expvar,
   while `aofei_local_cache_loaded_at_unix` records the loaded snapshot timestamp
-  and `aofei_local_cache_age_seconds` reports the current snapshot age. The bid
-  path does not fail closed solely because a static snapshot is old; operators
-  should alert and reload or restart the affected node.
+  and `aofei_local_cache_age_seconds` reports the current snapshot age. General
+  static data does not fail closed solely because this alert threshold is
+  crossed. D01 RAdv delivery policy separately enforces
+  `delivery_cache_max_age_seconds`; expired policy candidates stop bidding
+  until a new full generation is published and loaded.
 - Missing audience entries remain wildcard matches.
 - Bids with no caps/uploads can complete without Redis.
 - Bids that require frequency caps or uploaded audience membership fail closed
@@ -106,6 +117,12 @@ static lookups from memory.
   Bulk compatibility writes use one Redis script to commit hash fields and add
   expiry only for new, persistent, or shorter-lived keys, so they preserve a
   longer TTL without exposing written data without its required expiry.
+- Uploaded audience writes commit `SADD` and conditional expiry in one Redis
+  script. New, persistent, or shorter-lived sets receive
+  `privacy_audience_ttl_seconds` (default 30 days); a longer TTL is preserved.
+  Membership is used only for an accepted personalized request, and scoped
+  deletion helpers remove one identifier or one advertiser/marker set without
+  exporting contents.
 - Impression and click replay keys are separate Redis mutable-state records.
   Each starts as a short owned processing claim and becomes a
   exact signature-deadline completion marker only after publication succeeds.
@@ -114,6 +131,21 @@ static lookups from memory.
   events skip cap refresh and ledger publication. Claim and cap failures are
   fail-open; keyed claim failures still use the idempotent cap marker, while
   unkeyed events publish without cap mutation.
+- RAdv payload version 2 carries campaign/ad-group schedules, pacing and four
+  reconciled balance scopes. New readers accept version 1, but full cache
+  publishers must run at least every one-third of the delivery max-age bound.
+  Limited candidates reserve all scopes in one Lua script. Total state remains
+  persistent and daily state is UTC-date keyed; Redis failure therefore
+  disables limited local demand instead of risking overspend.
+- D02 keeps RAdv at version 2 and adds creative media type/MIME as gob fields
+  under the existing creative envelope. Old readers can decode the additive
+  fields; D02 readers reject pre-D02 entries without a media type and entries
+  whose MIME is neither recorded nor inferable from the source URL. Freeze
+  advertiser edits, migrate/audit MySQL, publish a complete new
+  cache generation with the D02 compiler, and only then roll D02 HTTP nodes.
+  Retain that additive generation during runtime rollback and keep newly
+  authored native creatives inactive for an old runtime. The complete sequence
+  is in [auction-pricing-creatives.md](auction-pricing-creatives.md).
 
 ## Hardware Affinity Option
 

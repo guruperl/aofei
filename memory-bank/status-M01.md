@@ -1,4 +1,4 @@
-# Status M1 - Local Docker Runtime Stabilization
+# Status M01 - Local Docker Runtime Stabilization
 
 Milestone status: `[+]` Completed
 
@@ -86,13 +86,13 @@ Verified on 2026-05-12.
 
 - `[+]` Update runtime documentation after verification.
   - Files: `README.md`, `docs/local-docker-runtime.md`,
-    `memory-bank/tech-stack.md`, `memory-bank/status-M1.md`.
+    `memory-bank/tech-stack.md`, `memory-bank/status-M01.md`.
   - Result: README, local runtime docs, and database baseline docs now document
     deterministic sample loading, generated config endpoints, the
-    lower-case/upper-case config distinction, and the M1 Summer template path
+    lower-case/upper-case config distinction, and the M01 Summer template path
     boundary.
 
-- `[+]` Run M1 verification.
+- `[+]` Run M01 verification.
   - Command:
     ```bash
     git diff --check

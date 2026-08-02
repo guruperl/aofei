@@ -1,4 +1,4 @@
-# Status M0 - Agentic Harness Bootstrap
+# Status M00 - Agentic Harness Bootstrap
 
 Milestone status: `[+]` Completed
 

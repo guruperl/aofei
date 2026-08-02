@@ -1,10 +1,12 @@
 # Middleman AdX
 
-Middleman AdX fallback is the planned path for bid requests that do not match a
-local campaign. M16 established the advertiser-owned bidder endpoint and route
-schema, and M17 adds the Summer/Genelet portal plus admin approval for endpoint
-metadata and inactive synthetic reporting rows. Bid serving still returns
-`204 No Content` when no local campaign produces a bid.
+Middleman AdX is the config-gated path for bid requests that do not match a
+local campaign and, behind a separate gate, for effective-CPM competition with
+local demand. The advertiser-owned bidder endpoint, route schema, Summer portal,
+cache, OpenRTB client, callback proxy/retry, and settlement facts are
+implemented. Production activation follows the staged, reversible evidence
+contract in [middleman-activation.md](middleman-activation.md); checked-in
+defaults keep external disclosure disabled.
 
 ## Account Boundary
 
@@ -154,16 +156,63 @@ environment variable whose value is a JSON object of outbound HTTP headers, for
 example `{"Authorization":"Bearer ..."}`. Hop-by-hop headers such as `Host`,
 `Connection`, and `Content-Length` are rejected.
 
-The forwarded OpenRTB request preserves the original request fields and full
-impression list. It overrides `ext.request_domain` with
-`middleman_exchange_domain` and does not add user profile enrichment yet. The
-auction accepts downstream bids only for impressions eligible under the selected
-route trigger mode.
+## OpenRTB 2.5 Partner Profile
+
+Active bidders use one exact, operator-approved profile:
+
+- `POST` to an absolute HTTP(S) endpoint without URL user info or a fragment;
+- `Content-Type: application/openrtb+json`, OpenRTB/JSON `Accept`, and
+  `x-openrtb-version: 2.5`;
+- one independently scoped request containing only assigned, uniquely named
+  impressions, exactly one supported Banner/Video/Native intent per imp, and
+  USD CPM floors/currency;
+- the minimum of remaining incoming `tmax`, configured middleman timeout,
+  route-group timeout, bidder timeout, and optional route-bidder timeout;
+- optional configured buyer `seat`, which must match every accepted seatbid;
+- W8M-controlled `request_domain` and click-notification extension only;
+- HTTPS callback and creative resources whenever `imp.secure=1`.
+
+Response `id` must equal request `id`; response currency defaults to USD and
+any explicit non-USD value is rejected. Group/all-or-none seatbids are not
+supported. Raw downstream CPM must meet the forwarded floor before W8M margin
+is added. Bid IDs must be nonempty and unique, and active synthetic reporting
+IDs remain the only local campaign/item/creative identities. Partner win,
+billing, loss, and cooperative click callbacks are proxied through the existing
+signed callback contract; they do not create an additional W8M billable event.
+
+Partner response JSON may be gzip encoded. Both compressed and decompressed
+bodies remain capped at 1 MiB and under the call deadline. Credential-free
+fixtures live in `dsp/testdata/openrtb/` and use example domains.
+
+External disclosure requires both `middleman_enabled` and the separate
+default-false `privacy_contextual_middleman_enabled` gate. Every bidder request
+is rebuilt independently as typed OpenRTB, contains only impressions assigned
+to that bidder, and is contextual even when local matching had a personalized
+grant. User and device identifiers, IP, raw UA, precise geo, demographics,
+search/query data, unknown fields, and every uncontrolled `ext` are removed.
+W8M adds back only controlled `ext.request_domain` and cooperative click
+notification metadata. The auction accepts downstream bids only for impressions
+eligible under the selected route trigger mode.
 
 The fanout budget is the minimum of remaining nonzero incoming OpenRTB `tmax`
 after local matching, group timeout, bidder or route-bidder timeout, and
 `middleman_timeout_ms`. Late, invalid, inactive, below-floor, or non-USD
 downstream responses are discarded.
+
+Discard reasons and bidder latency are exposed only through the fixed metrics
+documented in [production-traffic-observability.md](production-traffic-observability.md).
+Optional sampled diagnostics are hashed and metadata-only. Raw bid bodies,
+consent strings, endpoint/callback URLs, credentials, and creative markup are
+never logged or returned in a public debug body.
+
+D02 validates each downstream winner before markup or competition: positive
+finite USD price, synthesized floor, selected impression ID, approved synthetic
+IDs, exact dimensions, compatible media type, safe callbacks, and secure
+inventory. Banner markup cannot navigate or escape the approved container;
+Video must be compatible VAST; Native must decode to requested assets with safe
+click/tracker/image URLs and all required assets present. Rejected responses do
+not displace a local winner. See
+[auction-pricing-creatives.md](auction-pricing-creatives.md).
 
 The first auction integration will preserve incoming bid floors when forwarding
 and apply markup only on the response returned upstream:
@@ -213,10 +262,11 @@ margin_cpm = upstream returned bid price - downstream bid price
 
 Incoming middleman `auction_price` and `auction_currency` query parameters are
 not trusted for ledger math. Downstream callbacks receive the net payable price
-in their `${AUCTION_PRICE}` macro. Winloss logs store charge price in the
-existing `RAdv.Cost` field so the legacy ledger can count charge-side CPM
-delivery, and store downstream bid, upstream bid, pay price, margin, callback
-source, and forward status in middleman metadata.
+in their `${AUCTION_PRICE}` macro. Winloss logs store charge-side CPM in the
+existing `RAdv.Cost` field; `usd-cpm-impression-v2` converts each billable
+impression to charge, pay, and margin USD spend by dividing the respective CPM
+values by 1000. The logs also preserve downstream bid, upstream bid, pay price,
+margin, callback source, and forward status in middleman metadata.
 
 M22 consumes that metadata in `cmd/ledger`. `ledger_mid` and `daily_mid`
 preserve bidder, route, synthetic demand, and publisher dimensions. Advertiser
@@ -245,7 +295,7 @@ idempotent. Once a retryable `/mid/*` failure is durably queued, duplicate
 exchange callbacks remain suppressed by the Redis notify key and are not
 enqueued again.
 
-Forwarded requests still preserve the full original impression list and add
+Forwarded requests contain only that bidder's assigned impression list and add
 cooperative click notify URLs under `ext.aofei_middleman.click_notify_urls`.
 M21 does not rewrite arbitrary downstream `adm`, impression pixels, or click
 markup.
@@ -271,9 +321,15 @@ markup.
 - M25: gated `trigger_mode='Always'` fanout and effective-CPM winner selection
   between local and middleman bids.
 
-## Post-M25 Backlog
+## Current Activation Boundary
 
-The live middleman TODOs after M25 are optional spread/local route snapshots and
-real invoicing/payment execution from settlement facts. Arbitrary downstream
-`adm` impression/click rewriting remains closed unless a future reporting
-requirement makes cooperative click notify insufficient.
+D03 keeps routes Redis-only: their short shared refresh/revocation timeline is
+safer than duplicating it into spread/local snapshots. The read-only
+`cmd/redis-cache -validate-middleman` preflight compares active MySQL routes to
+the published Redis v2 checksum/high-water mark, validates profiles and config,
+and resolves environment credential references without exposing values.
+
+Hosted funding/payout remains A02 work; current charge/pay/margin facts feed A01
+manual accounting. Arbitrary downstream `adm` impression/click rewriting
+remains closed unless a future reporting requirement makes cooperative click
+notification insufficient.

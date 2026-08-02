@@ -6,8 +6,9 @@ Local Docker development remains documented separately in
 
 ## Deployment Model
 
-The production target is a Linux host running systemd-managed services. Docker
-Compose is not the production contract for this repository.
+The production target is at least two Linux `cmd/unify` nodes in one region,
+behind a health-checking load balancer, plus systemd-managed singleton worker
+roles. Docker Compose is not the production contract for this repository.
 
 Long-running services:
 
@@ -24,6 +25,11 @@ Scheduled or manual jobs:
 | Ledger interval/daily | `cmd/ledger` | Aggregates win/loss log files into ledger tables. |
 | MaxMind refresh | `cmd/maxmind` | Rebuilds MaxMind JSON country/state maps from MySQL. |
 | Cache population | `cmd/redis-cache` | Populates Redis and/or spread cache from MySQL. |
+| Middleman callback retry | `cmd/mid-callback-retry` | Processes durable retryable downstream callbacks. |
+| Action reconcile/retention | `cmd/action-measurement` | Repairs unattributed actions and prunes expired action facts. |
+| Traffic-quality aggregate/review maintenance | `cmd/traffic-quality` | Ingests trusted bounded signal windows, reports rule health, and prunes expired evidence from a restricted host. |
+| Hosted-payment health/event retention | `cmd/hosted-payment` | Reports aggregate funding/payout health and prunes only eligible expired webhook envelopes from a restricted host; it cannot move money. |
+| Identity/API administration and retention | `../pzdesign/cmd/identity-admin` | Creates read-only analysts, changes exact grants, resets TOTP, and applies bounded account-security or management-API audit retention from a restricted maintenance host. |
 
 Command placement:
 
@@ -61,6 +67,9 @@ Recommended default paths:
 /opt/aofei/bin/ledger
 /opt/aofei/bin/maxmind
 /opt/aofei/bin/redis-cache
+/opt/aofei/bin/traffic-quality
+/opt/aofei/bin/hosted-payment
+/opt/aofei/bin/identity-admin
 /var/lib/aofei/uploads
 /var/lib/aofei/spread
 /var/lib/aofei/maxmind/GeoLite2-City.mmdb
@@ -83,21 +92,35 @@ AOFEI=/etc/aofei/aofei.json
 SUMMER=/etc/aofei/summer.json
 ```
 
-`cmd/nats-client`, `cmd/spread`, `cmd/ledger`, `cmd/maxmind`, and
-`cmd/redis-cache` read `AOFEI`.
+`cmd/nats-client`, `cmd/spread`, `cmd/ledger`, `cmd/action-measurement`,
+`cmd/traffic-quality`,
+`cmd/hosted-payment`, `cmd/maxmind`, and `cmd/redis-cache` read `AOFEI`.
 
 Run Redis cache population as a singleton cron job or systemd timer on one
 dedicated node with `cmd/redis-cache -cache=redis`; do not run one cache
 refresher per `unify` node. Run `cmd/ledger` only on the log aggregation node
 where the complete `log_winloss/winloss.<stamp>` stream is available.
 Mutating `cmd/redis-cache`, `cmd/ledger`, `cmd/mid-callback-retry`, and
-`cmd/winloss` executions also acquire Redis singleton locks.
+`cmd/winloss` executions also acquire renewable Redis singleton leases and
+report an error if renewal is lost. `ledger_log.timely` and `daily_log.daily`
+are unique database backstops; no job may rely on a lease as its only
+idempotency boundary.
 All mutating `cmd/redis-cache` modes share the `aofei:redis-cache` lock; a
 partial route or spread run therefore cannot overlap a full generation build.
 
 Checked-in `etc/aofei.json` and `etc/summer.example.json` are examples. Generated
 `etc/*.local.json` files are local-only artifacts and must not be copied into
 production as-is.
+
+`hosted_payments` is independently disabled by default. Before enabling it,
+apply the reviewed six-table/twelve-trigger migration, enable S02 identity and
+the exact `payment.*` permissions/recent-MFA policy, provision separate
+API/current-webhook/previous-webhook environment references, preserve the raw
+body on exact `POST /webhooks/stripe`, disable proxy caching/challenges for that
+path, and pass the test-mode matrix. Live mode additionally requires named
+legal, finance, tax, risk, privacy, support, and incident approval. See
+[hosted-funding-payout.md](hosted-funding-payout.md); deployment of code alone
+does not authorize provider/account changes or money movement.
 
 Production secrets and live connection values are injected by deployment
 tooling or root-owned config/environment files. Do not commit database
@@ -109,6 +132,12 @@ win/loss, middleman callback, and cap-mutation tracker payloads. Set
 86400 seconds. Set `cap_state_ttl_seconds` to bound idle Redis frequency-cap
 state; the default is 7776000 seconds (90 days), and refreshes never shorten a
 longer existing key TTL.
+Set `delivery_cache_max_age_seconds` (default 900) as the hard maximum age for
+compiled budget/schedule policy, schedule full cache publication at least every
+one-third of it, and keep `delivery_reservation_ttl_seconds` long enough for the
+tracking TTL plus five-minute skew (default 86700). The default
+`delivery_state_ttl_seconds` is 172800; total delivery counters are persistent,
+while this value provides the daily-state reconciliation grace period.
 Alert on increases in `aofei_tracking_replay_redis_errors_total` and
 `aofei_tracking_replay_unkeyed_total`; those events are accepted fail-open and
 can therefore retain at-least-once measurement behavior until Redis or event
@@ -126,6 +155,47 @@ account mutation with a maintenance error, while login and authenticated
 portals remain available. Revoke exposed SMTP credentials before considering a
 replacement; never preserve the old block in a rollback file beside the active
 configuration.
+
+Summer identity hardening is opt-in. Before setting `Identity.Enabled=true`,
+apply the six-table/two-trigger S02 migration, provision the same base64- or
+hex-encoded 32-byte key named by `Identity.KeyEnv` on every `unify` node, review
+all role `Permissions`, preserve `RequireGrant=true` for analysts, verify SMTP
+recovery, and canary TOTP enrollment/recovery. The key value belongs only in a
+deployment secret environment, never in JSON. Enabled identity adds opaque
+database sessions, POST+CSRF logout, TOTP/recovery, resource permissions, and
+immutable security evidence. Full rollout, command, retention, key-loss, and
+rollback procedures are in
+[identity-access-security.md](identity-access-security.md).
+
+The external advertiser management API is independently opt-in. Do not enable
+`management_api.enabled` until S02 identity is enabled, the I03 four-table and
+version-trigger migration is applied, and the same random 32-byte key named by
+`management_api.key_env` is present on every `unify` node. Issue its least-
+privilege token only from the recently MFA-authenticated advertiser/admin
+portal; the token is shown once and never belongs in JSON, logs, tickets, or
+shell history. Review the per-credential/account quotas, 256 KiB default body
+limit, five-second timeout, and cache-activation deadline independently from
+auction traffic. Canary and rollback steps are in
+[advertiser-management-api.md](advertiser-management-api.md).
+Management API audit retention uses the same restricted binary with
+`-action=prune-api-audit`, a named administrator id, a bounded limit, and a
+single-line reason. Run it only with the separate maintenance database
+configuration described by S02; never grant the HTTP principal audit deletion.
+
+Traffic quality is independently opt-in. Before setting
+`traffic_quality.enabled=true`, apply the S03 nine-table/ten-trigger migration,
+enable S02 identity, grant the exact `quality.*` permissions, and provision a
+unique base64- or hex-encoded key of at least 32 bytes in the environment named
+by `traffic_quality.digest_key_env` on every HTTP and maintenance node. Never
+store the key value in JSON. The default enforcement refresh is 30 seconds and
+the default maximum snapshot age is 120 seconds. Startup is strict when
+enabled; missing schema/key or an initial snapshot failure stops the service.
+Subsequent refresh errors retain only the last unexpired snapshot, after which
+serving fails open. Create rules as Draft, pass through Observe and Canary, and
+activate blocking rules only after reviewed complete canary evidence is within
+the false-positive limit. Full rollout, retention, billing, incident, and
+rollback steps are in
+[traffic-quality-anti-fraud.md](traffic-quality-anti-fraud.md).
 
 Middleman fallback is disabled unless `middleman_enabled` is true in `AOFEI`.
 When enabled, set `middleman_exchange_domain`, `middleman_timeout_ms`, and
@@ -146,6 +216,14 @@ rebinding targets. Each active bidder
 value must be a JSON object of outbound HTTP headers. Do not put those header
 values in MySQL, Redis, or checked-in config files.
 
+Approve partner endpoints only as exact OpenRTB 2.5 profiles. Keep encoded and
+decoded public request limits explicit with `traffic_default.max_body_bytes`
+and `traffic_default.max_decompressed_body_bytes`; partner overrides inherit
+either omitted value. Leave `openrtb_debug_enabled=false` normally. For a
+time-bounded incident sample, enable it with a rate in `(0,1]` (normally
+`0.01`), confirm diagnostics contain only hashed request identity and fixed
+metadata, then disable it again. Raw bid-body capture is not supported.
+
 Middleman reporting depends on `cmd/ledger` running on the node with the
 complete `log_winloss` stream. Advertiser middleman reports use pay-side spend
 from `daily_mid`; admin settlement reports use charge, pay, and margin from
@@ -156,6 +234,14 @@ Summer at `/goto/admin/g/midroute?action=topics`. Route edits update MySQL only;
 run the singleton `cmd/redis-cache -cache=redis` or `-cache=all` refresh on the
 dedicated cache node before expecting `cmd/unify` workers to use the new route
 state.
+After publication, run `cmd/redis-cache -validate-middleman
+-activation-stage=preflight` from each canary node's exact service environment.
+It fails on a stale/legacy route generation, invalid active profile, incomplete
+callback/signing config, or missing/unsafe credential header map without
+printing values. Fallback and Always activation, evidence, rotation,
+disablement, and rollback follow
+[middleman-activation.md](middleman-activation.md); do not enable production
+traffic from the health page alone.
 
 Summer/Genelet CORS is exact-origin only. `ServerURL` is allowed by default, and
 additional browser origins must be listed in `CORSOrigins`; other non-empty
@@ -171,10 +257,17 @@ missing browser headers, mismatched hosts, and subdomain variants return `403`
 before cookies, bidding, or audit publishing. `platform:"sdk"` may omit both
 headers, but any supplied `Origin` or `Referer` must also match. The
 `aofei_pz_uid` cookie is browser-only; SDK/in-app requests do not read or set it
-and use the existing device identity or UA+IP fallback path. `/pz` uses
+and never join IP/User-Agent as a fallback identity. `/pz` uses
 `RemoteAddr` for OpenRTB `device.ip` unless the peer address is in
 `trusted_proxy_cidrs`; only trusted proxies may supply `X-Forwarded-For` or
 `X-Real-IP`.
+
+Commercial publisher activation uses the read-only
+`cmd/redis-cache -validate-publishers` gate and the cache-first rolling order in
+[publisher-activation.md](publisher-activation.md). P01 adds Web/App type and
+server-owned USD CPM floor fields to existing publisher payloads. Publish and
+inspect a complete new cache generation before rolling P01 HTTP workers; those
+workers intentionally reject pre-P01 entries with missing commercial metadata.
 
 ## systemd Units
 
@@ -248,11 +341,11 @@ PrivateTmp=true
 
 ```ini
 [Unit]
-Description=Run Aofei Redis cache refresh every 15 minutes
+Description=Run Aofei Redis cache refresh every 5 minutes
 
 [Timer]
 OnBootSec=2m
-OnUnitActiveSec=15m
+OnUnitActiveSec=5m
 Unit=aofei-redis-cache.service
 
 [Install]
@@ -317,6 +410,63 @@ Unit=aofei-ledger-daily.service
 WantedBy=timers.target
 ```
 
+Example action attribution reconciliation and retention timers on one
+operations node:
+
+```ini
+[Unit]
+Description=Aofei analytical action attribution reconciliation
+
+[Service]
+Type=oneshot
+User=aofei
+Group=aofei
+Environment=AOFEI=/etc/aofei/aofei.json
+ExecStart=/opt/aofei/bin/action-measurement -action=reconcile -limit=1000
+NoNewPrivileges=true
+PrivateTmp=true
+```
+
+```ini
+[Unit]
+Description=Run Aofei action reconciliation every 5 minutes
+
+[Timer]
+OnBootSec=3m
+OnUnitActiveSec=5m
+Unit=aofei-action-reconcile.service
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+[Unit]
+Description=Aofei expired analytical action pruning
+
+[Service]
+Type=oneshot
+User=aofei
+Group=aofei
+Environment=AOFEI=/etc/aofei/aofei.json
+ExecStart=/opt/aofei/bin/action-measurement -action=prune -limit=10000
+NoNewPrivileges=true
+PrivateTmp=true
+```
+
+```ini
+[Unit]
+Description=Run Aofei action retention daily
+
+[Timer]
+OnCalendar=*-*-* 01:20:00
+Persistent=true
+Unit=aofei-action-prune.service
+
+[Install]
+WantedBy=timers.target
+```
+
 Use the same `User`, `Group`, `Environment`, restart policy, and hardening
 pattern for `spread`, changing only `ExecStart`. `redis-cache` and `ledger`
 should normally be oneshot timer services, not long-running services.
@@ -335,8 +485,8 @@ Build artifacts from a reviewed commit:
 
 ```bash
 GOWORK=off go test ./...
-GOWORK=off go install ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
-(cd ../pzdesign && GOWORK=off go test ./... && GOWORK=off go install ./cmd/unify)
+GOWORK=off go install ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/action-measurement ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
+(cd ../pzdesign && GOWORK=off go test ./... && GOWORK=off go install ./cmd/unify ./cmd/identity-admin)
 ```
 
 Copy binaries into a versioned release directory, update the active symlink or
@@ -349,6 +499,8 @@ sudo systemctl restart aofei-nats-client.service
 sudo systemctl restart aofei-unify.service
 sudo systemctl enable --now aofei-redis-cache.timer
 sudo systemctl enable --now aofei-mid-callback-retry.timer
+sudo systemctl enable --now aofei-action-reconcile.timer
+sudo systemctl enable --now aofei-action-prune.timer
 sudo systemctl enable --now aofei-ledger.timer
 sudo systemctl enable --now aofei-ledger-daily.timer
 sudo systemctl status aofei-unify.service
@@ -356,6 +508,9 @@ sudo systemctl status aofei-unify.service
 
 Smoke checks:
 
+- Every HTTP node returns 204 on `/healthz`; `/readyz` returns 204 only after
+  initialization and becomes 503 before graceful drain. The load balancer uses
+  `/readyz` without caching and keeps `/debug/vars` externally blocked.
 - `cmd/unify` listens on `ServerPort` and serves expected admin/static paths.
 - DSP bid endpoint returns the expected local or staging fixture response.
 - Redis contains `pubmap`, `audience`, `creative`, `middleman:routes:v2`,
@@ -364,6 +519,9 @@ Smoke checks:
   used.
 - `cmd/redis-cache -cache=routes -read` shows current route-cache metadata when
   middleman routes are used.
+- `cmd/redis-cache -validate-middleman -activation-stage=preflight` passes in
+  the canary service environment; `fallback` or `always` passes only for the
+  specifically approved stage.
 - The middleman callback retry timer runs on one operations node and can read
   due rows without processing them via `cmd/mid-callback-retry -read`.
 - In local/spread static-cache mode, spread files exist and bid nodes have
@@ -372,6 +530,9 @@ Smoke checks:
 - Ledger timers run only on the log aggregation node and see complete
   `log_winloss/winloss.<stamp>` files.
 - No unexpected HTTP 403 appears for configured admin origins.
+- When identity is enabled, canary TOTP enrollment/login, POST logout, public
+  recovery with a one-time code, analyst delegated-report access, cross-account
+  denial, analyst mutation denial, and immutable audit insertion all pass.
 
 Rollback by restoring the previous binary release and restarting the same
 services. Roll back immediately on startup failure, repeated bid-path errors,
@@ -400,8 +561,14 @@ After schema changes:
   deployment provides a drift tool.
 
 Restore drills must be practiced outside production. A restore is not complete
-until `cmd/redis-cache` has repopulated runtime cache and the HTTP/admin smoke
-checks pass.
+until the accounting contract/immutability and source counts are verified,
+approved deletion cases are reapplied, `cmd/redis-cache` has repopulated runtime
+cache, and the HTTP/admin smoke checks pass. Run the repository rehearsal with
+`./scripts/aofei-recovery-drill.sh`; it uses only uniquely named disposable
+containers and is not a production backup implementation. Production
+encryption, RPO/RTO, restore order, topology, dependency semantics, and SLO
+evidence are defined in
+[single-region-availability.md](single-region-availability.md).
 
 ## Redis And NATS
 
@@ -417,6 +584,10 @@ Redis requirements:
   used.
 - Keep mutable-state key families such as `bothcap:<user_id>` and
   `upload:<adv_id>:<marker>` protected from accidental static-cache flushes.
+- Treat uploaded audience sets as raw advertiser-provided identifiers. The
+  unified service installs `privacy_audience_ttl_seconds` on writes; verify TTL
+  coverage and use the scoped deletion procedures in
+  [privacy-data-governance.md](privacy-data-governance.md).
 
 NATS requirements:
 
@@ -433,8 +604,14 @@ NATS requirements:
 
 ## Logs And Ledger
 
-The unified HTTP service exposes stdlib expvar metrics at `/debug/vars`,
-including bid/no-bid counters, audit queue depth/drops and publish errors,
+The unified HTTP service exposes stdlib expvar metrics at `/debug/vars`, but
+only direct peers in `metrics_allowed_cidrs` are authorized (loopback by
+default). The reverse proxy/Cloudflare route must also deny this path. Do not
+trust `X-Forwarded-For` for scrape authorization. Full traffic-control, metric,
+dependency, alert, and canary rules are in
+[production-traffic-observability.md](production-traffic-observability.md).
+
+The expvar surface includes bid/no-bid counters, audit queue depth/drops and publish errors,
 middleman callback forwarding results, local cache reload and freshness status,
 direct SSP request results, cap-refresh contention counters, and
 `aofei_ssp_policy_rejections_total`. Local cache freshness includes
@@ -446,6 +623,30 @@ middleman callback retry command output where `stale_processing` stays
 non-zero. Use `cmd/mid-callback-retry -json` for alerting automation; its stable
 fields are `due`, `stale_processing`, `selected`, `succeeded`, `retrying`, and
 `abandoned`.
+Also alert on sustained `aofei_action_touch_errors_total`, action signature or
+dependency rejection growth, and nonzero exits from the singleton action
+reconcile/prune timers. Action failures remain separate from CPM ledger and
+settlement health.
+
+Privacy evidence is fixed-cardinality: monitor
+`aofei_privacy_decisions_total`, `aofei_privacy_invalid_signals_total`, and
+`aofei_privacy_middleman_blocked_total`. A sudden invalid-signal increase or a
+decision-mode change is an integration incident; metrics never contain the
+signal or identifier itself.
+
+Traffic-quality evidence is also fixed-cardinality. Monitor decision/match and
+five action counters, dependency errors, rollback, enforcement snapshot
+refresh/error/evaluation, and serving throttle/reject/quarantine. Run the
+restricted `cmd/traffic-quality -action=health -actor-admin-id=<id>
+-since-hours=24` for per-rule false-positive state instead of adding rule or
+account labels. Dependency/snapshot errors are availability incidents, not IVT;
+roll a canary back when its reviewed false-positive limit is exceeded.
+
+The proposed 99.9% auction objective is not a claim until a named rolling
+30-day production window, independent probes, contracted-load denominator,
+latency distributions, exclusions, and error-budget consumption are retained.
+Use [single-region-availability.md](single-region-availability.md) for the exact
+good/bad event and burn-alert contract.
 
 `cmd/unify` publishes request, response, attribute, and win/loss events when
 NATS is enabled. `cmd/nats-client` writes those subjects to:
@@ -470,8 +671,11 @@ Run ledger only where the complete win/loss log stream is present. If each HTTP
 node writes local `winloss.<stamp>` files, ship or merge those files into the
 log aggregation node before the ledger timer runs.
 
-Keep logs on persistent storage with rotation, backup, and retention policies
-defined by operations. The repository does not own production log retention.
+`cmd/nats-client` prunes its four generated subject file families at startup
+and rotation using `privacy_log_retention_hours` (default 168). It ignores
+unrelated files and symlinks. Keep the files on encrypted persistent storage;
+backup generations need a separately approved expiry/deletion policy because
+online pruning cannot remove an existing backup.
 
 ## Static, Uploads, And Templates
 
@@ -489,9 +693,18 @@ read-only deployed copy. Static UI assets should be served from the matching
 
 Current Summer admin and user flows verify stored bcrypt password hashes through
 Genelet's `Password_hash` issuer field. Existing SHA1-era credentials must be
-reset before production use. Each direct SQL issuer must also define `OutPars`
+reset before production use. The S02 compatibility switch
+`Legacy_password_upgrade` accepts only an exact legacy plaintext match and
+atomically replaces it with bcrypt; use it for a measured migration window and
+disable it after an audit confirms no plaintext credentials remain. Each direct SQL issuer must also define `OutPars`
 in the exact order of its selected columns, including the `passwd` column;
 otherwise Genelet cannot scan and verify the stored hash reliably.
+
+With identity enabled, password login is not sufficient by itself: the opaque
+database session, required TOTP state, named action permission, resource scope,
+and sensitive-action reauthentication are also enforced. Do not use
+`Identity.Enabled=false` as a routine incident workaround because it restores
+the lower-assurance legacy cookie boundary.
 
 ## Historical Material
 

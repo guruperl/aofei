@@ -1,6 +1,6 @@
 # Result V2
 
-Resulting direction after M9:
+Resulting direction after M09:
 
 - [docs/production-runbook.md](../docs/production-runbook.md) is the active
   production/operator entry point.

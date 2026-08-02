@@ -22,6 +22,11 @@ Use these commands as separate process roles:
 | Redis cache refresh | `cmd/redis-cache -cache=redis` | singleton cron/timer on one cache node |
 | Middleman callback retry | `cmd/mid-callback-retry` | singleton cron/timer on one operations node |
 | Ledger | `cmd/ledger` | singleton cron/timer on the log aggregation node |
+| Manual accounting | `cmd/accounting` | authorized accounting operations node; never a public service |
+| Action reconciliation/retention | `cmd/action-measurement` | singleton operations timer; export/delete only from an authorized privacy host |
+| Experiment control/retention | `cmd/report-experiment` | authorized operations/privacy host; explicit audited transitions, bounded prune, and exact subject deletion |
+| Traffic-quality aggregate/review maintenance | `cmd/traffic-quality` | restricted quality operations host; bounded aggregate ingest, per-rule health, and evidence retention only |
+| Identity grants/recovery/retention | `../pzdesign/cmd/identity-admin` | restricted identity maintenance host; never a public service or ordinary HTTP-node timer |
 | Spread snapshots | `cmd/spread` | nodes that need spread disk cache |
 | MaxMind refresh | `cmd/maxmind` | manual or scheduled maintenance node |
 | Win/loss simulator | `cmd/winloss` | manual smoke/CI only |
@@ -33,6 +38,11 @@ a Redis singleton lock by default; read-only modes skip the lock.
 Every mutating `redis-cache` mode (`redis`, `spread`, `all`, and `routes`) uses
 the same `aofei:redis-cache` lock because modes share live cache families,
 shadow keys, or source data and must not overlap.
+Singleton locks renew at one-third of `-lock-ttl`. Commands fail if renewal is
+lost, and token-checked release cannot remove a successor's lease. Do not treat
+the lock as the durable correctness boundary: ledger interval/day uniqueness,
+callback/action idempotency, and cache generation replacement remain required
+through Redis partitions.
 
 `cmd/unify` handles `SIGINT` and `SIGTERM`, drains in-flight HTTP requests for
 up to 15 seconds, and closes the DSP controller afterward so queued audits and
@@ -61,6 +71,27 @@ or route targets in Summer, run this refresh before expecting HTTP workers to
 use the new route state. Workers observe it after their configured
 `middleman_route_cache_ttl_ms` interval, default five seconds.
 
+Full refresh also compiles D01 campaign/ad-group windows, weekly schedules,
+pacing, and reconciled budget facts into RAdv version 2. With the default
+`delivery_cache_max_age_seconds=900`, schedule `-cache=redis` (or `-cache=all`
+for spread/local mode) at least every 300 seconds. A stale delivery snapshot
+fails closed; route-only refresh does not extend it.
+
+Before a full publisher generation, run the DB-only readiness gate:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -validate-publishers
+```
+
+It takes no mutation lock and performs no Redis operation. It validates active
+publisher/site/slot identity, Web/App type, dimensions, and finite non-negative
+USD CPM floors, then prints the exact packed site/slot tokens. Resolve failures
+before `-cache=redis|spread|all`. P01 HTTP workers require this additive
+type/floor metadata; publish the compatible generation before rolling them.
+The complete activation and rollback sequence is in
+[publisher-activation.md](publisher-activation.md).
+
 To refresh only the middleman route cache:
 
 ```bash
@@ -74,6 +105,21 @@ To inspect only the route cache JSON and metadata:
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=routes -read
 ```
+
+To validate current MySQL routes, the published Redis v2 generation, config,
+and environment-backed credential references without printing values or
+changing state:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -validate-middleman \
+  -activation-stage=preflight
+```
+
+Use `fallback` only with both disclosure/runtime gates enabled and `Always`
+disabled; use `always` only after the separate gate and an active Always route
+are approved. The exact staged workflow is in
+[middleman-activation.md](middleman-activation.md).
 
 - Generated log directories live under `.local/logs/` and are ignored by git:
   `.local/logs/log_request/`, `.local/logs/log_response/`,
@@ -106,6 +152,12 @@ Outputs:
 Notes:
 
 - File rotation is based on `-interval` minutes.
+- At startup and each rotation, generated files older than
+  `privacy_log_retention_hours` (default 168) are removed. Only the four known
+  subject prefixes are eligible; unrelated files and symlinks are retained.
+- Request and attribute data is privacy-scrubbed before NATS. Retention does
+  not replace encrypted storage or a separate backup-expiry policy; see
+  [privacy-data-governance.md](privacy-data-governance.md).
 - Log directories are created or tightened to `0750`; generated log files are
   created or tightened to `0640`. Ledger input files should never be
   world-readable or group/world-writable.
@@ -217,6 +269,175 @@ Redis cache population is also a singleton operational job; run
 `cmd/redis-cache -cache=redis` from cron or a systemd timer on one dedicated
 node.
 
+## `cmd/accounting`
+
+Purpose: create idempotent advertiser or publisher statements from completed
+daily ledger facts; add immutable adjustments; enforce hold, confirmation,
+maker-checker settlement, and correction transitions; reconcile a snapshot;
+and export scoped CSV.
+
+Example:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/accounting -action=create \
+  -party=advertiser -party-id=7 -cadence=daily \
+  -from=2026-08-01 -to=2026-08-01 \
+  -request-key=invoice-20260801-adv-7 -reason='daily close'
+```
+
+Reconcile charge, pay, and margin for a completed middleman period:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/accounting -action=reconcile-middleman \
+  -from=2026-08-01 -to=2026-08-31
+```
+
+This command does not use a Redis singleton lock: MySQL request-key uniqueness,
+row locks, state preconditions, and transactions serialize its mutations. Run
+it only after the relevant daily ledger is complete. It never updates ledger
+facts, `adv_balance` limits, or Redis delivery floors. Restrict the config and
+database role to distinct non-shared Unix operator accounts; the audited actor
+is derived from the effective Unix UID and cannot be overridden by a flag or
+environment variable. Keep CSV outside Git in encrypted storage, and never
+place card or bank credentials in reason or reference fields. Full formulas,
+actions, approval separation, evidence references, reconciliation, and the v1
+to v2 migration are in [accounting-settlement.md](accounting-settlement.md).
+
+## `cmd/action-measurement`
+
+Purpose: reconcile late/restored same-lineage touches into facts that are still
+unattributed, prune expired R01 rows, and perform authorized pseudonym-scoped
+export/deletion. It does not read or mutate D01 reservations or A01 accounting
+tables.
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/action-measurement -action=reconcile -limit=1000
+
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/action-measurement -action=prune -limit=10000
+```
+
+`reconcile` locks a bounded batch with `SKIP LOCKED`, applies click precedence
+and configured windows, and updates only `unattributed` facts. `prune` deletes
+rows whose schema-assigned `expires_at` has passed. Run both as singleton
+timers, alert on nonzero exits, and repeat batches until the reported count is
+zero when clearing a backlog.
+
+After verified privacy authorization, `-action=export|delete
+-pseudonym=<64-lowercase-hex>` operates on one R01 pseudonym. Export writes CSV
+to stdout without token hashes, auction ids, or publisher ids. Redirect output
+to encrypted controlled storage; avoid shell history and shared logs. Deletion
+also removes same-lineage touches only when no other action references remain.
+See [conversion-attribution.md](conversion-attribution.md).
+
+## `cmd/report-experiment`
+
+Purpose: create, list, start, stop, or complete an R02 controlled experiment,
+prune expired pseudonymous facts, or delete one exact verified subject through
+an explicit operator/privacy boundary. It never modifies bids, budgets,
+schedules, reservations, or accounting facts.
+
+Invocation examples:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/report-experiment -action=list
+
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/report-experiment \
+  -action=create -owner=operator -name=reviewed-copy -version=1 \
+  -primary-metric=actions -guardrail-metric=spend \
+  -starts-at=2026-08-03T00:00:00Z \
+  -retention-hours=2160 \
+  -variants=control=5000,treatment=5000 \
+  -reason='reviewed local experiment'
+```
+
+Mutations require a nonempty bounded audit reason. The command records the
+effective OS UID as actor; run it only as an approved service/operations
+principal. Advertiser ownership additionally requires `-owner=advertiser` and
+an active `-adv-id`. Allocation must contain 2–20 valid variant keys totaling
+exactly 10,000 basis points. `start`, `stop`, and `complete` require
+`-experiment-id` and `-reason`.
+
+Run `-action=prune -limit=1000` as a singleton timer. It deletes expired
+outcomes then exposures in one bounded transaction. A verified erasure uses
+`-action=delete-subject -experiment-id=<id> -version=<version>
+-subject-hash=<64-hex> -reason=<non-identifying-reason>` on the privacy host.
+Keep the hash out of shared shell history and logs; the immutable audit records
+actor/reason but not the hash.
+
+Assignment/exposure/outcome recording is an application integration through
+the `reporting` package, not a command flag or public endpoint. The operator
+list and Summer page never expose salts, subject hashes, idempotency digests, or
+audit reasons. See
+[marketplace-analytics-experiments.md](marketplace-analytics-experiments.md).
+
+## `../pzdesign/cmd/identity-admin`
+
+Purpose: create a read-only analyst, grant/revoke one exact permission/resource,
+reset one account's TOTP after external identity verification, or prune bounded
+expired security evidence. It requires Summer `Identity.Enabled=true`, the
+configured 32-byte environment key, an administrator audit id, and a bounded
+reason. New analyst passwords are accepted only through
+`IDENTITY_NEW_PASSWORD`; no password or key flag exists.
+
+Build and run it from the sibling UI/service repository:
+
+```bash
+(cd ../pzdesign && GOWORK=off go install ./cmd/identity-admin)
+
+SUMMER=/etc/aofei/summer.json /opt/aofei/bin/identity-admin \
+  -action=reset-totp -actor-admin-id=42 \
+  -subject-role=pub -subject-id=123 \
+  -reason='verified recovery case'
+```
+
+The administrator id is audit attribution, not operating-system
+authentication. Restrict binary/config/key access to named operators and apply
+maker/checker review outside the command. Exact create/grant/revoke/prune
+examples, retention, rollout, and key-loss behavior are in
+[identity-access-security.md](identity-access-security.md).
+
+## `cmd/traffic-quality`
+
+Purpose: ingest one trusted bounded aggregate window, inspect fixed per-rule
+health, or remove expired short-lived evidence. It is not an HTTP service and
+does not accept raw requests, identity evidence, IP addresses, cookies, device
+identifiers, auction ids, or credentials.
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/traffic-quality -action=assess-window <aggregate-window.json
+
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/traffic-quality -action=health \
+  -actor-admin-id=42 -since-hours=24
+
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/traffic-quality -action=prune-evidence \
+  -actor-admin-id=42 -limit=1000 \
+  -reason='scheduled evidence retention'
+```
+
+`assess-window` accepts at most 64 KiB of strict JSON, rejects unknown fields,
+and derives only the eight closed S03 signals. Counters are individually
+bounded at one billion, and an observation more than one minute in the future
+is rejected before database work. Output omits event and partner digests.
+
+`health` permits a 1–9600-hour lookback and returns rule ids/versions, fixed
+counters, false-positive basis points, limits, and rollback recommendation.
+`prune-evidence` permits batches of 1–10000 and uses a dedicated connection
+whose retention flag is cleared with a fresh bounded context; cleanup failure
+discards the connection. The administrator id is attribution only. These
+maintenance actions must run after S02 authentication, exact permission,
+recent MFA/change approval, and restricted config/key access have been enforced
+by the operator workflow. See
+[traffic-quality-anti-fraud.md](traffic-quality-anti-fraud.md).
+
 ## `cmd/mid-callback-retry`
 
 Purpose: retry failed downstream middleman callback forwards from
@@ -273,6 +494,40 @@ Notes:
   win, loss, or billable records, so ledger counts remain idempotent.
 - Run this command as a singleton cron or systemd timer. Do not run it on every
   HTTP worker.
+
+## `cmd/hosted-payment`
+
+Purpose: inspect aggregate A02 funding/payout health and perform bounded
+retention of unreferenced provider-event envelopes. It cannot create, approve,
+execute, cancel, refund, reconcile, or resolve money operations.
+
+Health:
+
+```bash
+AOFEI=/etc/aofei/aofei.json \
+  /opt/aofei/bin/hosted-payment -action=health
+```
+
+The JSON reports counts only: Held/approved operations, stale `Submitting`,
+`Canceling`, and `Submitted` work, unresolved exceptions and age-policy breaches, oldest
+unresolved age, and webhook volume over 24 hours. It never prints provider
+tokens, account/payment details, secrets, or raw events.
+
+Retention, from a restricted maintenance host and database principal:
+
+```bash
+AOFEI=/etc/aofei/aofei-maintenance.json \
+  /opt/aofei/bin/hosted-payment -action=prune-events \
+  -actor-admin-id=42 -limit=1000 \
+  -reason='approved provider-event retention schedule'
+```
+
+The command accepts a batch of 1–10000 and derives an audited administrator
+identity. A connection-local trigger gate permits deletion only for events
+older than `event_retention_days` that are not linked to reconciliation
+evidence. Cleanup runs on a fresh bounded context; an uncertain connection is
+discarded. See [hosted-funding-payout.md](hosted-funding-payout.md) for the
+webhook, outage, secret-rotation, reconciliation, and live-governance contract.
 
 ## `cmd/winloss`
 
@@ -345,6 +600,21 @@ Notes:
 - See [maxmind-runtime.md](maxmind-runtime.md) for asset and test details.
 
 ## Verification
+
+The O02 clean-room recovery rehearsal is deliberately isolated from the
+configured local stack:
+
+```bash
+./scripts/aofei-recovery-drill.sh
+```
+
+It creates uniquely named disposable MySQL source/restore and Redis containers,
+loads a synthetic fixture, checksums a logical dump, restores routines and
+triggers, proves A01 immutability plus interval/day uniqueness, and rebuilds
+derived Redis cache. The owner-only temporary directory and unencrypted local
+dump are destroyed on exit. Production backups must instead be encrypted and
+stored off Git under the retention/RPO/RTO contract in
+[single-region-availability.md](single-region-availability.md).
 
 Build and focused package tests:
 

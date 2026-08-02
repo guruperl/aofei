@@ -17,6 +17,13 @@ The active validation boundary requires:
 
 Malformed JSON returns `400`. Missing required runtime shape returns no content.
 
+After validation and before publisher, cache, cap, or audience work, the
+controller evaluates COPPA, GDPR/TCF, GPP/US Privacy, GPC, DNT, and LMT. Missing
+or non-granting signals become contextual; COPPA becomes restricted. The
+request is minimized before matching, and any accepted local identity is
+HMAC-pseudonymized before mutable cap or tracking state. See
+[privacy-data-governance.md](privacy-data-governance.md).
+
 ## Publisher And Attribute Resolution
 
 `ServeBid` looks up `acl.Pub` by route domain from either:
@@ -39,8 +46,8 @@ Unknown site or slot strings fall back to publisher default site/slot ids.
 
 For each impression, the controller loads `match.RAdvs` for the resolved
 `size_id` and `slot_id` from the local static cache or Redis. Each candidate
-contains advertiser, campaign, item, creative, cost, weight, and frequency-cap
-fields.
+contains advertiser, campaign, item, creative, cost, weight, frequency-cap, and
+versioned delivery-policy fields.
 
 If no candidates exist for an impression's size/slot pair, that impression is
 eligible for middleman fallback when `middleman_enabled` is true. `Fallback`
@@ -49,14 +56,15 @@ out for locally filled impressions when `middleman_always_enabled` is true.
 Candidate bidders must match an active route and pass the synthetic item
 ACL/channel check for the original publisher/site/slot.
 
-Middleman fanout forwards the full original request shape to each selected
-bidder and overrides `ext.request_domain` with `middleman_exchange_domain`. The
-auction accepts downstream bids only for impressions eligible under the selected
-route trigger mode. Marked-up `Always` bids compete with local bids on effective
-CPM; unsafe local price comparisons keep the local winner. It does not add
-user/profile enrichment yet. Credential references resolve to environment
-variables containing JSON header maps; no secret material is stored in MySQL or
-Redis.
+Middleman fanout additionally requires
+`privacy_contextual_middleman_enabled`. It builds a fresh contextual OpenRTB
+view for each selected bidder, includes only that bidder's assigned
+impressions, removes identities, precise device/user data, unknown fields, and
+all uncontrolled extensions, then adds controlled `ext.request_domain` and
+click metadata. Marked-up `Always` bids compete with local bids on effective
+CPM; unsafe local price comparisons keep the local winner. Credential
+references resolve to environment variables containing JSON header maps; no
+secret material is stored in MySQL or Redis.
 
 For final middleman winners, callback metadata is stored in Redis and returned
 `nurl`, `lurl`, and optional `burl` fields are replaced with signed `/mid/*`
@@ -66,9 +74,21 @@ also includes cooperative click notify URLs under
 `ext.aofei_middleman.click_notify_urls`; downstream markup must opt in because
 the DSP does not rewrite arbitrary middleman ad markup.
 
+I01 fixes that downstream contract at OpenRTB 2.5. Each outbound request uses
+one uniquely identified, assigned impression scope per partner request, exactly
+one supported media intent per impression, USD CPM floors, a bounded deadline,
+and only controlled extensions. Responses must echo request/seat identity and
+pass raw-price/floor, lateness, callback, media, size, secure-markup, and active
+synthetic reporting checks before they can compete. Gzip transport is bounded
+on both encoded and decoded bytes. See [middleman-adx.md](middleman-adx.md).
+
 ## Filtering
 
-Frequency caps are checked first by reading `bothcap:<user_id>` for capped item
+Campaign/ad-group UTC windows, weekly calendars, cached hard limits, and the
+delivery snapshot deadline are checked before shared mutable-state reads. This
+means out-of-window or stale demand cannot consume cap or reservation state.
+
+Frequency caps are then checked by reading `bothcap:<user_id>` for capped item
 ids. Expired cap entries are deleted from Redis. This mutable cap state remains
 Redis-backed in both Redis and local/spread bid modes.
 
@@ -90,12 +110,26 @@ mutable state is unavailable.
 
 ## Selection
 
-`RAdvs.PickIndexPrice` computes a selection weight for each surviving candidate:
+`RAdvs.PickIndexPrice` accepts only positive finite USD CPM local demand. It
+first chooses the highest CPM demand unit that satisfies the synthesized floor.
+Equal-price demand is ordered deterministically by campaign, item, then
+advertiser ID. Positive finite creative weights rotate only among creatives in
+that winning advertiser/campaign/item unit; weight cannot make lower-priced
+demand win. Legacy CPC, CPA, and ROI rows are disabled until a commercial owner
+assigns a reviewed CPM value.
 
-- local cost semantics are converted to USD eCPM,
-- candidates below the current impression's `bidfloor` receive weight zero,
-- surviving values are multiplied by campaign/item weight,
-- a weighted random index is selected.
+Before reserving delivery, the selected creative is loaded and checked for
+media type, exact dimensions, request MIME, secure inventory, structured native
+assets, and safe source/landing/tracker URLs. A failed creative is removed and
+the auction is re-evaluated without touching delivery state. The validated
+candidate's selected USD CPM is then
+converted to one-impression USD spend (`CPM / 1000`). One Redis Lua operation
+atomically reserves that amount and one impression across all configured
+campaign/ad-group total/daily scopes. A hard-limit or deterministic pacing
+rejection removes the whole selected demand unit and repeats selection. Any
+other reservation error makes limited local demand fail closed and permits the
+existing middleman-fallback decision. Unlimited demand does not create delivery
+keys.
 
 The response currency is always `USD`. Empty or `USD` `bidfloorcur` is
 accepted. Unsupported currencies are not converted and produce no bid for that
@@ -103,26 +137,37 @@ impression.
 
 ## Creative And Response
 
-The selected creative is loaded from the local static cache or Redis `creative`.
-`match.Creative.AdM` expands landing, impression, click redirect, and configured
-tracker URLs and returns one of:
+The already validated creative is materialized from the local static cache or
+Redis `creative`. Banner sources are absolute image or HTML-document URLs,
+Video sources are absolute media URLs materialized as VAST 3.0, and Native
+sources are versioned structured JSON mapped to the requested native assets.
+Raw local HTML/VAST source is not accepted. `match.Creative.AdM` expands
+landing, impression, click redirect, and configured tracker URLs.
 
-- default native image markup,
-- default native video markup,
-- banner iframe markup with DSP impression pixels.
+Privacy-sensitive legacy macros for raw IP, UA, city, carrier, precise device
+details, and device identifiers expand to empty values. Coarse supply, country,
+region, OS/device class, language, and campaign/creative macros remain.
 
-Native is preferred when an impression offers multiple formats, followed by
-video, then banner. App inventory no longer forces native markup; app banner
-inventory returns banner markup.
+The impression must request exactly the matching Banner, Video, or Native
+format. App inventory no longer forces native markup; app Banner inventory
+returns Banner markup.
 
-Native markup uses a DSP `/clk` redirect URL as the primary native link and the
-creative failback as the direct fallback URL. Banner iframe markup does not wrap
+Native markup uses a DSP `/clk` redirect URL as its primary native link. The
+legacy optional creative-cache fallback field remains decodable, but the
+database compiler leaves it empty instead of misinterpreting the campaign's
+external business identifier as a URL. Banner iframe markup does not wrap
 arbitrary HTML or iframe content; banner creatives that want DSP click redirect
 measurement must include `{CLICK_URL}` in the creative content URL/template.
 `{LANDING_URL}` remains available as the direct advertiser destination.
 Creative URL macro expansion preserves existing query parameters, repeated
 query values, empty values, and non-macro values while replacing supported
 macros per query value.
+
+Middleman winners pass a parallel downstream-response gate for positive finite
+USD price, floor, exact size, media type, callbacks, secure inventory, and
+format-specific markup/native assets before competing with local demand. The
+full contract and migration sequence are in
+[auction-pricing-creatives.md](auction-pricing-creatives.md).
 
 `dsp.DSP.NewBid` creates one OpenRTB bid per served impression with:
 
@@ -182,4 +227,5 @@ endpoint and returns no content.
   static cache reads, while local/spread mode serves static publisher, slot,
   audience, and creative data from in-process snapshots backed by spread files.
   Local snapshots are loaded at controller startup and refreshed through the
-  explicit reload hook; request handlers read the current in-memory snapshot.
+  bounded background reload loop (with an explicit reload hook retained for
+  controlled use); request handlers read the current in-memory snapshot.

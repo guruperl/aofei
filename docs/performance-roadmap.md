@@ -29,7 +29,7 @@ covered and should not be re-opened as roadmap work without a new finding.
 
 | Area | Current state |
 |---|---|
-| Minimal metrics endpoint | `../pzdesign/cmd/unify` registers stdlib expvar at `/debug/vars`. |
+| Protected metrics endpoint | `../pzdesign/cmd/unify` registers stdlib expvar at `/debug/vars`; O01 restricts direct peers, requires an edge deny, and adds fixed traffic/dependency/latency evidence. |
 | Bid and audit counters | Bid outcomes, ECPM errors, audit enqueue/drop/publish-error counters, middleman callback failures, and local cache reload status are exported. |
 | Singleton operations | Mutating `cmd/redis-cache`, `cmd/ledger`, `cmd/mid-callback-retry`, and `cmd/winloss` runs acquire Redis singleton locks. Read-only and dry-run modes skip locks where appropriate. |
 | Cache payload compatibility | RAdvs, audience, and creative payloads use typed version envelopes while preserving legacy decode support. The middleman route cache remains versioned JSON. |
@@ -69,7 +69,7 @@ under the same benchmark.
 These items fit the current stack and should be evaluated in this order. Each
 item needs before/after numbers under the same traffic shape and hardware.
 
-### 1. Measurement Baseline
+### 1. Measurement Baseline (O01 Baseline Established)
 
 Before changing hot paths, capture the baseline for at least these dimensions:
 
@@ -83,9 +83,12 @@ Before changing hot paths, capture the baseline for at least these dimensions:
 - Per-node request distribution when a load balancer is in front of multiple
   `cmd/unify` nodes.
 
-Use the checklist in [multiple-cache.md](multiple-cache.md) as the starting
-point. Add dedicated benchmarks or load scripts only after the desired traffic
-profiles are clear.
+O01 added `scripts/aofei-capacity-baseline.sh`, ADX/SSP/admission benchmarks,
+and fixed runtime percentile buckets. The local-static baseline and its strict
+non-production limitations are recorded in
+[production-traffic-observability.md](production-traffic-observability.md).
+Redis cap, upload, middleman, compression, rejection, and saturation profiles
+still require staging measurements before a capacity claim.
 
 ### 2. Cap-Path Lua
 
@@ -220,7 +223,8 @@ For any item selected from this roadmap:
 3. Run the relevant local smoke and package tests.
 4. Canary on one `cmd/unify` node before wider rollout.
 5. Update `memory-bank/architecture.md`, `memory-bank/tech-stack.md`, and the
-   matching `memory-bank/status-M*.md` file only when the work changes runtime
-   behavior, operator workflow, cache contracts, schema, or milestone state.
+   matching `memory-bank/status-<lane><number>.md` file only when the work
+   changes runtime behavior, operator workflow, cache contracts, schema, or
+   milestone state.
 
 Documentation-only roadmap changes do not create a new milestone by themselves.

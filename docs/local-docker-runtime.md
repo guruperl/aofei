@@ -53,6 +53,19 @@ Install local Go command binaries:
 ./scripts/aofei-local.sh install
 ```
 
+Run the O02 restore rehearsal independently of these named local services:
+
+```bash
+./scripts/aofei-recovery-drill.sh
+```
+
+The recovery script creates uniquely named disposable containers on random
+loopback ports and never reads, resets, or stops `aofei-mysql`, `aofei-redis`,
+or `aofei-nats`. Its temporary logical dump is local-only, owner-readable, and
+deleted on exit; see
+[single-region-availability.md](single-region-availability.md) for the separate
+encrypted production backup contract.
+
 ## Generated Configs
 
 The helper writes:
@@ -125,6 +138,13 @@ Run the full cache smoke workflow:
 ./scripts/aofei-cache-smoke.sh
 ```
 
+The local launcher and cache smoke accept `AOFEI_LOCAL_STATE_DIR`,
+`AOFEI_CONFIG_PATH`, `AOFEI_SUMMER_CONFIG_PATH`, and `AOFEI_SPREAD_DIR` so a
+disposable verification stack can keep its generated configuration and spread
+snapshots separate from another local instance. Continue to use uniquely named
+Docker containers, volumes, ports, and `AOFEI_ALLOW_CUSTOM_DESTRUCTIVE=1` for
+custom disposable reset/flush targets.
+
 The smoke helper resets sample data, flushes Redis, populates Redis, reads Redis
 through application code, starts the spread receiver, publishes spread cache
 messages, runs combined mode, and checks for expected Redis keys and spread
@@ -138,6 +158,18 @@ Populate Redis from MySQL:
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
+
+Validate active publisher inventory before publication, without connecting to
+or mutating Redis:
+
+```bash
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
+  go run ./cmd/redis-cache -validate-publishers
+```
+
+The deterministic manifest includes each Web/App identity, packed site/slot
+token, configured dimensions, and server-owned USD CPM floor. Invalid or
+incomplete active commercial metadata makes the command fail.
 
 Run the bid-path smoke against the seeded Redis cache:
 
@@ -180,8 +212,8 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
 
-`-cache` accepts only `redis`, `spread`, or `all`. Unknown values fail before
-cache writes are attempted.
+`-cache` accepts `redis`, `spread`, `all`, or route-only `routes`. Unknown values
+fail before cache writes are attempted.
 
 Check Redis directly:
 
@@ -199,8 +231,8 @@ Expected Redis cache families after sample population:
 
 | Family | Shape |
 |---|---|
-| `pubmap` | Hash keyed by publisher domain. |
-| `pubmap:by-id` | Direct SSP hash keyed by numeric publisher id for `/pz` token validation. |
+| `pubmap` | Hash keyed by publisher domain; includes Web/App type, slot size, and configured USD CPM floor. |
+| `pubmap:by-id` | Direct SSP hash keyed by numeric publisher id for exact site/slot/type/size/floor validation. |
 | `audience` | Hash keyed by item id. |
 | `creative` | Hash keyed by creative id. |
 | `middleman:routes:v2` | Preferred M25 JSON bidder route cache; empty when no active routes exist. |
@@ -282,12 +314,11 @@ requests, including empty or omitted `platform`, must send an `Origin` or
 `Referer` whose host exactly matches the cached site host. SDK requests may omit
 both headers, but any supplied `Origin` or `Referer` must also match. Policy
 rejections return `403` before cookies, bidding, or audit publication.
-The `aofei_pz_uid` cookie is browser-only, meaning empty or omitted `platform`
-and `platform:"browser"` requests can read or set it. `platform:"sdk"` traffic
-does not read, set, or propagate that cookie. SDK requests may include body
-`app`, `device`, and `user` objects; the validated cached site string is the
-authoritative app identity, body device/user identity is honored, and headers
-remain fallback for IP and user agent.
+The `aofei_pz_uid` cookie is browser-only and may be read or set only for an
+approved personalization grant. `platform:"sdk"` traffic never reads, sets, or
+propagates that cookie. SDK requests may include body `app`, `device`, and
+`user` objects; the validated cached App identity remains authoritative, and
+IP/User-Agent are never joined as a fallback identity.
 
 ## Operational Commands
 

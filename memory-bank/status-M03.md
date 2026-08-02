@@ -1,4 +1,4 @@
-# Status M3 - Redis And NATS Cache Pipeline Reliability
+# Status M03 - Redis And NATS Cache Pipeline Reliability
 
 Milestone status: `[+]` Completed
 
@@ -70,7 +70,7 @@ Goal: Prove that cache and message-bus flows work from Docker services.
   - Result: docs explain Redis mode, spread mode, combined mode, expected key
     families, spread artifact families, and the spread receiver requirement.
 
-- `[+]` Run M3 verification.
+- `[+]` Run M03 verification.
   - Command:
     ```bash
     bash -n scripts/aofei-cache-smoke.sh
@@ -97,7 +97,7 @@ Goal: Prove that cache and message-bus flows work from Docker services.
   MySQL with active advertiser/campaign/item/creative and item date filters.
 
 - `[X]` Define a versioned cache payload contract for Redis and spread data.
-  Deferred from M3 because the current milestone is cache-pipeline reliability,
+  Deferred from M03 because the current milestone is cache-pipeline reliability,
   not a wire-format migration. This remains tracked as an architecture gap.
 
 - `[+]` Review spread file writes and cleanup subjects. `cmd/spread` now routes
@@ -108,8 +108,8 @@ Goal: Prove that cache and message-bus flows work from Docker services.
 ### Second Review Pass - 2026-05-12
 
 - `[X]` Move `cmd/nats-client` callback/backpressure, rotation, and
-  ignored-subject observability findings to M6. These are operational-log
-  reliability issues rather than M3 cache-population requirements.
+  ignored-subject observability findings to M06. These are operational-log
+  reliability issues rather than M03 cache-population requirements.
 
 ## Milestone Review
 
@@ -117,4 +117,4 @@ Goal: Prove that cache and message-bus flows work from Docker services.
   validation, active creative size discovery, Redis/spread RAdv loops, spread
   snapshot/cleanup/delete/ignore behavior, smoke-script cleanup, and docs.
   Residual versioned payload contracts remain an architecture gap, and
-  `cmd/nats-client` operational-log findings remain in M6.
+  `cmd/nats-client` operational-log findings remain in M06.

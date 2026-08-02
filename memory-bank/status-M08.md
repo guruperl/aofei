@@ -1,4 +1,4 @@
-# Status M8 - Full Repository Test Hygiene
+# Status M08 - Full Repository Test Hygiene
 
 Milestone status: `[+]` Completed
 
@@ -44,20 +44,20 @@ target.
 
 - `[X]` Add a repository verification script if command sequencing remains
   complex.
-  - Decision: no script for M8. The selected gate is a single Go command.
+  - Decision: no script for M08. The selected gate is a single Go command.
 
 - `[X]` Add schema-contract coverage for SQL embedded outside the baseline
   file.
-  - Decision: deferred and non-gating for M8. Schema checks remain documented
+  - Decision: deferred and non-gating for M08. Schema checks remain documented
     under the Docker helper flow.
 
 - `[+]` Verify parent workspace behavior.
   - `go list ./...` still fails with:
     `directory prefix . does not contain modules listed in go.work or their selected dependencies`.
   - `GOWORK=off go list ./...` succeeds.
-  - No parent `go.work` change was made for M8.
+  - No parent `go.work` change was made for M08.
 
-- `[+]` Run M8 verification.
+- `[+]` Run M08 verification.
   - Commands:
     ```bash
     GOWORK=off go list ./...
@@ -89,12 +89,12 @@ target.
 ### Second Review Pass - 2026-05-12
 
 - `[X]` Add static correctness checks to the hygiene backlog.
-  - Decision: staticcheck remains useful but non-gating for M8. Current
+  - Decision: staticcheck remains useful but non-gating for M08. Current
     staticcheck strictness is documented as a follow-up check, not the package
     verification gate.
 
 - `[X]` Keep callback concurrency under test, not only compile/race smoke.
-  - Decision: deferred from M8. Existing package tests are the canonical gate;
+  - Decision: deferred from M08. Existing package tests are the canonical gate;
     deeper NATS callback behavior coverage belongs in a later reliability task.
 
 - `[+]` Replace legacy DSN test fixtures with Docker-aware setup or explicit

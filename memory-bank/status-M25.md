@@ -20,9 +20,11 @@ allowing eligible downstream bids to compete with local bids on effective CPM.
 
 ## Carry Forward
 
-- `[ ]` Optional Redis-independent route snapshots remain a cache-mode parity
-  decision, not a bidder-runtime behavior change.
-- `[ ]` Arbitrary downstream markup impression/click rewrite remains closed.
+- `[+]` Optional Redis-independent route-snapshot ownership is consolidated in
+  D03 as a cache-mode parity decision, not a bidder-runtime behavior change.
+- `[X]` Arbitrary downstream markup impression/click rewriting remains closed;
+  R01 may open a new milestone only if cooperative notification cannot satisfy
+  a concrete measurement requirement.
 
 ## Verification
 

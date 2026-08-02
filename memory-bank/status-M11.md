@@ -7,8 +7,8 @@ the current UI/runtime structure.
 
 ## Tasks
 
-- `[+]` Carry M5 residual findings into M11.
-  - M5 residuals covered here: component-loader panics, duplicated
+- `[+]` Carry M05 residual findings into M11.
+  - M05 residuals covered here: component-loader panics, duplicated
     `cmd/unify` registrations, central SQL identifier validation, and broader
     guarded controller/auth dispatch.
 

@@ -19,8 +19,11 @@ device, and a publisher cache object. It is the compatibility wrapper for
 | `acl` | Extract publisher, web/app site type, site/app, per-impression slot, category, and blocklist attributes. |
 | `match` | Combine all attributes with resolved `RPub`, size ID, native format, user ID, IFA, and app/video flags. |
 
-The user key used for frequency caps prefers `user.buyeruid`, then `user.id`,
-then IFA/device IDs, then an MD5 of IP plus user-agent when both are present.
+Before extraction, S01 removes identity and sensitive fields from contextual or
+restricted requests. For a configured personalized grant, the transient local
+identity precedence remains `user.buyeruid`, `user.id`, then IFA/device IDs,
+but the resulting IFA and cap user key are domain-separated HMAC pseudonyms.
+IP plus user-agent is no longer a runtime identity fallback.
 
 ## Audience Sources
 
@@ -61,7 +64,7 @@ Runtime matching reads these Redis families:
 | `middleman:routes:v2` | Preferred M25 JSON route/bidder cache with trigger mode and synthetic ACL payloads. | `cmd/redis-cache -cache=redis` from active `adv_bidder` and `mid_route_*` rows. |
 | `middleman:routes` | Legacy fallback-only JSON route/bidder cache for rolling deploys. | Written by the same cache job. |
 | `bothcap:<user_id>` | Hash keyed by item id, binary `match.BothCap`. | Tracker callbacks on `/imp` and `/clk`. |
-| `upload:<adv_id>:<marker>` | Redis set of uploaded identifier values. | Upload/admin flows. |
+| `upload:<adv_id>:<marker>` | Redis set of advertiser-provided identifier values with bounded idle retention. | Upload/admin flows; membership and conditional TTL commit in one script. |
 
 Spread/local snapshot mode mirrors the same static data under `.local/spread/`:
 
@@ -75,12 +78,18 @@ snapshots, so `cmd/unify` nodes that enable middleman fallback need Redis
 available even when local/spread static campaign cache is enabled.
 
 When DSP local mode is enabled, these files are loaded into an in-process static
-cache at controller startup and refreshed through the explicit reload hook.
+cache at controller startup and refreshed through the bounded background reload
+loop; an explicit reload hook remains available for controlled use.
 Request handlers read the current immutable in-memory snapshot and do not stat
 or walk spread files. Mutable frequency caps and uploaded audience sets remain
 Redis-backed. Local static bids that do not use caps or uploaded audiences can
 proceed without Redis; bids that need those mutable families fail closed when
 Redis is unavailable.
+
+Uploaded matching runs only for a personalized decision. Sets default to 30
+days from the last write; `privacy_audience_ttl_seconds` controls the value.
+Scoped helpers delete one authorized identifier or an entire advertiser/marker
+set without listing its contents.
 
 Frequency-cap callbacks keep the existing `bothcap:<user_id>` hash shape and
 binary `match.BothCap` payload. `/imp` and `/clk` cap mutations require valid

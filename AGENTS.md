@@ -19,7 +19,11 @@ Before substantial changes, read these in order:
 2. [memory-bank/architecture.md](memory-bank/architecture.md)
 3. [memory-bank/tech-stack.md](memory-bank/tech-stack.md)
 4. [memory-bank/milestone.md](memory-bank/milestone.md)
-5. The relevant `memory-bank/status-M*.md` file for the current milestone.
+5. The relevant `memory-bank/status-<lane><number>.md` file for the current
+   milestone.
+
+For a slash-goal request that spans multiple status files, also read and follow
+[GOAL.md](GOAL.md) before starting the first milestone.
 
 Do not recreate duplicate root-level product, architecture, roadmap, or status
 documents. Long-form references live in `docs/`; README is the operator entry
@@ -73,7 +77,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 GOWORK=off go test ./...
 GOWORK=off go vet ./...
 GOWORK=off staticcheck ./...
-GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
+GOWORK=off go test -race ./hostedpayment ./trafficquality ./dsp ./match ./internal/cmdboot ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./internal/jobs/action ./cmd/spread ./cmd/nats-client ./cmd/action-measurement ./cmd/hosted-payment ./cmd/traffic-quality
 
 (cd ../pzdesign && GOWORK=off go test ./...)
 
@@ -106,19 +110,21 @@ maintained in [memory-bank/tech-stack.md](memory-bank/tech-stack.md).
 - Update memory-bank files in the same change as the code they describe:
   product scope -> `product.md`; architecture/data flow/contracts ->
   `architecture.md`; tools/dependencies/commands -> `tech-stack.md`; milestone
-  scope/acceptance -> `milestone.md`; completion state -> the matching
-  `status-M*.md` file. Do not recreate an aggregate `status.md` file.
-- Treat each row in the matching `memory-bank/status-M*.md` file as a commit
-  unit once implementation begins.
+  scope/acceptance -> `milestone.md`; completion state -> the matching lane
+  status file. Do not recreate an aggregate `status.md` file.
+- Treat each row in the matching
+  `memory-bank/status-<lane><number>.md` file as a commit unit once
+  implementation begins.
 - Treat each section in [memory-bank/milestone.md](memory-bank/milestone.md) as
   a review unit.
 - After the last task in a milestone is complete, run a deep code review of the
   milestone before closing it. Resolve review findings in the same milestone or
   carry them forward explicitly in the matching status file.
 - Close a milestone by running required verification, updating docs and memory,
-  checking whether `evolution/` needs a new version, marking the matching status
-  file complete, and committing only when the execution request includes
-  milestone commit handling.
+  reconciling affected pending status files and the remaining order, checking
+  whether `evolution/` needs a new version, marking the matching status file
+  complete, and committing only when the execution request includes milestone
+  commit handling.
 - Check [evolution/](evolution/) after a major review, milestone, or boundary
   change. Add a new version only when product direction, architecture boundary,
   milestone target, or public/private contract direction materially changes.

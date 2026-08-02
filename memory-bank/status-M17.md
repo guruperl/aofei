@@ -43,10 +43,10 @@ DSP runtime fanout disabled.
 
 - `[+]` Move active templates to the sibling `pzdesign` tree and switch Genelet
   HTML rendering to `html/template` in M18.
-- `[ ]` Build route/bidder cache, synthetic item eligibility checks, downstream
-  OpenRTB fanout, and fallback auction integration in M20.
-- `[ ]` Add callback proxying, win/loss reconciliation, middleman reporting,
-  and operations after runtime fanout is stable.
+- `[+]` Route/bidder cache, synthetic item eligibility, downstream OpenRTB
+  fanout, and fallback auction integration were completed in M20.
+- `[+]` Callback proxying, win/loss reconciliation, middleman reporting, and
+  operations were completed in M21-M24.
 
 ## Verification
 

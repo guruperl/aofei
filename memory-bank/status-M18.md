@@ -33,12 +33,12 @@ pages there.
   - Added `tools/check-templates.go` in `pzdesign` for `.g` and `.e`
     `html/template` parse checks.
 
-## Deferred
+## Carry Forward
 
-- `[ ]` Page-by-page escaping audit.
-  - `html/template` auto-escapes output. Existing pages that intentionally
-    preview stored HTML snippets may need typed safe-HTML handling in a later
-    review.
+- `[+]` Page-by-page escaping audit ownership moved to S04.
+  - `html/template` auto-escapes output. S04 audits existing pages that
+    intentionally preview stored HTML snippets and defines the typed,
+    sanitized safe-HTML boundary.
 
 ## Verification
 

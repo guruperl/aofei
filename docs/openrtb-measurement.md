@@ -18,6 +18,21 @@ a new runtime contract.
 | `GET` | `/mid/loss` | `dsp.Controller.ServeMiddlemanCallback` | Record and proxy a middleman loss callback. |
 | `GET` | `/mid/bill` | `dsp.Controller.ServeMiddlemanCallback` | Record and proxy a middleman billing callback. |
 | `GET` | `/mid/click` | `dsp.Controller.ServeMiddlemanCallback` | Record a cooperative downstream middleman click notification. |
+| `POST` | `/action` | `dsp.Controller.ServeAction` | Persist a signed, idempotent analytical conversion/action and apply same-lineage click/view attribution. |
+
+`POST /bid/{domain}` implements the W8M OpenRTB 2.5 profile. An explicit
+non-2.5 `x-openrtb-version`, unsupported content type, duplicate/empty
+impression ID, non-USD request currency, non-finite/negative floor, or request
+without any supported Banner/Video/Native format is rejected before matching.
+Standard multi-format impressions remain compatible; external fanout narrows
+each impression to the media intent selected during matching.
+Request gzip and successful JSON response gzip are negotiated and bounded by
+the traffic policy; `204` remains an empty uncompressed no-bid.
+
+External middleman responses must echo the request ID and approved seat, use
+USD CPM, meet the raw forwarded floor, arrive before the deadline, and pass the
+D02 media/size/secure-markup/callback gate. Fixed reason and latency metrics
+are operational evidence only and do not change impression-based billing.
 
 `ServeBid` reads and limits the request body, unmarshals
 `openrtb2.BidRequest`, validates that at least one impression and a device are
@@ -41,9 +56,23 @@ grouped into `SeatBid` entries by campaign seat. `dsp.WinLoss` builds:
 
 Tracker URLs are generated with concrete auction values and cap state. Win and
 loss URLs intentionally use standard auction macros until the exchange resolves
-them. Tracker prices use the same selected USD eCPM value returned in
-`Bid.price`, so ledger spend follows the served bid price rather than the raw
+them. Tracker prices use the same selected USD CPM value returned in
+`Bid.price`. Under `usd-cpm-impression-v2`, the tracker retains CPM while the
+reservation and ledger convert one accepted impression to USD spend as
+`CPM / 1000`; spend therefore follows the served bid price rather than the raw
 item cost field.
+
+For a budget-limited local winner, all generated win/loss/impression/click URLs
+also carry a signed opaque `delivery_reservation` token. Response construction
+has already converted the selected CPM to one-impression USD spend and reserved
+that amount plus one impression atomically across the campaign/ad-group total
+and daily scopes. A published impression finalizes
+the reservation, a published click applies its click count once, and a
+published loss releases an active reservation. Response/materialization
+failure also releases it. Measurement publication failure keeps the
+reservation active so the same signed callback can retry without incrementing
+budget state twice. The token metadata remains available for the full accepted
+signature lifetime.
 
 DSP-generated measurement URLs include HMAC `sig` and Unix-second `sig_ts`
 parameters when `tracking_secret` or `TRACKING_SECRET` is configured. `sig_ts`
@@ -93,6 +122,15 @@ Replay operations expose `aofei_tracking_replay_suppressed_total`,
 `aofei_tracking_cap_update_fail_open_total` counts valid events published
 without a successful cap update.
 
+Successful signed `/imp` and `/clk` publication also attempts a bounded,
+detached MySQL `measurement_touch` write for R01 attribution. This write is
+fail-open relative to the tracker and never changes cap, delivery-reservation,
+or billing behavior. Local click landing URLs carry a separate HMAC-protected
+`w8m_action_token`; the internal delivery reservation token is never exposed as
+an action identity. The action endpoint, exact taxonomy, retry/idempotency
+rules, attribution windows, retention, and reporting are specified in
+[conversion-attribution.md](conversion-attribution.md).
+
 Current tracker embedding is format-dependent: native and native-video markup
 include `/imp` trackers and use `/clk` as a redirecting primary link. Banner
 iframe markup embeds `/imp` pixels and only uses `/clk` when creative content
@@ -116,9 +154,9 @@ The bid path publishes these NATS subjects after a successful HTTP response:
 
 | Subject | Payload | Consumer |
 |---|---|---|
-| `request` | ADX raw request body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and raw request `payload` | `cmd/nats-client` writes `log_request/request.<stamp>`. |
-| `response` | ADX raw response body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, and selected response `payload` | `cmd/nats-client` writes `log_response/response.<stamp>`. |
-| `attribute` | `match.AttributePlus` JSON, one per served impression, with additive `source` and `contract` fields | `cmd/nats-client` writes `log_attribute/attribute.<stamp>`. |
+| `request` | Privacy-scrubbed ADX OpenRTB body; SSP JSON envelope with `source:"ssp"`, `contract:"pz-v1"`, privacy evidence, and scrubbed request `payload` | `cmd/nats-client` writes `log_request/request.<stamp>`. |
+| `response` | Privacy-scrubbed ADX response; SSP envelope with the selected response payload | `cmd/nats-client` writes `log_response/response.<stamp>`. |
+| `attribute` | Identity/precise-data-redacted `match.AttributePlus`, one per served impression, with `source`, `contract`, `privacy_mode`, and `privacy_reason` | `cmd/nats-client` writes `log_attribute/attribute.<stamp>`. |
 | `winloss` | `dsp.WinLoss` JSON | `cmd/nats-client` writes `log_winloss/winloss.<stamp>`. |
 
 Audit publish is best effort after the bid response is sent. Request, response,
@@ -127,12 +165,15 @@ published by a background worker without flushing in the HTTP request goroutine.
 If NATS is missing, the queue is full, or publish fails, the accepted bidder
 response is not rolled back.
 
-ADX `/bid` request and response audits remain raw OpenRTB payloads for
-compatibility. Direct SSP `/pz` request and response audits are wrapped only for
-SSP traffic so operators can distinguish the entrypoint without changing ADX log
-readers. Attribute audits use `source:"adx", contract:"openrtb"` for `/bid` and
+ADX `/bid` request and response audits retain the OpenRTB JSON shape but no
+longer retain raw identity, precise device/location data, consent strings, or
+uncontrolled extensions. Direct SSP `/pz` request and response audits are
+wrapped so operators can distinguish the entrypoint. Attribute audits use
+`source:"adx", contract:"openrtb"` for `/bid` and
 `source:"ssp", contract:"pz-v1"` for `/pz`; their `elapsed` field is an integer
-millisecond count.
+millisecond count. `cmd/nats-client` removes generated interval files older than
+`privacy_log_retention_hours` at startup and rotation. See
+[privacy-data-governance.md](privacy-data-governance.md).
 
 `cmd/spread` ignores the four log subjects and handles only cache/spread
 subjects.
@@ -151,8 +192,8 @@ spend. Win/loss callbacks are analytics only; unresolved or unsigned auction
 price macros are not spend authority.
 
 Middleman `/mid/bill` publishes a `StatusTrackImp` event with charge-side CPM in
-`RAdv.Cost`, so the existing ledger path can count middleman delivery through
-the synthetic campaign/item/creative chain. If no downstream `burl` exists,
+`RAdv.Cost`; the ledger converts it to one-impression USD spend while counting
+delivery through the synthetic campaign/item/creative chain. If no downstream `burl` exists,
 `/mid/win` publishes the billable `StatusTrackImp` fallback once. Middleman
 winloss records also include optional metadata for downstream bid price,
 upstream bid price, charge price, pay price, margin, callback source, and
@@ -169,6 +210,12 @@ Direct SSP markup reuses the same local `NewBid` rendering path as ADX local
 bids. Its signed `/imp` and `/clk` tracker URLs publish normal `WinLoss` records
 with direct publisher/site/slot IDs and demand IDs, so `cmd/ledger` aggregates
 SSP impressions, clicks, and spend through the existing ledger schema.
+Interval ledger completion reconciles campaign/ad-group total delivery
+baselines from all `ledger_adv` facts and current-UTC-date daily baselines from
+interval facts. Daily aggregation corrects the daily baseline from `daily_adv`
+and records its date in `adv_balance.current_day`. Redis request-time state is
+seeded monotonically from those facts so a delayed report cannot reopen
+already-reserved budget.
 
 ## Known Measurement Gaps
 

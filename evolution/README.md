@@ -14,4 +14,4 @@ materially alters at least one of these:
 Do not add a new evolution version for routine implementation, documentation
 syncs, review-findings cleanup, or status updates that stay within the current
 direction. In those cases, update the relevant docs and
-`memory-bank/status-M*.md` file instead.
+matching `memory-bank/status-<lane><number>.md` file instead.

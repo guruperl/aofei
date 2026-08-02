@@ -60,7 +60,7 @@ Primary references:
 | Validation | Explicit request sanitation | Adopt soon | Prebid distinguishes public request extensions from adapter-visible data. `aofei` should define a narrow sanitation boundary for forwarded middleman requests, especially user data, debug fields, internal route metadata, and passthrough extensions. |
 | Security/privacy | Per-bidder request sanitization | Only for middleman fanout | Local matching is not an external disclosure boundary. Middleman fanout is, so each outbound request should be independently scrubbed and shaped for the selected bidder. |
 | Security/privacy | Privacy/user-data scrubbing controls | Adopt soon | Direct SSP and middleman fanout should centralize rules for cookies, SDK user IDs, IP, UA, IFA, buyer IDs, and future consent fields. Keep the control local and explicit rather than copying Prebid's full activity-control framework. |
-| Security/privacy | Schain and seller metadata checks | Research/benchmark first | Prebid supports bidder-specific schain handling. `aofei` should first define the publisher/seller metadata model from M34/M35 before adding runtime schain validation or outbound schain generation. |
+| Security/privacy | Schain and seller metadata checks | Adopted in P02 | P02 derives seller identity from operator-approved publisher cache state, generates owned/intermediary completeness conservatively, validates any preserved standard chain, and strips `source.pchain` and uncontrolled node extensions. Browser/SDK claims are not trusted. |
 | Security/privacy | Panic isolation around external fanout | Adopt soon | External fanout should not let a buggy adapter boundary take down the bid handler. `aofei` should recover at the bidder-call boundary, convert the failure to a structured bidder error, and keep other candidates alive. |
 | Observability | Structured bidder errors and warnings | Adopt soon | Prebid exposes bidder errors/warnings in response extensions and debug output. `aofei` should put structured middleman errors in metrics/audits and optionally in gated debug output, not in ordinary exchange responses. |
 | Observability | Response-time metadata | Adopt soon | Per-bidder response time is immediately useful for route tuning and timeout budgets. It should be tracked internally and optionally exposed to admin health views. |
@@ -98,14 +98,15 @@ OpenRTB performance benchmark milestone:
 - Adopt alternate JSON, generated encoders, or pooling only after a measured
   before/after win and compatibility tests.
 
-Supply-chain/privacy metadata milestone:
+Supply-chain/privacy metadata result (P02):
 
-- Build on M34/M35 publisher ownership and future taxonomy decisions before
-  adding schain, seller, consent, or user-data export policy.
-- Define which metadata is stored in MySQL, cached, forwarded to bidders, and
-  audited.
-- Keep privacy controls explicit for browser `/pz`, SDK `/pz`, ADX `/bid`, and
-  middleman fanout traffic.
+- Added controlled publisher/site/slot metadata and operator-approved seller
+  identity on the M34/M35 publisher ownership boundary.
+- Added the public allowlist to MySQL, cache, privacy-safe attribute audits,
+  derived reports, and validated middleman disclosure; private partner and raw
+  request data remain excluded.
+- Kept the S01 privacy decision explicit for browser `/pz`, SDK `/pz`, ADX
+  `/bid`, and middleman fanout traffic.
 
 ## Non-Adoption Decisions
 

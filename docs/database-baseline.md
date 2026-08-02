@@ -89,14 +89,20 @@ After `reset && load`, the expected inventory is:
 
 | Object/data | Count |
 |---|---:|
-| Base tables | 57 |
-| Views | 1 |
+| Base tables | 94 |
+| Views | 0 |
 | Stored routines | 6 |
-| Triggers | 18 |
+| Triggers | 55 |
 | Events | 0 |
 | Advertisers | 0 |
 | Publishers | 0 |
 | Advertiser bidder endpoints | 0 |
+| Accounting statements/adjustments/audits | 0 |
+| Action measurement touches/facts | 0 |
+| Delivery report/experiment facts | 0 |
+| Analysts/identity sessions/grants/security audits | 0 |
+| Traffic-quality rules/decisions/evidence/cases/enforcements/billing/audits | 0 |
+| Hosted-payment bindings/operations/objects/events/reconciliations/audits | 0 |
 
 After `sample`, the expected local-only identities are `admin_local`,
 `advertiser@example.test`, and `publisher@example.test`; their documented
@@ -117,6 +123,136 @@ Publisher slots store `pub_slot.size_id` as the packed width/height used by
 publisher-facing direct SSP tags. The default baseline value is `4194368`
 (`64x64`) for historical rows and for insert paths that do not provide an
 explicit size.
+
+P02 extends the existing publisher boundary additively. `pub` stores public
+seller id/type/ASI/name/domain plus an operator authorization flag; a change to
+an already authorized seller tuple revokes authorization. `pub_site` stores the
+controlled inventory environment, canonical identity, optional public review
+URL, and integration mode. `pub_slot` stores controlled media intent,
+placement, render context, refresh, density, traffic/source quality, and
+management-control fields. Publisher/site/slot changes enqueue the ordinary
+publisher-cache refresh path. These fields do not create another account or
+settlement owner. Populated systems require a conservative backfill with
+explicit `Unknown` values and operator reapproval; never infer authorization
+from legacy free-form fields.
+
+D01 delivery enforcement adds `adv_balance.current_day` for UTC daily-ledger
+baselines; `adv_campaign.delivery_timezone`, `weekly_schedule`, and
+`pacing_mode`; and matching weekly schedule/pacing fields on `adv_item`.
+Start/end timestamps remain the existing campaign/item columns and are treated
+as UTC by the runtime. These fields are part of the RAdv version-2 cache
+compiler contract. Existing populated databases require a deployment-managed
+migration before new cache compiler or Summer binaries are enabled; the
+baseline file is not a production migration script.
+
+D02 changes the `adv_item.cost_type` default from the historical `CPC` value to
+`CPM` while retaining all four enum labels for readable populated-schema
+compatibility. Runtime and cache compilation accept only reviewed positive USD
+CPM rows; they do not reinterpret legacy CPC/CPA/ROI values. Creative cache
+records add media type and first-media MIME without changing the payload
+version, and active rows must satisfy the source/URL/size/weight contract before
+publication. The creative compiler does not reinterpret the campaign's
+`foreign_id` external business identifier as a Native fallback URL. Populated
+systems must run the audit, item-specific migration, and
+cache-first rollout in
+[auction-pricing-creatives.md](auction-pricing-creatives.md); replaying this
+baseline or changing the enum default alone does not migrate stored demand.
+
+A01 adds the singleton `acct_contract` row with
+`usd-cpm-impression-v2`, plus empty `acct_statement`, `acct_adjustment`, and
+`acct_audit` tables. Adjustment and audit triggers reject update/delete. The
+inactive `pay_*` compatibility tables contain only non-identity reference and
+status metadata: full card/bank fields, sender identity, and payment IP fields
+are absent. The legacy `view_payment` and balance-crediting `trig_payment` are
+also absent, and no Summer module routes to these tables. A populated v1 system
+must follow the reviewed conversion and sensitive-field retirement procedure in
+[accounting-settlement.md](accounting-settlement.md); replaying the baseline is
+not a migration.
+
+R01 adds empty `measurement_touch` and `measurement_action` tables. Signed
+impression/click lineage is separated from advertiser action idempotency,
+attribution, and a distinct domain-separated pseudonym. Both tables have
+explicit expiry and no foreign keys to mutable campaign/account rows so an
+analytical historical fact never blocks account cleanup. They contain no D01
+reservation identity and are not referenced by A01 statement or settlement
+queries. Populated systems require a reviewed online migration and backfill
+policy; never replay the baseline. See
+[conversion-attribution.md](conversion-attribution.md).
+
+R02/P02 add empty `report_delivery`, `report_experiment`,
+`report_experiment_variant`, `report_exposure`,
+`report_experiment_outcome`, and `report_experiment_audit` tables. Delivery
+facts retain explicit demand, route, coarse geo/device, supply taxonomy, and
+authorized seller dimensions. Their unique identity is UTC interval plus a
+deterministic SHA-256 `dimension_hash` over the complete dimension tuple; the
+generated two-byte `device_key` remains a lookup compatibility field.
+Exposure and outcome rows reject updates and remain append-only until their
+bounded expiry or an exact authorized subject deletion; audit rows are
+immutable. Outcome values are idempotent, six-decimal observations linked to
+an existing pseudonymous exposure and are not auction, delivery, or accounting
+authorities. Apply the populated-system
+migration before deploying ledger/report binaries; never replay the baseline.
+See [marketplace-analytics-experiments.md](marketplace-analytics-experiments.md).
+
+O02 makes `ledger_log.timely` and `daily_log.daily` unique. The operational
+Redis lease is renewable but cannot prove exclusive ownership during every
+partition; these constraints are the durable backstop that rejects a second
+source row for the same interval or UTC day. Audit populated systems for
+duplicates and resolve them through an approved accounting reconciliation
+before adding either constraint. Do not delete conflicting evidence merely to
+make the migration pass. The clean-room drill in
+[single-region-availability.md](single-region-availability.md) verifies both
+identities after restore.
+
+S02 adds the `analyst`, `auth_mfa`, `auth_recovery_code`, `auth_session`,
+`auth_permission_grant`, and `auth_security_audit` tables. TOTP secrets are
+AES-256-GCM ciphertext, while recovery codes and opaque sessions are stored as
+fixed-length keyed digests. Analysts require an exact active permission and
+resource grant in addition to their role permission. The two
+`auth_security_audit` triggers reject update/delete except for the bounded
+retention command's connection-local maintenance flag. Production grants must
+also deny `UPDATE` and `DELETE` to the HTTP application principal and give the
+retention command a separate maintenance principal/configuration. A populated
+system must apply a reviewed online migration before enabling Summer
+`Identity`; replaying the baseline is not a production migration. See
+[identity-access-security.md](identity-access-security.md).
+
+I03 adds `api_credential`, `api_idempotency`, `api_operation`, and `api_audit`,
+plus an `api_version` column and before-update version trigger on
+`adv_campaign`, `adv_item`, and `adv_creative`. Bearer and idempotency values
+are deployment-keyed digests; completed write responses are bounded to the
+24-hour retry window. Each operation has an opaque publication-generation token
+so only mutations visible before a cache build can be marked active afterward.
+API audit is immutable except for its separated bounded retention gate. A
+populated migration must backfill every version to one,
+create the four tables and five triggers online, and finish before API
+enablement. Older portal binaries tolerate the additive columns/triggers, but
+the trigger must remain while API clients depend on optimistic conflicts. See
+[advertiser-management-api.md](advertiser-management-api.md).
+
+S03 adds empty `quality_rule`, `quality_decision`, `quality_evidence`,
+`quality_case`, `quality_case_event`, `quality_enforcement`, `quality_billing`,
+`quality_counter`, and `quality_audit` tables. Ten triggers prevent rule
+behavior rewrites, decision mutation, evidence deletion outside the bounded
+retention connection, case-event mutation, and audit mutation. Database checks
+also guarantee that incomplete evidence remains observe-only, decision billing
+matches the applied action, and serving canary state is unambiguous. Populated
+systems must apply the reviewed nine-table/ten-trigger migration before
+enabling `traffic_quality`; never replay the baseline. See
+[traffic-quality-anti-fraud.md](traffic-quality-anti-fraud.md).
+
+A02 adds empty `hosted_binding`, `hosted_operation`,
+`hosted_provider_object`, `hosted_event`, `hosted_reconciliation`, and
+`hosted_audit` tables. Twelve triggers preserve binding/operation financial
+identity, provider-object ownership, signed event evidence, reconciliation
+facts, and audit history. The bounded event-retention gate cannot delete an
+event still referenced by reconciliation evidence. Tables contain opaque
+provider identifiers, hashes, an immutable operation-to-binding selection, and
+a two-letter publisher onboarding country only—never API keys, webhook secrets,
+signatures, raw bodies, card data, bank data, or identity documents. A
+populated deployment must apply a reviewed additive migration while the
+feature remains disabled; never replay the baseline. See
+[hosted-funding-payout.md](hosted-funding-payout.md).
 
 ## Updating The Baseline
 

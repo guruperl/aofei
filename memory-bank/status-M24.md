@@ -55,11 +55,11 @@ changing auction winner selection or adding MySQL work to `/bid`.
 
 ## Carry Forward
 
-- `[ ]` Spread/local snapshots for bidder routes remain deferred; middleman
-  routes are still Redis-only runtime cache data.
+- `[+]` Optional spread/local route-snapshot ownership is consolidated in D03;
+  middleman routes remain Redis-only until D03 records its decision.
 - `[+]` `trigger_mode='Always'` runtime behavior moved to M25 and is
   implemented behind `middleman_always_enabled`.
-- `[ ]` Real invoicing/payment execution remains future settlement work.
+- `[+]` Real invoicing/payment ownership is consolidated in A01/A02.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a
   non-goal unless future reporting requires reopening it.
 

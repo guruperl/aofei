@@ -1,4 +1,4 @@
-# Status M6 - Ledger, Logs, And Operational Commands
+# Status M06 - Ledger, Logs, And Operational Commands
 
 Milestone status: `[+]` Completed
 
@@ -65,7 +65,7 @@ Goal: Clarify and verify the non-bid operational commands.
   - Acceptance: each active command has a local invocation, prerequisites, and
     known blocker section.
 
-- `[+]` Run M6 verification.
+- `[+]` Run M06 verification.
   - Command:
     ```bash
     GOWORK=off go test ./cmd/ledger ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind -run '^$'
@@ -95,17 +95,17 @@ Goal: Clarify and verify the non-bid operational commands.
 
 - `[+]` Prevent NATS callback backpressure in `cmd/nats-client`. Subscription
   callbacks send to unbuffered success/error channels, so log delivery can block
-  inside the NATS callback path under traffic or errors. Moved from M3 because
+  inside the NATS callback path under traffic or errors. Moved from M03 because
   this is operational-log reliability.
 
 - `[+]` Synchronize NATS log file rotation and writes. The log consumer mutates
   shared file handles from the callback path without a lock or single-writer
-  queue, leaving rotation/write races untested. Moved from M3 because this is
+  queue, leaving rotation/write races untested. Moved from M03 because this is
   operational-log reliability.
 
 - `[+]` Make ignored NATS subjects observable. The wildcard subscription sends
   success even for unknown subjects, so dropped traffic is indistinguishable
-  from processed request, response, attribute, or win/loss logs. Moved from M3
+  from processed request, response, attribute, or win/loss logs. Moved from M03
   because this is operational-log reliability.
 
 - `[+]` Make ledger writes transactional and replay-safe. Partial failures after

@@ -49,13 +49,13 @@ cache data, and the singleton `cmd/redis-cache` job refreshes that cache.
 - `[+]` Route cache refresh is still a singleton `cmd/redis-cache` operation;
   M24 added route-only refresh and UI freshness visibility while preserving
   cache-node ownership.
-- `[ ]` Spread/local snapshots for bidder routes remain deferred after M23;
-  middleman routes are still Redis-only runtime cache data.
+- `[+]` Optional spread/local route-snapshot ownership is consolidated in D03;
+  middleman routes remain Redis-only until D03 records its decision.
 - `[+]` `trigger_mode='Always'` runtime behavior moved to M25 and is
   implemented behind `middleman_always_enabled`.
 - `[+]` Durable callback retry queues moved to M24 and are implemented for
   retryable downstream post-auction callback forwarding failures.
-- `[ ]` Real invoicing/payment execution remains future settlement work.
+- `[+]` Real invoicing/payment ownership is consolidated in A01/A02.
 - `[X]` Arbitrary downstream markup impression/click rewrite remains a
   non-goal unless future reporting requires reopening it.
 

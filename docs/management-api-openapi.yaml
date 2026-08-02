@@ -1,0 +1,470 @@
+openapi: 3.1.0
+info:
+  title: W8M Advertiser Management API
+  version: 1.0.0
+  description: >-
+    Versioned advertiser campaign-management and delivery-report contract.
+    This API is independent of Summer/Genelet HTML and JSON routes.
+servers:
+  - url: https://www.w8m.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Advertiser
+    description: Credential-owned advertiser profile.
+  - name: Campaigns
+    description: Campaign and ad-group configuration.
+  - name: Creatives
+    description: Source-only creative configuration.
+  - name: Targeting
+    description: Bounded ad-group targeting configuration.
+  - name: Operations
+    description: Cache-activation state for accepted mutations.
+  - name: Reports
+    description: Account-scoped derived delivery reports.
+paths:
+  /api/v1/advertiser:
+    get:
+      summary: Get the credential-owned advertiser
+      operationId: getAdvertiser
+      tags: [Advertiser]
+      x-w8m-scope: api.campaign.read
+      responses:
+        "200": {description: Credential-owned advertiser, content: {application/json: {schema: {$ref: "#/components/schemas/ObjectEnvelope"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+  /api/v1/campaigns:
+    get:
+      summary: List campaigns
+      operationId: listCampaigns
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.read
+      parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}]
+      responses:
+        "200": {$ref: "#/components/responses/Page"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+    post:
+      summary: Create a campaign
+      operationId: createCampaign
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody: {$ref: "#/components/requestBodies/Campaign"}
+      responses:
+        "202": {$ref: "#/components/responses/Accepted"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/BodyTooLarge"}
+        "415": {$ref: "#/components/responses/UnsupportedMedia"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+  /api/v1/campaigns/{campaign_id}:
+    parameters: [{$ref: "#/components/parameters/CampaignID"}]
+    get:
+      summary: Get a campaign
+      operationId: getCampaign
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.read
+      responses:
+        "200": {$ref: "#/components/responses/Object"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+    patch:
+      summary: Update a campaign
+      operationId: updateCampaign
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}, {$ref: "#/components/parameters/IfMatch"}]
+      requestBody: {$ref: "#/components/requestBodies/Campaign"}
+      responses:
+        "202": {$ref: "#/components/responses/Accepted"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/BodyTooLarge"}
+        "415": {$ref: "#/components/responses/UnsupportedMedia"}
+        "428": {$ref: "#/components/responses/PreconditionRequired"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+  /api/v1/campaigns/{campaign_id}/items:
+    parameters: [{$ref: "#/components/parameters/CampaignID"}]
+    get:
+      summary: List campaign ad groups
+      operationId: listItems
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.read
+      parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}]
+      responses: {"200": {$ref: "#/components/responses/Page"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+    post:
+      summary: Create an ad group
+      operationId: createItem
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody: {$ref: "#/components/requestBodies/Item"}
+      responses: {"202": {$ref: "#/components/responses/Accepted"}, "400": {$ref: "#/components/responses/BadRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "413": {$ref: "#/components/responses/BodyTooLarge"}, "415": {$ref: "#/components/responses/UnsupportedMedia"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+  /api/v1/items/{item_id}:
+    parameters: [{$ref: "#/components/parameters/ItemID"}]
+    get:
+      summary: Get an ad group
+      operationId: getItem
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.read
+      responses: {"200": {$ref: "#/components/responses/Object"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+    patch:
+      summary: Update an ad group
+      operationId: updateItem
+      tags: [Campaigns]
+      x-w8m-scope: api.campaign.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}, {$ref: "#/components/parameters/IfMatch"}]
+      requestBody: {$ref: "#/components/requestBodies/Item"}
+      responses: {"202": {$ref: "#/components/responses/Accepted"}, "400": {$ref: "#/components/responses/BadRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "413": {$ref: "#/components/responses/BodyTooLarge"}, "415": {$ref: "#/components/responses/UnsupportedMedia"}, "428": {$ref: "#/components/responses/PreconditionRequired"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+  /api/v1/items/{item_id}/creatives:
+    parameters: [{$ref: "#/components/parameters/ItemID"}]
+    get:
+      summary: List ad-group creatives
+      operationId: listCreatives
+      tags: [Creatives]
+      x-w8m-scope: api.creative.read
+      parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}]
+      responses: {"200": {$ref: "#/components/responses/Page"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+    post:
+      summary: Create a creative
+      operationId: createCreative
+      tags: [Creatives]
+      x-w8m-scope: api.creative.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody: {$ref: "#/components/requestBodies/Creative"}
+      responses: {"202": {$ref: "#/components/responses/Accepted"}, "400": {$ref: "#/components/responses/BadRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "413": {$ref: "#/components/responses/BodyTooLarge"}, "415": {$ref: "#/components/responses/UnsupportedMedia"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+  /api/v1/creatives/{creative_id}:
+    parameters: [{$ref: "#/components/parameters/CreativeID"}]
+    get:
+      summary: Get a creative
+      operationId: getCreative
+      tags: [Creatives]
+      x-w8m-scope: api.creative.read
+      responses: {"200": {$ref: "#/components/responses/Object"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+    patch:
+      summary: Update a creative
+      operationId: updateCreative
+      tags: [Creatives]
+      x-w8m-scope: api.creative.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}, {$ref: "#/components/parameters/IfMatch"}]
+      requestBody: {$ref: "#/components/requestBodies/Creative"}
+      responses: {"202": {$ref: "#/components/responses/Accepted"}, "400": {$ref: "#/components/responses/BadRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "413": {$ref: "#/components/responses/BodyTooLarge"}, "415": {$ref: "#/components/responses/UnsupportedMedia"}, "428": {$ref: "#/components/responses/PreconditionRequired"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+  /api/v1/items/{item_id}/targeting:
+    parameters: [{$ref: "#/components/parameters/ItemID"}]
+    get:
+      summary: Get ad-group targeting
+      operationId: getTargeting
+      tags: [Targeting]
+      x-w8m-scope: api.targeting.read
+      responses: {"200": {$ref: "#/components/responses/Object"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+    patch:
+      summary: Update ad-group targeting
+      operationId: updateTargeting
+      tags: [Targeting]
+      x-w8m-scope: api.targeting.write
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}, {$ref: "#/components/parameters/IfMatch"}]
+      requestBody: {$ref: "#/components/requestBodies/Targeting"}
+      responses: {"202": {$ref: "#/components/responses/Accepted"}, "400": {$ref: "#/components/responses/BadRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "409": {$ref: "#/components/responses/Conflict"}, "413": {$ref: "#/components/responses/BodyTooLarge"}, "415": {$ref: "#/components/responses/UnsupportedMedia"}, "428": {$ref: "#/components/responses/PreconditionRequired"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+  /api/v1/operations/{operation_id}:
+    get:
+      summary: Get mutation activation state
+      operationId: getOperation
+      tags: [Operations]
+      parameters: [{$ref: "#/components/parameters/OperationID"}]
+      responses: {"200": {$ref: "#/components/responses/Object"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "404": {$ref: "#/components/responses/NotFound"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+  /api/v1/reports/delivery:
+    get:
+      summary: List delivery report intervals
+      operationId: listDeliveryReports
+      tags: [Reports]
+      x-w8m-scope: api.report.read
+      parameters:
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+      responses: {"200": {$ref: "#/components/responses/Page"}, "400": {$ref: "#/components/responses/BadRequest"}, "401": {$ref: "#/components/responses/Unauthorized"}, "403": {$ref: "#/components/responses/Forbidden"}, "429": {$ref: "#/components/responses/RateLimited"}, "503": {$ref: "#/components/responses/Unavailable"}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: W8M-v1}
+  parameters:
+    Cursor: {name: cursor, in: query, schema: {type: string}, description: Opaque-to-clients monotonic id cursor.}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 8, maxLength: 128}}
+    IfMatch: {name: If-Match, in: header, required: true, schema: {type: string, pattern: '^"v[1-9][0-9]*"$'}}
+    CampaignID: {name: campaign_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+    ItemID: {name: item_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+    CreativeID: {name: creative_id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1}}
+    OperationID: {name: operation_id, in: path, required: true, schema: {type: string, pattern: '^[a-f0-9]{32}$'}}
+  requestBodies:
+    Campaign: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CampaignInput"}}}}
+    Item: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ItemInput"}}}}
+    Creative: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreativeInput"}}}}
+    Targeting: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TargetingInput"}}}}
+  responses:
+    Object: {description: Account-scoped object, headers: {ETag: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ObjectEnvelope"}}}}
+    Page: {description: Stable id-ordered page, content: {application/json: {schema: {$ref: "#/components/schemas/PageEnvelope"}}}}
+    Accepted: {description: Configuration accepted; cache activation remains pending, content: {application/json: {schema: {$ref: "#/components/schemas/AcceptedEnvelope"}}}}
+    BadRequest: {$ref: "#/components/responses/Error400"}
+    Unauthorized: {$ref: "#/components/responses/Error401"}
+    Forbidden: {$ref: "#/components/responses/Error403"}
+    NotFound: {$ref: "#/components/responses/Error404"}
+    Conflict: {$ref: "#/components/responses/Error409"}
+    BodyTooLarge: {$ref: "#/components/responses/Error413"}
+    UnsupportedMedia: {$ref: "#/components/responses/Error415"}
+    PreconditionRequired: {$ref: "#/components/responses/Error428"}
+    RateLimited: {description: Credential or account quota exceeded, headers: {Retry-After: {schema: {type: integer}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Unavailable: {description: Bounded dependency or timeout failure; retry writes with the same idempotency key, headers: {Retry-After: {schema: {type: integer}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error400: {description: Invalid request, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error401: {description: Invalid or expired service credential, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error403: {description: Missing scope, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error404: {description: Missing or cross-account resource, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error409: {description: Idempotency or optimistic-version conflict, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error413: {description: Body too large, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error415: {description: Content-Type must be application/json, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    Error428: {description: If-Match required, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+  schemas:
+    Limits:
+      type: object
+      additionalProperties: false
+      properties: {spend_usd: {type: number, minimum: 0, maximum: 3.4028235e+38}, impressions: {type: integer, minimum: 0, maximum: 4294967295}, clicks: {type: integer, minimum: 0, maximum: 4294967295}}
+    DeliveryPolicy:
+      type: object
+      additionalProperties: false
+      required: [pacing, total_limits, daily_limits]
+      properties:
+        start_utc: {type: string, format: date-time}
+        end_utc: {type: string, format: date-time}
+        timezone: {type: string, description: IANA timezone on campaigns; items inherit it.}
+        weekly_schedule: {type: string, pattern: '^[01]{168}$'}
+        pacing: {type: string, enum: [Fast, Even]}
+        total_limits: {$ref: "#/components/schemas/Limits"}
+        daily_limits: {$ref: "#/components/schemas/Limits"}
+    ItemDeliveryPolicy:
+      type: object
+      additionalProperties: false
+      required: [pacing, total_limits, daily_limits]
+      properties:
+        start_utc: {type: string, format: date-time}
+        end_utc: {type: string, format: date-time}
+        weekly_schedule: {type: string, pattern: '^[01]{168}$'}
+        pacing: {type: string, enum: [Fast, Even]}
+        total_limits: {$ref: "#/components/schemas/Limits"}
+        daily_limits: {$ref: "#/components/schemas/Limits"}
+    CampaignInput:
+      type: object
+      additionalProperties: false
+      required: [name, delivery]
+      properties: {name: {type: string, maxLength: 255}, external_id: {type: string, maxLength: 255}, target_type: {type: string, enum: [App, Web]}, description: {type: string, maxLength: 4096}, delivery: {$ref: "#/components/schemas/DeliveryPolicy"}}
+    ItemInput:
+      type: object
+      additionalProperties: false
+      required: [name, landing_url, price_cpm_usd, delivery]
+      properties: {name: {type: string, maxLength: 255}, landing_url: {type: string, format: uri}, impression_urls: {type: array, maxItems: 10, items: {type: string, format: uri}}, click_urls: {type: array, maxItems: 10, items: {type: string, format: uri}}, price_cpm_usd: {type: number, exclusiveMinimum: 0}, delivery: {$ref: "#/components/schemas/ItemDeliveryPolicy"}}
+    CreativeInput:
+      type: object
+      additionalProperties: false
+      required: [name, width, height, media_type, weight]
+      properties: {name: {type: string, maxLength: 255}, width: {type: integer, minimum: 1, maximum: 65535}, height: {type: integer, minimum: 1, maximum: 65535}, media_type: {type: string, enum: [Banner, Video, Native]}, source_url: {type: string, format: uri}, native: {$ref: "#/components/schemas/NativeCreative"}, weight: {type: number, exclusiveMinimum: 0}, status: {type: string, enum: [Yes, No]}}
+    TargetingInput:
+      type: object
+      additionalProperties: false
+      required: [site_types, languages, device_types, positions]
+      properties: {site_types: {type: array, minItems: 1, items: {type: string, enum: [App, Web]}}, languages: {type: array, minItems: 1, items: {type: string}}, device_types: {type: array, minItems: 1, items: {type: string}}, positions: {type: array, minItems: 1, items: {type: string}}, access_order: {type: string, enum: [White, Black, Inherit]}, channel_order: {type: string, enum: [White, Black]}}
+    NativeCreative:
+      type: object
+      additionalProperties: false
+      required: [version, title, description, main_image_url]
+      properties:
+        version: {type: string, const: "1"}
+        title: {type: string, maxLength: 255}
+        description: {type: string, maxLength: 1024}
+        cta: {type: string, maxLength: 64}
+        icon_url: {type: string, format: uri}
+        main_image_url: {type: string, format: uri}
+    Advertiser:
+      type: object
+      additionalProperties: false
+      required: [id, email, status]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        email: {type: string, format: email}
+        first_name: {type: string}
+        last_name: {type: string}
+        domain: {type: string}
+        status: {type: string}
+        created_at: {type: string, format: date-time}
+    Campaign:
+      type: object
+      additionalProperties: false
+      required: [id, advertiser_id, name, status, version, delivery, created_at]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        advertiser_id: {type: integer, format: int64, minimum: 1}
+        name: {type: string}
+        external_id: {type: string}
+        target_type: {type: string, enum: [App, Web]}
+        description: {type: string}
+        status: {type: string}
+        version: {type: integer, format: int64, minimum: 1}
+        delivery: {$ref: "#/components/schemas/DeliveryPolicy"}
+        created_at: {type: string, format: date-time}
+    Item:
+      type: object
+      additionalProperties: false
+      required: [id, campaign_id, name, landing_url, price_cpm_usd, status, version, delivery, created_at]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        campaign_id: {type: integer, format: int64, minimum: 1}
+        name: {type: string}
+        landing_url: {type: string, format: uri}
+        impression_urls: {type: array, items: {type: string, format: uri}}
+        click_urls: {type: array, items: {type: string, format: uri}}
+        price_cpm_usd: {type: number, exclusiveMinimum: 0}
+        status: {type: string}
+        version: {type: integer, format: int64, minimum: 1}
+        delivery: {$ref: "#/components/schemas/DeliveryPolicy"}
+        created_at: {type: string, format: date-time}
+    Creative:
+      type: object
+      additionalProperties: false
+      required: [id, item_id, name, width, height, media_type, weight, status, version, created_at]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        item_id: {type: integer, format: int64, minimum: 1}
+        name: {type: string}
+        width: {type: integer, minimum: 1, maximum: 65535}
+        height: {type: integer, minimum: 1, maximum: 65535}
+        media_type: {type: string, enum: [Banner, Video, Native]}
+        source_url: {type: string, format: uri}
+        native: {$ref: "#/components/schemas/NativeCreative"}
+        weight: {type: number, exclusiveMinimum: 0}
+        status: {type: string, enum: [Yes, No]}
+        version: {type: integer, format: int64, minimum: 1}
+        created_at: {type: string, format: date-time}
+    Targeting:
+      type: object
+      additionalProperties: false
+      required: [item_id, version, site_types, languages, device_types, positions, access_order, channel_order]
+      properties:
+        item_id: {type: integer, format: int64, minimum: 1}
+        version: {type: integer, format: int64, minimum: 1}
+        site_types: {type: array, minItems: 1, items: {type: string, enum: [App, Web]}}
+        languages: {type: array, minItems: 1, items: {type: string}}
+        device_types: {type: array, minItems: 1, items: {type: string}}
+        positions: {type: array, minItems: 1, items: {type: string}}
+        access_order: {type: string, enum: [White, Black, Inherit]}
+        channel_order: {type: string, enum: [White, Black]}
+    Operation:
+      type: object
+      additionalProperties: false
+      required: [id, resource_type, resource_id, accepted_version, configuration_state, activation_state, accepted_at, activation_deadline]
+      properties:
+        id: {type: string, pattern: '^[a-f0-9]{32}$'}
+        resource_type: {type: string, enum: [campaign, item, creative, targeting]}
+        resource_id: {type: integer, format: int64, minimum: 1}
+        accepted_version: {type: integer, format: int64, minimum: 1}
+        configuration_state: {type: string, const: Accepted}
+        activation_state: {type: string, enum: [Pending, Active, Failed, Delayed]}
+        accepted_at: {type: string, format: date-time}
+        activation_deadline: {type: string, format: date-time}
+        activated_at: {type: string, format: date-time}
+        publication_mode: {type: string, enum: [redis, spread, all]}
+    DeliveryReport:
+      type: object
+      additionalProperties: false
+      required: [id, interval_utc, campaign_id, item_id, creative_id, demand_source, inventory_environment, integration_mode, media_intent, seller_type, wins, impressions, clicks, spend_usd, accounting_version]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        interval_utc: {type: string, format: date-time}
+        campaign_id: {type: integer, format: int64, minimum: 1}
+        item_id: {type: integer, format: int64, minimum: 1}
+        creative_id: {type: integer, format: int64, minimum: 1}
+        demand_source: {type: string}
+        inventory_environment: {type: string}
+        integration_mode: {type: string}
+        media_intent: {type: string}
+        seller_type: {type: string}
+        seller_id: {type: string}
+        wins: {type: integer, format: int64, minimum: 0}
+        impressions: {type: integer, format: int64, minimum: 0}
+        clicks: {type: integer, format: int64, minimum: 0}
+        spend_usd: {type: string, pattern: '^[0-9]+\.[0-9]{6}$'}
+        accounting_version: {type: string, const: usd-cpm-impression-v2}
+    PageMeta:
+      type: object
+      additionalProperties: false
+      required: [limit, order, timezone]
+      properties:
+        next_cursor: {type: string}
+        limit: {type: integer, minimum: 1, maximum: 100}
+        order: {type: string, const: id}
+        timezone: {type: string, const: UTC}
+        currency: {type: string, const: USD}
+        freshness: {type: string}
+        source: {type: string}
+        partial: {type: boolean}
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties: {error: {type: object, additionalProperties: false, required: [code, message, request_id], properties: {code: {type: string}, message: {type: string}, request_id: {type: string}, fields: {type: object, additionalProperties: {type: string}}}}}
+    ObjectEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - {$ref: "#/components/schemas/Advertiser"}
+            - {$ref: "#/components/schemas/Campaign"}
+            - {$ref: "#/components/schemas/Item"}
+            - {$ref: "#/components/schemas/Creative"}
+            - {$ref: "#/components/schemas/Targeting"}
+            - {$ref: "#/components/schemas/Operation"}
+    PageEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            oneOf:
+              - {$ref: "#/components/schemas/Campaign"}
+              - {$ref: "#/components/schemas/Item"}
+              - {$ref: "#/components/schemas/Creative"}
+              - {$ref: "#/components/schemas/DeliveryReport"}
+        meta: {$ref: "#/components/schemas/PageMeta"}
+    AcceptedEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [resource, operation]
+          properties:
+            resource:
+              oneOf:
+                - {$ref: "#/components/schemas/Campaign"}
+                - {$ref: "#/components/schemas/Item"}
+                - {$ref: "#/components/schemas/Creative"}
+                - {$ref: "#/components/schemas/Targeting"}
+            operation: {$ref: "#/components/schemas/Operation"}

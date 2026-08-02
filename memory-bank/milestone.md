@@ -1,8 +1,129 @@
 # Milestones
 
 This file stays at milestone level. Detailed task rows live in the matching
-`memory-bank/status-M*.md` files. Do not recreate an aggregate
+`memory-bank/status-<lane><number>.md` files. Do not recreate an aggregate
 `memory-bank/status.md` file.
+
+## Status ID Pattern
+
+The original single-digit M-lane history is normalized to `M00` through `M09`;
+`M10` and later already satisfy the two-digit minimum. New product work is
+organized into zero-padded domain lanes:
+
+```text
+D01, D02, ...  DSP demand, campaigns, auctions, creatives, and middleman bidding
+P01, P02, ...  Publisher inventory, direct SSP, floors, and supply transparency
+R01, R02, ...  Measurement, attribution, reporting, and experimentation
+I01, I02, ...  OpenRTB integrations, management APIs, and mobile SDKs
+S01, S02, ...  Privacy, identity, authorization, and traffic quality
+A01, A02, ...  Accounting, billing, settlement, funding, and payouts
+O01, O02, ...  Operations, observability, capacity, availability, and recovery
+```
+
+The two-digit minimum keeps each lane sorting naturally after it reaches `10`.
+Always use the zero-padded form for new lane files, and never reuse an ID after
+its status file exists. Cancelled work keeps its file and is marked cancelled.
+
+## W8M Marketplace Roadmap
+
+The W8M marketplace roadmap prioritizes commercial correctness, privacy,
+accounting safety, and production controls before expanding automation or
+scale. All lane milestones below are planned; completed M-lane history remains
+the record of the runtime that exists today.
+
+Delivery sequence:
+
+1. Foundation prerequisites: D01, S01, S04, and O01.
+2. Foundation completion: A01 after D01, then P01 after D01/S01/A01/O01.
+3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
+4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
+5. Demand-gated mobile delivery: I02 after a named mobile integration requires
+   supported native SDKs.
+
+The strict serial order is:
+
+```text
+D01 -> S01 -> S04 -> O01 -> A01 -> P01
+-> D02 -> I01 -> R01 -> O02 -> D03
+-> R02 -> P02 -> S02 -> I03 -> S03 -> A02
+-> I02 (only after a named mobile integration exists)
+```
+
+Controlled direct-SSP and middleman staging may begin with existing runtime
+features, but revenue-bearing activation must satisfy the prerequisite lane
+acceptance criteria recorded in the corresponding status files.
+
+| ID | Status file | Summary |
+|---|---|---|
+| D01 | [status-D01.md](status-D01.md) | Campaign delivery guardrails. |
+| D02 | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
+| D03 | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
+| P01 | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
+| P02 | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
+| R01 | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
+| R02 | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
+| I01 | [status-I01.md](status-I01.md) | OpenRTB partner interoperability. |
+| I02 | [status-I02.md](status-I02.md) | Android and iOS publisher SDKs. |
+| I03 | [status-I03.md](status-I03.md) | External campaign management API. |
+| S01 | [status-S01.md](status-S01.md) | Privacy, consent, and data disclosure. |
+| S02 | [status-S02.md](status-S02.md) | Identity, two-factor authentication, and RBAC. |
+| S03 | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
+| S04 | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
+| A01 | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
+| A02 | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
+| O01 | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
+| O02 | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
+
+Historical M-lane status index:
+
+| ID | Status file | Summary |
+|---|---|---|
+| M00 | [status-M00.md](status-M00.md) | Agentic harness bootstrap. |
+| M01 | [status-M01.md](status-M01.md) | Local Docker runtime stabilization. |
+| M02 | [status-M02.md](status-M02.md) | Schema baseline stewardship. |
+| M03 | [status-M03.md](status-M03.md) | Redis and NATS cache pipeline reliability. |
+| M04 | [status-M04.md](status-M04.md) | Bid path smoke coverage. |
+| M05 | [status-M05.md](status-M05.md) | Summer/Genelet admin compatibility. |
+| M06 | [status-M06.md](status-M06.md) | Ledger, logs, and operational commands. |
+| M07 | [status-M07.md](status-M07.md) | MaxMind and geo runtime. |
+| M08 | [status-M08.md](status-M08.md) | Full repository test hygiene. |
+| M09 | [status-M09.md](status-M09.md) | Production deployment runbook. |
+| M10 | [status-M10.md](status-M10.md) | Documentation and agent stewardship. |
+| M11 | [status-M11.md](status-M11.md) | Genelet and Summer UI stewardship. |
+| M12 | [status-M12.md](status-M12.md) | OpenRTB and audience matching review. |
+| M13 | [status-M13.md](status-M13.md) | OpenRTB and DSP refactor backlog. |
+| M14 | [status-M14.md](status-M14.md) | Redis and spread cache reliability. |
+| M15 | [status-M15.md](status-M15.md) | DSP serving hardening. |
+| M16 | [status-M16.md](status-M16.md) | Middleman AdX advertiser-owned bidder schema. |
+| M17 | [status-M17.md](status-M17.md) | Advertiser bidder portal. |
+| M18 | [status-M18.md](status-M18.md) | Summer template modernization. |
+| M19 | [status-M19.md](status-M19.md) | Maintenance job package refactor. |
+| M20 | [status-M20.md](status-M20.md) | Middleman bidder runtime. |
+| M21 | [status-M21.md](status-M21.md) | Middleman callback proxy and price reconciliation. |
+| M22 | [status-M22.md](status-M22.md) | Middleman reporting and settlement views. |
+| M23 | [status-M23.md](status-M23.md) | Middleman route operations UI. |
+| M24 | [status-M24.md](status-M24.md) | Middleman operations reliability. |
+| M25 | [status-M25.md](status-M25.md) | Middleman auction expansion. |
+| M26 | [status-M26.md](status-M26.md) | Middle-term review. |
+| M27 | [status-M27.md](status-M27.md) | SSP contract and cache lookup foundation. |
+| M28 | [status-M28.md](status-M28.md) | SSP runtime adapter. |
+| M29 | [status-M29.md](status-M29.md) | Publisher tag UI and download. |
+| M30 | [status-M30.md](status-M30.md) | SSP measurement, cookie, and reporting semantics. |
+| M31 | [status-M31.md](status-M31.md) | SSP hardening and product boundary. |
+| M32 | [status-M32.md](status-M32.md) | SSP mobile/API contract and response formats. |
+| M33 | [status-M33.md](status-M33.md) | SSP middleman fallback. |
+| M34 | [status-M34.md](status-M34.md) | Richer supply taxonomy ADR. |
+| M35 | [status-M35.md](status-M35.md) | SSP account/schema ADR. |
+| M36 | [status-M36.md](status-M36.md) | Runtime safety and test/observability hardening. |
+| M37 | [status-M37.md](status-M37.md) | Operational follow-up hardening. |
+| M38 | [status-M38.md](status-M38.md) | Prebid/OpenRTB pattern adoption review. |
+| M39 | [status-M39.md](status-M39.md) | Tracking and runtime integrity. |
+| M40 | [status-M40.md](status-M40.md) | Redis cache availability and route efficiency. |
+| M41 | [status-M41.md](status-M41.md) | Measurement replay idempotency. |
+| M42 | [status-M42.md](status-M42.md) | Unified HTTP graceful shutdown. |
+| M43 | [status-M43.md](status-M43.md) | Repository CI baseline. |
+| M44 | [status-M44.md](status-M44.md) | Bid-path logging and benchmark cleanup. |
+| M45 | [status-M45.md](status-M45.md) | Open-source security and privacy hygiene. |
 
 Status markers:
 
@@ -22,14 +143,16 @@ Use this order when closing a milestone:
 2. Update code-adjacent docs and the memory-bank files that changed behavior,
    contracts, tools, or operator workflow.
 3. Resolve review findings or carry them forward explicitly in the matching
-   `status-M*.md` file with a dated note.
-4. Check whether `evolution/` needs a new prompt/result version.
-5. Mark the matching `status-M*.md` tasks, review findings, and milestone state
+   lane status file with a dated note.
+4. Reconcile every affected pending status file and recompute the remaining
+   dependency order according to [GOAL.md](../GOAL.md).
+5. Check whether `evolution/` needs a new prompt/result version.
+6. Mark the matching lane status tasks, review findings, and milestone state
    complete only after verification passes.
-6. Commit the milestone only when the execution request includes commit
+7. Commit the milestone only when the execution request includes commit
    handling.
 
-## M0 - Agentic Harness Bootstrap `[+]`
+## M00 - Agentic Harness Bootstrap `[+]`
 
 Create the project operating layer for future agent work.
 
@@ -47,7 +170,7 @@ Acceptance:
 - Historical docs are not lost, but the root README no longer presents legacy
   manual setup as the active workflow.
 
-## M1 - Local Docker Runtime Stabilization `[+]`
+## M01 - Local Docker Runtime Stabilization `[+]`
 
 Make the Docker-backed development runtime the unquestioned local baseline.
 
@@ -65,7 +188,7 @@ Acceptance:
 - No active workflow depends on the retired root config directory or legacy
   database credentials.
 
-## M2 - Schema Baseline Stewardship `[+]`
+## M02 - Schema Baseline Stewardship `[+]`
 
 Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 
@@ -82,7 +205,7 @@ Acceptance:
 - Docker MySQL schema can be recreated from `etc/step4_init.sql`.
 - Drift between Docker MySQL and the baseline can be detected and reviewed.
 
-## M3 - Redis And NATS Cache Pipeline Reliability `[+]`
+## M03 - Redis And NATS Cache Pipeline Reliability `[+]`
 
 Prove that cache and message-bus flows work from the Docker services.
 
@@ -100,7 +223,7 @@ Acceptance:
 - NATS-required cache/spread flows connect to Docker NATS.
 - Cache inspection commands show expected sample objects.
 
-## M4 - Bid Path Smoke Coverage `[+]`
+## M04 - Bid Path Smoke Coverage `[+]`
 
 Add a reliable local proof that the DSP request path still works.
 
@@ -123,7 +246,7 @@ Result:
   covers the Redis-backed `ServeBid` path with local sample data and controlled
   malformed, oversized, and no-bid failure modes.
 
-## M5 - Summer/Genelet Admin Compatibility `[+]`
+## M05 - Summer/Genelet Admin Compatibility `[+]`
 
 Align admin models, filters, and components with the active Docker schema.
 
@@ -147,7 +270,7 @@ Result:
 - Stale slot/weight schema assumptions were corrected; larger Genelet
   query-builder hardening remains tracked as future architecture work.
 
-## M6 - Ledger, Logs, And Operational Commands `[+]`
+## M06 - Ledger, Logs, And Operational Commands `[+]`
 
 Clarify and verify the non-bid operational commands.
 
@@ -167,7 +290,7 @@ Acceptance:
 Result:
 
 - `docs/operational-commands.md` documents local prerequisites, invocations,
-  outputs, and M6/M7 blockers for `cmd/ledger`, `cmd/nats-client`,
+  outputs, and M06/M07 blockers for `cmd/ledger`, `cmd/nats-client`,
   `cmd/winloss`, `cmd/spread`, and `cmd/maxmind`.
 - DSP controller startup now has typed options for disabling NATS and MaxMind;
   ledger, win/loss simulation, and MaxMind inventory commands use those options
@@ -180,7 +303,7 @@ Result:
 - Win/loss simulation validates no-bid and malformed native tracker responses
   before indexing response slices.
 
-## M7 - MaxMind And Geo Runtime `[+]`
+## M07 - MaxMind And Geo Runtime `[+]`
 
 Make geodata expectations explicit and locally testable.
 
@@ -207,7 +330,7 @@ Result:
 - Asset-backed lookup tests skip explicitly when `etc/GeoLite2-City.mmdb` or
   `etc/qq-pz.dat` is absent; compile and pure utility tests remain local-safe.
 
-## M8 - Full Repository Test Hygiene `[+]`
+## M08 - Full Repository Test Hygiene `[+]`
 
 Move from scoped smoke checks to a clean repository-level verification target.
 
@@ -235,9 +358,9 @@ Result:
 - Summer/Genelet DB-backed tests skip cleanly when generated local config is
   absent or the configured DB cannot be reached; malformed configs still fail.
 - Staticcheck, Docker smoke/admin checks, and schema drift checks remain
-  documented non-gating follow-ups for M8.
+  documented non-gating follow-ups for M08.
 
-## M9 - Production Deployment Runbook `[+]`
+## M09 - Production Deployment Runbook `[+]`
 
 Rebuild production/operator docs from current reality rather than legacy notes.
 
@@ -263,7 +386,8 @@ Scope:
 
 - Maintain `README.md`, `AGENTS.md`, `memory-bank/`, `evolution/`, and `docs/`.
 - Add new evolution versions only for real direction or boundary changes.
-- Keep milestone docs summary-level and detailed task lists in `status-M*.md`.
+- Keep milestone docs summary-level and detailed task lists in matching lane
+  status files.
 
 Acceptance:
 
@@ -279,7 +403,7 @@ shape.
 
 Scope:
 
-- Move the remaining M5 Genelet/Summer hardening findings into active work.
+- Move the remaining M05 Genelet/Summer hardening findings into active work.
 - Replace active component-loading panics with error-returning setup paths.
 - Add a central Genelet SQL identifier/query-building validation seam for
   component metadata and request-derived fields, filters, and ordering.
@@ -1312,12 +1436,148 @@ Result:
 - Every branch and tag was rewritten and independently verified before the
   sanitized refs were published.
 
-## Post-M25 Middleman Backlog
+## D01 - Campaign Delivery Guardrails `[+]`
 
-These items remain intentionally outside M25:
+Make budgets and schedules authoritative bid eligibility, not merely stored UI
+or ledger data. Exhausted total/daily budgets and out-of-window campaigns or
+items must not bid, including under concurrent traffic and stale-cache risks.
+Detailed tasks and verification are in [status-D01.md](status-D01.md).
 
-- Add spread/local snapshots for middleman bidder routes if `cmd/unify` should
-  support middleman fallback without Redis static-cache reads.
-- Add real invoicing/payment execution from `daily_mid` settlement facts.
-- Keep arbitrary downstream markup impression/click rewriting closed unless a
-  future reporting requirement makes cooperative click notify insufficient.
+## D02 - Auction, Pricing, And Creative Correctness `[+]`
+
+Align public pricing claims with runtime behavior, select the highest qualified
+campaign effective CPM, reserve weights for creative rotation inside the
+winner, complete native authoring, and validate media/size/secure markup.
+Detailed tasks and verification are in [status-D02.md](status-D02.md).
+
+## D03 - External DSP / AdX Middleman Activation `[+]`
+
+The config-gated middleman path now has read-only database/Redis/credential
+preflight, stricter topology and header safety, and a staged production runbook.
+Fallback and optional `Always` require distinct evidence gates; checked-in and
+deployed traffic remains off until a named partner is approved. Detailed tasks
+and verification are in [status-D03.md](status-D03.md).
+
+## P01 - Direct SSP Commercial Readiness And Activation `[+]`
+
+Make configured publisher slot floors authoritative and prove the existing
+browser and SDK-style `/pz` contracts from approved inventory through cache,
+auction, tracking, reporting, rollout, and rollback. Detailed tasks are in
+[status-P01.md](status-P01.md).
+
+## P02 - Supply Metadata And Seller Transparency `[+]`
+
+Implement the additive supply taxonomy selected by ADR 0001 and introduce
+seller/supply-chain metadata without changing the existing publisher account
+boundary. Detailed tasks are in [status-P02.md](status-P02.md).
+
+## R01 - Conversion, Action, And Attribution Measurement `[+]`
+
+Add signed, idempotent conversion and post-click action collection, attribution
+semantics, privacy-aware retention, ledger integration, and advertiser-facing
+measurement. Detailed tasks are in [status-R01.md](status-R01.md).
+
+## R02 - Marketplace Analytics And Experimentation `[+]`
+
+Expand reporting dimensions and commercial metrics, define reporting freshness,
+and add controlled A/B assignment only after conversion attribution is
+reliable. Detailed tasks are in [status-R02.md](status-R02.md).
+
+## I01 - OpenRTB Partner Interoperability `[+]`
+
+Harden bounded gzip handling, OpenRTB 2.5 partner compatibility, sanitation,
+floor/currency/media validation, rejection reasons, and response-time evidence.
+Detailed tasks are in [status-I01.md](status-I01.md).
+
+## I02 - Android And iOS Publisher SDKs `[ ]`
+
+Build versioned native wrappers, sample applications, privacy propagation, and
+release guidance around the stable `/pz` API after a named mobile integration
+justifies maintained SDKs. Detailed tasks are in [status-I02.md](status-I02.md).
+
+## I03 - External Campaign Management API `[+]`
+
+Expose a versioned, scoped, quota-controlled, idempotent, and auditable API for
+advertiser campaign management and reporting. Detailed tasks are in
+[status-I03.md](status-I03.md).
+
+## S01 - Privacy, Consent, And Data Disclosure `[+]`
+
+Centralize consent interpretation, user-data use and disclosure, middleman
+request sanitation, retention, deletion, and audit redaction across `/bid`,
+`/pz`, trackers, and external fanout. Detailed tasks are in
+[status-S01.md](status-S01.md).
+
+## S02 - Identity, Two-Factor Authentication, And RBAC `[+]`
+
+Add TOTP-based two-factor authentication, recovery controls, granular account
+permissions, a read-only analyst role, session hardening, and security audit
+events. Detailed tasks are in [status-S02.md](status-S02.md).
+
+## S03 - Traffic Quality And Anti-Fraud `[+]`
+
+Add explainable rule-based invalid-traffic detection, review/quarantine tools,
+partner enforcement, and auditable counters without introducing automatic ML
+decisions. Detailed tasks are in [status-S03.md](status-S03.md).
+
+## S04 - Template Escaping And XSS Audit `[+]`
+
+Audit every public and authenticated Summer/Genelet rendering path, inventory
+intentional stored-markup previews, and centralize the narrow sanitized
+safe-HTML boundary without weakening contextual `html/template` escaping.
+Detailed tasks are in [status-S04.md](status-S04.md).
+
+## A01 - Billing And Manual Settlement Safety `[+]`
+
+Define charge/pay and CPM/eCPM accounting contracts, support auditable manual
+invoicing and publisher settlement, and retire unsafe collection of full card
+or bank credentials. Detailed tasks are in [status-A01.md](status-A01.md).
+
+## A02 - Hosted Funding And Publisher Payout Integration `[+]`
+
+Integrate hosted/tokenized external funding and payout providers with
+idempotent webhooks, reconciliation, refund/chargeback handling, and secret
+management. Aofei must never store full card or bank credentials. Detailed
+tasks are in [status-A02.md](status-A02.md).
+
+Result: default-off Stripe Checkout and Connect Express integration now uses
+mandatory independently approved opaque bindings, maker/checker operation
+states, stable provider idempotency, signed replay/order-safe webhooks,
+connected-account isolation, exact Balance Transaction reconciliation, explicit
+refund/dispute/payout exceptions, restricted maintenance, fixed-cardinality
+metrics, and the A01 manual outage fallback. The clean baseline is 94 tables, 6
+routines, and 55 triggers. Recorded/disposable verification is complete; live
+provider sandbox, migration, governance, and production enablement remain
+external go-live gates rather than repository completion claims.
+
+## O01 - Production Traffic Controls And Observability `[+]`
+
+Operationalize protected metrics and alerts, add partner QPS/concurrency and
+overload controls, record timeout/rejection/latency evidence, and establish a
+repeatable capacity baseline. Detailed tasks are in
+[status-O01.md](status-O01.md).
+
+## O02 - Single-Region Availability, Recovery, And SLO `[+]`
+
+Multi-node lifecycle readiness/failover, renewable singleton ownership,
+durable ledger identities, dependency semantics, clean-room restore/cache
+rebuild, recovery objectives, and an evidence-gated 99.9% SLO contract are
+complete. Production 99.9% and provider RPO/RTO achievement remain explicitly
+unclaimed until a named production window supplies retained evidence. Detailed
+results are in [status-O02.md](status-O02.md).
+
+## Deferred Product Investments
+
+[docs/defer.md](../docs/defer.md) records automatic bidding/ML, internally
+operated payment-card processing, multi-region deployment, and million-RPM
+engineering together with their current alternatives and evidence-based
+reconsideration triggers. Deferred work has no reserved lane ID until its
+trigger is satisfied.
+
+## Historical Middleman Carry-Forward
+
+- D03 owns the decision whether middleman routes need spread/local snapshots.
+- A01 and A02 own invoicing and payment execution from `daily_mid` facts.
+- Arbitrary downstream markup impression/click rewriting remains closed unless
+  R01 identifies a measurement requirement that cooperative click notification
+  cannot satisfy.

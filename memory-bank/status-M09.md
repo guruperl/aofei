@@ -1,4 +1,4 @@
-# Status M9 - Production Deployment Runbook
+# Status M09 - Production Deployment Runbook
 
 Milestone status: `[+]` Completed
 
@@ -53,7 +53,7 @@ notes.
   - Acceptance: root README links only to current runbooks; historical docs are
     clearly labeled and not required for active setup.
 
-- `[+]` Run M9 verification.
+- `[+]` Run M09 verification.
   - Command:
     ```bash
     rg -n 'eightr[a]n|12pass3[4]|co[n]f/' README.md AGENTS.md docs memory-bank --glob '!docs/legacy-operations.md'

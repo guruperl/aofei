@@ -1,5 +1,9 @@
 # Status M30 - SSP Measurement, Cookie, And Reporting Semantics
 
+Current note: S01 supersedes the historical privacy behavior below. Browser
+identity now requires an accepted configured personalization grant, IP+UA is no
+longer an identity fallback, and all request/attribute audits are redacted.
+
 ## Goal
 
 Make direct SSP traffic observable in audits, give browser traffic best-effort

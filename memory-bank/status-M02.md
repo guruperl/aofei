@@ -1,4 +1,4 @@
-# Status M2 - Schema Baseline Stewardship
+# Status M02 - Schema Baseline Stewardship
 
 Milestone status: `[+]` Completed
 
@@ -7,7 +7,7 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 ## Tasks
 
 - `[+]` Document the exact baseline object inventory.
-  - Files: `docs/database-baseline.md`, `memory-bank/status-M2.md`.
+  - Files: `docs/database-baseline.md`, `memory-bank/status-M02.md`.
   - Command:
     ```bash
     ./scripts/aofei-local.sh reset
@@ -85,7 +85,7 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
   - Result: future schema edits have a documented path from Docker change to
     baseline update to `reset && load`, `check-sql`, and `diff-schema`.
 
-- `[+]` Run M2 verification.
+- `[+]` Run M02 verification.
   - Command:
     ```bash
     ./scripts/aofei-local.sh reset
@@ -105,7 +105,7 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 
 - `[X]` Add schema-contract coverage for SQL embedded outside the baseline file.
   Queries in `acl`, `match`, `summer`, and operational commands can drift from
-  the Docker schema without being caught by current tests. Moved to M8
+  the Docker schema without being caught by current tests. Moved to M08
   repository test hygiene because it is broader than baseline stewardship.
 
 - `[+]` Keep the SQL guard specific: fail on explicit `DEFINER=` clauses and
@@ -124,7 +124,7 @@ Goal: Make `etc/step4_init.sql` the durable schema and baseline-data contract.
 - `[+]` Convert checked-in active config examples into Docker-safe templates or
   quarantine them as historical references. `etc/aofei.json` still points at
   non-Docker Redis/MySQL endpoints and legacy auth, which conflicts with the
-  current local database contract. Completed under M1; active configs and
+  current local database contract. Completed under M01; active configs and
   Genelet fixtures no longer contain legacy local-runtime credentials.
 
 ## Verification Notes

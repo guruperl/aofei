@@ -1,5 +1,9 @@
 # Status M20 - Middleman Bidder Runtime
 
+Current note: S01 supersedes the historical forwarding shape below. Runtime
+now requires the independent privacy disclosure gate and sends each bidder only
+its assigned impressions in a newly built contextual, extension-scrubbed view.
+
 ## Goal
 
 Wire approved advertiser-owned bidders into DSP fallback runtime after local
@@ -41,8 +45,8 @@ campaign matching cannot fill an impression.
   to M21 and completed there.
 - `[+]` Middleman advertiser/operator reporting was forwarded through M21 and
   completed in M22.
-- `[ ]` Spread/local snapshots for bidder routes remain deferred after M23; the
-  middleman route cache is still Redis-only.
+- `[+]` Optional spread/local route-snapshot ownership is consolidated in D03;
+  the runtime remains Redis-only until D03 records its decision.
 
 ## Verification
 

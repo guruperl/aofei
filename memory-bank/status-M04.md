@@ -1,4 +1,4 @@
-# Status M4 - Bid Path Smoke Coverage
+# Status M04 - Bid Path Smoke Coverage
 
 Milestone status: `[+]` Completed
 
@@ -21,7 +21,7 @@ Goal: Add a reliable local proof that the DSP request path still works.
 - `[+]` Identify the narrowest bid-path function for a deterministic smoke test.
   - Files: `dsp/controller.go`, `dsp/dsp.go`, `dsp/dsp_test.go`,
     `dsp/config.go`.
-  - Result: M4 uses `httptest` against `dsp.Controller.ServeBid`, not a live
+  - Result: M04 uses `httptest` against `dsp.Controller.ServeBid`, not a live
     HTTP server and not a new exported orchestration layer.
 
 - `[+]` Build a seeded runtime fixture setup.
@@ -66,7 +66,7 @@ Goal: Add a reliable local proof that the DSP request path still works.
   - Result: command and prerequisites are documented in README,
     `docs/local-docker-runtime.md`, and `memory-bank/tech-stack.md`.
 
-- `[+]` Run M4 verification.
+- `[+]` Run M04 verification.
   - Command:
     ```bash
     ./scripts/aofei-local.sh reset-sample
@@ -99,7 +99,7 @@ Goal: Add a reliable local proof that the DSP request path still works.
 - `[X]` Split bid orchestration into testable units. `ServeBid` currently mixes
   HTTP parsing, pub lookup, geo/user-agent matching, audience checks, fcap,
   creative load, response writing, and NATS logging in one method.
-  - Decision: deferred beyond M4; the smoke proof uses `httptest` without adding
+  - Decision: deferred beyond M04; the smoke proof uses `httptest` without adding
     a new exported orchestration API.
 
 ### Second Review Pass - 2026-05-12
@@ -124,7 +124,7 @@ Goal: Add a reliable local proof that the DSP request path still works.
 
 ## Milestone Review - 2026-05-12
 
-- `[+]` Reviewed the M4 implementation after verification. No blocking
+- `[+]` Reviewed the M04 implementation after verification. No blocking
   regressions found in the smoke harness, nil dependency handling, no-bid
   handling, macro guards, upload-audience default behavior, or frequency-cap
   refresh changes.

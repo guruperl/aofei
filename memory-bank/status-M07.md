@@ -1,4 +1,4 @@
-# Status M7 - MaxMind And Geo Runtime
+# Status M07 - MaxMind And Geo Runtime
 
 Milestone status: `[+]` Completed
 
@@ -60,7 +60,7 @@ Goal: Make geodata expectations explicit and locally testable.
   - Acceptance: docs explain config file, external assets, ignored paths, and
     test commands.
 
-- `[+]` Run M7 verification.
+- `[+]` Run M07 verification.
   - Command:
     ```bash
     GOWORK=off go test ./maxmind ./maxmind/ipsearch ./cmd/maxmind -run '^$'

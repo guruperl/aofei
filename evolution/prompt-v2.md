@@ -1,6 +1,6 @@
 # Prompt V2
 
-Direction change for M9:
+Direction change for M09:
 
 ```text
 Make production operations current again by adding a Linux systemd-oriented
