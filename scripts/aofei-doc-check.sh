@@ -44,7 +44,7 @@ mapfile -t active_docs < <(
 			memory-bank/architecture.md \
 			memory-bank/tech-stack.md \
 			memory-bank/milestone.md 2>/dev/null
-		find docs -maxdepth 1 -name '*.md' -print
+		find docs -type f -name '*.md' -print
 		find . -maxdepth 1 -name 'GOAL.md' -print | sed 's#^\./##'
 		find evolution -maxdepth 1 -name '*.md' -print
 		find memory-bank -maxdepth 1 -name 'status-*.md' -print
@@ -56,6 +56,91 @@ config_examples=(
 	etc/summer.example.json
 	etc/maxmind.json
 )
+
+current_entry_docs=(
+	README.md
+	AGENTS.md
+	GOAL.md
+	docs/README.md
+	docs/advertiser-dsp-agent-manual.zh-CN.md
+	docs/local-docker-runtime.md
+	docs/operational-commands.md
+	docs/operations-maintenance-manual.zh-CN.md
+	docs/production-runbook.md
+	docs/publisher-manual.zh-CN.md
+	memory-bank/product.md
+	memory-bank/architecture.md
+	memory-bank/tech-stack.md
+	memory-bank/milestone.md
+)
+
+lane_ids=(
+	D01 D02 D03
+	P01 P02
+	R01 R02
+	I01 I02 I03
+	S01 S02 S03 S04
+	A01 A02
+	O01 O02
+)
+
+if [ ! -f docs/README.md ]; then
+	fail "docs/README.md is required as the current documentation and lane index."
+fi
+
+for lane_id in "${lane_ids[@]}"; do
+	status_file="memory-bank/status-${lane_id}.md"
+	if [ ! -f "$status_file" ]; then
+		fail "$status_file is required by the current lane index."
+		continue
+	fi
+
+	if ! grep -Fq "../memory-bank/status-${lane_id}.md" docs/README.md; then
+		fail "docs/README.md must link status-${lane_id}.md."
+	fi
+
+	if [ "$lane_id" = I02 ]; then
+		if ! grep -Fq 'State: `[ ]` Planned' "$status_file"; then
+			fail "$status_file must remain explicitly planned until a named mobile integration exists."
+		fi
+	else
+		if ! grep -Fq 'State: `[+]` Completed' "$status_file"; then
+			fail "$status_file must record the reconciled completed state."
+		fi
+	fi
+done
+
+if ! grep -Fq '| I02 Android/iOS publisher SDKs | Planned; demand-gated |' docs/README.md; then
+	fail "docs/README.md must identify I02 as planned and demand-gated."
+fi
+
+mapfile -t indexed_docs < <(
+	find docs -type f -name '*.md' \
+		! -path 'docs/README.md' \
+		! -path 'docs/legacy-operations.md' \
+		-print | sort
+)
+for indexed_doc in "${indexed_docs[@]}"; do
+	doc_path="${indexed_doc#docs/}"
+	if ! grep -Fq "$doc_path" docs/README.md; then
+		fail "docs/README.md must index $doc_path."
+	fi
+done
+
+for inventory_line in \
+	'| Base tables | 94 |' \
+	'| Views | 0 |' \
+	'| Stored routines | 6 |' \
+	'| Triggers | 55 |'
+do
+	if ! grep -Fq "$inventory_line" docs/database-baseline.md; then
+		fail "docs/database-baseline.md is missing current inventory: $inventory_line"
+	fi
+done
+
+if run_rg 'go test ./genelet' "${current_entry_docs[@]}"; then
+	fail "current entry docs must test the separate ../genelet module, not a removed pzdesign/genelet directory."
+fi
 
 if [ -e memory-bank/status.md ]; then
 	fail "memory-bank/status.md must not be recreated; use lane status files."

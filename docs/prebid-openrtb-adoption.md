@@ -1,12 +1,19 @@
 # Prebid/OpenRTB Pattern Adoption Review
 
-M38 uses Prebid Server as a design reference for OpenRTB request handling,
+M38 used Prebid Server as a design reference for OpenRTB request handling,
 bidder isolation, validation, debug visibility, and observability. It does not
 make Prebid Server a runtime dependency, and it does not change `aofei` schema,
 cache payloads, public APIs, bid behavior, or operator workflow.
 
-The goal is to identify which patterns are worth adopting later and which
-should stay out of `aofei` unless the middleman fanout product needs them.
+This document retains the original review vocabulary. Subsequent lanes adopted
+the commercially relevant subset: O01 added bounded admission, latency, and
+capacity evidence; S01 added typed privacy sanitation; D02 added creative/media
+validation; I01 added gzip bounds, per-bidder request isolation, strict response
+validation, fixed rejection reasons, safe sampled diagnostics, and compatibility
+fixtures; and P02 added approved seller/supply-chain handling. The remaining
+items are measurement-led performance research or optional diagnostics, not an
+unimplemented OpenRTB launch blocker. Current lane state is indexed in
+[README.md](README.md).
 
 ## Prebid Flow Reference
 
@@ -43,7 +50,7 @@ Primary references:
 - Prebid Server activity controls:
   <https://docs.prebid.org/prebid-server/features/pbs-activitycontrols.html>
 
-## Adoption Summary
+## M38 Adoption Summary
 
 | Area | Pattern | Classification | Recommendation |
 |---|---|---|---|
@@ -70,7 +77,28 @@ Primary references:
 | Response assembly | Prebid Cache for creative/VAST retrieval | Not applicable to aofei | `aofei` already has Redis/static cache for runtime configuration and returns markup directly. A Prebid Cache equivalent should not be added without a concrete video/rendering requirement. |
 | Runtime architecture | Import or embed Prebid Server adapters | Not applicable to aofei | Prebid Server remains an external design reference. `aofei` owns its bidder endpoint model, route cache, ACL reuse, callback proxy, and ledger behavior. |
 
-## Later Implementation Candidates
+## Reconciliation After O01, S01, D02, I01, And P02
+
+The first validation-hardening candidate is complete through those lanes. The
+runtime now has bounded compression, impression-scoped bidder sanitation,
+strict identity/currency/floor/media/callback/deadline validation, fixed
+rejection and latency metrics, default-off redacted sampled diagnostics, and
+malformed multi-impression fixtures. P02 completes the seller/supply-chain
+portion without trusting browser or SDK claims.
+
+Still conditional:
+
+- benchmark lower-allocation OpenRTB encoding only when profiling identifies
+  JSON cost as a material bottleneck;
+- broaden a cross-path no-bid taxonomy only when an operator consumer and
+  public/private exposure policy are named;
+- never capture ordinary raw bidder HTTP bodies; any future troubleshooting
+  capture needs a separate bounded, redacted, short-lived security review.
+
+## Original Later Implementation Candidates
+
+The following is the M38 planning record. Items already reconciled above are
+not open milestones.
 
 OpenRTB validation hardening milestone:
 

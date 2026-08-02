@@ -4,6 +4,13 @@ This is the current production/operator entry point for `aofei` / `winter`.
 Local Docker development remains documented separately in
 [local-docker-runtime.md](local-docker-runtime.md).
 
+The current lane baseline is summarized in the
+[documentation and milestone index](README.md). All D/P/R/I/S/A/O lanes through
+A02 are implemented except planned I02 native SDKs. D03 remains partner
+activation-gated; I03, S02, S03, and A02 remain independently disabled by
+default. O02 defines an unclaimed objective, not evidence that production has
+already achieved 99.9% or provider-backed RPO/RTO.
+
 ## Deployment Model
 
 The production target is at least two Linux `cmd/unify` nodes in one region,
@@ -27,6 +34,8 @@ Scheduled or manual jobs:
 | Cache population | `cmd/redis-cache` | Populates Redis and/or spread cache from MySQL. |
 | Middleman callback retry | `cmd/mid-callback-retry` | Processes durable retryable downstream callbacks. |
 | Action reconcile/retention | `cmd/action-measurement` | Repairs unattributed actions and prunes expired action facts. |
+| Experiment control/retention | `cmd/report-experiment` | Performs audited experiment transitions, bounded prune, and exact subject deletion from an authorized operations/privacy host. |
+| Manual accounting | `cmd/accounting` | Creates and reconciles immutable statements, adjustments, approvals, settlements, corrections, and exports from an authorized accounting host. |
 | Traffic-quality aggregate/review maintenance | `cmd/traffic-quality` | Ingests trusted bounded signal windows, reports rule health, and prunes expired evidence from a restricted host. |
 | Hosted-payment health/event retention | `cmd/hosted-payment` | Reports aggregate funding/payout health and prunes only eligible expired webhook envelopes from a restricted host; it cannot move money. |
 | Identity/API administration and retention | `../pzdesign/cmd/identity-admin` | Creates read-only analysts, changes exact grants, resets TOTP, and applies bounded account-security or management-API audit retention from a restricted maintenance host. |
@@ -65,8 +74,12 @@ Recommended default paths:
 /opt/aofei/bin/nats-client
 /opt/aofei/bin/spread
 /opt/aofei/bin/ledger
+/opt/aofei/bin/accounting
+/opt/aofei/bin/action-measurement
+/opt/aofei/bin/report-experiment
 /opt/aofei/bin/maxmind
 /opt/aofei/bin/redis-cache
+/opt/aofei/bin/mid-callback-retry
 /opt/aofei/bin/traffic-quality
 /opt/aofei/bin/hosted-payment
 /opt/aofei/bin/identity-admin
@@ -93,7 +106,7 @@ SUMMER=/etc/aofei/summer.json
 ```
 
 `cmd/nats-client`, `cmd/spread`, `cmd/ledger`, `cmd/action-measurement`,
-`cmd/traffic-quality`,
+`cmd/report-experiment`, `cmd/accounting`, `cmd/traffic-quality`,
 `cmd/hosted-payment`, `cmd/maxmind`, and `cmd/redis-cache` read `AOFEI`.
 
 Run Redis cache population as a singleton cron job or systemd timer on one
@@ -485,8 +498,12 @@ Build artifacts from a reviewed commit:
 
 ```bash
 GOWORK=off go test ./...
-GOWORK=off go install ./cmd/nats-client ./cmd/spread ./cmd/ledger ./cmd/action-measurement ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
+GOWORK=off go install ./cmd/accounting ./cmd/action-measurement \
+  ./cmd/hosted-payment ./cmd/ledger ./cmd/maxmind \
+  ./cmd/mid-callback-retry ./cmd/nats-client ./cmd/redis-cache \
+  ./cmd/report-experiment ./cmd/spread ./cmd/traffic-quality
 (cd ../pzdesign && GOWORK=off go test ./... && GOWORK=off go install ./cmd/unify ./cmd/identity-admin)
+(cd ../genelet && GOWORK=off go test ./...)
 ```
 
 Copy binaries into a versioned release directory, update the active symlink or

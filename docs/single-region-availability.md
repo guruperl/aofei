@@ -41,6 +41,9 @@ Singleton roles run on designated operations nodes, never every HTTP node:
 | Interval/daily ledger | One `cmd/ledger` timer on the node with complete closed log files. |
 | Middleman callback retry | One `cmd/mid-callback-retry` timer. |
 | Action reconcile/prune | One operations timer; reconciliation also uses DB row locks and is idempotent. |
+| Experiment retention | One authorized operations/privacy timer; transitions and exact deletion remain audited. |
+| Traffic-quality maintenance | One restricted quality-operations owner; serving reads detached bounded snapshots. |
+| Hosted-payment event retention | One restricted maintenance owner; the command cannot move money. |
 | Manual accounting | Authorized named principal; A01 request keys and maker/checker rules, not an unattended failover timer. |
 
 Redis singleton locks renew at one-third of their configured lease and commands
@@ -67,8 +70,9 @@ because no distributed lock can prove ownership through every partition.
 ## Backup And Restore Contract
 
 MySQL is authoritative for schema, accounts, campaign/publisher configuration,
-ledger/daily facts, R01 actions, and A01 accounting records. Redis static caches
-and local/spread snapshots are derived and must be rebuilt. Redis mutable
+ledger/daily and R01/R02 facts, S02 identity/audit state, S03 quality evidence,
+I03 API state, and A01/A02 financial records. Redis static caches and
+local/spread snapshots are derived and must be rebuilt. Redis mutable
 delivery/cap/callback state needs a separately reviewed encrypted persistence
 and recovery policy; a MySQL restore does not pretend to recreate lost in-flight
 reservations or callbacks. NATS/log files are accounting inputs and require
@@ -95,8 +99,10 @@ Restore order is fixed:
    select a checksum-verified encrypted generation plus binlog point.
 2. Restore into an isolated MySQL service. Verify all schema objects,
    `acct_contract=usd-cpm-impression-v2`, statement/adjustment/audit counts and
-   immutable triggers, correction links, ledger/daily uniqueness, R01 facts,
-   and required account/inventory rows. Reject mixed contract versions.
+   immutable triggers, correction links, ledger/daily uniqueness, R01/R02
+   facts, S02/I03 security state, S03 quality evidence, A02 hosted-payment
+   mappings/evidence, and required account/inventory rows. Reject mixed
+   contract versions.
 3. Reapply approved deletion cases and verify backup/source timestamps against
    the RPO. Preserve discrepancies; do not “repair” by deleting immutable
    accounting evidence.
@@ -113,12 +119,14 @@ Restore order is fixed:
 
 `scripts/aofei-recovery-drill.sh` is a safe local rehearsal. It creates unique
 disposable MySQL/Redis containers, loads the baseline and synthetic fixture,
-adds accounting/action evidence, takes a checksumed logical dump with routines
+adds accounting/action evidence, takes a checksummed logical dump with routines
 and triggers, restores it into a clean MySQL instance, proves accounting
-immutability, ledger uniqueness, exact inventory, a restored D03 route and
-credential-safe fallback preflight, and rebuilds Redis. Its ephemeral unencrypted
-dump never leaves an owner-only temporary directory and is destroyed on exit;
-it is not a production backup mechanism or production RTO result.
+immutability, ledger uniqueness, current 94-table/6-routine/55-trigger inventory,
+reporting/experiment/security/quality/API/hosted-payment evidence, a restored
+D03 route and credential-safe fallback preflight, and rebuilt Redis. Its
+ephemeral unencrypted dump never leaves an owner-only temporary directory and
+is destroyed on exit; it is not a production backup mechanism or production
+RTO result.
 
 ## Deployment, Rotation, And Rollback
 

@@ -1,13 +1,15 @@
 # Aofei / Winter DSP
 
-`github.com/guruperl/aofei` is a Go package for an OpenRTB-oriented DSP stack.
-It contains the bid path, campaign and publisher matching logic, Summer/Genelet
-integration, cache population commands, local Docker service helpers, and SQL
-baseline data needed to run the package locally. The same bid engine also serves
-direct publisher SSP traffic on `POST /pz` and can fall back to middleman AdX
-bidders when middleman config is enabled. The Summer/Genelet source tree
-now lives in the sibling `../pzdesign` module,
-`github.com/guruperl/pzdesign`.
+`github.com/guruperl/aofei` is the Go domain and runtime package for the W8M
+advertising marketplace. It owns OpenRTB bidding, campaign and publisher
+matching, direct publisher SSP traffic on `POST /pz`, config-gated external
+DSP / AdX middleman bidding, measurement, cache compilers, operational jobs,
+the active MySQL baseline, and the local Docker harness.
+
+The sibling `../pzdesign` module owns `cmd/unify`, the Summer management UI,
+templates, and public assets. It imports the sibling `../genelet` framework and
+this module's domain packages. Run and verify the three modules separately;
+the parent workspace does not include this module.
 
 Current local development uses Docker MySQL, Docker Redis, and Docker NATS. The
 active database baseline is [etc/step4_init.sql](etc/step4_init.sql); generated
@@ -65,17 +67,20 @@ the configured local stack:
 The drill uses uniquely named disposable containers and destroys its
 owner-only temporary dump on exit. It is not a production backup or SLO result.
 
-Review operational command prerequisites, invocations, outputs, and known
-blockers:
+Run the operational command package gate:
 
 ```bash
-GOWORK=off go test ./cmd/ledger ./cmd/action-measurement ./cmd/nats-client ./cmd/winloss ./cmd/spread ./cmd/maxmind ./cmd/mid-callback-retry
+GOWORK=off go test ./cmd/accounting ./cmd/action-measurement \
+  ./cmd/hosted-payment ./cmd/ledger ./cmd/maxmind \
+  ./cmd/mid-callback-retry ./cmd/nats-client ./cmd/redis-cache \
+  ./cmd/report-experiment ./cmd/spread ./cmd/traffic-quality ./cmd/winloss
 ```
 
 See [docs/operational-commands.md](docs/operational-commands.md) for the local
 contracts for `cmd/redis-cache`, `cmd/ledger`, `cmd/accounting`,
-`cmd/action-measurement`, `cmd/report-experiment`, `cmd/hosted-payment`, `cmd/nats-client`,
-`cmd/winloss`, `cmd/spread`, `cmd/maxmind`, and `cmd/mid-callback-retry`,
+`cmd/action-measurement`, `cmd/report-experiment`, `cmd/hosted-payment`,
+`cmd/traffic-quality`, `cmd/nats-client`, `cmd/winloss`, `cmd/spread`,
+`cmd/maxmind`, and `cmd/mid-callback-retry`,
 including where each command should run in production.
 
 See [docs/maxmind-runtime.md](docs/maxmind-runtime.md) for the active
@@ -90,7 +95,8 @@ Run the admin compatibility checks against Docker MySQL:
 
 ```bash
 (cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" \
-  go test ./genelet ./summer ./summer/pub ./summer/slot)
+  go test ./...)
+(cd ../genelet && GOWORK=off go test ./...)
 ```
 
 The helper starts:
@@ -117,134 +123,56 @@ Install the package command binaries:
 ./scripts/aofei-local.sh install
 ```
 
+The helper installs the core Aofei runtime commands and `../pzdesign/cmd/unify`.
+Other feature-specific restricted maintenance commands are documented with their
+placement and direct `go install` invocations in
+[docs/operational-commands.md](docs/operational-commands.md).
+
+## Capability And Activation Status
+
+The D/P/R/I/S/A/O roadmap is implemented through A02 except for native mobile
+SDKs (I02). Implementation does not imply production activation:
+
+| Area | Current state |
+|---|---|
+| D01 delivery, D02 auction/creative safety | Implemented and part of the core runtime contract. |
+| D03 external DSP / AdX middleman | Implemented; checked-in disclosure and traffic gates remain off until a named partner passes staged activation. |
+| P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
+| R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
+| I01 OpenRTB interoperability | Implemented as a bounded OpenRTB 2.5 profile. |
+| I02 Android/iOS publisher SDKs | Planned and demand-gated; `/pz` JSON/OpenRTB examples exist, but maintained native SDK packages do not. |
+| I03 advertiser management API | Implemented but independently disabled by default. |
+| S01 privacy, S04 rendering safety | Implemented core boundaries. |
+| S02 identity/RBAC, S03 traffic quality | Implemented but independently disabled by default pending migration, keys, permissions, and rollout evidence. |
+| A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
+| A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
+| O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
+
+See the [documentation and milestone index](docs/README.md) for the authoritative
+guide for each lane and the matching status file. Historical M-lane evidence is
+kept in `memory-bank/`; it is not a current deployment guide.
+
 ## Repository Map
 
-- [docs/advertiser-dsp-agent-manual.zh-CN.md](docs/advertiser-dsp-agent-manual.zh-CN.md):
-  面向广告主与代理商的中文投放手册，涵盖广告活动、广告组、广告素材、
-  定向、计量和外部 DSP / ADX 需求方竞价端点。
-- [docs/publisher-manual.zh-CN.md](docs/publisher-manual.zh-CN.md):
-  面向流量方（发布商）的中文接入手册，涵盖网站/App、广告位、网页标签、
-  SDK/API、供应分类、卖方透明度、来源校验、报表和排障。
-- [docs/publisher-activation.md](docs/publisher-activation.md): commercial
-  publisher inventory validation, Web/App acceptance, cache rollout,
-  seller/`schain` acceptance, monitoring, reconciliation, disablement, and
-  rollback runbook.
-- [docs/operations-maintenance-manual.zh-CN.md](docs/operations-maintenance-manual.zh-CN.md):
-  面向系统运维与维护人员的中文手册，涵盖部署、缓存、作业、监控、
-  故障处理、备份恢复和变更验证。
-- [docs/identity-access-security.md](docs/identity-access-security.md): optional
-  database-backed sessions, TOTP/recovery, role/resource permissions,
-  read-only analyst grants, immutable security evidence, operator commands,
-  and staged enablement/rollback.
-- [docs/traffic-quality-anti-fraud.md](docs/traffic-quality-anti-fraud.md):
-  optional explainable traffic-quality signals, versioned rollout, scoped
-  review and appeal, privacy retention, billing boundaries, serving
-  enforcement, monitoring, and rollback.
-- [docs/advertiser-management-api.md](docs/advertiser-management-api.md):
-  versioned `/api/v1` advertiser campaign, creative, targeting, activation,
-  report, service-credential, idempotency, quota, and rollout contract; its
-  OpenAPI source and generated Go client are linked there.
-- [AGENTS.md](AGENTS.md): bootstrap guide for agents working in this repo.
-- [GOAL.md](GOAL.md): slash-goal protocol for dependency-ordered milestone
-  loops, verification, downstream reconciliation, and optional commit policy.
-- [SECURITY.md](SECURITY.md): private vulnerability reporting and repository
-  data-handling rules.
-- [memory-bank/](memory-bank/): active project source of truth.
-- [memory-bank/milestone.md](memory-bank/milestone.md): completed M-lane
-  history and the zero-padded W8M D/P/R/I/S/A/O product roadmap.
-- [docs/defer.md](docs/defer.md): evidence-gated product investments that are
-  intentionally outside the active milestone lanes.
-- [docs/local-docker-runtime.md](docs/local-docker-runtime.md): local Docker
-  runtime commands and generated config notes.
-- [docs/production-runbook.md](docs/production-runbook.md): current Linux
-  systemd-oriented production runbook.
-- [docs/database-baseline.md](docs/database-baseline.md): schema baseline and
-  drift rules.
-- [docs/multiple-cache.md](docs/multiple-cache.md): Redis, NATS/spread,
-  disk-snapshot, and in-process static-cache roles plus likely bottlenecks.
-- [docs/dsp-workflow.md](docs/dsp-workflow.md): current OpenRTB bid workflow,
-  static/mutable cache reads, response construction, and click redirect flow.
-- [docs/auction-pricing-creatives.md](docs/auction-pricing-creatives.md):
-  supported USD CPM auction, deterministic winner and rotation rules, local and
-  middleman creative validation, populated-data migration, and cache-first
-  rollout/rollback.
-- [docs/openrtb-measurement.md](docs/openrtb-measurement.md): win/loss,
-  impression, click, NATS log, and ledger measurement behavior.
-- [docs/conversion-attribution.md](docs/conversion-attribution.md): signed,
-  idempotent analytical actions, click/view attribution, retention,
-  reconciliation, and advertiser reporting.
-- [docs/marketplace-analytics-experiments.md](docs/marketplace-analytics-experiments.md):
-  scoped advertiser/publisher/operator metrics, UTC/USD/freshness contracts,
-  interval reporting storage, deterministic experiments, append-only outcomes,
-  query evidence, and rollout/rollback.
-- [docs/delivery-guardrails.md](docs/delivery-guardrails.md): authoritative
-  campaign/ad-group schedules, hard budgets, Redis reservations, cache
-  propagation, reconciliation, failure behavior, and rolling deployment.
-- [docs/privacy-data-governance.md](docs/privacy-data-governance.md): consent
-  decision matrix, data inventory, runtime minimization, bidder disclosure,
-  retention, deletion, encryption ownership, and operator evidence.
-- [docs/template-rendering-security.md](docs/template-rendering-security.md):
-  cross-repository rendering boundary, control-plane escaping, creative
-  execution separation, URL ownership, and change checklist.
-- [docs/production-traffic-observability.md](docs/production-traffic-observability.md):
-  protected metrics, per-partner admission and gzip bounds, fixed partner
-  rejection/latency evidence, reproducible capacity baseline, alerts, canary,
-  and rollback.
-- [docs/single-region-availability.md](docs/single-region-availability.md):
-  multi-node lifecycle health, singleton failover, dependency semantics,
-  encrypted backup/restore order, recovery objectives, exercises, and the
-  evidence required before a 99.9% claim.
-- [docs/accounting-settlement.md](docs/accounting-settlement.md): USD CPM
-  conversion, immutable manual statements and adjustments, maker-checker
-  settlement, reconciliation, and populated-system migration.
-- [docs/hosted-funding-payout.md](docs/hosted-funding-payout.md): disabled-by-default
-  Stripe Checkout/Connect boundary, opaque token and webhook lifecycle,
-  maker-checker funding/payout/refund controls, reconciliation, sandbox,
-  secret rotation, incident response, and live go-live prerequisites.
-- [docs/audience-matching.md](docs/audience-matching.md): attribute extraction,
-  audience predicates, cache contracts, and matching order.
-- [docs/ssp-direct-traffic.md](docs/ssp-direct-traffic.md): direct publisher
-  `POST /pz` contract, packed token validation, browser/SDK policy, response
-  formats, and audit boundary.
-- [docs/middleman-adx.md](docs/middleman-adx.md): advertiser-owned bidder
-  endpoints, exact OpenRTB 2.5 profile, route cache, fallback and `Always`
-  runtime, response validation, callback proxy, and charge/pay/margin reporting.
-- [docs/middleman-activation.md](docs/middleman-activation.md): staged bidder
-  onboarding, route/credential preflight, Fallback and optional Always canaries,
-  evidence, rotation, disablement, and rollback.
-- [docs/operational-commands.md](docs/operational-commands.md): local
-  operational command contracts for logs, ledger, spread, win/loss simulation,
-  MaxMind inventory, and middleman callback retry processing.
-- [docs/maxmind-runtime.md](docs/maxmind-runtime.md): MaxMind config,
-  external geodata assets, generation, and test behavior.
-- [docs/performance-roadmap.md](docs/performance-roadmap.md): advisory
-  performance roadmap for measurement, same-stack scaling, and conditional
-  technology swaps.
-- [docs/prebid-openrtb-adoption.md](docs/prebid-openrtb-adoption.md):
-  documentation-only review of Prebid Server OpenRTB patterns to consider for
-  later `aofei` validation, matching, middleman, performance, privacy, and
-  observability milestones.
-- [docs/adr/0001-richer-supply-taxonomy.md](docs/adr/0001-richer-supply-taxonomy.md):
-  accepted and P02-implemented additive supply taxonomy for publisher tables,
-  cache, audits, reports, seller approval, and OpenRTB supply chains.
-- [docs/adr/0002-ssp-account-schema-boundary.md](docs/adr/0002-ssp-account-schema-boundary.md):
-  decision to keep `pub`, `pub_site`, and `pub_slot` as the direct SSP account
-  and inventory ownership boundary.
-- [../pzdesign/docs/genelet-manual.md](../pzdesign/docs/genelet-manual.md):
-  Genelet config, routes, auth, component, CRUD, upload, CORS, and error
-  contracts.
-- [../pzdesign/docs/summer-ui-structure.md](../pzdesign/docs/summer-ui-structure.md):
-  Summer module layout, component conventions, registry, UI options, and cache
-  side effects.
-- [../pzdesign/docs/rendering-security.md](../pzdesign/docs/rendering-security.md):
-  page/mail rendering inventory, sole trusted-HTML boundary, URL and asset
-  policy, stored-creative review rule, and hostile-input verification.
-- [docs/dsp-architecture.zh.md](docs/dsp-architecture.zh.md): historical DSP
-  architecture note in Chinese.
-- [docs/legacy-operations.md](docs/legacy-operations.md): historical manual
-  deployment notes retained for reference.
-- [backup/README.md](backup/README.md): policy prohibiting runtime snapshots,
-  database dumps, and third-party data in the repository.
+- `dsp/`, `match/`, and `acl/`: request handling, matching, cache models, and
+  publisher/access-control logic.
+- `internal/jobs/` and `cmd/`: cache, measurement, reporting, accounting,
+  quality, payment, log, and maintenance commands.
+- `etc/`: active SQL baseline, safe example config, local-only generated config,
+  and synthetic fixture data.
+- `scripts/`: local Docker orchestration, cache/recovery smoke, benchmarks, and
+  repository guards.
+- [docs/README.md](docs/README.md): complete documentation index by audience and
+  A/D/I/O/P/R/S lane.
+- [memory-bank/](memory-bank/): current product, architecture, toolchain,
+  milestone, and per-lane status source of truth.
+- [AGENTS.md](AGENTS.md), [GOAL.md](GOAL.md), and [SECURITY.md](SECURITY.md):
+  repository work protocol, reusable slash-goal loop, and private security
+  reporting/data-handling rules.
+- `../pzdesign` and `../genelet`: separately versioned service/UI and Web
+  framework modules.
+- [backup/README.md](backup/README.md): policy that keeps operational snapshots,
+  database dumps, and third-party data outside Git.
 
 ## Development Notes
 
@@ -265,11 +193,13 @@ The test taxonomy is:
   above;
 - Docker smoke: `./scripts/aofei-cache-smoke.sh` and
   `AOFEI="$PWD/etc/aofei.local.json" go test ./dsp -run 'Test.*Smoke'`;
-- admin integration: sibling `../pzdesign` Summer/Genelet tests with `SUMMER`;
+- admin integration: sibling `../pzdesign` tests with `SUMMER`, plus the
+  separately versioned `../genelet` suite;
 - schema drift: `./scripts/aofei-local.sh check-sql` and `diff-schema`.
 
-`.github/workflows/verify.yml` enforces the package, vet, staticcheck, scoped
-race, documentation, and committed-range diff-hygiene gates on pushes and pull
-requests. Local closeout still uses `git diff --check` for uncommitted changes.
-Docker smoke, database-backed admin integration, and schema drift remain
+`.github/workflows/verify.yml` enforces package tests, vet, pinned staticcheck,
+the scoped race suite, documentation, public-data and Gitleaks guards, and
+event-aware committed-range diff hygiene on pushes and pull requests. Local
+closeout still uses `git diff --check` for uncommitted changes. Docker smoke,
+database-backed admin integration, recovery rehearsal, and schema drift remain
 explicit local/operator checks.

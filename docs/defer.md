@@ -20,18 +20,18 @@ optimization.
 
 **Current alternative:** Use manually configured CPM/eCPM campaigns, D01
 delivery guardrails and deterministic pacing, D02 auction semantics, and
-R01/R02 measurement and reporting. Controlled A/B reporting may be built in
-R02 without allowing a model to change bids or budgets.
+implemented R01/R02 measurement, reporting, and controlled experiments. R02
+experiments are observational and cannot let a model change bids or budgets.
 
 R01 now provides signed, idempotent action facts and deterministic same-lineage
 attribution. That satisfies only the measurement-contract prerequisite; it
 does not establish representative volume, causal lift, fraud resistance,
 offline model quality, bounded exploration, or safe automated spend control.
 
-**Reconsider when:** D01, R01, and R02 are complete; conversion volume and data
-quality meet a recorded threshold; offline backtests demonstrate improvement
-against a fixed policy; and operators have spend limits, canary controls, model
-versioning, explanations, and immediate rollback.
+**Reconsider when:** Although D01, R01, and R02 are complete, conversion volume
+and data quality must still meet a recorded threshold, offline backtests must
+demonstrate improvement against a fixed policy, and operators must have spend
+limits, canary controls, model versioning, explanations, and immediate rollback.
 
 ## Internally Operated Payment-Card Processing
 
@@ -61,10 +61,10 @@ or proved that network distance is losing auction opportunity.
 ownership, dependency failover, backup/restore, and recovery exercises inside
 one region.
 
-**Reconsider when:** O02 is complete; production p95/p99 network latency consumes
-a material portion of partner bid budgets; opportunity loss is measured by
-region; and data-ownership, replication, reconciliation, and failover semantics
-have an approved design.
+**Reconsider when:** Although O02 is complete, production p95/p99 network
+latency must consume a material portion of partner bid budgets, opportunity
+loss must be measured by region, and data-ownership, replication,
+reconciliation, and failover semantics must have an approved design.
 
 ## Million-Requests-Per-Minute Engineering
 
@@ -78,7 +78,7 @@ load profiles, per-partner traffic controls, p50/p95/p99 latency, allocation and
 dependency metrics, and a measured capacity envelope. Optimize the first
 observed bottleneck using the existing performance roadmap.
 
-**Reconsider when:** Forecast or observed sustained demand approaches the
-measured safe capacity ceiling, the target request mix and latency/error SLO are
-written down, and profiling identifies specific bottlenecks with before/after
-acceptance criteria.
+**Reconsider when:** Although O01 provides the measurement framework, forecast
+or observed sustained demand must approach the measured safe capacity ceiling,
+the target request mix and latency/error SLO must be written down, and profiling
+must identify specific bottlenecks with before/after acceptance criteria.

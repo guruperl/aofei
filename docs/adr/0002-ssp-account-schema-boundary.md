@@ -2,7 +2,7 @@
 
 Date: 2026-05-13
 
-Status: Accepted
+Status: Accepted; P02 implemented the additive publisher-table direction
 
 Related ADRs:
 
@@ -20,10 +20,12 @@ The active schema already has publisher account and inventory ownership through
 `pub`, `pub_site`, and `pub_slot`. Summer/Genelet exposes publisher-facing
 site/slot flows through the existing `pub` role, and runtime matching, ACL,
 cache, tracking, and ledger joins already use the publisher/site/slot identity
-chain. M34 accepted ADR 0001 for richer supply taxonomy as additive future
-fields on those existing publisher tables.
+chain. M34 accepted ADR 0001 for richer supply taxonomy as additive fields on
+those existing publisher tables. P02 subsequently implemented those fields,
+cache views, seller approval, reports, and supply-chain behavior without
+creating a new account role.
 
-M35 decides whether a separate `ssp` account role or separate SSP-owned schema
+M35 decided whether a separate `ssp` account role or separate SSP-owned schema
 boundary is still needed after M32-M34.
 
 ## Decision
@@ -33,12 +35,13 @@ for the current direct SSP path. Keep `pub`, `pub_site`, and `pub_slot` as the
 publisher account and inventory ownership boundary.
 
 `/pz` plus audit `source:"ssp"` and `contract:"pz-v1"` remains the current
-runtime source boundary. Future taxonomy and reporting metadata should be added
-to the existing publisher model additively, following ADR 0001, unless a later
-milestone reopens this decision with new product requirements.
+runtime source boundary. P02 added taxonomy and reporting metadata to the
+existing publisher model. Future metadata should follow the same additive
+boundary unless a later milestone reopens this decision with new product
+requirements.
 
-M35 changes no schema, runtime behavior, cache payloads, audit payloads, ledger
-tables, or Summer/Genelet admin code.
+M35 itself changed no schema, runtime behavior, cache payloads, audit payloads,
+ledger tables, or Summer/Genelet admin code.
 
 ## Rationale
 

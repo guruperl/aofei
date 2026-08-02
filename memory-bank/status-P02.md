@@ -1,6 +1,6 @@
 # Status P02 - Supply Metadata And Seller Transparency
 
-State: `[+] Complete`
+State: `[+]` Completed
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Status S02 - Identity, Two-Factor Authentication, And RBAC
 
-State: `[+]` Complete
+State: `[+]` Completed
 
 ## Goal
 

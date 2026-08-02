@@ -118,12 +118,14 @@ These directories are created by `up`, ignored by git, and used by
 
 ## Admin Tests
 
-Run the Summer/Genelet admin compatibility checks against Docker MySQL:
+Run the pzdesign admin compatibility checks against Docker MySQL, then verify
+the separately versioned Genelet framework:
 
 ```bash
 ./scripts/aofei-local.sh reset-sample
 (cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" \
-  go test ./genelet ./summer ./summer/pub ./summer/slot)
+  go test ./...)
+(cd ../genelet && GOWORK=off go test ./...)
 ```
 
 `SUMMER` must point at `etc/summer.local.json`, not the lower-case `AOFEI`

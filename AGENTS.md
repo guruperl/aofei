@@ -22,6 +22,10 @@ Before substantial changes, read these in order:
 5. The relevant `memory-bank/status-<lane><number>.md` file for the current
    milestone.
 
+Use [docs/README.md](docs/README.md) to find the current user/operator contract
+for every A/D/I/O/P/R/S lane and to distinguish implementation from production
+activation.
+
 For a slash-goal request that spans multiple status files, also read and follow
 [GOAL.md](GOAL.md) before starting the first milestone.
 

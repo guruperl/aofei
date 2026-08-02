@@ -14,8 +14,8 @@ Downstream bidder endpoints are owned by advertisers (`adv`). A downstream
 partner uses the existing advertiser login and account tooling instead of a
 separate Summer/Genelet role.
 
-Advertiser users can manage safe `adv_bidder` endpoint metadata and, in a later
-milestone, view middleman results through advertiser reports. Their writable
+Advertiser users can manage safe `adv_bidder` endpoint metadata and view their
+account-scoped middleman results through the implemented reports. Their writable
 fields are bidder name, endpoint URL, OpenRTB version, seat, and timeout.
 Advertisers can see credential status and active status, but cannot set
 credential refs, synthetic reporting IDs, or activation. Operators manage
@@ -26,8 +26,9 @@ and margin settings. Secrets are not stored in MySQL;
 Each `adv_bidder` may reference synthetic campaign, item, and creative rows.
 Those rows are reporting identities, not normal local demand. They let existing
 ledger joins preserve charge-side delivery through `adv_campaign`, `adv_item`,
-`adv_creative`, `ledger_adv`, and `daily_adv`. M22 adds middleman-specific
-ledger tables for pay-side advertiser reporting and admin settlement views.
+`adv_creative`, `ledger_adv`, and `daily_adv`. Middleman-specific `ledger_mid`
+and `daily_mid` tables provide pay-side advertiser reporting and operator
+charge/pay/margin settlement views.
 
 Operator tooling must ensure the synthetic IDs form one chain owned by the same
 advertiser: `adv_bidder.adv_id -> adv_campaign.adv_id`,
@@ -39,7 +40,7 @@ existing complete chain after same-advertiser validation, and rejects partial
 synthetic state. Created synthetic campaign, item, and creative rows are
 inactive so they cannot become local demand.
 
-The same synthetic chain is also the planned inventory eligibility surface.
+The same synthetic chain is also the active inventory eligibility surface.
 Existing advertiser/campaign/item access-control and channel tables already
 express whether demand may serve a publisher or site:
 
@@ -55,11 +56,11 @@ express whether demand may serve a publisher or site:
 - `ch_belong(entitytype_id=41)` and `ch_ac(entitytype_id=42)` keep the current
   campaign category and item channel allow/block model.
 
-Because of this, M18+ should not add a separate bidder-vs-site ACL table unless
-the existing model proves insufficient. Route groups should select the coarse
-fanout pool for a publisher/site/slot, then runtime eligibility should filter
-each `adv_bidder` through its synthetic item audience rules before the request
-is forwarded downstream.
+The runtime therefore does not add a separate bidder-vs-site ACL table. Route
+groups select the coarse fanout pool for a publisher/site/slot, then runtime
+eligibility filters each `adv_bidder` through its synthetic item audience rules
+before forwarding the request downstream. A future schema may reopen that
+choice only if the existing model proves insufficient.
 
 ## Summer Portal
 

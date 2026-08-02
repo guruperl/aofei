@@ -20,10 +20,11 @@
 | `evolution/` | Versioned history of direction changes. |
 
 The sibling `../pzdesign` checkout is the Go module
-`github.com/guruperl/pzdesign`. It owns `cmd/unify`, `genelet/`, `summer/`,
-`tmpls/`, `www/`, and Summer/Genelet docs under `docs/`; its command and Summer
-packages consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and
-`uploaded/`.
+`github.com/guruperl/pzdesign`. It owns `cmd/unify`, `summer/`, `tmpls/`,
+`www/`, and the Summer UI docs under `docs/`; its command and Summer packages
+consume Aofei domain packages such as `dsp/`, `acl/`, `match/`, and `uploaded/`.
+The reusable `github.com/guruperl/genelet` framework is the separate sibling
+`../genelet` module and is imported by pzdesign.
 
 ## Runtime Data Flow
 

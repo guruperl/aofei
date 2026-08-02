@@ -11,6 +11,12 @@ export AOFEI="$PWD/etc/aofei.local.json"
 Do not use the retired root config directory or legacy MySQL credentials for
 these commands.
 
+The current implementation/activation state and matching lane contracts are in
+the [documentation and milestone index](README.md). The convenience
+`./scripts/aofei-local.sh install` installs the core runtime set; build the
+restricted accounting, identity, experiment, traffic-quality, and hosted-
+payment maintenance binaries explicitly on their authorized release hosts.
+
 ## Production Placement
 
 Use these commands as separate process roles:

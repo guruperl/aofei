@@ -28,8 +28,11 @@ its status file exists. Cancelled work keeps its file and is marked cancelled.
 
 The W8M marketplace roadmap prioritizes commercial correctness, privacy,
 accounting safety, and production controls before expanding automation or
-scale. All lane milestones below are planned; completed M-lane history remains
-the record of the runtime that exists today.
+scale. D01 through A02 in the sequence below are complete. I02 remains planned
+and must not start until a named Android or iOS integration supplies supported
+OS/version and lifecycle requirements. Matching lane status files are the
+authoritative completion record; completed M-lane files retain earlier runtime
+history.
 
 Delivery sequence:
 
@@ -53,26 +56,26 @@ Controlled direct-SSP and middleman staging may begin with existing runtime
 features, but revenue-bearing activation must satisfy the prerequisite lane
 acceptance criteria recorded in the corresponding status files.
 
-| ID | Status file | Summary |
-|---|---|---|
-| D01 | [status-D01.md](status-D01.md) | Campaign delivery guardrails. |
-| D02 | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
-| D03 | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
-| P01 | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
-| P02 | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
-| R01 | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
-| R02 | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
-| I01 | [status-I01.md](status-I01.md) | OpenRTB partner interoperability. |
-| I02 | [status-I02.md](status-I02.md) | Android and iOS publisher SDKs. |
-| I03 | [status-I03.md](status-I03.md) | External campaign management API. |
-| S01 | [status-S01.md](status-S01.md) | Privacy, consent, and data disclosure. |
-| S02 | [status-S02.md](status-S02.md) | Identity, two-factor authentication, and RBAC. |
-| S03 | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
-| S04 | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
-| A01 | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
-| A02 | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
-| O01 | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
-| O02 | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
+| ID | State | Status file | Summary |
+|---|---|---|---|
+| D01 | Completed | [status-D01.md](status-D01.md) | Campaign delivery guardrails. |
+| D02 | Completed | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
+| D03 | Completed; activation-gated | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
+| P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
+| P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
+| R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
+| R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
+| I01 | Completed | [status-I01.md](status-I01.md) | OpenRTB partner interoperability. |
+| I02 | Planned; demand-gated | [status-I02.md](status-I02.md) | Android and iOS publisher SDKs. |
+| I03 | Completed; disabled by default | [status-I03.md](status-I03.md) | External campaign management API. |
+| S01 | Completed | [status-S01.md](status-S01.md) | Privacy, consent, and data disclosure. |
+| S02 | Completed; disabled by default | [status-S02.md](status-S02.md) | Identity, two-factor authentication, and RBAC. |
+| S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
+| S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
+| A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
+| A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
+| O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
+| O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
 
 Historical M-lane status index:
 

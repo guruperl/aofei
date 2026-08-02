@@ -1,6 +1,6 @@
 # Status A02 - Hosted Funding And Publisher Payout Integration
 
-State: `[+]` Complete
+State: `[+]` Completed
 
 ## Goal
 

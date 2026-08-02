@@ -1,6 +1,6 @@
 # Status D03 - External DSP / AdX Middleman Activation
 
-State: `[+]` Complete
+State: `[+]` Completed
 
 ## Goal
 

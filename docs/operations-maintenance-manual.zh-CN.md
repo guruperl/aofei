@@ -2,14 +2,21 @@
 
 本手册面向 Aofei / Winter DSP 的系统运维人员、值班人员和代码维护者。它把生产部署、日常任务、缓存、日志账务、监控、故障处理和变更验证汇总成一个中文入口。生产环境的主机清单、域名、证书、凭据、备份平台和告警系统仍由具体部署维护。
 
+当前 D/P/R/I/S/A/O 基线除 I02 外均已完成。I02 原生 Android/iOS SDK 尚未
+实现并保持需求驱动。D03 已实现但真实外部需求方流量须单独灰度；I03、S02、
+S03、A02 均为默认关闭的独立功能。O02 定义了单区域目标和证据格式，但在没有
+命名生产测量窗口与服务商恢复证据前，不得宣称已达到 99.9% 或生产 RPO/RTO。
+完整状态和权威契约见[文档与里程碑索引](README.md)。
+
 ## 1. 系统边界
 
-两个相邻代码库共同组成当前服务：
+三个相邻 Go 模块共同组成当前服务：
 
 | 代码库 | 责任 |
 |---|---|
 | `aofei` | DSP/SSP 竞价、匹配、测量、缓存编译、日志与账务作业、MySQL 基线和本地 Docker 环境。 |
-| `../pzdesign` | `cmd/unify` HTTP 服务、Summer/Genelet 管理 UI、模板和静态资源。 |
+| `../pzdesign` | `cmd/unify` HTTP 服务、Summer 管理 UI、模板和静态资源。 |
+| `../genelet` | pzdesign 使用的通用 Genelet Web 框架；单独版本化和测试。 |
 
 生产依赖：
 
@@ -30,6 +37,10 @@
 | 缓存维护节点 | `redis-cache` 定时任务 | 只能单例运行，不能在每台 HTTP 节点分别刷新。 |
 | 账务聚合节点 | `ledger` 时间片和每日任务 | 只能在拥有完整 `log_winloss` 流的节点运行。 |
 | 外部需求方回调重试节点 | `mid-callback-retry` 定时任务 | 单例运行；只转发下游回调，不重复发布账务事件。 |
+| 转化与实验维护节点 | `action-measurement`、`report-experiment` 定时任务 | 单例或受限维护运行；不得放进竞价请求路径。 |
+| 财务维护节点 | `accounting`、`hosted-payment` | 受限人工/定时维护；`hosted-payment` 只能检查健康和保留期，不能自动转账。 |
+| 流量质量维护节点 | `traffic-quality` | 受限质量运营主机；只接受有界聚合证据。 |
+| 身份维护节点 | `identity-admin` | 受限身份维护主机；用于分析员授权、TOTP 重置和安全审计保留期。 |
 | 本地静态缓存节点 | `spread` | 仅在采用 spread/local 静态缓存的节点运行。 |
 | 维护节点 | `maxmind`、`winloss` | MaxMind 可定时或人工执行；win/loss 模拟器只用于测试。 |
 
@@ -46,6 +57,12 @@
 /opt/aofei/bin/nats-client
 /opt/aofei/bin/spread
 /opt/aofei/bin/ledger
+/opt/aofei/bin/accounting
+/opt/aofei/bin/action-measurement
+/opt/aofei/bin/report-experiment
+/opt/aofei/bin/traffic-quality
+/opt/aofei/bin/hosted-payment
+/opt/aofei/bin/identity-admin
 /opt/aofei/bin/maxmind
 /opt/aofei/bin/redis-cache
 /opt/aofei/bin/mid-callback-retry
@@ -167,16 +184,20 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 
 ## 6. 构建、发布与停止
 
-从已评审的提交构建。至少先运行两仓库全量测试，再安装二进制：
+从已评审的提交构建。至少先运行三个 Go 模块的全量测试，再安装二进制：
 
 ```bash
 GOWORK=off go test ./...
-GOWORK=off go install ./cmd/nats-client ./cmd/spread ./cmd/ledger \
-  ./cmd/maxmind ./cmd/redis-cache ./cmd/mid-callback-retry
+GOWORK=off go install ./cmd/accounting ./cmd/action-measurement \
+  ./cmd/hosted-payment ./cmd/ledger ./cmd/maxmind \
+  ./cmd/mid-callback-retry ./cmd/nats-client ./cmd/redis-cache \
+  ./cmd/report-experiment ./cmd/spread ./cmd/traffic-quality
 
 (cd ../pzdesign && \
   GOWORK=off go test ./... && \
-  GOWORK=off go install ./cmd/unify)
+  GOWORK=off go install ./cmd/unify ./cmd/identity-admin)
+
+(cd ../genelet && GOWORK=off go test ./...)
 ```
 
 把二进制复制到带版本的发布目录，再切换活动软链接或 systemd `ExecStart`。先部署辅助进程，再逐台滚动重启 `unify`。常见操作：
@@ -778,6 +799,7 @@ R01 行为事实并重建 Redis；临时明文 dump 会在退出时删除，因�
 
 ## 15. 相关资料
 
+- [文档与里程碑索引](README.md)
 - [生产运行手册（详细 systemd 与发布说明）](production-runbook.md)
 - [各运维命令完整参数与输出](operational-commands.md)
 - [本地 Docker 环境](local-docker-runtime.md)

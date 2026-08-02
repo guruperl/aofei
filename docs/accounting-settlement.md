@@ -85,8 +85,8 @@ config, and database permissions to named accounting Unix accounts. The command
 derives `created_by`, `confirmed_by`, and `settled_by` from the effective Unix
 UID; there is no actor flag or environment override. Maker, checker, and
 settlement recorder must therefore invoke it through distinct non-shared OS
-principals. S02 will add more granular portal RBAC, but cannot weaken this
-service state machine.
+principals. S02 now adds granular portal RBAC and recent-MFA gates, but cannot
+weaken this service state machine or replace its OS-principal separation.
 
 ## Operator Commands
 

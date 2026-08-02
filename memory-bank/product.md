@@ -62,11 +62,11 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   collects advertiser funding and Stripe Connect Express onboards publisher
   payout destinations without full credentials entering W8M. Exact A01
   statements, aggregate movement limits, maker/checker/recent-MFA controls,
-stable provider idempotency inside a conservative replay window, mandatory
-approved bindings, an immutable first-submission binding selection, signed
-durable webhooks, immutable opaque object mappings and payout country, and
-explicit fee/refund/dispute/payout-failure
-  reconciliation remain authoritative. Live provider enablement is a separate
+  stable provider idempotency inside a conservative replay window, mandatory
+  approved bindings, an immutable first-submission binding selection, signed
+  durable webhooks, immutable opaque object mappings and payout country, and
+  explicit fee/refund/dispute/payout-failure reconciliation remain
+  authoritative. Live provider enablement is a separate
   legal/finance/risk decision, not a repository default.
 - Signed R01 actions measure conversions, purchases, downloads, video
   completion, and namespaced custom events. A separate HMAC lineage token,
@@ -133,13 +133,13 @@ explicit fee/refund/dispute/payout-failure
 
 ## Current Product Direction
 
-The completed M-lane established local runtime, middleman AdX, direct publisher
-SSP, measurement hardening, CI, and public-repository safety. The next product
-direction is a commercially safe W8M advertiser-publisher marketplace. New work
-uses the zero-padded D/P/R/I/S/A/O lanes in
-[milestone.md](milestone.md), prioritizing delivery guardrails, publisher
-commercial readiness, privacy, accounting safety, and production controls
-before broader automation or scale. Explicitly deferred investments and their
+The completed M-lane established the local runtime and the completed
+D/P/R/I/S/A/O lanes now form the commercially safe W8M advertiser-publisher
+marketplace baseline. The only existing open lane is I02: maintained Android
+and iOS publisher SDKs, which remain demand-gated until a named integration
+defines supported platforms and lifecycle requirements. Lane state and strict
+dependency order live in [milestone.md](milestone.md); the guide-to-lane map is
+[docs/README.md](../docs/README.md). Explicitly deferred investments and their
 reconsideration triggers live in [docs/defer.md](../docs/defer.md).
 
 The established runtime direction remains:

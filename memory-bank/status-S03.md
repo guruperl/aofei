@@ -1,6 +1,6 @@
 # Status S03 - Traffic Quality And Anti-Fraud
 
-State: `[+]` Complete
+State: `[+]` Completed
 
 ## Goal
 

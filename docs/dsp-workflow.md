@@ -189,8 +189,10 @@ Middleman fallback responses are grouped under synthetic campaign seats. The
 downstream ad markup is preserved, but upstream-facing callback URLs and the
 campaign and creative identifiers are replaced with Aofei proxy URLs and the
 approved synthetic reporting IDs. Middleman callback proxying records win/loss,
-billable, cooperative click, and charge/pay audit facts; advertiser/operator
-reporting remains later milestone work.
+billable, cooperative click, and charge/pay audit facts. A01 ledger/accounting
+and R02 account-scoped reports expose the resulting advertiser/operator
+charge, pay, margin, delivery, and callback views under their documented
+freshness and authorization rules.
 
 ## Win, Loss, Impression, And Click
 

@@ -1,6 +1,6 @@
 # Status I03 - External Campaign Management API
 
-State: `[+] Complete`
+State: `[+]` Completed
 
 ## Goal
 

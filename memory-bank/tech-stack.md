@@ -493,6 +493,14 @@ GOWORK=off go test ./dsp ./match -run '^$' -bench . -benchmem
 git diff --check
 ```
 
+The documentation guard requires `docs/README.md` to index every active
+Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies
+that I02 remains planned while the other current lanes are completed, checks
+the 94/0/6/55 schema inventory, and rejects attempts to test the removed
+`./genelet` package path from inside pzdesign. Historical status and
+legacy-operation evidence may retain commands and counts that were accurate at
+their recorded closeout.
+
 Integration and smoke checks are explicit command families rather than hidden
 package-test requirements:
 
@@ -509,7 +517,8 @@ Admin compatibility verification:
 
 ```bash
 ./scripts/aofei-local.sh reset-sample
-(cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" go test ./genelet ./summer ./summer/pub ./summer/slot)
+(cd ../pzdesign && GOWORK=off SUMMER="$PWD/../aofei/etc/summer.local.json" go test ./...)
+(cd ../genelet && GOWORK=off go test ./...)
 ```
 
 S02 identity verification also runs the external Genelet suite and the full

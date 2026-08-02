@@ -2,7 +2,7 @@
 
 Date: 2026-05-13
 
-Status: Accepted
+Status: Accepted and implemented by P02
 
 Related ADRs:
 
@@ -81,7 +81,8 @@ Implemented values distinguish:
 
 Integration mode is taxonomy, not authorization by itself. Runtime policy still
 depends on entrypoint, packed tokens, cache validation, origin/referrer checks,
-and configuration gates until later milestones intentionally change that.
+and configuration gates. P02 uses approved taxonomy for disclosure and
+reporting; it does not let a client-provided category grant inventory access.
 
 ### Slot And Media Taxonomy
 
@@ -104,8 +105,8 @@ taxonomy fields become bidding, pricing, or policy inputs.
 
 ### Quality And Source Taxonomy
 
-Preserve the intent of legacy `qa_slot` categories as explicit future fields
-rather than continuing to pack unrelated ideas into one value.
+Preserve the intent of legacy `qa_slot` categories as explicit controlled
+fields rather than continuing to pack unrelated ideas into one value.
 
 Implemented controlled field groups:
 
@@ -145,8 +146,8 @@ site, and slot supply objects. Old consumers ignore the fields. New consumers
 normalize a compatible older generation to explicit `Unknown` categories and
 never infer seller authorization.
 
-Spread/local mode should continue to derive direct publisher lookup data from
-the existing `pubmap` snapshot unless a later milestone identifies a concrete
+Spread/local mode continues to derive direct publisher lookup data from the
+existing `pubmap` snapshot unless a later milestone identifies a concrete
 need for a separate spread family. Cache versioning is required only when a
 future change makes old readers unable to safely ignore the new fields.
 
@@ -174,7 +175,7 @@ Implemented UI rules:
 - help text and validation describe operational meaning without changing the
   `/pz` tag contract.
 
-## Migration Path
+## Populated-System Migration Contract
 
 1. Add defaulted taxonomy and seller columns to existing publisher tables.
 2. Backfill from existing `site_type`, `site_url`, `foreign_id`, `qa_slot`,

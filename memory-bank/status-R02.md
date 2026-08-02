@@ -1,6 +1,6 @@
 # Status R02 - Marketplace Analytics And Experimentation
 
-State: `[+] Complete`
+State: `[+]` Completed
 
 ## Goal
 
