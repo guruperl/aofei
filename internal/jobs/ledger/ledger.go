@@ -4,6 +4,7 @@ package ledger
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -50,8 +51,9 @@ type StatisticsResult struct {
 	Creatives map[uint32][3]uint32
 	Imps      map[uint32]map[uint32]int
 	Clis      map[uint32]map[uint32]int
-	Spend     map[uint32]map[uint32]float32
+	Spend     map[uint32]map[uint32]float64
 	Middleman map[middlemanLedgerKey]*middlemanLedgerStats
+	Reporting map[reportingLedgerKey]*reportingLedgerStats
 }
 
 type middlemanLedgerKey struct {
@@ -85,6 +87,52 @@ type middlemanLedgerStats struct {
 	ForwardNone      int
 }
 
+type reportingLedgerKey struct {
+	DemandSource      string
+	AdvID             uint32
+	CampaignID        uint32
+	ItemID            uint32
+	CreativeID        uint32
+	BidderID          uint32
+	GroupID           uint32
+	RouteBidderID     uint32
+	TargetID          uint32
+	PubID             uint32
+	SiteID            uint32
+	SlotID            uint32
+	CountryID         uint32
+	StateID           uint32
+	DeviceOS          uint8
+	DeviceType        uint8
+	Environment       string
+	IntegrationMode   string
+	MediaIntent       string
+	Placement         string
+	RenderContext     string
+	RefreshMode       string
+	RefreshSeconds    uint16
+	AdDensity         string
+	TrafficQuality    string
+	SourceQuality     string
+	ManagementControl string
+	SellerType        string
+	SellerID          string
+}
+
+type reportingLedgerStats struct {
+	Wins             int
+	Losses           int
+	Imps             int
+	Clis             int
+	SpendUSD         float64
+	RevenueUSD       float64
+	CostUSD          float64
+	MarginUSD        float64
+	DownstreamCPMSum float64
+	ReturnedCPMSum   float64
+	CallbackErrors   int
+}
+
 func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
 	if interval <= 0 {
 		return nil, fmt.Errorf("ledger interval must be positive")
@@ -95,7 +143,7 @@ func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
 	} else {
 		current = time.Now().Unix()/int64(interval*60) - 1
 	}
-	active := time.Unix(current*int64(interval*60), 0)
+	active := time.Unix(current*int64(interval*60), 0).UTC()
 	myDay := active.Format("2006-01-02 15:04:05")
 	err := db.QueryRow(`SELECT 1 FROM ledger_log WHERE timely=?`, myDay).Scan(new(int))
 	if err != nil {
@@ -198,7 +246,7 @@ func Every(ctx context.Context, every time.Duration, run func(context.Context)) 
 	}
 }
 
-func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, map[uint32]map[uint32]int, map[uint32]map[uint32]int, map[uint32]map[uint32]float32, error) {
+func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, map[uint32]map[uint32]int, map[uint32]map[uint32]int, map[uint32]map[uint32]float64, error) {
 	stats, err := self.StatisticsAll()
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
@@ -209,8 +257,9 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 	imps := make(map[uint32]map[uint32]int)
 	clis := make(map[uint32]map[uint32]int)
-	spes := make(map[uint32]map[uint32]float32)
+	spes := make(map[uint32]map[uint32]float64)
 	middleman := make(map[middlemanLedgerKey]*middlemanLedgerStats)
+	reporting := make(map[reportingLedgerKey]*reportingLedgerStats)
 
 	name := fmt.Sprintf("%s/winloss.%d", self.LogWinLoss, self.Current)
 	fh, err := os.Open(name)
@@ -232,6 +281,7 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 			return StatisticsResult{}, err
 		}
 		aggregateMiddlemanLedger(middleman, wl)
+		aggregateReportingLedger(reporting, wl)
 		slotID := wl.RPub.SlotID
 		creativeID := wl.RAdv.CreativeID
 		var found bool
@@ -242,9 +292,9 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 			}
 			imps[slotID][creativeID] += 1
 			if spes[slotID] == nil {
-				spes[slotID] = make(map[uint32]float32)
+				spes[slotID] = make(map[uint32]float64)
 			}
-			spes[slotID][creativeID] += wl.RAdv.Cost
+			spes[slotID][creativeID] += CPMToImpressionSpend(float64(wl.RAdv.Cost))
 			found = true
 		case dsp.StatusTrackClk:
 			if clis[slotID] == nil {
@@ -270,6 +320,7 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 		Clis:      clis,
 		Spend:     spes,
 		Middleman: middleman,
+		Reporting: reporting,
 	}, nil
 }
 
@@ -319,9 +370,11 @@ func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, 
 		}
 	case dsp.StatusTrackImp:
 		stats.Imps++
-		stats.ChargeSpend += meta.ChargePrice
-		stats.PaySpend += meta.PayPrice
-		margin := meta.ChargePrice - meta.PayPrice
+		charge := CPMToImpressionSpend(meta.ChargePrice)
+		pay := CPMToImpressionSpend(meta.PayPrice)
+		stats.ChargeSpend += charge
+		stats.PaySpend += pay
+		margin := charge - pay
 		if margin < 0 {
 			margin = 0
 		}
@@ -329,6 +382,109 @@ func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, 
 	case dsp.StatusTrackClk:
 		stats.Clis++
 	}
+}
+
+func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, wl dsp.WinLoss) {
+	if out == nil {
+		return
+	}
+	key := reportingLedgerKey{
+		DemandSource: "Local",
+		AdvID:        wl.RAdv.AdvID, CampaignID: wl.RAdv.CampaignID,
+		ItemID: wl.RAdv.ItemID, CreativeID: wl.RAdv.CreativeID,
+		PubID: wl.RPub.PubID, SiteID: wl.RPub.SiteID, SlotID: wl.RPub.SlotID,
+		Environment: "Unknown", IntegrationMode: "Unknown", MediaIntent: "Unknown", Placement: "Unknown",
+		RenderContext: "Unknown", RefreshMode: "Unknown", AdDensity: "Unknown", TrafficQuality: "Unknown",
+		SourceQuality: "Unknown", ManagementControl: "Unknown", SellerType: "Unknown",
+	}
+	if wl.Reporting != nil {
+		key.CountryID = wl.Reporting.CountryID
+		key.StateID = wl.Reporting.StateID
+		key.DeviceOS = wl.Reporting.DeviceOS
+		key.DeviceType = wl.Reporting.DeviceType
+		key.Environment = wl.Reporting.Environment
+		key.IntegrationMode = wl.Reporting.IntegrationMode
+		key.MediaIntent = wl.Reporting.MediaIntent
+		key.Placement = wl.Reporting.Placement
+		key.RenderContext = wl.Reporting.RenderContext
+		key.RefreshMode = wl.Reporting.RefreshMode
+		key.RefreshSeconds = wl.Reporting.RefreshSeconds
+		key.AdDensity = wl.Reporting.AdDensity
+		key.TrafficQuality = wl.Reporting.TrafficQuality
+		key.SourceQuality = wl.Reporting.SourceQuality
+		key.ManagementControl = wl.Reporting.ManagementControl
+		key.SellerType = wl.Reporting.SellerType
+		key.SellerID = wl.Reporting.SellerID
+	}
+	if wl.Middleman != nil {
+		key.DemandSource = wl.Middleman.TriggerMode
+		switch key.DemandSource {
+		case "Fallback", "Always":
+		default:
+			key.DemandSource = "MiddlemanUnknown"
+		}
+		key.BidderID = wl.Middleman.BidderID
+		key.GroupID = wl.Middleman.GroupID
+		key.RouteBidderID = wl.Middleman.RouteBidderID
+		key.TargetID = wl.Middleman.TargetID
+	}
+	stats := out[key]
+	if stats == nil {
+		stats = &reportingLedgerStats{}
+		out[key] = stats
+	}
+	if wl.Middleman != nil && middlemanForwardStatusCounts(wl.Status, wl.Middleman.Source) {
+		switch wl.Middleman.ForwardStatus {
+		case "", "error", "request_error", "http_error", "invalid_url":
+			stats.CallbackErrors++
+		}
+	}
+	switch wl.Status {
+	case dsp.StatusWin:
+		if wl.Middleman == nil || wl.Middleman.ForwardStatus != "duplicate" {
+			stats.Wins++
+		}
+	case dsp.StatusLoss:
+		if wl.Middleman == nil || wl.Middleman.ForwardStatus != "duplicate" {
+			stats.Losses++
+		}
+	case dsp.StatusTrackImp:
+		stats.Imps++
+		if wl.Middleman == nil {
+			amount := CPMToImpressionSpend(float64(wl.RAdv.Cost))
+			stats.SpendUSD += amount
+			stats.RevenueUSD += amount
+			stats.CostUSD += amount
+			stats.ReturnedCPMSum += float64(wl.RAdv.Cost)
+			return
+		}
+		charge := CPMToImpressionSpend(wl.Middleman.ChargePrice)
+		pay := CPMToImpressionSpend(wl.Middleman.PayPrice)
+		stats.SpendUSD += pay
+		stats.RevenueUSD += charge
+		stats.CostUSD += pay
+		margin := charge - pay
+		if margin < 0 {
+			margin = 0
+		}
+		stats.MarginUSD += margin
+		stats.DownstreamCPMSum += wl.Middleman.PayPrice
+		stats.ReturnedCPMSum += wl.Middleman.ChargePrice
+	case dsp.StatusTrackClk:
+		stats.Clis++
+	}
+}
+
+func reportingDimensionHash(key reportingLedgerKey) []byte {
+	raw, _ := json.Marshal(key)
+	digest := sha256.Sum256(raw)
+	return digest[:]
+}
+
+// CPMToImpressionSpend converts an OpenRTB USD CPM price into the USD amount
+// of one billable impression. It is the A01 accounting-v2 unit boundary.
+func CPMToImpressionSpend(cpm float64) float64 {
+	return cpm / 1000
 }
 
 func middlemanForwardStatusCounts(status dsp.Status, source string) bool {
@@ -382,6 +538,17 @@ INSERT INTO ledger_mid (
 	forward_ok, forward_duplicate, forward_missing, forward_error,
 	forward_http_error, forward_invalid, forward_none
 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	insReport := `
+INSERT INTO report_delivery (
+	timely, demand_source, adv_id, campaign_id, item_id, creative_id,
+	bidder_id, group_id, route_bidder_id, target_id, pub_id, site_id, slot_id,
+	country_id, state_id, device_os, device_type,
+	inventory_environment, integration_mode, media_intent, placement,
+	render_context, refresh_mode, refresh_seconds, ad_density, traffic_quality, source_quality,
+	management_control, seller_type, seller_id, dimension_hash,
+	wins, losses, imps, clis, spend_usd, revenue_usd, cost_usd, margin_usd,
+	downstream_cpm_sum, returned_cpm_sum, callback_errors
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	updPub := `UPDATE ledger_pub lp
 INNER JOIN (
 	SELECT pa.lp_id AS lp_id, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, SUM(pa.spend) AS spend
@@ -439,7 +606,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	is := 0
 	cs := 0
-	ss := float32(0)
+	ss := float64(0)
 	for slotID, lpID := range lpIds {
 		for creativeID, laID := range laIds {
 			i, ok1 := stats.Imps[slotID][creativeID]
@@ -470,6 +637,22 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		}
 	}
 
+	for key, value := range stats.Reporting {
+		if _, err = tx.Exec(insReport,
+			myDay, key.DemandSource, key.AdvID, key.CampaignID, key.ItemID, key.CreativeID,
+			key.BidderID, key.GroupID, key.RouteBidderID, key.TargetID, key.PubID, key.SiteID, key.SlotID,
+			key.CountryID, key.StateID, key.DeviceOS, key.DeviceType,
+			key.Environment, key.IntegrationMode, key.MediaIntent, key.Placement,
+			key.RenderContext, key.RefreshMode, key.RefreshSeconds, key.AdDensity, key.TrafficQuality, key.SourceQuality,
+			key.ManagementControl, key.SellerType, key.SellerID, reportingDimensionHash(key),
+			value.Wins, value.Losses, value.Imps, value.Clis,
+			value.SpendUSD, value.RevenueUSD, value.CostUSD, value.MarginUSD,
+			value.DownstreamCPMSum, value.ReturnedCPMSum, value.CallbackErrors,
+		); err != nil {
+			return err
+		}
+	}
+
 	if _, err = tx.Exec(updPub, logID); err != nil {
 		return err
 	}
@@ -491,13 +674,65 @@ INNER JOIN (
 SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, logID); err != nil {
 		return err
 	}
+	if err = reconcileAdvertiserTotalBalances(tx); err != nil {
+		return err
+	}
+	if err = reconcileAdvertiserDailyBalancesFromIntervals(tx, myDay); err != nil {
+		return err
+	}
 	return tx.Commit()
+}
+
+func reconcileAdvertiserTotalBalances(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+UPDATE adv_balance b
+INNER JOIN (
+	SELECT balance_id, SUM(imps) AS imps, SUM(clis) AS clis, SUM(spend) AS spend
+	FROM (
+		SELECT c.total_balance_id AS balance_id, la.imps, la.clis, la.spend
+		FROM ledger_adv la
+		INNER JOIN adv_campaign c USING (campaign_id)
+		WHERE c.total_balance_id IS NOT NULL
+		UNION ALL
+		SELECT i.total_balance_id AS balance_id, la.imps, la.clis, la.spend
+		FROM ledger_adv la
+		INNER JOIN adv_item i USING (item_id)
+		WHERE i.total_balance_id IS NOT NULL
+	) facts
+	GROUP BY balance_id
+) totals ON totals.balance_id=b.balance_id
+SET b.current_imp=totals.imps, b.current_cli=totals.clis, b.current_spend=totals.spend, b.current_day=NULL`)
+	return err
+}
+
+func reconcileAdvertiserDailyBalancesFromIntervals(tx *sql.Tx, myDay string) error {
+	_, err := tx.Exec(`
+UPDATE adv_balance b
+INNER JOIN (
+	SELECT balance_id, SUM(imps) AS imps, SUM(clis) AS clis, SUM(spend) AS spend
+	FROM (
+		SELECT c.daily_balance_id AS balance_id, la.imps, la.clis, la.spend
+		FROM ledger_adv la
+		INNER JOIN ledger_log ll USING (log_id)
+		INNER JOIN adv_campaign c USING (campaign_id)
+		WHERE c.daily_balance_id IS NOT NULL AND DATE(ll.timely)=DATE(?)
+		UNION ALL
+		SELECT i.daily_balance_id AS balance_id, la.imps, la.clis, la.spend
+		FROM ledger_adv la
+		INNER JOIN ledger_log ll USING (log_id)
+		INNER JOIN adv_item i USING (item_id)
+		WHERE i.daily_balance_id IS NOT NULL AND DATE(ll.timely)=DATE(?)
+	) facts
+	GROUP BY balance_id
+) totals ON totals.balance_id=b.balance_id
+SET b.current_imp=totals.imps, b.current_cli=totals.clis, b.current_spend=totals.spend, b.current_day=DATE(?)`, myDay, myDay, myDay)
+	return err
 }
 
 func InsertDaily(db *sql.DB, myDays ...string) error {
 	var myDay string
 	if len(myDays) == 0 {
-		myDay = time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+		myDay = time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
 	} else {
 		myDay = myDays[0]
 	}
@@ -617,5 +852,32 @@ INNER JOIN (
 SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, myDay); err != nil {
 		return err
 	}
+	if err = reconcileAdvertiserDailyBalancesFromDaily(tx, myDay); err != nil {
+		return err
+	}
 	return tx.Commit()
+}
+
+func reconcileAdvertiserDailyBalancesFromDaily(tx *sql.Tx, myDay string) error {
+	_, err := tx.Exec(`
+UPDATE adv_balance b
+INNER JOIN (
+	SELECT balance_id, SUM(imps) AS imps, SUM(clis) AS clis, SUM(spend) AS spend
+	FROM (
+		SELECT c.daily_balance_id AS balance_id, da.imps, da.clis, da.spend
+		FROM daily_adv da
+		INNER JOIN daily_log dl USING (log_id)
+		INNER JOIN adv_campaign c USING (campaign_id)
+		WHERE c.daily_balance_id IS NOT NULL AND dl.daily=?
+		UNION ALL
+		SELECT i.daily_balance_id AS balance_id, da.imps, da.clis, da.spend
+		FROM daily_adv da
+		INNER JOIN daily_log dl USING (log_id)
+		INNER JOIN adv_item i USING (item_id)
+		WHERE i.daily_balance_id IS NOT NULL AND dl.daily=?
+	) facts
+	GROUP BY balance_id
+) totals ON totals.balance_id=b.balance_id
+SET b.current_imp=totals.imps, b.current_cli=totals.clis, b.current_spend=totals.spend, b.current_day=?`, myDay, myDay, myDay)
+	return err
 }

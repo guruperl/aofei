@@ -62,7 +62,7 @@ func main() {
 	if daily {
 		if stamp == "" {
 			err = ledgerjob.InsertDaily(db)
-			log.Printf("Daily ledger of %s done", time.Now().AddDate(0, 0, -1).Format("2006-01-02"))
+			log.Printf("Daily ledger of %s done", time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02"))
 		} else {
 			err = ledgerjob.InsertDaily(db, stamp)
 			log.Printf("Daily ledger of %s done", stamp)
@@ -81,6 +81,9 @@ func main() {
 	}
 
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := lock.Err(); err != nil {
 		log.Fatal(err)
 	}
 }

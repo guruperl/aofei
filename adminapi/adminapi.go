@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"net/url"
+	"time"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/advice"
@@ -91,6 +92,18 @@ func DBDeleteRAdvsToRedisSpreadByItemID(ctx context.Context, conn any, db *sql.D
 
 func UploadSingle(ctx context.Context, redis radix.Client, advID uint32, marker, line string) error {
 	return uploaded.UploadSingle(ctx, redis, advID, marker, line)
+}
+
+func SetUploadedAudienceTTL(seconds int) error {
+	return uploaded.SetDefaultAudienceTTL(time.Duration(seconds) * time.Second)
+}
+
+func DeleteUploadedAudience(ctx context.Context, redis radix.Client, advID uint32, marker string) (bool, error) {
+	return uploaded.DeleteAudience(ctx, redis, advID, marker)
+}
+
+func DeleteUploadedAudienceIdentifier(ctx context.Context, redis radix.Client, advID uint32, marker, identifier string) (bool, error) {
+	return uploaded.DeleteAudienceIdentifier(ctx, redis, advID, marker, identifier)
 }
 
 type MiddlemanRouteCacheMetadata = match.MiddlemanRouteCacheMetadata
