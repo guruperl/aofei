@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/guruperl/aofei/dsp"
@@ -45,6 +46,8 @@ type FileWriters struct {
 	FHAttribute                           *os.File
 	FHWinLoss                             *os.File
 	current                               func(int) int
+	now                                   func() time.Time
+	retention                             time.Duration
 }
 
 func getCurrent(interval int) int {
@@ -65,6 +68,19 @@ func newFileWriter(name string) (*os.File, error) {
 
 // NewFileWriters creates a new FileWriters with the given directory names, and intervals in minutes
 func NewFileWriters(request, response, attribute, winloss string, interval int) (*FileWriters, error) {
+	return newFileWritersWithRetention(request, response, attribute, winloss, interval, 7*24*time.Hour, time.Now)
+}
+
+func newFileWritersWithRetention(request, response, attribute, winloss string, interval int, retention time.Duration, now func() time.Time) (*FileWriters, error) {
+	if interval <= 0 {
+		return nil, fmt.Errorf("log rotation interval must be positive")
+	}
+	if retention <= 0 {
+		return nil, fmt.Errorf("log retention must be positive")
+	}
+	if now == nil {
+		now = time.Now
+	}
 	existing := getCurrent(interval)
 	if err := ensureLogDir(request); err != nil {
 		return nil, err
@@ -78,7 +94,10 @@ func NewFileWriters(request, response, attribute, winloss string, interval int) 
 	if err := ensureLogDir(winloss); err != nil {
 		return nil, err
 	}
-	fw := &FileWriters{existing: int(existing), request: request, response: response, attribute: attribute, winloss: winloss, Interval: interval, current: getCurrent}
+	fw := &FileWriters{existing: int(existing), request: request, response: response, attribute: attribute, winloss: winloss, Interval: interval, current: getCurrent, now: now, retention: retention}
+	if _, err := fw.pruneExpiredLogs(); err != nil {
+		return nil, err
+	}
 	return fw, nil
 }
 
@@ -100,7 +119,10 @@ func runNATSClient(ctx context.Context, c *dsp.Config, nc natsLogConn, interval 
 	if logger == nil {
 		logger = log.New(io.Discard, "", 0)
 	}
-	filewriters, err := NewFileWriters(c.LogRequest, c.LogResponse, c.LogAttribute, c.LogWinLoss, interval)
+	if c == nil {
+		return fmt.Errorf("DSP config is nil")
+	}
+	filewriters, err := newFileWritersWithRetention(c.LogRequest, c.LogResponse, c.LogAttribute, c.LogWinLoss, interval, c.PrivacyLogRetention(), time.Now)
 	if err != nil {
 		return err
 	}
@@ -193,6 +215,9 @@ func (self *FileWriters) writeLog(msg logMessage) (bool, error) {
 	if current > self.existing {
 		self.existing = current
 		self.closeFiles()
+		if _, err := self.pruneExpiredLogs(); err != nil {
+			return false, err
+		}
 	}
 
 	var fh **os.File
@@ -228,6 +253,50 @@ func (self *FileWriters) writeLog(msg logMessage) (bool, error) {
 		return true, err
 	}
 	return true, nil
+}
+
+func (self *FileWriters) pruneExpiredLogs() (int, error) {
+	if self == nil || self.retention <= 0 {
+		return 0, fmt.Errorf("log retention is not configured")
+	}
+	now := time.Now
+	if self.now != nil {
+		now = self.now
+	}
+	cutoff := now().Add(-self.retention)
+	targets := []struct {
+		dir    string
+		prefix string
+	}{
+		{dir: self.request, prefix: dsp.SUBJECTRequest + "."},
+		{dir: self.response, prefix: dsp.SUBJECTResponse + "."},
+		{dir: self.attribute, prefix: dsp.SUBJECTAttribute + "."},
+		{dir: self.winloss, prefix: dsp.SUBJECTWinLoss + "."},
+	}
+	deleted := 0
+	for _, target := range targets {
+		entries, err := os.ReadDir(target.dir)
+		if err != nil {
+			return deleted, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !strings.HasPrefix(entry.Name(), target.prefix) {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return deleted, err
+			}
+			if !info.Mode().IsRegular() || !info.ModTime().Before(cutoff) {
+				continue
+			}
+			if err := os.Remove(filepath.Join(target.dir, entry.Name())); err != nil {
+				return deleted, err
+			}
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 
 func (self *FileWriters) Close() {

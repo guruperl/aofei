@@ -12,3 +12,10 @@ paths = [
   '''^bootstrap/assets/js/docs\.min\.js$''',
   '''^bootstrap/assets/js/src/application\.js$''',
 ]
+
+[[allowlists]]
+description = "Synthetic idempotency keys, environment references, and opaque provider fixtures"
+regexTarget = "secret"
+regexes = [
+  '''^(?:invoice-(?:20260731-7|2026-07-adv-7|20260801-adv-7)|a01-integration-(?:adv(?:-correction)?|pub)|I01_PARTNER_HEADERS|A02_MISSING_API_KEY|cs_a02_fixture|ch_a02_fixture|a02-(?:funding-after-attempt|late-refund))$''',
+]

@@ -36,7 +36,7 @@ jobs:
       - name: Public data
         run: ./scripts/aofei-public-data-check.sh
       - name: Install Gitleaks
-        run: "GOWORK=off go install github.com/zricethezav/gitleaks/v8@v8.30.1"
+        run: "GOWORK=off go install github.com/zricethezav/gitleaks/v8@v8.27.2"
       - name: Secret history
         run: |
           "$(go env GOPATH)/bin/gitleaks" git --redact --no-banner .
@@ -67,4 +67,4 @@ jobs:
           go-version: 1.23.5
           cache: true
       - name: Race tests
-        run: GOWORK=off go test -race ./dsp ./match ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./cmd/spread ./cmd/nats-client
+        run: GOWORK=off go test -race ./hostedpayment ./trafficquality ./dsp ./match ./internal/cmdboot ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./internal/jobs/action ./cmd/spread ./cmd/nats-client ./cmd/action-measurement ./cmd/hosted-payment ./cmd/traffic-quality

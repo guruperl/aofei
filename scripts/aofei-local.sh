@@ -23,8 +23,12 @@ NATS_HOST="${AOFEI_NATS_HOST:-127.0.0.1}"
 NATS_PORT="${AOFEI_NATS_PORT:-4222}"
 PZDESIGN_ROOT="$(cd "${AOFEI_PZDESIGN_ROOT:-$ROOT/../pzdesign}" 2>/dev/null && pwd -P || printf '%s' "${AOFEI_PZDESIGN_ROOT:-$ROOT/../pzdesign}")"
 
-AOFEI_CONFIG="$ROOT/etc/aofei.local.json"
-SUMMER_CONFIG="$ROOT/etc/summer.local.json"
+LOCAL_STATE_DIR="${AOFEI_LOCAL_STATE_DIR:-$ROOT/.local}"
+AOFEI_CONFIG="${AOFEI_CONFIG_PATH:-$ROOT/etc/aofei.local.json}"
+SUMMER_CONFIG="${AOFEI_SUMMER_CONFIG_PATH:-$ROOT/etc/summer.local.json}"
+SPREAD_DIR="${AOFEI_SPREAD_DIR:-$LOCAL_STATE_DIR/spread}"
+LOG_DIR="${AOFEI_LOG_DIR:-$LOCAL_STATE_DIR/logs}"
+UPLOAD_DIR="${AOFEI_UPLOAD_DIR:-$LOCAL_STATE_DIR/uploads}"
 SCHEMA_DIR="$ROOT/.local/schema"
 CURRENT_SCHEMA="$SCHEMA_DIR/aofei.schema.sql"
 DSN="${DB_USER}:${DB_PASS}@tcp(${HOST}:${PORT})/${DB_NAME}?parseTime=true"
@@ -67,6 +71,8 @@ Environment overrides:
   AOFEI_REDIS_CONTAINER, AOFEI_REDIS_VOLUME, AOFEI_REDIS_IMAGE
   AOFEI_REDIS_HOST, AOFEI_REDIS_PORT
   AOFEI_NATS_CONTAINER, AOFEI_NATS_IMAGE, AOFEI_NATS_HOST, AOFEI_NATS_PORT
+  AOFEI_LOCAL_STATE_DIR, AOFEI_CONFIG_PATH, AOFEI_SUMMER_CONFIG_PATH
+  AOFEI_SPREAD_DIR, AOFEI_LOG_DIR, AOFEI_UPLOAD_DIR
 USAGE
 }
 
@@ -286,12 +292,14 @@ SQL
 generate_configs() {
 	mkdir -p \
 		"$ROOT/etc" \
-		"$ROOT/.local/logs/log_request" \
-		"$ROOT/.local/logs/log_response" \
-		"$ROOT/.local/logs/log_attribute" \
-		"$ROOT/.local/logs/log_winloss" \
-		"$ROOT/.local/spread" \
-		"$ROOT/.local/uploads" \
+		"$(dirname "$AOFEI_CONFIG")" \
+		"$(dirname "$SUMMER_CONFIG")" \
+		"$LOG_DIR/log_request" \
+		"$LOG_DIR/log_response" \
+		"$LOG_DIR/log_attribute" \
+		"$LOG_DIR/log_winloss" \
+		"$SPREAD_DIR" \
+		"$UPLOAD_DIR" \
 		"/tmp/aofei-www"
 
 	cat >"$AOFEI_CONFIG" <<JSON
@@ -303,6 +311,10 @@ generate_configs() {
   "nats_url": "$NATS_URL",
   "tracking_secret": "local-dev-tracking-secret",
   "tracking_signature_ttl_seconds": 86400,
+  "cap_state_ttl_seconds": 7776000,
+  "delivery_cache_max_age_seconds": 900,
+  "delivery_reservation_ttl_seconds": 86700,
+  "delivery_state_ttl_seconds": 172800,
   "middleman_enabled": false,
   "middleman_always_enabled": false,
   "middleman_timeout_ms": 100,
@@ -311,18 +323,43 @@ generate_configs() {
   "middleman_callback_ttl_seconds": 86400,
   "middleman_callback_timeout_ms": 1000,
   "middleman_callback_base_url": "http://localhost:8080",
+  "openrtb_debug_enabled": false,
+  "openrtb_debug_sample_rate": 0,
+  "action_token_ttl_seconds": 2592000,
+  "action_click_window_hours": 720,
+  "action_view_window_hours": 168,
+  "action_max_age_hours": 2160,
+  "action_request_skew_seconds": 300,
+  "action_retention_hours": 2160,
+  "privacy_tcf_vendor_id": 0,
+  "privacy_tcf_min_policy_version": 5,
+  "privacy_tcf_purpose_ids": [1, 3, 4],
+  "privacy_contextual_middleman_enabled": false,
+  "privacy_browser_id_ttl_seconds": 2592000,
+  "privacy_log_retention_hours": 168,
+  "privacy_audience_ttl_seconds": 2592000,
   "trusted_proxy_cidrs": [],
+  "metrics_allowed_cidrs": ["127.0.0.1/32", "::1/128"],
+  "traffic_default": {
+    "qps": 2000,
+    "burst": 500,
+    "max_concurrency": 256,
+    "timeout_ms": 1000,
+    "max_body_bytes": 1048576,
+    "max_decompressed_body_bytes": 1048576
+  },
+  "traffic_partners": {},
   "redis": {"Addr": "$REDIS_ADDR", "User": "", "Pass": ""},
   "connect_array": ["mysql", "$DSN"],
   "db_max_open_conns": 32,
   "db_max_idle_conns": 8,
   "db_conn_max_lifetime_seconds": 1800,
   "db_conn_max_idle_time_seconds": 300,
-  "spread": "$ROOT/.local/spread",
-  "log_request": "$ROOT/.local/logs/log_request",
-  "log_response": "$ROOT/.local/logs/log_response",
-  "log_attribute": "$ROOT/.local/logs/log_attribute",
-  "log_winloss": "$ROOT/.local/logs/log_winloss"
+  "spread": "$SPREAD_DIR",
+  "log_request": "$LOG_DIR/log_request",
+  "log_response": "$LOG_DIR/log_response",
+  "log_attribute": "$LOG_DIR/log_attribute",
+  "log_winloss": "$LOG_DIR/log_winloss"
 }
 JSON
 
@@ -335,7 +372,7 @@ JSON
   "ServerPort": "8080",
   "DocumentRoot": "$PZDESIGN_ROOT/www",
   "UploadURL": "http://localhost:8080/uploads",
-  "UploadDir": "$ROOT/.local/uploads",
+  "UploadDir": "$UPLOAD_DIR",
   "Template": "$PZDESIGN_ROOT/tmpls",
   "ConnectArray": ["mysql", "$DSN"],
   "Pubrole": "web",
@@ -592,8 +629,11 @@ install_commands() {
 	(
 		cd "$ROOT"
 		GOWORK=off go install \
+			./cmd/accounting \
+			./cmd/action-measurement \
 			./cmd/ledger \
 			./cmd/maxmind \
+			./cmd/mid-callback-retry \
 			./cmd/nats-client \
 			./cmd/redis-cache \
 			./cmd/winloss \

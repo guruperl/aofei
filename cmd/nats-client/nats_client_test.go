@@ -98,6 +98,19 @@ func TestFileWritersUsePrivatePermissions(t *testing.T) {
 	assertPrivateMode(t, info.Name(), info.Mode().Perm(), false)
 }
 
+func TestFileWritersReturnDiskPathFailure(t *testing.T) {
+	fw := newTestFileWriters(t)
+	defer fw.Close()
+	blocker := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("block child creation"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fw.request = filepath.Join(blocker, "request")
+	if err := fw.WriteLog(dsp.SUBJECTRequest, []byte("must fail")); err == nil {
+		t.Fatal("write to invalid disk path succeeded")
+	}
+}
+
 func TestEnqueueLogMessageCopiesDataAndReportsFullQueue(t *testing.T) {
 	msgs := make(chan logMessage, 1)
 	errs := make(chan error, 1)
@@ -160,6 +173,60 @@ func TestRunNATSClientDrainsOnContextCancelAndFlushesQueuedLogs(t *testing.T) {
 		t.Fatalf("winloss files = %v, want one file", matches)
 	}
 	assertFile(t, matches[0], "queued winloss\n")
+}
+
+func TestFileWritersPruneOnlyExpiredKnownLogFiles(t *testing.T) {
+	root := t.TempDir()
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	dirs := map[string]string{
+		dsp.SUBJECTRequest:   filepath.Join(root, "request"),
+		dsp.SUBJECTResponse:  filepath.Join(root, "response"),
+		dsp.SUBJECTAttribute: filepath.Join(root, "attribute"),
+		dsp.SUBJECTWinLoss:   filepath.Join(root, "winloss"),
+	}
+	fw, err := newFileWritersWithRetention(dirs[dsp.SUBJECTRequest], dirs[dsp.SUBJECTResponse], dirs[dsp.SUBJECTAttribute], dirs[dsp.SUBJECTWinLoss], 10, 24*time.Hour, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw.Close()
+	old := now.Add(-25 * time.Hour)
+	for subject, dir := range dirs {
+		name := filepath.Join(dir, subject+".old")
+		if err := os.WriteFile(name, []byte("expired"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(name, old, old); err != nil {
+			t.Fatal(err)
+		}
+		fresh := filepath.Join(dir, subject+".fresh")
+		if err := os.WriteFile(fresh, []byte("fresh"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unrelated := filepath.Join(dirs[dsp.SUBJECTRequest], "operator-note.old")
+	if err := os.WriteFile(unrelated, []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(unrelated, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	fw, err = newFileWritersWithRetention(dirs[dsp.SUBJECTRequest], dirs[dsp.SUBJECTResponse], dirs[dsp.SUBJECTAttribute], dirs[dsp.SUBJECTWinLoss], 10, 24*time.Hour, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fw.Close()
+	for subject, dir := range dirs {
+		if _, err := os.Stat(filepath.Join(dir, subject+".old")); !os.IsNotExist(err) {
+			t.Fatalf("expired %s log was not removed: %v", subject, err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, subject+".fresh")); err != nil {
+			t.Fatalf("fresh %s log was removed: %v", subject, err)
+		}
+	}
+	if _, err := os.Stat(unrelated); err != nil {
+		t.Fatalf("unrelated file was removed: %v", err)
+	}
 }
 
 func newTestFileWriters(t *testing.T) *FileWriters {

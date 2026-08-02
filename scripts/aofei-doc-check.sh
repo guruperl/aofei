@@ -38,14 +38,16 @@ mapfile -t active_docs < <(
 		git ls-files \
 			README.md \
 			AGENTS.md \
+			GOAL.md \
 			docs/*.md \
 			memory-bank/product.md \
 			memory-bank/architecture.md \
 			memory-bank/tech-stack.md \
 			memory-bank/milestone.md 2>/dev/null
 		find docs -maxdepth 1 -name '*.md' -print
+		find . -maxdepth 1 -name 'GOAL.md' -print | sed 's#^\./##'
 		find evolution -maxdepth 1 -name '*.md' -print
-		find memory-bank -maxdepth 1 -name 'status-M*.md' -print
+		find memory-bank -maxdepth 1 -name 'status-*.md' -print
 	} | sort -u | grep -v '^docs/legacy-operations\.md$'
 )
 
@@ -56,8 +58,39 @@ config_examples=(
 )
 
 if [ -e memory-bank/status.md ]; then
-	fail "memory-bank/status.md must not be recreated; use memory-bank/status-M*.md files."
+	fail "memory-bank/status.md must not be recreated; use lane status files."
 fi
+
+for required_o02_path in \
+	docs/single-region-availability.md \
+	scripts/aofei-recovery-drill.sh
+do
+	if [ ! -f "$required_o02_path" ]; then
+		fail "$required_o02_path is required by the O02 operating contract."
+	fi
+done
+if [ -f scripts/aofei-recovery-drill.sh ] && [ ! -x scripts/aofei-recovery-drill.sh ]; then
+	fail "scripts/aofei-recovery-drill.sh must remain executable."
+fi
+
+mapfile -t status_files < <(
+	find memory-bank -maxdepth 1 -type f -name 'status-*.md' -print | sort -V
+)
+
+for status_file in "${status_files[@]}"; do
+	status_basename="${status_file##*/}"
+	if [[ "$status_basename" =~ ^status-M[0-9]{2,}\.md$ ]]; then
+		:
+	elif [[ "$status_basename" =~ ^status-[DPRISAO][0-9]{2,}\.md$ ]]; then
+		:
+	else
+		fail "$status_basename must use a zero-padded M/D/P/R/I/S/A/O lane ID."
+	fi
+
+	if ! grep -Fq "]($status_basename)" memory-bank/milestone.md; then
+		fail "$status_basename must be indexed from memory-bank/milestone.md."
+	fi
+done
 
 if [ "${#active_docs[@]}" -gt 0 ] &&
 	run_rg '\]\([^)]*(memory-bank/)?status\.md\)' "${active_docs[@]}"; then
