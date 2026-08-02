@@ -63,8 +63,9 @@ func main() {
 	}
 	defer redis.Close()
 	defer db.Close()
+	var lock *cmdboot.Lock
 	if !(dryRun || readOnly) {
-		lock, err := cmdboot.AcquireLock(ctx, redis, "aofei:mid-callback-retry", lockTTL)
+		lock, err = cmdboot.AcquireLock(ctx, redis, "aofei:mid-callback-retry", lockTTL)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -87,6 +88,11 @@ func main() {
 	}
 	if err := writeRetryReport(os.Stdout, jsonOutput, backlog, result); err != nil {
 		log.Fatal(err)
+	}
+	if lock != nil {
+		if err := lock.Err(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 

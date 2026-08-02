@@ -3,6 +3,7 @@ package dsp
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -37,6 +38,7 @@ type SSPRequest struct {
 	App            *openrtb2.App    `json:"app,omitempty"`
 	Device         *openrtb2.Device `json:"device,omitempty"`
 	User           *openrtb2.User   `json:"user,omitempty"`
+	Regs           *openrtb2.Regs   `json:"regs,omitempty"`
 	AdUnits        []SSPAdUnit      `json:"adUnits"`
 }
 
@@ -105,12 +107,14 @@ type SSPNative struct {
 }
 
 type SSPValidatedUnit struct {
-	Code    string
-	Site    string
-	Slot    string
-	SiteStr string
-	SlotStr string
-	RPub    match.RPub
+	Code            string
+	Site            string
+	Slot            string
+	SiteStr         string
+	SlotStr         string
+	SiteType        acl.SiteType
+	ConfiguredFloor float64
+	RPub            match.RPub
 }
 
 func ParseSSPRequest(data []byte) (*SSPRequest, error) {
@@ -124,10 +128,34 @@ func ParseSSPRequest(data []byte) (*SSPRequest, error) {
 	if len(req.AdUnits) == 0 {
 		return nil, fmt.Errorf("ssp request has no adUnits")
 	}
+	if _, err := req.NormalizedPlatform(); err != nil {
+		return nil, err
+	}
 	if _, err := req.NormalizedResponseFormat(); err != nil {
 		return nil, err
 	}
+	for i := range req.AdUnits {
+		if err := req.AdUnits[i].validateStatic(); err != nil {
+			return nil, fmt.Errorf("adUnits[%d] %w", i, err)
+		}
+	}
 	return req, nil
+}
+
+func (self *SSPRequest) NormalizedPlatform() (string, error) {
+	if self == nil {
+		return "", fmt.Errorf("ssp request is nil")
+	}
+	platform := strings.ToLower(strings.TrimSpace(self.Platform))
+	if platform == "" {
+		platform = "browser"
+	}
+	switch platform {
+	case "browser", "sdk":
+		return platform, nil
+	default:
+		return "", fmt.Errorf("unsupported platform %q", self.Platform)
+	}
 }
 
 func (self *SSPRequest) NormalizedResponseFormat() (string, error) {
@@ -168,10 +196,82 @@ func (self SSPMediaTypes) Validate() error {
 	if len(self.unsupported) != 0 {
 		return fmt.Errorf("unsupported mediaTypes: %v", self.unsupported)
 	}
-	if self.Banner == nil && self.Video == nil && self.Native == nil {
+	count := 0
+	if self.Banner != nil {
+		count++
+	}
+	if self.Video != nil {
+		count++
+	}
+	if self.Native != nil {
+		count++
+	}
+	if count == 0 {
 		return fmt.Errorf("missing supported mediaTypes")
 	}
+	if count != 1 {
+		return fmt.Errorf("exactly one supported media type is required")
+	}
 	return nil
+}
+
+func (self SSPMediaTypes) ValidateForSize(w, h uint16) error {
+	if err := self.Validate(); err != nil {
+		return err
+	}
+	switch {
+	case self.Banner != nil:
+		return validateSSPMediaDimensions("banner.size", self.Banner.Size, w, h, true)
+	case self.Video != nil:
+		return validateSSPMediaDimensions("video.playerSize", self.Video.PlayerSize, w, h, true)
+	case self.Native != nil:
+		if err := validateSSPMediaDimensions("native.image", self.Native.Image, w, h, true); err != nil {
+			return err
+		}
+		return validateSSPMediaDimensions("native.icon", self.Native.Icon, 0, 0, false)
+	default:
+		return fmt.Errorf("missing supported mediaTypes")
+	}
+}
+
+func validateSSPMediaDimensions(field string, dimensions []uint16, wantW, wantH uint16, authoritative bool) error {
+	if len(dimensions) == 0 {
+		return nil
+	}
+	if len(dimensions) != 2 || dimensions[0] == 0 || dimensions[1] == 0 {
+		return fmt.Errorf("%s must contain two positive dimensions", field)
+	}
+	if authoritative && (dimensions[0] != wantW || dimensions[1] != wantH) {
+		return fmt.Errorf("%s %dx%d does not match configured slot %dx%d", field, dimensions[0], dimensions[1], wantW, wantH)
+	}
+	return nil
+}
+
+func (self SSPAdUnit) validateStatic() error {
+	if !validSSPCode(self.Code) {
+		return fmt.Errorf("code must be 1-128 URL/DOM-safe characters")
+	}
+	if self.Floor < 0 || math.IsNaN(self.Floor) || math.IsInf(self.Floor, 0) {
+		return fmt.Errorf("floor must be a finite non-negative USD CPM value")
+	}
+	return self.EffectiveMediaTypes().Validate()
+}
+
+func validSSPCode(code string) bool {
+	if len(code) == 0 || len(code) > 128 {
+		return false
+	}
+	for _, character := range code {
+		switch {
+		case character >= 'a' && character <= 'z':
+		case character >= 'A' && character <= 'Z':
+		case character >= '0' && character <= '9':
+		case character == '-' || character == '_' || character == '.' || character == ':':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, error) {
@@ -183,6 +283,10 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 	}
 	if len(self.AdUnits) == 0 {
 		return nil, fmt.Errorf("ssp request has no adUnits")
+	}
+	platform, err := self.NormalizedPlatform()
+	if err != nil {
+		return nil, err
 	}
 
 	pubID, siteID, err := acl.UnpackDirectToken(string(self.Site))
@@ -199,12 +303,13 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 
 	units := make([]SSPValidatedUnit, 0, len(self.AdUnits))
 	for i, adUnit := range self.AdUnits {
-		if adUnit.Code != "" {
-			if first, ok := seenCodes[adUnit.Code]; ok {
-				return nil, fmt.Errorf("adUnits[%d] duplicate code %q already used by adUnits[%d]", i, adUnit.Code, first)
-			}
-			seenCodes[adUnit.Code] = i
+		if err := adUnit.validateStatic(); err != nil {
+			return nil, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
+		if first, ok := seenCodes[adUnit.Code]; ok {
+			return nil, fmt.Errorf("adUnits[%d] duplicate code %q already used by adUnits[%d]", i, adUnit.Code, first)
+		}
+		seenCodes[adUnit.Code] = i
 		slotToken := adUnit.Slot
 		if slotToken == "" {
 			return nil, fmt.Errorf("adUnits[%d] missing slot", i)
@@ -213,16 +318,28 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 		if err != nil {
 			return nil, fmt.Errorf("adUnits[%d] invalid slot token: %w", i, err)
 		}
-		siteStr, slotStr, ok := pub.Validate(siteID, slotID, sizeID)
+		siteStr, slotStr, siteType, configuredFloor, ok := pub.CommercialSlot(siteID, slotID, sizeID)
 		if !ok {
-			return nil, fmt.Errorf("adUnits[%d] invalid site/slot/size tuple: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
+			return nil, fmt.Errorf("adUnits[%d] inventory is inactive, unapproved, stale, or does not match site/slot/size: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
+		}
+		if (platform == "browser" && siteType != acl.SiteTypeWeb) || (platform == "sdk" && siteType != acl.SiteTypeAPP) {
+			return nil, fmt.Errorf("adUnits[%d] platform %q does not match configured site type", i, platform)
+		}
+		w, h := match.SizeID1To2(sizeID)
+		if w == 0 || h == 0 {
+			return nil, fmt.Errorf("adUnits[%d] configured slot has empty size", i)
+		}
+		if err := adUnit.EffectiveMediaTypes().ValidateForSize(w, h); err != nil {
+			return nil, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
 		units = append(units, SSPValidatedUnit{
-			Code:    adUnit.Code,
-			Site:    string(self.Site),
-			Slot:    slotToken,
-			SiteStr: siteStr,
-			SlotStr: slotStr,
+			Code:            adUnit.Code,
+			Site:            string(self.Site),
+			Slot:            slotToken,
+			SiteStr:         siteStr,
+			SlotStr:         slotStr,
+			SiteType:        siteType,
+			ConfiguredFloor: configuredFloor,
 			RPub: match.RPub{
 				PubID:  pubID,
 				SiteID: siteID,

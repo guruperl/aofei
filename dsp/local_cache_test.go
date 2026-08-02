@@ -89,6 +89,43 @@ func TestLocalStaticCacheReloadsGeneration(t *testing.T) {
 	}
 }
 
+func TestLocalStaticCacheBackgroundReloadBoundsPropagation(t *testing.T) {
+	top := t.TempDir()
+	controller := &Controller{
+		C:                   &Config{Spread: top, IsLocal: true, DeliveryCacheMaxAgeSeconds: 3},
+		localReloadInterval: 10 * time.Millisecond,
+	}
+	t.Cleanup(controller.Close)
+
+	writeCreativeSnapshot(t, top, 7, &match.Creative{CreativeName: "old", SizeID: 300250})
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
+	controller.StartLocalStaticCacheReload()
+	controller.StartLocalStaticCacheReload()
+	writeCreativeSnapshot(t, top, 7, &match.Creative{CreativeName: "new", SizeID: 300250})
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		creative, err := controller.localCreative(top, 7)
+		if err == nil && creative.CreativeName == "new" {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("background reload did not expose the new snapshot generation")
+}
+
+func TestLocalStaticCacheReloadIntervalUsesTightestFreshnessBound(t *testing.T) {
+	controller := &Controller{C: &Config{
+		DeliveryCacheMaxAgeSeconds: 900,
+		LocalCacheMaxAgeSeconds:    300,
+	}}
+	if got := controller.localStaticCacheReloadInterval(); got != 100*time.Second {
+		t.Fatalf("reload interval = %s, want 100s", got)
+	}
+}
+
 func TestLocalStaticCacheFreshnessMetricsAreAlertOnly(t *testing.T) {
 	controller := &Controller{
 		C:     &Config{IsLocal: true, LocalCacheMaxAgeSeconds: 60},
@@ -201,5 +238,36 @@ func writeAudienceSnapshot(t *testing.T, top string, itemID uint32, audience *ma
 	}
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestServingReadinessRejectsMissingAndStaleLocalGeneration(t *testing.T) {
+	now := time.Now().UTC()
+	controller := &Controller{C: &Config{IsLocal: true, DeliveryCacheMaxAgeSeconds: 60}}
+	if err := controller.ServingReadiness(now); err == nil {
+		t.Fatal("missing local generation was reported ready")
+	}
+	cache := controller.localStaticCache()
+	cache.mu.Lock()
+	cache.loadedAt = now.Add(-61 * time.Second)
+	cache.mu.Unlock()
+	if err := controller.ServingReadiness(now); err == nil {
+		t.Fatal("stale local generation was reported ready")
+	}
+	cache.mu.Lock()
+	cache.loadedAt = now.Add(time.Second)
+	cache.mu.Unlock()
+	if err := controller.ServingReadiness(now); err == nil {
+		t.Fatal("future local generation was reported ready")
+	}
+	cache.mu.Lock()
+	cache.loadedAt = now.Add(-time.Second)
+	cache.mu.Unlock()
+	if err := controller.ServingReadiness(now); err != nil {
+		t.Fatalf("fresh local generation: %v", err)
+	}
+	redisMode := &Controller{C: &Config{IsLocal: false}}
+	if err := redisMode.ServingReadiness(now); err != nil {
+		t.Fatalf("initialized redis-mode process readiness: %v", err)
 	}
 }

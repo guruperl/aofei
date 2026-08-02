@@ -1,0 +1,17 @@
+{
+  "id": "fixture-request-multiimp",
+  "cur": "USD",
+  "seatbid": [{
+    "seat": "fixture-seat",
+    "bid": [{
+      "id": "fixture-video-bid",
+      "impid": "fixture-video",
+      "price": 2.00,
+      "w": 640,
+      "h": 360,
+      "mtype": 2,
+      "protocol": 3,
+      "adm": "<VAST version=\"3.0\"><Ad id=\"fixture\"><InLine><AdSystem>Fixture</AdSystem><AdTitle>Fixture</AdTitle><Impression>https://metrics.example/impression</Impression><Creatives><Creative><Linear><Duration>00:00:15</Duration><MediaFiles><MediaFile type=\"video/mp4\" width=\"640\" height=\"360\">https://cdn.example/video.mp4</MediaFile></MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>"
+    }]
+  }]
+}

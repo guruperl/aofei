@@ -13,3 +13,18 @@ func TestCacheMutationLockKeyIsSharedAcrossModes(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateCommandModesRejectsAmbiguousOperations(t *testing.T) {
+	if err := validateCommandModes(true, false, true, false, cachejob.MiddlemanStagePreflight); err == nil {
+		t.Fatal("read and publisher validation were accepted together")
+	}
+	if err := validateCommandModes(false, true, false, true, cachejob.MiddlemanStagePreflight); err == nil {
+		t.Fatal("update and middleman validation were accepted together")
+	}
+	if err := validateCommandModes(false, false, false, false, cachejob.MiddlemanStageAlways); err == nil {
+		t.Fatal("activation stage without middleman validation was accepted")
+	}
+	if err := validateCommandModes(false, false, false, true, cachejob.MiddlemanStageAlways); err != nil {
+		t.Fatalf("valid middleman activation flags: %v", err)
+	}
+}

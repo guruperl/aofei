@@ -2,6 +2,7 @@ package dsp
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,6 +52,9 @@ func TestConfig(t *testing.T) {
 	if c.CapStateTTLSeconds != 90*24*60*60 {
 		t.Errorf("CapStateTTLSeconds = %d, want 90 days", c.CapStateTTLSeconds)
 	}
+	if c.DeliveryCacheMaxAgeSeconds != 900 || c.DeliveryReservationSeconds != 86700 || c.DeliveryStateTTLSeconds != 172800 {
+		t.Errorf("delivery defaults = %d/%d/%d, want 900/86700/172800", c.DeliveryCacheMaxAgeSeconds, c.DeliveryReservationSeconds, c.DeliveryStateTTLSeconds)
+	}
 	if c.MiddlemanEnabled {
 		t.Errorf("MiddlemanEnabled = true, want default false")
 	}
@@ -75,8 +79,116 @@ func TestConfig(t *testing.T) {
 	if c.MiddlemanCallbackBaseURL != "http://localhost" {
 		t.Errorf("MiddlemanCallbackBaseURL = %q, want server_url default", c.MiddlemanCallbackBaseURL)
 	}
+	if c.PrivacyTCFVendorID != 0 || c.PrivacyTCFMinPolicyVersion != 5 {
+		t.Errorf("privacy TCF defaults = vendor %d / policy %d, want 0 / 5", c.PrivacyTCFVendorID, c.PrivacyTCFMinPolicyVersion)
+	}
+	if got := fmt.Sprint(c.PrivacyTCFPurposeIDs); got != "[1 3 4]" {
+		t.Errorf("privacy purpose defaults = %s, want [1 3 4]", got)
+	}
+	if c.PrivacyContextualMiddleman {
+		t.Error("PrivacyContextualMiddleman = true, want explicit opt-in")
+	}
+	if c.PrivacyBrowserIDTTLSeconds != 30*24*60*60 || c.PrivacyLogRetentionHours != 168 || c.PrivacyAudienceTTLSeconds != 30*24*60*60 {
+		t.Errorf("privacy retention defaults = %d/%d/%d", c.PrivacyBrowserIDTTLSeconds, c.PrivacyLogRetentionHours, c.PrivacyAudienceTTLSeconds)
+	}
 	if len(c.TrustedProxyCIDRs) != 0 {
 		t.Errorf("TrustedProxyCIDRs = %#v, want default empty", c.TrustedProxyCIDRs)
+	}
+	if got := fmt.Sprint(c.MetricsAllowedCIDRs); got != "[127.0.0.1/32 ::1/128]" {
+		t.Errorf("MetricsAllowedCIDRs = %s, want loopback defaults", got)
+	}
+	if c.TrafficDefault != defaultTrafficPolicy() {
+		t.Errorf("TrafficDefault = %#v, want %#v", c.TrafficDefault, defaultTrafficPolicy())
+	}
+	if c.OpenRTBDebugEnabled || c.OpenRTBDebugSampleRate != 0 {
+		t.Errorf("OpenRTB debug defaults = %t/%f, want disabled/zero", c.OpenRTBDebugEnabled, c.OpenRTBDebugSampleRate)
+	}
+	if c.ActionTokenTTLSeconds != 30*24*60*60 || c.ActionClickWindowHours != 30*24 || c.ActionViewWindowHours != 7*24 || c.ActionMaxAgeHours != 90*24 || c.ActionRequestSkewSeconds != 300 || c.ActionRetentionHours != 90*24 {
+		t.Errorf("action defaults = token:%d click:%d view:%d max:%d skew:%d retention:%d", c.ActionTokenTTLSeconds, c.ActionClickWindowHours, c.ActionViewWindowHours, c.ActionMaxAgeHours, c.ActionRequestSkewSeconds, c.ActionRetentionHours)
+	}
+}
+
+func TestActionConfigRequiresRetentionForFullLifecycle(t *testing.T) {
+	c := &Config{
+		ConnectArray: []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"}, Redis: &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
+		TrackingSignatureTTLSeconds: 86400, CapStateTTLSeconds: 7776000, DeliveryCacheMaxAgeSeconds: 900, DeliveryReservationSeconds: 86700, DeliveryStateTTLSeconds: 172800,
+		MiddlemanCallbackTTLSeconds: 86400, MiddlemanCallbackTimeoutMS: 1000, MiddlemanRouteCacheTTLMS: 5000,
+		ActionClickWindowHours: 720, ActionViewWindowHours: 168, ActionMaxAgeHours: 2160, ActionTokenTTLSeconds: 2592000, ActionRequestSkewSeconds: 300, ActionRetentionHours: 2160,
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("valid action policy: %v", err)
+	}
+	c.ActionRetentionHours = 168
+	if err := c.Validate(); err == nil {
+		t.Fatal("action retention shorter than max action age was accepted")
+	}
+}
+
+func TestOpenRTBDebugConfigDefaultsAndBoundsSampling(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "openrtb-debug.json")
+	content := []byte(`{
+		"server_url": "http://localhost",
+		"connect_array": ["mysql", "user:pass@tcp(localhost:3306)/aofei"],
+		"openrtb_debug_enabled": true
+	}`)
+	if err := os.WriteFile(configFile, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewConfig(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.OpenRTBDebugEnabled || c.OpenRTBDebugSampleRate != 0.01 {
+		t.Fatalf("debug config = %t/%f, want enabled/0.01", c.OpenRTBDebugEnabled, c.OpenRTBDebugSampleRate)
+	}
+	c.OpenRTBDebugSampleRate = 1.01
+	if err := c.Validate(); err == nil {
+		t.Fatal("out-of-range debug sample rate was accepted")
+	}
+	c.OpenRTBDebugSampleRate = 0
+	if err := c.Validate(); err == nil {
+		t.Fatal("enabled debug diagnostics with zero sampling was accepted")
+	}
+}
+
+func TestTrafficPolicyValidationAndInheritance(t *testing.T) {
+	c := &Config{
+		TrafficDefault: TrafficPolicy{QPS: 100, Burst: 20, MaxConcurrency: 8, TimeoutMS: 250, MaxBodyBytes: 4096},
+		TrafficPartners: map[string]TrafficPolicy{
+			"adx:exchange.example": {QPS: 5, Burst: 2},
+			"ssp":                  {MaxConcurrency: 4},
+		},
+	}
+	if err := c.validateTrafficPolicies(); err != nil {
+		t.Fatal(err)
+	}
+	gate := NewTrafficGate(c)
+	if got := gate.partners["adx:exchange.example"].policy; got.QPS != 5 || got.Burst != 2 || got.MaxConcurrency != 8 || got.TimeoutMS != 250 || got.MaxBodyBytes != 4096 {
+		t.Fatalf("inherited partner policy = %#v", got)
+	}
+
+	for name, mutate := range map[string]func(*Config){
+		"unbounded qps": func(c *Config) { c.TrafficDefault.QPS = -1 },
+		"invalid key":   func(c *Config) { c.TrafficPartners = map[string]TrafficPolicy{"partner@example": {}} },
+		"oversize body": func(c *Config) { c.TrafficDefault.MaxBodyBytes = maxBidRequestBodyBytes + 1 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := *c
+			bad.TrafficPartners = map[string]TrafficPolicy{"ssp": {}}
+			mutate(&bad)
+			if err := bad.validateTrafficPolicies(); err == nil {
+				t.Fatal("expected traffic policy validation error")
+			}
+		})
+	}
+}
+
+func TestMetricsAllowedCIDRsRejectInvalidOrEmptyValues(t *testing.T) {
+	if _, err := parseMetricsAllowedCIDRs([]string{"not-a-cidr"}); err == nil {
+		t.Fatal("expected invalid metrics CIDR to fail")
+	}
+	if _, err := parseMetricsAllowedCIDRs([]string{""}); err == nil {
+		t.Fatal("expected empty metrics CIDR list to fail")
 	}
 }
 
@@ -117,6 +229,9 @@ func TestGetRedisDBClosesDBWhenRedisPoolCreationFails(t *testing.T) {
 		Redis:                       &Red{Network: "unix", Addr: filepath.Join(t.TempDir(), "missing.sock")},
 		TrackingSignatureTTLSeconds: 86400,
 		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		DeliveryCacheMaxAgeSeconds:  900,
+		DeliveryReservationSeconds:  86700,
+		DeliveryStateTTLSeconds:     172800,
 		MiddlemanCallbackTTLSeconds: 86400,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
@@ -185,6 +300,9 @@ func TestConfigRejectsInvalidTrustedProxyCIDR(t *testing.T) {
 	c := &Config{
 		TrackingSignatureTTLSeconds: 86400,
 		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		DeliveryCacheMaxAgeSeconds:  900,
+		DeliveryReservationSeconds:  86700,
+		DeliveryStateTTLSeconds:     172800,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		MiddlemanCallbackTTLSeconds: 86400,
@@ -203,6 +321,9 @@ func TestConfigValidateModes(t *testing.T) {
 		TrackingSecret:              "secret",
 		TrackingSignatureTTLSeconds: 86400,
 		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		DeliveryCacheMaxAgeSeconds:  900,
+		DeliveryReservationSeconds:  86700,
+		DeliveryStateTTLSeconds:     172800,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		NatsURL:                     "nats://127.0.0.1:4222",
@@ -242,6 +363,71 @@ func TestConfigValidateModes(t *testing.T) {
 	badLocalCacheAge.LocalCacheMaxAgeSeconds = -1
 	if err := badLocalCacheAge.Validate(); err == nil {
 		t.Fatal("expected negative local_cache_max_age_seconds to fail")
+	}
+
+	shortReservation := *c
+	shortReservation.DeliveryReservationSeconds = shortReservation.TrackingSignatureTTLSeconds
+	if err := shortReservation.Validate(); err == nil {
+		t.Fatal("expected reservation TTL shorter than accepted callback lifetime to fail")
+	}
+}
+
+func TestConfigRejectsInvalidPrivacyPolicy(t *testing.T) {
+	base := Config{
+		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		DeliveryCacheMaxAgeSeconds:  900,
+		DeliveryReservationSeconds:  86700,
+		DeliveryStateTTLSeconds:     172800,
+		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
+		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
+	}
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{name: "vendor too large", mutate: func(c *Config) { c.PrivacyTCFVendorID = 65536 }},
+		{name: "policy too large", mutate: func(c *Config) { c.PrivacyTCFMinPolicyVersion = 64 }},
+		{name: "purpose out of range", mutate: func(c *Config) { c.PrivacyTCFPurposeIDs = []int{0} }},
+		{name: "duplicate purpose", mutate: func(c *Config) { c.PrivacyTCFPurposeIDs = []int{1, 1} }},
+		{name: "configured vendor without purpose", mutate: func(c *Config) { c.PrivacyTCFVendorID = 7 }},
+		{name: "negative browser ttl", mutate: func(c *Config) { c.PrivacyBrowserIDTTLSeconds = -1 }},
+		{name: "excess log retention", mutate: func(c *Config) { c.PrivacyLogRetentionHours = 365*24 + 1 }},
+		{name: "excess audience ttl", mutate: func(c *Config) { c.PrivacyAudienceTTLSeconds = 365*24*60*60 + 1 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := base
+			tt.mutate(&config)
+			if err := config.Validate(); err == nil {
+				t.Fatal("expected invalid privacy configuration to fail")
+			}
+		})
+	}
+}
+
+func TestConfigRejectsInvalidEnabledTrafficQuality(t *testing.T) {
+	config := Config{
+		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		DeliveryCacheMaxAgeSeconds:  900,
+		DeliveryReservationSeconds:  86700,
+		DeliveryStateTTLSeconds:     172800,
+		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
+		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
+		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
+	}
+	config.TrafficQuality.Enabled = true
+	config.TrafficQuality.DigestKeyEnv = "bad-name"
+	config.TrafficQuality.EnforcementRefreshSeconds = 30
+	config.TrafficQuality.EnforcementMaxAgeSeconds = 120
+	if err := config.Validate(); err == nil {
+		t.Fatal("expected invalid traffic-quality digest environment name to fail")
 	}
 }
 

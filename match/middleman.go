@@ -7,6 +7,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/guruperl/aofei/acl"
@@ -136,6 +139,66 @@ func (e MiddlemanRouteEntry) EffectiveMinMarginCPM() float64 {
 	return e.GroupMinMarginCPM
 }
 
+// ValidatePartnerProfile verifies the bounded OpenRTB contract carried by an
+// active route. Network-address policy remains a runtime safehttp check so DNS
+// rebinding and private destinations cannot be approved from cached metadata.
+func (e MiddlemanRouteEntry) ValidatePartnerProfile() error {
+	if e.BidderID == 0 || e.AdvID == 0 {
+		return fmt.Errorf("bidder and advertiser ids are required")
+	}
+	if e.SyntheticCampaignID == 0 || e.SyntheticItemID == 0 || e.SyntheticCreativeID == 0 {
+		return fmt.Errorf("active synthetic reporting ids are required")
+	}
+	if e.OpenRTBVersion != "2.5" {
+		return fmt.Errorf("openrtb_version must be exactly 2.5")
+	}
+	parsed, err := url.Parse(e.EndpointURL)
+	if err != nil || !parsed.IsAbs() || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("endpoint_url must be an absolute http or https URL")
+	}
+	if parsed.User != nil || parsed.Fragment != "" {
+		return fmt.Errorf("endpoint_url must not contain user info or a fragment")
+	}
+	if !ValidMiddlemanCredentialRefName(e.CredentialRef) {
+		return fmt.Errorf("credential_ref must be a bounded environment variable name")
+	}
+	if strings.TrimSpace(e.Seat) != e.Seat || len(e.Seat) > 128 || containsControl(e.Seat) {
+		return fmt.Errorf("seat must be at most 128 bytes without surrounding whitespace or control characters")
+	}
+	if e.GroupTimeoutMS == 0 || e.GroupTimeoutMS > 5000 || e.BidderTimeoutMS == 0 || e.BidderTimeoutMS > 5000 {
+		return fmt.Errorf("partner timeouts must be between 1 and 5000 milliseconds")
+	}
+	if e.RouteTimeoutMS != nil && (*e.RouteTimeoutMS == 0 || *e.RouteTimeoutMS > 5000) {
+		return fmt.Errorf("route timeout must be between 1 and 5000 milliseconds")
+	}
+	for _, value := range []float64{e.GroupMarginPct, e.GroupMinMarginCPM, e.EffectiveMarginPct(), e.EffectiveMinMarginCPM()} {
+		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			return fmt.Errorf("partner margins must be finite and nonnegative")
+		}
+	}
+	return nil
+}
+
+// ValidMiddlemanCredentialRefName accepts portable environment-variable names
+// only, so an approved reference can be injected consistently by shells and
+// service managers.
+func ValidMiddlemanCredentialRefName(value string) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for index, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (index > 0 && r >= '0' && r <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func containsControl(value string) bool {
+	return strings.IndexFunc(value, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0
+}
+
 func DBGetMiddlemanRouteCache(ctx context.Context, db *sql.DB) (*MiddlemanRouteCache, error) {
 	rows, err := db.QueryContext(ctx, `
 SELECT
@@ -211,6 +274,9 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 		if seat.Valid {
 			e.Seat = seat.String
 		}
+		if err := e.ValidatePartnerProfile(); err != nil {
+			return nil, fmt.Errorf("middleman bidder %d profile: %w", e.BidderID, err)
+		}
 		aud, ok := audiences[e.SyntheticItemID]
 		if !ok {
 			aud, err = acl.DBGetACLAudience(db, e.SyntheticItemID)
@@ -237,6 +303,83 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 		Checksum:         cache.RouteChecksum(),
 	}
 	return cache, nil
+}
+
+// DBValidateMiddlemanActivation rejects active route topology that the cache
+// compiler would otherwise omit, plus synthetic reporting rows that could bid
+// as ordinary local demand. It returns counts and internal ids only, never
+// endpoints, advertiser identities, or credential values.
+func DBValidateMiddlemanActivation(ctx context.Context, db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("middleman activation database is nil")
+	}
+	checks := []struct {
+		label string
+		query string
+	}{
+		{
+			label: "active route groups without active targets",
+			query: `SELECT COUNT(*) FROM mid_route_group g
+WHERE g.active='Yes' AND NOT EXISTS (
+ SELECT 1 FROM mid_route_target t WHERE t.group_id=g.group_id AND t.active='Yes')`,
+		},
+		{
+			label: "active route groups without active bidders",
+			query: `SELECT COUNT(*) FROM mid_route_group g
+WHERE g.active='Yes' AND NOT EXISTS (
+ SELECT 1 FROM mid_route_bidder rb WHERE rb.group_id=g.group_id AND rb.active='Yes')`,
+		},
+		{
+			label: "inactive, unapproved, or invalid routed bidders",
+			query: `SELECT COUNT(*)
+FROM mid_route_group g
+INNER JOIN mid_route_bidder rb USING (group_id)
+INNER JOIN adv_bidder b USING (bidder_id)
+LEFT JOIN adv_campaign c ON (c.campaign_id=b.synthetic_campaign_id AND c.adv_id=b.adv_id)
+LEFT JOIN adv_item i ON (i.item_id=b.synthetic_item_id AND i.campaign_id=c.campaign_id)
+LEFT JOIN adv_creative v ON (v.creative_id=b.synthetic_creative_id AND v.item_id=i.item_id)
+WHERE g.active='Yes' AND rb.active='Yes'
+  AND (b.active<>'Yes' OR b.credential_status<>'Active'
+    OR b.credential_ref IS NULL OR b.credential_ref=''
+    OR c.campaign_id IS NULL OR i.item_id IS NULL OR v.creative_id IS NULL)`,
+		},
+		{
+			label: "routed synthetic reporting rows enabled as local demand",
+			query: `SELECT COUNT(*)
+FROM mid_route_group g
+INNER JOIN mid_route_bidder rb USING (group_id)
+INNER JOIN adv_bidder b USING (bidder_id)
+INNER JOIN adv_campaign c ON (c.campaign_id=b.synthetic_campaign_id AND c.adv_id=b.adv_id)
+INNER JOIN adv_item i ON (i.item_id=b.synthetic_item_id AND i.campaign_id=c.campaign_id)
+INNER JOIN adv_creative v ON (v.creative_id=b.synthetic_creative_id AND v.item_id=i.item_id)
+WHERE g.active='Yes' AND rb.active='Yes'
+  AND (c.active='Yes' OR i.active='Yes' OR v.active='Yes')`,
+		},
+		{
+			label: "active route targets with invalid inventory or size",
+			query: `SELECT COUNT(*)
+FROM mid_route_group g
+INNER JOIN mid_route_target t USING (group_id)
+WHERE g.active='Yes' AND t.active='Yes' AND (
+  (t.entitytype_id IS NULL AND t.entity_id IS NOT NULL)
+  OR (t.entitytype_id IS NOT NULL AND t.entity_id IS NULL)
+  OR (t.entitytype_id IS NOT NULL AND t.entitytype_id NOT IN (3,31,32))
+  OR (t.entitytype_id=3 AND NOT EXISTS (SELECT 1 FROM pub p WHERE p.pub_id=t.entity_id AND p.active='Yes'))
+  OR (t.entitytype_id=31 AND NOT EXISTS (SELECT 1 FROM pub_site s WHERE s.site_id=t.entity_id AND s.active='Yes'))
+  OR (t.entitytype_id=32 AND NOT EXISTS (SELECT 1 FROM pub_slot sl WHERE sl.slot_id=t.entity_id AND sl.active='Yes'))
+  OR (t.size_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM def_size ds WHERE ds.size_id=t.size_id)))`,
+		},
+	}
+	for _, check := range checks {
+		var count int
+		if err := db.QueryRowContext(ctx, check.query).Scan(&count); err != nil {
+			return fmt.Errorf("middleman activation %s: %w", check.label, err)
+		}
+		if count != 0 {
+			return fmt.Errorf("middleman activation has %d %s", count, check.label)
+		}
+	}
+	return nil
 }
 
 func (c *MiddlemanRouteCache) RouteChecksum() string {

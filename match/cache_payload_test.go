@@ -2,12 +2,17 @@ package match
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/gob"
 	"testing"
 )
 
 func TestCachePayloadVersionedAndLegacyDecode(t *testing.T) {
-	radvs := RAdvs{{Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4}, Weight: 1, CostType: 2, Cost: 1.5}}
+	delivery := Delivery{GeneratedAtUnix: 123, ItemTotal: DeliveryBalance{ID: 9, LimitImp: 10}}
+	if err := delivery.SetTimezone("UTC"); err != nil {
+		t.Fatal(err)
+	}
+	radvs := RAdvs{{Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4}, Weight: 1, CostType: 2, Cost: 1.5, Delivery: delivery}}
 	versioned, err := radvs.Pack()
 	if err != nil {
 		t.Fatal(err)
@@ -19,12 +24,19 @@ func TestCachePayloadVersionedAndLegacyDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotRAdvs[0].CreativeID != 4 {
+	if gotRAdvs[0].CreativeID != 4 || gotRAdvs[0].Delivery != delivery {
 		t.Fatalf("versioned RAdvs decode = %+v", gotRAdvs[0])
 	}
 
+	legacy := []legacyRAdv{{
+		Demand:   radvs[0].Demand,
+		Weight:   radvs[0].Weight,
+		CostType: radvs[0].CostType,
+		Cost:     radvs[0].Cost,
+		Cap:      radvs[0].Cap,
+	}}
 	var legacyRAdvs bytes.Buffer
-	if err := radvs.packLegacy(&legacyRAdvs); err != nil {
+	if err := binary.Write(&legacyRAdvs, binary.LittleEndian, legacy); err != nil {
 		t.Fatal(err)
 	}
 	gotRAdvs, err = UnpackRAdvs(legacyRAdvs.Bytes())
@@ -79,4 +91,70 @@ func TestCachePayloadRejectsUnknownVersion(t *testing.T) {
 	if _, err := UnpackCreative(data); err == nil {
 		t.Fatal("expected unknown creative cache version to fail")
 	}
+}
+
+func TestRAdvsDecodeVersionOnePayload(t *testing.T) {
+	legacy := []legacyRAdv{{
+		Demand:   Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		Weight:   1,
+		CostType: 2,
+		Cost:     1.5,
+	}}
+	var body bytes.Buffer
+	if err := binary.Write(&body, binary.LittleEndian, legacy); err != nil {
+		t.Fatal(err)
+	}
+	got, err := UnpackRAdvs(packCachePayload(cachePayloadKindRAdvs, 1, body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].CreativeID != 4 || got[0].Delivery.HasPolicy() {
+		t.Fatalf("version-one decode = %+v", got)
+	}
+	got, err = UnpackRAdvs(body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].CreativeID != 4 || got[0].Delivery.HasPolicy() {
+		t.Fatalf("unversioned legacy decode = %+v", got)
+	}
+}
+
+func TestUnversionedRAdvsAlwaysDecodeAsLegacy(t *testing.T) {
+	legacySize := binary.Size(legacyRAdv{})
+	currentSize := binary.Size(RAdv{})
+	count := currentSize / gcdForTest(currentSize, legacySize)
+	legacy := make([]legacyRAdv, count)
+	for i := range legacy {
+		legacy[i] = legacyRAdv{
+			Demand: Demand{AdvID: uint32(i + 1), CampaignID: 2, ItemID: 3, CreativeID: 4},
+			Weight: 1,
+		}
+	}
+	var body bytes.Buffer
+	if err := binary.Write(&body, binary.LittleEndian, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if body.Len()%currentSize != 0 {
+		t.Fatalf("test payload length %d is not ambiguous with current record size %d", body.Len(), currentSize)
+	}
+	got, err := UnpackRAdvs(body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(legacy) {
+		t.Fatalf("unversioned record count = %d, want %d legacy records", len(got), len(legacy))
+	}
+	for i := range got {
+		if got[i].AdvID != uint32(i+1) || got[i].Delivery.HasPolicy() {
+			t.Fatalf("unversioned record %d = %+v", i, got[i])
+		}
+	}
+}
+
+func gcdForTest(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
 }

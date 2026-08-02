@@ -1,0 +1,17 @@
+{
+  "id": "fixture-request-multiimp",
+  "cur": "USD",
+  "seatbid": [{
+    "seat": "fixture-seat",
+    "bid": [{
+      "id": "fixture-unsafe-callback",
+      "impid": "fixture-banner",
+      "price": 1.00,
+      "w": 300,
+      "h": 250,
+      "mtype": 1,
+      "adm": "<div>fixture</div>",
+      "nurl": "javascript%3Aalert(1)"
+    }]
+  }]
+}

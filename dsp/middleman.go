@@ -2,10 +2,16 @@ package dsp
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"sort"
@@ -16,8 +22,10 @@ import (
 
 	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
+	"github.com/guruperl/aofei/trafficquality"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"go.uber.org/zap"
+	"golang.org/x/net/http/httpguts"
 )
 
 type middlemanFallbackImp struct {
@@ -123,9 +131,9 @@ func (self *Controller) middlemanFallback(ctx context.Context, bid *openrtb2.Bid
 				results <- bids
 			} else if err != nil {
 				logger.Warn("middleman bidder request failed",
-					zap.String("request_id", bid.ID),
+					zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
 					zap.Uint32("bidder_id", assignment.Entry.BidderID),
-					zap.Error(err),
+					zap.String("reason", middlemanSafeFailureReason(err)),
 				)
 			}
 		}()
@@ -252,6 +260,14 @@ func (self *Controller) middlemanAssignments(bid *openrtb2.BidRequest, cache *ma
 		}
 		candidates := middlemanCandidatesForImp(cache, fallback, self.C.MiddlemanMaxBiddersPerImp)
 		for _, candidate := range candidates {
+			if self.trafficQualityEnabled() {
+				action, _ := self.qualityAction(
+					trafficquality.Scope{Type: trafficquality.ScopePartner, ID: uint64(candidate.Entry.BidderID)},
+					qualityPartnerEventKey(bid, fallback.Index, candidate.Entry.BidderID), fallback.Attr.When)
+				if qualityBlocks(action) {
+					continue
+				}
+			}
 			assignment := assignments[candidate.Entry.BidderID]
 			if assignment == nil {
 				assignment = &middlemanAssignment{
@@ -289,12 +305,14 @@ func middlemanCandidatesForImp(cache *match.MiddlemanRouteCache, fallback middle
 	}
 	bestByBidder := make(map[uint32]middlemanCandidate)
 	for _, entry := range cache.Entries {
+		recordMiddlemanCandidate("considered", 1)
 		if !entry.Eligible(fallback.Attr) {
 			continue
 		}
 		if !middlemanTriggerAllowed(entry.TriggerMode, fallback.TriggerModes) {
 			continue
 		}
+		recordMiddlemanCandidate("eligible", 1)
 		candidate := middlemanCandidate{ImpIndex: fallback.Index, Attr: fallback.Attr, Entry: entry}
 		current, ok := bestByBidder[entry.BidderID]
 		if !ok || middlemanCandidateLess(candidate, current) {
@@ -311,6 +329,7 @@ func middlemanCandidatesForImp(cache *match.MiddlemanRouteCache, fallback middle
 	if len(candidates) > maxBidders {
 		candidates = candidates[:maxBidders]
 	}
+	recordMiddlemanCandidate("assigned", len(candidates))
 	return candidates
 }
 
@@ -349,7 +368,24 @@ func middlemanCandidateLess(a, b middlemanCandidate) bool {
 }
 
 func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Client, bid *openrtb2.BidRequest, rawRequest []byte, started time.Time, assignment middlemanAssignment) ([]middlemanDownstreamBid, error) {
+	callStarted := time.Now()
+	defer func() { metricMiddlemanBidderLatency.Observe(time.Since(callStarted)) }()
+	outcome := "configuration_error"
+	defer func() { recordMiddlemanBidderOutcome(outcome) }()
+	acceptedCount := 0
+	defer func() {
+		requestID := ""
+		if bid != nil {
+			requestID = bid.ID
+		}
+		self.logOpenRTBDiagnostic(requestID, assignment.Entry.BidderID, outcome, len(assignment.EntriesByID), acceptedCount, time.Since(callStarted))
+	}()
+	if err := assignment.Entry.ValidatePartnerProfile(); err != nil {
+		recordMiddlemanBidRejection("profile")
+		return nil, fmt.Errorf("middleman partner profile: %w", err)
+	}
 	if err := self.validateMiddlemanBidderEndpoint(ctx, assignment.Entry.EndpointURL); err != nil {
+		recordMiddlemanBidRejection("endpoint")
 		return nil, err
 	}
 	if client == nil {
@@ -357,23 +393,37 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 	}
 	headers, err := middlemanCredentialHeaders(assignment.Entry.CredentialRef)
 	if err != nil {
+		recordMiddlemanBidRejection("credential")
 		return nil, err
 	}
 	clickRequestToken, err := newMiddlemanToken()
 	if err != nil {
+		recordMiddlemanBidRejection("callback")
 		return nil, err
 	}
 	clickURLs, err := self.middlemanClickNotifyURLs(clickRequestToken, assignment.EntriesByID)
 	if err != nil {
+		recordMiddlemanBidRejection("callback")
 		return nil, err
 	}
-	body, err := middlemanRequestBodyForAssignment(rawRequest, self.C.MiddlemanExchangeDomain, clickURLs)
+	allowedImpIDs := make(map[string]struct{}, len(assignment.EntriesByID))
+	for impID := range assignment.EntriesByID {
+		allowedImpIDs[impID] = struct{}{}
+	}
+	body, err := middlemanRequestBodyForAssignmentImps(rawRequest, self.C.MiddlemanExchangeDomain, clickURLs, allowedImpIDs)
 	if err != nil {
+		recordMiddlemanBidRejection("envelope")
+		return nil, err
+	}
+	body, err = prepareMiddlemanOutboundRequest(body, bid.ID, assignment.AttrsByID)
+	if err != nil {
+		recordMiddlemanBidRejection("envelope")
 		return nil, err
 	}
 
 	timeout, ok := middlemanAssignmentTimeout(bid, assignment, self.C.MiddlemanTimeoutMS, time.Since(started))
 	if !ok {
+		recordMiddlemanBidRejection("timeout")
 		return nil, fmt.Errorf("middleman tmax exhausted")
 	}
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -388,52 +438,133 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 			req.Header.Add(k, value)
 		}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/openrtb+json")
+	req.Header.Set("Accept", "application/openrtb+json, application/json")
+	req.Header.Set("Accept-Encoding", "gzip")
 	if assignment.Entry.OpenRTBVersion != "" {
 		req.Header.Set("x-openrtb-version", assignment.Entry.OpenRTBVersion)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
+		outcome = "dependency_error"
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			outcome = "timeout"
+			recordMiddlemanBidRejection("timeout")
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if err := callCtx.Err(); err != nil {
+		outcome = "timeout"
+		recordMiddlemanBidRejection("late")
+		return nil, err
+	}
 	if resp.StatusCode == http.StatusNoContent {
+		outcome = "no_bid"
 		return nil, nil
 	}
 	if resp.StatusCode != http.StatusOK {
+		recordMiddlemanBidRejection("status")
+		outcome = "invalid_response"
+		if resp.StatusCode == http.StatusTooManyRequests {
+			outcome = "overload"
+		} else if resp.StatusCode >= http.StatusInternalServerError {
+			outcome = "dependency_error"
+		}
 		return nil, fmt.Errorf("downstream status %d", resp.StatusCode)
 	}
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxBidRequestBodyBytes+1))
+	if err := validateMiddlemanResponseHeaders(resp.Header); err != nil {
+		outcome = "invalid_response"
+		recordMiddlemanBidRejection("content_type")
+		return nil, err
+	}
+	respBody, err := readMiddlemanResponseBody(resp)
 	if err != nil {
+		outcome = "dependency_error"
+		var protocolError middlemanResponseProtocolError
+		if errors.As(err, &protocolError) {
+			outcome = "invalid_response"
+		}
+		recordMiddlemanBidRejection("body")
+		return nil, err
+	}
+	if err := callCtx.Err(); err != nil {
+		outcome = "timeout"
+		recordMiddlemanBidRejection("late")
 		return nil, err
 	}
 	if len(respBody) > maxBidRequestBodyBytes {
+		outcome = "invalid_response"
+		recordMiddlemanBidRejection("body")
 		return nil, fmt.Errorf("middleman response exceeds %d bytes", maxBidRequestBodyBytes)
 	}
 
 	var downstream openrtb2.BidResponse
 	if err := json.Unmarshal(respBody, &downstream); err != nil {
+		outcome = "invalid_response"
+		recordMiddlemanBidRejection("envelope")
 		return nil, err
 	}
+	if strings.TrimSpace(downstream.ID) == "" || downstream.ID != bid.ID {
+		outcome = "invalid_response"
+		recordMiddlemanBidRejection("request_id")
+		return nil, nil
+	}
 	if downstream.Cur != "" && !strings.EqualFold(downstream.Cur, "USD") {
+		outcome = "invalid_response"
+		recordMiddlemanBidRejection("currency")
 		return nil, nil
 	}
 
 	var out []middlemanDownstreamBid
+	sawInvalidBid := false
+	seenBidIDs := make(map[string]struct{})
 	for _, seatBid := range downstream.SeatBid {
+		if seatBid.Group != 0 || (assignment.Entry.Seat != "" && seatBid.Seat != assignment.Entry.Seat) {
+			recordMiddlemanBidRejection("seat")
+			sawInvalidBid = true
+			continue
+		}
 		for _, rspBid := range seatBid.Bid {
+			recordMiddlemanCandidate("returned", 1)
+			if strings.TrimSpace(rspBid.ID) == "" {
+				recordMiddlemanBidRejection("identity")
+				sawInvalidBid = true
+				continue
+			}
+			if _, duplicate := seenBidIDs[rspBid.ID]; duplicate {
+				recordMiddlemanBidRejection("identity")
+				sawInvalidBid = true
+				continue
+			}
+			seenBidIDs[rspBid.ID] = struct{}{}
 			entry, ok := assignment.EntriesByID[rspBid.ImpID]
-			if !ok || rspBid.Price <= 0 {
+			if !ok {
+				recordMiddlemanBidRejection("impression")
+				sawInvalidBid = true
 				continue
 			}
 			impIndex := middlemanImpIndexByID(bid, rspBid.ImpID)
 			if impIndex < 0 || !supportedMiddlemanBidFloorCurrency(bid.Imp[impIndex].BidFloorCur) {
+				recordMiddlemanBidRejection("currency")
+				sawInvalidBid = true
+				continue
+			}
+			auditAttr := assignment.AttrsByID[rspBid.ImpID]
+			if err := validateMiddlemanDownstreamBid(&bid.Imp[impIndex], auditAttr, rspBid); err != nil {
+				recordMiddlemanBidRejection(classifyMiddlemanBidValidation(err))
+				sawInvalidBid = true
+				continue
+			}
+			if rspBid.Price < bid.Imp[impIndex].BidFloor {
+				recordMiddlemanBidRejection("floor")
 				continue
 			}
 			markedPrice := middlemanMarkedPrice(rspBid.Price, entry)
-			if markedPrice < bid.Imp[impIndex].BidFloor {
+			if markedPrice <= 0 || math.IsNaN(markedPrice) || math.IsInf(markedPrice, 0) {
+				recordMiddlemanBidRejection("price")
+				sawInvalidBid = true
 				continue
 			}
 			downstreamPrice := rspBid.Price
@@ -445,7 +576,6 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 			rspBid.CID = strconv.FormatUint(uint64(entry.SyntheticCampaignID), 10)
 			rspBid.CrID = strconv.FormatUint(uint64(entry.SyntheticCreativeID), 10)
 			rspBid.AdID = strconv.FormatUint(uint64(entry.SyntheticCreativeID), 10)
-			auditAttr := assignment.AttrsByID[rspBid.ImpID]
 			responseBidID := downstream.BidID
 			if responseBidID == "" {
 				responseBidID = rspBid.ID
@@ -478,9 +608,147 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 				UpstreamBidPrice:   markedPrice,
 				ClickRequestToken:  clickRequestToken,
 			})
+			acceptedCount++
+			recordMiddlemanCandidate("accepted", 1)
 		}
 	}
+	if err := callCtx.Err(); err != nil {
+		outcome = "timeout"
+		recordMiddlemanBidRejection("late")
+		return nil, err
+	}
+	outcome = "no_bid"
+	if len(out) != 0 {
+		outcome = "fill"
+	} else if sawInvalidBid {
+		outcome = "invalid_response"
+	}
 	return out, nil
+}
+
+func (self *Controller) logOpenRTBDiagnostic(requestID string, bidderID uint32, outcome string, requestedImps, acceptedBids int, elapsed time.Duration) {
+	if self == nil || self.C == nil || !self.C.OpenRTBDebugEnabled || self.Logger == nil {
+		return
+	}
+	rate := self.C.OpenRTBDebugSampleRate
+	if rate <= 0 || rate > 1 {
+		return
+	}
+	sum := sha256.Sum256([]byte(requestID + "|" + strconv.FormatUint(uint64(bidderID), 10)))
+	if rate < 1 {
+		sample := binary.BigEndian.Uint64(sum[:8])
+		if float64(sample)/float64(^uint64(0)) >= rate {
+			return
+		}
+	}
+	self.Logger.Debug("sampled middleman OpenRTB diagnostic",
+		zap.String("request_id_hash", hex.EncodeToString(sum[:8])),
+		zap.Uint32("bidder_id", bidderID),
+		zap.String("outcome", outcome),
+		zap.Int("requested_impressions", requestedImps),
+		zap.Int("accepted_bids", acceptedBids),
+		zap.Int64("elapsed_ms", elapsed.Milliseconds()),
+	)
+}
+
+func safeOpenRTBRequestIDHash(requestID string) string {
+	sum := sha256.Sum256([]byte(requestID))
+	return hex.EncodeToString(sum[:8])
+}
+
+func middlemanSafeFailureReason(err error) string {
+	if err == nil {
+		return "other"
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return "timeout"
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "profile"), strings.Contains(message, "credential"):
+		return "configuration"
+	case strings.Contains(message, "unsafe"), strings.Contains(message, "endpoint"):
+		return "endpoint"
+	case strings.Contains(message, "response"), strings.Contains(message, "downstream"), strings.Contains(message, "json"):
+		return "invalid_response"
+	default:
+		return "dependency"
+	}
+}
+
+func validateMiddlemanResponseHeaders(header http.Header) error {
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(header.Get("Content-Type"), ";")[0]))
+	if contentType != "application/json" && contentType != "application/openrtb+json" {
+		return fmt.Errorf("middleman response content type is not OpenRTB JSON")
+	}
+	if version := strings.TrimSpace(header.Get("x-openrtb-version")); version != "" && version != "2.5" {
+		return fmt.Errorf("middleman response OpenRTB version is not 2.5")
+	}
+	return nil
+}
+
+func readMiddlemanResponseBody(resp *http.Response) ([]byte, error) {
+	if resp == nil || resp.Body == nil {
+		return nil, middlemanResponseProtocolError{fmt.Errorf("middleman response body is missing")}
+	}
+	if resp.ContentLength > maxBidRequestBodyBytes {
+		return nil, middlemanResponseProtocolError{fmt.Errorf("middleman compressed response exceeds %d bytes", maxBidRequestBodyBytes)}
+	}
+	raw := io.LimitReader(resp.Body, maxBidRequestBodyBytes+1)
+	var reader io.Reader = raw
+	encoding := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Encoding")))
+	switch encoding {
+	case "", "identity":
+	case "gzip":
+		compressed, err := gzip.NewReader(raw)
+		if err != nil {
+			return nil, middlemanResponseProtocolError{fmt.Errorf("middleman gzip response is invalid: %w", err)}
+		}
+		defer compressed.Close()
+		reader = compressed
+	default:
+		return nil, middlemanResponseProtocolError{fmt.Errorf("middleman response content encoding is unsupported")}
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maxBidRequestBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxBidRequestBodyBytes {
+		return nil, middlemanResponseProtocolError{fmt.Errorf("middleman decompressed response exceeds %d bytes", maxBidRequestBodyBytes)}
+	}
+	return body, nil
+}
+
+type middlemanResponseProtocolError struct {
+	err error
+}
+
+func (e middlemanResponseProtocolError) Error() string { return e.err.Error() }
+func (e middlemanResponseProtocolError) Unwrap() error { return e.err }
+
+func classifyMiddlemanBidValidation(err error) string {
+	if err == nil {
+		return "other"
+	}
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "dimension"):
+		return "size"
+	case strings.Contains(message, "price"):
+		return "price"
+	case strings.Contains(message, "identifier"):
+		return "identity"
+	case strings.Contains(message, "impression"):
+		return "impression"
+	case strings.Contains(message, "nurl"), strings.Contains(message, "burl"), strings.Contains(message, "lurl"), strings.Contains(message, "callback"):
+		return "callback"
+	case strings.Contains(message, "markup type"), strings.Contains(message, "media type"):
+		return "media"
+	case strings.Contains(message, "adm"), strings.Contains(message, "vast"), strings.Contains(message, "native"), strings.Contains(message, "container"), strings.Contains(message, "url"):
+		return "markup"
+	default:
+		return "other"
+	}
 }
 
 func (self *Controller) validateMiddlemanBidderEndpoint(ctx context.Context, raw string) error {
@@ -506,41 +774,130 @@ func (self *Controller) middlemanClickNotifyURLs(requestToken string, entries ma
 }
 
 func middlemanRequestBodyForAssignment(rawRequest []byte, exchangeDomain string, clickNotifyURLs ...map[string]string) ([]byte, error) {
-	if exchangeDomain == "" {
-		if len(clickNotifyURLs) == 0 || len(clickNotifyURLs[0]) == 0 {
-			return append([]byte(nil), rawRequest...), nil
-		}
+	var clickURLs map[string]string
+	if len(clickNotifyURLs) != 0 {
+		clickURLs = clickNotifyURLs[0]
 	}
-	root := make(map[string]json.RawMessage)
-	if err := json.Unmarshal(rawRequest, &root); err != nil {
+	return middlemanRequestBodyForAssignmentImps(rawRequest, exchangeDomain, clickURLs, nil)
+}
+
+func middlemanRequestBodyForAssignmentImps(rawRequest []byte, exchangeDomain string, clickNotifyURLs map[string]string, allowedImpIDs map[string]struct{}) ([]byte, error) {
+	var bid openrtb2.BidRequest
+	if err := json.Unmarshal(rawRequest, &bid); err != nil {
 		return nil, err
 	}
-	ext := make(map[string]json.RawMessage)
-	if rawExt := root["ext"]; len(rawExt) != 0 {
-		if err := json.Unmarshal(rawExt, &ext); err != nil {
-			ext = make(map[string]json.RawMessage)
+	seenImpIDs := make(map[string]struct{}, len(bid.Imp))
+	for _, imp := range bid.Imp {
+		if imp.ID == "" {
+			return nil, fmt.Errorf("middleman request contains an empty impression id")
+		}
+		if _, duplicate := seenImpIDs[imp.ID]; duplicate {
+			return nil, fmt.Errorf("middleman request contains duplicate impression id %q", imp.ID)
+		}
+		seenImpIDs[imp.ID] = struct{}{}
+	}
+	if allowedImpIDs != nil {
+		filtered := make([]openrtb2.Imp, 0, len(allowedImpIDs))
+		for _, imp := range bid.Imp {
+			if _, allowed := allowedImpIDs[imp.ID]; allowed {
+				filtered = append(filtered, imp)
+			}
+		}
+		bid.Imp = filtered
+		if len(bid.Imp) != len(allowedImpIDs) {
+			return nil, fmt.Errorf("middleman assignment contains %d requested ids but %d matching impressions", len(allowedImpIDs), len(bid.Imp))
 		}
 	}
-	data, err := json.Marshal(exchangeDomain)
+	raw, err := json.Marshal(&bid)
 	if err != nil {
 		return nil, err
 	}
-	if exchangeDomain != "" {
-		ext["request_domain"] = data
+	raw, err = privacySanitizeJSON(raw, false)
+	if err != nil {
+		return nil, err
 	}
-	if len(clickNotifyURLs) > 0 && len(clickNotifyURLs[0]) > 0 {
-		payload := map[string]any{"click_notify_urls": clickNotifyURLs[0]}
-		data, err = json.Marshal(payload)
+	var sanitized openrtb2.BidRequest
+	if err := json.Unmarshal(raw, &sanitized); err != nil {
+		return nil, err
+	}
+	bid = sanitized
+	if err := validatePartnerSource(bid.Source); err != nil {
+		return nil, err
+	}
+	if bid.Source != nil {
+		// Payment-chain strings are not part of P02's public disclosure
+		// allowlist. A validated schain remains available to the partner.
+		bid.Source.PChain = ""
+	}
+	bid.Cur = []string{"USD"}
+	for i := range bid.Imp {
+		if !supportedMiddlemanBidFloorCurrency(bid.Imp[i].BidFloorCur) {
+			return nil, fmt.Errorf("middleman request impression %q has unsupported floor currency", bid.Imp[i].ID)
+		}
+		bid.Imp[i].BidFloorCur = "USD"
+	}
+	ext := make(map[string]any)
+	if exchangeDomain != "" {
+		ext["request_domain"] = exchangeDomain
+	}
+	if len(clickNotifyURLs) > 0 {
+		ext["aofei_middleman"] = map[string]any{"click_notify_urls": clickNotifyURLs}
+	}
+	if len(ext) != 0 {
+		bid.Ext, err = json.Marshal(ext)
 		if err != nil {
 			return nil, err
 		}
-		ext["aofei_middleman"] = data
+	} else {
+		bid.Ext = nil
 	}
-	root["ext"], err = json.Marshal(ext)
-	if err != nil {
-		return nil, err
+	return json.Marshal(&bid)
+}
+
+func prepareMiddlemanOutboundRequest(raw []byte, requestID string, attrs map[string]*match.Attribute) ([]byte, error) {
+	var bid openrtb2.BidRequest
+	if err := json.Unmarshal(raw, &bid); err != nil {
+		return nil, fmt.Errorf("middleman outbound request is malformed: %w", err)
 	}
-	return json.Marshal(root)
+	if bid.ID == "" || bid.ID != requestID || len(bid.Imp) != len(attrs) || len(bid.Imp) == 0 {
+		return nil, fmt.Errorf("middleman outbound request envelope does not match its assignment")
+	}
+	if len(bid.Cur) != 1 || bid.Cur[0] != "USD" {
+		return nil, fmt.Errorf("middleman outbound request must use USD")
+	}
+	seen := make(map[string]struct{}, len(bid.Imp))
+	for i := range bid.Imp {
+		imp := &bid.Imp[i]
+		if imp.ID == "" || imp.BidFloorCur != "USD" {
+			return nil, fmt.Errorf("middleman outbound impression identity or currency is invalid")
+		}
+		if _, duplicate := seen[imp.ID]; duplicate {
+			return nil, fmt.Errorf("middleman outbound impression id is duplicated")
+		}
+		seen[imp.ID] = struct{}{}
+		attr := attrs[imp.ID]
+		if attr == nil {
+			return nil, fmt.Errorf("middleman outbound impression is missing selected media metadata")
+		}
+		switch {
+		case attr.NativeFormat != nil:
+			if imp.Native == nil {
+				return nil, fmt.Errorf("middleman outbound native impression is missing native media")
+			}
+			imp.Banner, imp.Video, imp.Audio = nil, nil, nil
+		case attr.IsVideo:
+			if imp.Video == nil {
+				return nil, fmt.Errorf("middleman outbound video impression is missing video media")
+			}
+			imp.Banner, imp.Native, imp.Audio = nil, nil, nil
+		default:
+			if imp.Banner == nil {
+				return nil, fmt.Errorf("middleman outbound banner impression is missing banner media")
+			}
+			imp.Video, imp.Native, imp.Audio = nil, nil, nil
+		}
+	}
+	return json.Marshal(&bid)
 }
 
 func middlemanCredentialHeaders(ref string) (http.Header, error) {
@@ -557,12 +914,26 @@ func middlemanCredentialHeaders(ref string) (http.Header, error) {
 	}
 	header := make(http.Header)
 	for k, v := range values {
+		if !httpguts.ValidHeaderFieldName(k) {
+			return nil, fmt.Errorf("middleman credential header name %q is invalid", k)
+		}
+		if !httpguts.ValidHeaderFieldValue(v) {
+			return nil, fmt.Errorf("middleman credential header %q has an invalid value", k)
+		}
 		if middlemanBlockedHeader(k) {
 			return nil, fmt.Errorf("middleman credential header %q is not allowed", k)
 		}
 		header.Set(k, v)
 	}
 	return header, nil
+}
+
+// ValidateMiddlemanCredentialRef confirms that an environment-backed bidder
+// credential exists and contains only allowed outbound headers. It deliberately
+// returns no header values so readiness tooling cannot expose credentials.
+func ValidateMiddlemanCredentialRef(ref string) error {
+	_, err := middlemanCredentialHeaders(ref)
+	return err
 }
 
 func middlemanBlockedHeader(name string) bool {

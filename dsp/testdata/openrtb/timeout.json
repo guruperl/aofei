@@ -1,0 +1,4 @@
+{
+  "request_tmax_ms": 20,
+  "simulated_partner_delay_ms": 60
+}

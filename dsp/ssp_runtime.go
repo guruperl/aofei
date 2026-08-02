@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,8 +22,7 @@ import (
 )
 
 const (
-	sspUserCookieName   = "aofei_pz_uid"
-	sspUserCookieMaxAge = 365 * 24 * 60 * 60
+	sspUserCookieName = "aofei_pz_uid"
 )
 
 // ServeSSP handles the direct publisher JSON contract on /pz.
@@ -33,6 +33,11 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 
 	rawRequest, err := io.ReadAll(io.LimitReader(r.Body, maxBidRequestBodyBytes+1))
 	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -66,10 +71,12 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
+	privacy := self.privacyDecision(r, sspReq.Regs, sspReq.User, sspReq.Device)
+	recordPrivacyDecision(privacy)
 
 	cookieUserID := ""
-	if sspPlatformUsesBrowserCookie(sspReq.Platform) {
-		cookieUserID = self.resolveSSPUserCookieForPlatform(w, r, sspReq.Platform)
+	if privacy.AllowCookie && sspPlatformUsesBrowserCookie(sspReq.Platform) {
+		cookieUserID = readSSPUserCookie(r)
 	}
 	bid, err := self.openRTBFromValidatedSSP(r, sspReq, pub, units, cookieUserID)
 	if err != nil {
@@ -77,14 +84,23 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if err := self.applyPrivacyPolicy(bid, privacy); err != nil {
+		metricSSPValidationErrors.Add(1)
+		http.Error(w, "privacy policy could not be applied", http.StatusBadRequest)
+		return
+	}
+	if privacy.AllowCookie && sspPlatformUsesBrowserCookie(sspReq.Platform) && cookieUserID == "" {
+		self.setSSPUserCookie(w, r)
+	}
 
 	rawMiddlemanRequest, err := json.Marshal(bid)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pub.Pub, current, pub.Domain, rawMiddlemanRequest, nil)
+	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pub.Pub, current, pub.Domain, rawMiddlemanRequest, nil, privacy)
 	_, _, audits, _, materialized := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, nil)
+	recordWinnerSourceLatency(current, materialized)
 	results := sspBidResultsFromMaterialized(bid, materialized)
 	for _, result := range results {
 		if !result.Filled {
@@ -96,19 +112,31 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 
 	rawResponse, err := renderSSPResponse(responseFormat, bid, results)
 	if err != nil {
+		self.releaseMaterializedDeliveries(ctx, materialized)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(rawResponse)
+	if written, writeErr := w.Write(rawResponse); writeErr != nil || written != len(rawResponse) {
+		self.releaseMaterializedDeliveries(ctx, materialized)
+		return
+	}
 
 	elapsed := time.Since(current)
 	for i := range audits {
 		audits[i].Elapsed = elapsed
+		audits[i].PrivacyMode = string(privacy.Mode)
+		audits[i].PrivacyReason = privacy.Reason
 	}
-	_ = self.publishSSPBidAudits(rawRequest, rawResponse, audits)
+	privacyAuditRequest, err := json.Marshal(sspReq)
+	if err == nil {
+		privacyAuditResponse, auditErr := privacySSPAuditResponse(results)
+		if auditErr == nil {
+			_ = self.publishSSPBidAuditsWithPrivacy(privacyAuditRequest, privacyAuditResponse, audits, privacy)
+		}
+	}
 }
 
 func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req *SSPRequest, cookieUserID ...string) (*openrtb2.BidRequest, *acl.DirectPub, []SSPValidatedUnit, error) {
@@ -163,6 +191,8 @@ func (self *Controller) openRTBFromValidatedSSP(r *http.Request, req *SSPRequest
 		ID:     req.ID,
 		Device: self.deviceFromSSPHeaders(r),
 		User:   &openrtb2.User{},
+		Regs:   req.Regs,
+		Source: sourceFromApprovedSeller(pub.Pub.Seller),
 		Imp:    make([]openrtb2.Imp, 0, len(units)),
 	}
 	if sspPlatformIsSDK(req.Platform) {
@@ -178,6 +208,9 @@ func (self *Controller) openRTBFromValidatedSSP(r *http.Request, req *SSPRequest
 		}
 	} else {
 		bid.Site = siteFromSSP(r, pub, units[0])
+		if req.User != nil {
+			bid.User.Consent = req.User.Consent
+		}
 	}
 	if cookieUserID != "" && !sspPlatformIsSDK(req.Platform) {
 		bid.User.ID = cookieUserID
@@ -218,32 +251,6 @@ type sspJSONAdUnitResponse struct {
 	CreativeID    string          `json:"creativeId,omitempty"`
 	Width         int64           `json:"width,omitempty"`
 	Height        int64           `json:"height,omitempty"`
-}
-
-func (self *Controller) localSSPBidResults(ctx context.Context, bid *openrtb2.BidRequest, pub *acl.DirectPub, current time.Time) ([]sspBidResult, []bidAudit) {
-	results := make([]sspBidResult, len(bid.Imp))
-	audits := make([]bidAudit, 0, len(bid.Imp))
-	for impIndex := range bid.Imp {
-		dspBid, audit, err := self.bidForImp(ctx, bid, pub.Pub, current, pub.Domain, impIndex)
-		if err != nil {
-			continue
-		}
-		winloss := dspBid.WinLoss(StatusBid)
-		rspBid, err := dspBid.NewBid(winloss)
-		if err != nil {
-			continue
-		}
-		results[impIndex] = sspBidResult{
-			Filled:        true,
-			Bid:           rspBid,
-			ResponseBidID: dspBid.bidID(),
-			Seat:          dspBid.seat(),
-			ImpressionURL: winloss.ImpURL(),
-			ClickURL:      clickURLForSSPBid(dspBid, winloss),
-		}
-		audits = append(audits, audit)
-	}
-	return results, audits
 }
 
 func sspBidResultsFromMaterialized(bid *openrtb2.BidRequest, winners []bidWinner) []sspBidResult {
@@ -328,6 +335,17 @@ func sspJSONResponse(results []sspBidResult) []sspJSONAdUnitResponse {
 		}
 	}
 	return response
+}
+
+func privacySSPAuditResponse(results []sspBidResult) ([]byte, error) {
+	response := sspJSONResponse(results)
+	for i := range response {
+		response[i].AdM = ""
+		response[i].Native = nil
+		response[i].ImpressionURL = ""
+		response[i].ClickURL = ""
+	}
+	return json.Marshal(response)
 }
 
 func nativeRawFromAdM(adm string) json.RawMessage {
@@ -463,29 +481,40 @@ func nonEmptyHeaderValues(values []string) []string {
 }
 
 func (self *Controller) resolveSSPUserCookie(w http.ResponseWriter, r *http.Request) string {
+	if value := readSSPUserCookie(r); value != "" {
+		return value
+	}
+	self.setSSPUserCookie(w, r)
+	return ""
+}
+
+func readSSPUserCookie(r *http.Request) string {
 	if r == nil {
 		return ""
 	}
 	if cookie, err := r.Cookie(sspUserCookieName); err == nil && validSSPUserCookie(cookie.Value) {
 		return cookie.Value
 	}
+	return ""
+}
+
+func (self *Controller) setSSPUserCookie(w http.ResponseWriter, r *http.Request) {
 	if w == nil {
-		return ""
+		return
 	}
 	value, err := newSSPUserCookieValue()
 	if err != nil {
-		return ""
+		return
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     sspUserCookieName,
 		Value:    value,
 		Path:     "/",
-		MaxAge:   sspUserCookieMaxAge,
+		MaxAge:   int(self.privacyBrowserIDTTL().Seconds()),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   self.sspCookieSecure(r),
 	})
-	return ""
 }
 
 func (self *Controller) resolveSSPUserCookieForPlatform(w http.ResponseWriter, r *http.Request, platform string) string {
@@ -626,6 +655,10 @@ func (self *Controller) deviceFromSSPHeaders(r *http.Request) *openrtb2.Device {
 	if lang := r.Header.Get("Accept-Language"); lang != "" {
 		device.Language = strings.TrimSpace(strings.Split(lang, ",")[0])
 	}
+	if raw := strings.TrimSpace(r.Header.Get("DNT")); raw == "0" || raw == "1" {
+		value := int8(raw[0] - '0')
+		device.DNT = &value
+	}
 	return device
 }
 
@@ -732,7 +765,7 @@ func openRTBImpFromSSPUnit(adUnit SSPAdUnit, unit SSPValidatedUnit, index int) (
 	imp := openrtb2.Imp{
 		ID:          adUnit.Code,
 		TagID:       unit.SlotStr,
-		BidFloor:    adUnit.Floor,
+		BidFloor:    maxSSPFloor(adUnit.Floor, unit.ConfiguredFloor),
 		BidFloorCur: "USD",
 	}
 	if imp.ID == "" {
@@ -755,6 +788,13 @@ func openRTBImpFromSSPUnit(adUnit SSPAdUnit, unit SSPValidatedUnit, index int) (
 		imp.Banner = &openrtb2.Banner{W: &wi, H: &hi}
 	}
 	return imp, nil
+}
+
+func maxSSPFloor(requestFloor, configuredFloor float64) float64 {
+	if configuredFloor > requestFloor {
+		return configuredFloor
+	}
+	return requestFloor
 }
 
 func nativeRequestFromSSP(native *SSPNative, w, h uint16) (string, error) {

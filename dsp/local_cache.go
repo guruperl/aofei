@@ -1,6 +1,7 @@
 package dsp
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
+	"go.uber.org/zap"
 )
 
 type localStaticCache struct {
@@ -96,6 +98,121 @@ func (self *Controller) ReloadLocalStaticCache() error {
 	metricLocalCacheReloadEntries.Set(int64(count))
 	self.publishLocalCacheFreshnessState()
 	return nil
+}
+
+// StartLocalStaticCacheReload starts the bounded propagation loop used by
+// local/spread mode. Calling it more than once is safe. Snapshot producers must
+// still refresh the files before delivery_cache_max_age_seconds expires; this
+// loop makes a newly published generation visible to the serving process.
+func (self *Controller) StartLocalStaticCacheReload() {
+	if self == nil || self.C == nil || !self.C.IsLocal {
+		return
+	}
+	self.localReloadMu.Lock()
+	defer self.localReloadMu.Unlock()
+	if self.localReloadCancel != nil {
+		return
+	}
+	interval := self.localStaticCacheReloadInterval()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	self.localReloadCancel = cancel
+	self.localReloadDone = done
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := self.ReloadLocalStaticCache(); err != nil && self.Logger != nil {
+					self.Logger.Error("local static cache reload failed", zap.Error(err))
+				}
+			}
+		}
+	}()
+}
+
+// StopLocalStaticCacheReload stops a loop previously started by
+// StartLocalStaticCacheReload. It is safe when no loop is running.
+func (self *Controller) StopLocalStaticCacheReload() {
+	self.stopLocalStaticCacheReload()
+}
+
+func (self *Controller) localStaticCacheReloadInterval() time.Duration {
+	if self.localReloadInterval > 0 {
+		return self.localReloadInterval
+	}
+	maxAge := self.deliveryCacheMaxAge()
+	if self.C != nil && self.C.LocalCacheMaxAgeSeconds > 0 {
+		localMaxAge := time.Duration(self.C.LocalCacheMaxAgeSeconds) * time.Second
+		if maxAge <= 0 || localMaxAge < maxAge {
+			maxAge = localMaxAge
+		}
+	}
+	interval := maxAge / 3
+	if interval < time.Second {
+		interval = time.Second
+	}
+	return interval
+}
+
+// ServingReadiness checks only process-local serving state. Shared dependency
+// health remains on the protected metrics surface: withdrawing every node for
+// one shared MySQL, Redis, or NATS outage would not provide useful failover.
+func (self *Controller) ServingReadiness(now time.Time) error {
+	if self == nil || self.C == nil {
+		return fmt.Errorf("controller is not initialized")
+	}
+	if !self.C.IsLocal {
+		return nil
+	}
+	self.localMu.Lock()
+	cache := self.local
+	self.localMu.Unlock()
+	if cache == nil {
+		return fmt.Errorf("local cache is not loaded")
+	}
+	cache.mu.RLock()
+	loadedAt := cache.loadedAt
+	cache.mu.RUnlock()
+	if loadedAt.IsZero() {
+		return fmt.Errorf("local cache is not loaded")
+	}
+	if loadedAt.After(now) {
+		return fmt.Errorf("local cache timestamp is in the future")
+	}
+	maxAge := self.deliveryCacheMaxAge()
+	if self.C.LocalCacheMaxAgeSeconds > 0 {
+		localMaxAge := time.Duration(self.C.LocalCacheMaxAgeSeconds) * time.Second
+		if maxAge <= 0 || localMaxAge < maxAge {
+			maxAge = localMaxAge
+		}
+	}
+	if maxAge > 0 && now.Sub(loadedAt) > maxAge {
+		return fmt.Errorf("local cache is stale")
+	}
+	return nil
+}
+
+func (self *Controller) stopLocalStaticCacheReload() {
+	if self == nil {
+		return
+	}
+	self.localReloadMu.Lock()
+	cancel := self.localReloadCancel
+	done := self.localReloadDone
+	self.localReloadCancel = nil
+	self.localReloadDone = nil
+	self.localReloadMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		<-done
+	}
 }
 
 func (c *localStaticCache) load(top string) (int, error) {

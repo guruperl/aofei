@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestMiddlemanRoutesRefreshesOnceForConcurrentRequests(t *testing.T) {
@@ -354,7 +357,7 @@ func TestMaterializeBidWinnersSupportsMixedLocalAndMiddleman(t *testing.T) {
 	}
 }
 
-func TestMiddlemanRequestExtAndPreservesImps(t *testing.T) {
+func TestMiddlemanRequestScrubsExtensionsAndUnknownFields(t *testing.T) {
 	raw := []byte(`{"id":"req-1","imp":[{"id":"imp-1"},{"id":"imp-2"}],"ext":{"request_domain":"old.example","kept":true},"vendor_unknown":{"x":1}}`)
 	body, err := middlemanRequestBodyForAssignment(raw, "aofei.example")
 	if err != nil {
@@ -375,11 +378,32 @@ func TestMiddlemanRequestExtAndPreservesImps(t *testing.T) {
 	if err := json.Unmarshal(root["ext"], &ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext["request_domain"] != "aofei.example" || ext["kept"] != true {
+	if ext["request_domain"] != "aofei.example" || ext["kept"] != nil {
 		t.Fatalf("ext = %#v", ext)
 	}
-	if _, ok := root["vendor_unknown"]; !ok {
-		t.Fatalf("unknown top-level field was not preserved: %s", body)
+	if _, ok := root["vendor_unknown"]; ok {
+		t.Fatalf("unknown top-level field was preserved: %s", body)
+	}
+}
+
+func TestMiddlemanOutboundRequestScopesMultiFormatToSelectedMedia(t *testing.T) {
+	raw := []byte(`{"id":"req-1","imp":[{"id":"imp-1","banner":{"w":300,"h":250},"video":{"w":300,"h":250},"audio":{},"bidfloorcur":"USD"}],"cur":["USD"]}`)
+	body, err := middlemanRequestBodyForAssignmentImps(raw, "exchange.example", nil, map[string]struct{}{"imp-1": {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err = prepareMiddlemanOutboundRequest(body, "req-1", map[string]*match.Attribute{
+		"imp-1": {RPub: match.RPub{SizeID: match.SizeID2To1(300, 250)}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bid openrtb2.BidRequest
+	if err := json.Unmarshal(body, &bid); err != nil {
+		t.Fatal(err)
+	}
+	if len(bid.Imp) != 1 || bid.Imp[0].Banner == nil || bid.Imp[0].Video != nil || bid.Imp[0].Audio != nil || bid.Imp[0].Native != nil {
+		t.Fatalf("outbound media scope = %#v, want banner only", bid.Imp)
 	}
 }
 
@@ -399,10 +423,36 @@ func TestMiddlemanCredentialHeaders(t *testing.T) {
 	}
 }
 
+func TestValidateMiddlemanCredentialRefDoesNotReturnHeaderValues(t *testing.T) {
+	t.Setenv("D03_VALID_HEADERS", `{"Authorization":"Bearer must-not-leak"}`)
+	if err := ValidateMiddlemanCredentialRef("D03_VALID_HEADERS"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("D03_BLOCKED_HEADERS", `{"Host":"secret.example"}`)
+	err := ValidateMiddlemanCredentialRef("D03_BLOCKED_HEADERS")
+	if err == nil {
+		t.Fatal("blocked credential headers were accepted")
+	}
+	if strings.Contains(err.Error(), "secret.example") {
+		t.Fatalf("credential validation exposed a header value: %v", err)
+	}
+	t.Setenv("D03_INVALID_VALUE", "{\"Authorization\":\"Bearer safe\\r\\nX-Leak: value\"}")
+	err = ValidateMiddlemanCredentialRef("D03_INVALID_VALUE")
+	if err == nil || strings.Contains(err.Error(), "X-Leak") {
+		t.Fatalf("invalid header value error = %v", err)
+	}
+}
+
 func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
+	before := expvarMapInt64(metricMiddlemanBidderOutcomes, "fill")
 	t.Setenv("BIDDER_HEADERS", `{"Authorization":"Bearer test"}`)
 	var received openrtb2.BidRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/openrtb+json")
+		w.Header().Set("x-openrtb-version", "2.5")
+		if r.Header.Get("Content-Type") != "application/openrtb+json" || r.Header.Get("Accept-Encoding") != "gzip" {
+			t.Errorf("partner request negotiation = Content-Type %q / Accept-Encoding %q", r.Header.Get("Content-Type"), r.Header.Get("Accept-Encoding"))
+		}
 		if r.Header.Get("Authorization") != "Bearer test" {
 			t.Errorf("Authorization header = %q", r.Header.Get("Authorization"))
 		}
@@ -425,6 +475,8 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 					ImpID: "imp-2",
 					Price: 2.0,
 					AdM:   "<img>",
+					W:     300,
+					H:     250,
 					CID:   "downstream-campaign",
 					CrID:  "downstream-creative",
 					AdID:  "downstream-ad",
@@ -457,7 +509,7 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 		Ext:  json.RawMessage(`{"request_domain":"old.example"}`),
 		Imp: []openrtb2.Imp{
 			{ID: "imp-1", BidFloor: 0.1, BidFloorCur: "USD"},
-			{ID: "imp-2", BidFloor: 2.4, BidFloorCur: "USD"},
+			{ID: "imp-2", Banner: func() *openrtb2.Banner { w, h := int64(300), int64(250); return &openrtb2.Banner{W: &w, H: &h} }(), BidFloor: 2.0, BidFloorCur: "USD"},
 		},
 	}
 	assignment := middlemanAssignment{
@@ -466,7 +518,7 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 			"imp-2": entry,
 		},
 		AttrsByID: map[string]*match.Attribute{
-			"imp-2": {RPub: match.RPub{PubID: 1, SiteID: 2, SlotID: 3, SizeID: 4}, ACL: &acl.ACL{}},
+			"imp-2": {RPub: match.RPub{PubID: 1, SiteID: 2, SlotID: 3, SizeID: match.SizeID2To1(300, 250)}, ACL: &acl.ACL{}},
 		},
 	}
 	controller := &Controller{
@@ -492,7 +544,7 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("len(bids) = %d, want 1", len(got))
 	}
-	if len(received.Imp) != 2 || received.Imp[0].ID != "imp-1" || received.Imp[1].ID != "imp-2" {
+	if len(received.Imp) != 1 || received.Imp[0].ID != "imp-2" {
 		t.Fatalf("received imps = %#v", received.Imp)
 	}
 	var ext map[string]any
@@ -522,6 +574,243 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	if got[0].DownstreamBidPrice != 2.0 || got[0].UpstreamBidPrice != 2.5 || got[0].DownstreamAdID != "downstream-ad" {
 		t.Fatalf("downstream accounting = %#v", got[0])
 	}
+	if got := expvarMapInt64(metricMiddlemanBidderOutcomes, "fill") - before; got != 1 {
+		t.Fatalf("middleman fill outcome delta = %d, want 1", got)
+	}
+}
+
+func TestCallMiddlemanBidderRejectsInvalidPartnerResponsesByFixedReason(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		reason      string
+		response    openrtb2.BidResponse
+		contentType string
+		wantError   bool
+		wantBids    int
+	}{
+		{
+			name: "valid", wantBids: 1,
+			response:    i01BannerResponse("request-1", "expected-seat", 1.25, "https://notify.example/win"),
+			contentType: "application/openrtb+json",
+		},
+		{
+			name: "request id", reason: "request_id",
+			response:    i01BannerResponse("other-request", "expected-seat", 1.25, ""),
+			contentType: "application/json",
+		},
+		{
+			name: "currency", reason: "currency",
+			response: func() openrtb2.BidResponse {
+				r := i01BannerResponse("request-1", "expected-seat", 1.25, "")
+				r.Cur = "EUR"
+				return r
+			}(),
+			contentType: "application/json",
+		},
+		{
+			name: "seat", reason: "seat",
+			response:    i01BannerResponse("request-1", "other-seat", 1.25, ""),
+			contentType: "application/json",
+		},
+		{
+			name: "floor", reason: "floor",
+			response:    i01BannerResponse("request-1", "expected-seat", 0.99, ""),
+			contentType: "application/json",
+		},
+		{
+			name: "callback", reason: "callback",
+			response:    i01BannerResponse("request-1", "expected-seat", 1.25, "javascript%3Aalert(1)"),
+			contentType: "application/json",
+		},
+		{
+			name: "content type", reason: "content_type", wantError: true,
+			response:    i01BannerResponse("request-1", "expected-seat", 1.25, ""),
+			contentType: "text/plain",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			before := int64(0)
+			if tt.reason != "" {
+				before = expvarMapInt64(metricMiddlemanBidRejections, tt.reason)
+			}
+			got, err := callI01PartnerFixture(t, tt.contentType, 100, func(w http.ResponseWriter) {
+				_ = json.NewEncoder(w).Encode(tt.response)
+			})
+			if (err != nil) != tt.wantError {
+				t.Fatalf("error = %v, wantError %t", err, tt.wantError)
+			}
+			if len(got) != tt.wantBids {
+				t.Fatalf("bids = %#v, want %d", got, tt.wantBids)
+			}
+			if tt.reason != "" && expvarMapInt64(metricMiddlemanBidRejections, tt.reason)-before < 1 {
+				t.Fatalf("fixed rejection reason %q was not recorded", tt.reason)
+			}
+		})
+	}
+}
+
+func TestCallMiddlemanBidderRejectsLateResponse(t *testing.T) {
+	deadline, delay := i01TimeoutFixture(t)
+	before := expvarMapInt64(metricMiddlemanBidRejections, "timeout")
+	_, err := callI01PartnerFixture(t, "application/json", uint16(deadline.Milliseconds()), func(w http.ResponseWriter) {
+		time.Sleep(delay)
+		_ = json.NewEncoder(w).Encode(i01BannerResponse("request-1", "expected-seat", 1.25, ""))
+	})
+	if err == nil {
+		t.Fatal("late partner response was accepted")
+	}
+	if expvarMapInt64(metricMiddlemanBidRejections, "timeout")-before < 1 {
+		t.Fatal("timeout rejection was not recorded")
+	}
+}
+
+func TestCallMiddlemanBidderAcceptsBoundedGzipResponse(t *testing.T) {
+	response := i01BannerResponse("request-1", "expected-seat", 1.25, "")
+	raw, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := callI01PartnerFixture(t, "application/openrtb+json", 100, func(w http.ResponseWriter) {
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(gzipFixture(t, raw))
+	})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("gzip partner response = %#v, err %v", got, err)
+	}
+}
+
+func i01BannerResponse(requestID, seat string, price float64, nurl string) openrtb2.BidResponse {
+	return openrtb2.BidResponse{
+		ID: requestID, Cur: "USD",
+		SeatBid: []openrtb2.SeatBid{{
+			Seat: seat,
+			Bid: []openrtb2.Bid{{
+				ID: "bid-1", ImpID: "imp-1", Price: price,
+				AdM: "<div>ad</div>", W: 300, H: 250, NURL: nurl,
+			}},
+		}},
+	}
+}
+
+func callI01PartnerFixture(t *testing.T, contentType string, timeoutMS uint16, respond func(http.ResponseWriter)) ([]middlemanDownstreamBid, error) {
+	t.Helper()
+	t.Setenv("I01_PARTNER_HEADERS", `{}`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("x-openrtb-version", "2.5")
+		respond(w)
+	}))
+	defer server.Close()
+	entry := match.MiddlemanRouteEntry{
+		BidderID: 7, AdvID: 8, EndpointURL: server.URL, OpenRTBVersion: "2.5", Seat: "expected-seat",
+		CredentialRef: "I01_PARTNER_HEADERS", GroupTimeoutMS: timeoutMS, BidderTimeoutMS: timeoutMS,
+		SyntheticCampaignID: 101, SyntheticItemID: 102, SyntheticCreativeID: 103,
+	}
+	w, h := int64(300), int64(250)
+	bid := &openrtb2.BidRequest{
+		ID: "request-1", TMax: int64(timeoutMS),
+		Imp: []openrtb2.Imp{{
+			ID: "imp-1", BidFloor: 1, BidFloorCur: "USD",
+			Banner: &openrtb2.Banner{W: &w, H: &h},
+		}},
+	}
+	raw, err := json.Marshal(bid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := &Controller{
+		C: &Config{
+			ServerURL: "https://exchange.example", TrackingSecret: "test-secret",
+			MiddlemanExchangeDomain: "exchange.example", MiddlemanTimeoutMS: int(timeoutMS),
+			MiddlemanCallbackBaseURL: "https://exchange.example",
+		},
+		callbackURLGuard: func(context.Context, string) error { return nil },
+	}
+	assignment := middlemanAssignment{
+		Entry:       entry,
+		EntriesByID: map[string]match.MiddlemanRouteEntry{"imp-1": entry},
+		AttrsByID: map[string]*match.Attribute{
+			"imp-1": {RPub: match.RPub{SizeID: match.SizeID2To1(300, 250)}, ACL: &acl.ACL{}},
+		},
+	}
+	return controller.callMiddlemanBidder(context.Background(), server.Client(), bid, raw, time.Now(), assignment)
+}
+
+func TestCallMiddlemanBidderClassifiesInvalidResponseWithoutPartnerLabel(t *testing.T) {
+	before := expvarMapInt64(metricMiddlemanBidderOutcomes, "invalid_response")
+	t.Setenv("INVALID_RESPONSE_BIDDER_HEADERS", `{}`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("not-json"))
+	}))
+	defer server.Close()
+	entry := match.MiddlemanRouteEntry{
+		BidderID: 7, AdvID: 8, EndpointURL: server.URL, OpenRTBVersion: "2.5",
+		GroupTimeoutMS: 100, BidderTimeoutMS: 100,
+		CredentialRef:       "INVALID_RESPONSE_BIDDER_HEADERS",
+		SyntheticCampaignID: 101, SyntheticItemID: 102, SyntheticCreativeID: 103,
+	}
+	w, h := int64(300), int64(250)
+	bid := &openrtb2.BidRequest{ID: "invalid-response-fixture", TMax: 100, Imp: []openrtb2.Imp{{ID: "imp-1", Banner: &openrtb2.Banner{W: &w, H: &h}, BidFloorCur: "USD"}}}
+	raw, err := json.Marshal(bid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := &Controller{
+		C: &Config{
+			ServerURL: "http://aofei.example", TrackingSecret: "test-secret",
+			MiddlemanExchangeDomain: "aofei.example", MiddlemanTimeoutMS: 100,
+			MiddlemanCallbackBaseURL: "http://aofei.example",
+		},
+		callbackURLGuard: func(context.Context, string) error { return nil },
+	}
+	_, err = controller.callMiddlemanBidder(context.Background(), server.Client(), bid, raw, time.Now(), middlemanAssignment{
+		Entry:       entry,
+		EntriesByID: map[string]match.MiddlemanRouteEntry{"imp-1": entry},
+		AttrsByID:   map[string]*match.Attribute{"imp-1": {ACL: &acl.ACL{}}},
+	})
+	if err == nil {
+		t.Fatal("invalid JSON response unexpectedly succeeded")
+	}
+	if got := expvarMapInt64(metricMiddlemanBidderOutcomes, "invalid_response") - before; got != 1 {
+		t.Fatalf("invalid-response outcome delta = %d, want 1 (error %v)", got, err)
+	}
+	if strings.Contains(metricMiddlemanBidderOutcomes.String(), server.URL) {
+		t.Fatal("middleman outcome metrics exposed an endpoint")
+	}
+}
+
+func expvarMapInt64(metric *expvar.Map, key string) int64 {
+	value, _ := metric.Get(key).(*expvar.Int)
+	if value == nil {
+		return 0
+	}
+	return value.Value()
+}
+
+func TestOpenRTBDebugDiagnosticIsSampledAndRedacted(t *testing.T) {
+	core, logs := observer.New(zap.DebugLevel)
+	controller := &Controller{
+		C:      &Config{OpenRTBDebugEnabled: true, OpenRTBDebugSampleRate: 1},
+		Logger: zap.New(core),
+	}
+	controller.logOpenRTBDiagnostic("partner-raw-request-id", 7, "invalid_response", 2, 0, 12*time.Millisecond)
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("diagnostic log count = %d, want 1", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	if fields["request_id_hash"] == "" || fields["outcome"] != "invalid_response" {
+		t.Fatalf("safe diagnostic fields = %#v", fields)
+	}
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"partner-raw-request-id", "endpoint", "credential", "markup", "callback"} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("diagnostic exposed %q: %s", forbidden, encoded)
+		}
+	}
 }
 
 func TestCallMiddlemanBidderRejectsUnsafeEndpointWhenClientMissing(t *testing.T) {
@@ -543,6 +832,7 @@ func TestCallMiddlemanBidderRejectsUnsafeEndpointWhenClientMissing(t *testing.T)
 	}
 	_, err = controller.callMiddlemanBidder(context.Background(), nil, bid, raw, time.Now(), middlemanAssignment{
 		Entry: match.MiddlemanRouteEntry{
+			BidderID: 7, AdvID: 8, OpenRTBVersion: "2.5", CredentialRef: "UNUSED_HEADERS",
 			EndpointURL:         "http://127.0.0.1:1/bid",
 			GroupTimeoutMS:      100,
 			BidderTimeoutMS:     100,
@@ -577,6 +867,7 @@ func TestCallMiddlemanBidderRejectsUnsafeEndpointWithCustomClient(t *testing.T) 
 	}
 	_, err = controller.callMiddlemanBidder(context.Background(), http.DefaultClient, bid, raw, time.Now(), middlemanAssignment{
 		Entry: match.MiddlemanRouteEntry{
+			BidderID: 7, AdvID: 8, OpenRTBVersion: "2.5", CredentialRef: "UNUSED_HEADERS",
 			EndpointURL:         "http://127.0.0.1:1/bid",
 			GroupTimeoutMS:      100,
 			BidderTimeoutMS:     100,

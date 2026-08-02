@@ -5,12 +5,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/guruperl/aofei/hostedpayment"
+	"github.com/guruperl/aofei/managementapi"
+	"github.com/guruperl/aofei/trafficquality"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -23,37 +27,61 @@ type Red struct {
 }
 
 type Config struct {
-	DocumentRoot                string   `json:"document_root"`
-	ServerURL                   string   `json:"server_url"`
-	ServerPort                  string   `json:"server_port"`
-	Ips                         string   `json:"ips,omitempty"`
-	Redis                       *Red     `json:"redis,omitempty"`
-	NatsURL                     string   `json:"nats_url,omitempty"`
-	TrackingSecret              string   `json:"tracking_secret,omitempty"`
-	TrackingSignatureTTLSeconds int      `json:"tracking_signature_ttl_seconds,omitempty"`
-	CapStateTTLSeconds          int      `json:"cap_state_ttl_seconds,omitempty"`
-	ConnectArray                []string `json:"connect_array,omitempty"`
-	Spread                      string   `json:"spread,omitempty"`
-	IsLocal                     bool     `json:"is_local,omitempty"`
-	LocalCacheMaxAgeSeconds     int      `json:"local_cache_max_age_seconds,omitempty"`
-	MiddlemanEnabled            bool     `json:"middleman_enabled,omitempty"`
-	MiddlemanAlwaysEnabled      bool     `json:"middleman_always_enabled,omitempty"`
-	MiddlemanTimeoutMS          int      `json:"middleman_timeout_ms,omitempty"`
-	MiddlemanMaxBiddersPerImp   int      `json:"middleman_max_bidders_per_imp,omitempty"`
-	MiddlemanRouteCacheTTLMS    int      `json:"middleman_route_cache_ttl_ms,omitempty"`
-	MiddlemanExchangeDomain     string   `json:"middleman_exchange_domain,omitempty"`
-	MiddlemanCallbackTTLSeconds int      `json:"middleman_callback_ttl_seconds,omitempty"`
-	MiddlemanCallbackTimeoutMS  int      `json:"middleman_callback_timeout_ms,omitempty"`
-	MiddlemanCallbackBaseURL    string   `json:"middleman_callback_base_url,omitempty"`
-	TrustedProxyCIDRs           []string `json:"trusted_proxy_cidrs,omitempty"`
-	LogRequest                  string   `json:"log_request,omitempty"`
-	LogResponse                 string   `json:"log_response,omitempty"`
-	LogAttribute                string   `json:"log_attribute,omitempty"`
-	LogWinLoss                  string   `json:"log_winloss,omitempty"`
-	DBMaxOpenConns              int      `json:"db_max_open_conns,omitempty"`
-	DBMaxIdleConns              int      `json:"db_max_idle_conns,omitempty"`
-	DBConnMaxLifetimeSeconds    int      `json:"db_conn_max_lifetime_seconds,omitempty"`
-	DBConnMaxIdleTimeSeconds    int      `json:"db_conn_max_idle_time_seconds,omitempty"`
+	DocumentRoot                string                   `json:"document_root"`
+	ServerURL                   string                   `json:"server_url"`
+	ServerPort                  string                   `json:"server_port"`
+	Ips                         string                   `json:"ips,omitempty"`
+	Redis                       *Red                     `json:"redis,omitempty"`
+	NatsURL                     string                   `json:"nats_url,omitempty"`
+	TrackingSecret              string                   `json:"tracking_secret,omitempty"`
+	TrackingSignatureTTLSeconds int                      `json:"tracking_signature_ttl_seconds,omitempty"`
+	CapStateTTLSeconds          int                      `json:"cap_state_ttl_seconds,omitempty"`
+	ConnectArray                []string                 `json:"connect_array,omitempty"`
+	Spread                      string                   `json:"spread,omitempty"`
+	IsLocal                     bool                     `json:"is_local,omitempty"`
+	LocalCacheMaxAgeSeconds     int                      `json:"local_cache_max_age_seconds,omitempty"`
+	DeliveryCacheMaxAgeSeconds  int                      `json:"delivery_cache_max_age_seconds,omitempty"`
+	DeliveryReservationSeconds  int                      `json:"delivery_reservation_ttl_seconds,omitempty"`
+	DeliveryStateTTLSeconds     int                      `json:"delivery_state_ttl_seconds,omitempty"`
+	MiddlemanEnabled            bool                     `json:"middleman_enabled,omitempty"`
+	MiddlemanAlwaysEnabled      bool                     `json:"middleman_always_enabled,omitempty"`
+	MiddlemanTimeoutMS          int                      `json:"middleman_timeout_ms,omitempty"`
+	MiddlemanMaxBiddersPerImp   int                      `json:"middleman_max_bidders_per_imp,omitempty"`
+	MiddlemanRouteCacheTTLMS    int                      `json:"middleman_route_cache_ttl_ms,omitempty"`
+	MiddlemanExchangeDomain     string                   `json:"middleman_exchange_domain,omitempty"`
+	MiddlemanCallbackTTLSeconds int                      `json:"middleman_callback_ttl_seconds,omitempty"`
+	MiddlemanCallbackTimeoutMS  int                      `json:"middleman_callback_timeout_ms,omitempty"`
+	MiddlemanCallbackBaseURL    string                   `json:"middleman_callback_base_url,omitempty"`
+	OpenRTBDebugEnabled         bool                     `json:"openrtb_debug_enabled,omitempty"`
+	OpenRTBDebugSampleRate      float64                  `json:"openrtb_debug_sample_rate,omitempty"`
+	ActionTokenTTLSeconds       int                      `json:"action_token_ttl_seconds,omitempty"`
+	ActionClickWindowHours      int                      `json:"action_click_window_hours,omitempty"`
+	ActionViewWindowHours       int                      `json:"action_view_window_hours,omitempty"`
+	ActionMaxAgeHours           int                      `json:"action_max_age_hours,omitempty"`
+	ActionRequestSkewSeconds    int                      `json:"action_request_skew_seconds,omitempty"`
+	ActionRetentionHours        int                      `json:"action_retention_hours,omitempty"`
+	PrivacyTCFVendorID          int                      `json:"privacy_tcf_vendor_id,omitempty"`
+	PrivacyTCFMinPolicyVersion  int                      `json:"privacy_tcf_min_policy_version,omitempty"`
+	PrivacyTCFPurposeIDs        []int                    `json:"privacy_tcf_purpose_ids,omitempty"`
+	PrivacyContextualMiddleman  bool                     `json:"privacy_contextual_middleman_enabled,omitempty"`
+	PrivacyBrowserIDTTLSeconds  int                      `json:"privacy_browser_id_ttl_seconds,omitempty"`
+	PrivacyLogRetentionHours    int                      `json:"privacy_log_retention_hours,omitempty"`
+	PrivacyAudienceTTLSeconds   int                      `json:"privacy_audience_ttl_seconds,omitempty"`
+	TrustedProxyCIDRs           []string                 `json:"trusted_proxy_cidrs,omitempty"`
+	MetricsAllowedCIDRs         []string                 `json:"metrics_allowed_cidrs,omitempty"`
+	TrafficDefault              TrafficPolicy            `json:"traffic_default,omitempty"`
+	TrafficPartners             map[string]TrafficPolicy `json:"traffic_partners,omitempty"`
+	ManagementAPI               managementapi.Config     `json:"management_api,omitempty"`
+	TrafficQuality              trafficquality.Config    `json:"traffic_quality,omitempty"`
+	HostedPayments              hostedpayment.Config     `json:"hosted_payments,omitempty"`
+	LogRequest                  string                   `json:"log_request,omitempty"`
+	LogResponse                 string                   `json:"log_response,omitempty"`
+	LogAttribute                string                   `json:"log_attribute,omitempty"`
+	LogWinLoss                  string                   `json:"log_winloss,omitempty"`
+	DBMaxOpenConns              int                      `json:"db_max_open_conns,omitempty"`
+	DBMaxIdleConns              int                      `json:"db_max_idle_conns,omitempty"`
+	DBConnMaxLifetimeSeconds    int                      `json:"db_conn_max_lifetime_seconds,omitempty"`
+	DBConnMaxIdleTimeSeconds    int                      `json:"db_conn_max_idle_time_seconds,omitempty"`
 }
 
 type ConfigMode string
@@ -138,6 +166,19 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.CapStateTTLSeconds <= 0 {
 		parsed.CapStateTTLSeconds = int(defaultCapStateTTL.Seconds())
 	}
+	if parsed.DeliveryCacheMaxAgeSeconds <= 0 {
+		parsed.DeliveryCacheMaxAgeSeconds = 15 * 60
+	}
+	if parsed.DeliveryReservationSeconds <= 0 {
+		parsed.DeliveryReservationSeconds = parsed.TrackingSignatureTTLSeconds + int(maxTrackingSignatureFutureSkew/time.Second)
+	}
+	if parsed.DeliveryStateTTLSeconds <= 0 {
+		parsed.DeliveryStateTTLSeconds = 2 * 24 * 60 * 60
+		minimumStateTTL := parsed.DeliveryReservationSeconds + parsed.DeliveryCacheMaxAgeSeconds
+		if parsed.DeliveryStateTTLSeconds < minimumStateTTL {
+			parsed.DeliveryStateTTLSeconds = minimumStateTTL
+		}
+	}
 	if parsed.MiddlemanTimeoutMS <= 0 {
 		parsed.MiddlemanTimeoutMS = 100
 	}
@@ -159,6 +200,52 @@ func NewConfig(filename string) (*Config, error) {
 	if parsed.MiddlemanCallbackBaseURL == "" {
 		parsed.MiddlemanCallbackBaseURL = parsed.ServerURL
 	}
+	if parsed.OpenRTBDebugEnabled && parsed.OpenRTBDebugSampleRate == 0 {
+		parsed.OpenRTBDebugSampleRate = 0.01
+	}
+	if parsed.ActionClickWindowHours == 0 {
+		parsed.ActionClickWindowHours = 30 * 24
+	}
+	if parsed.ActionViewWindowHours == 0 {
+		parsed.ActionViewWindowHours = 7 * 24
+	}
+	if parsed.ActionMaxAgeHours == 0 {
+		parsed.ActionMaxAgeHours = 90 * 24
+	}
+	if parsed.ActionRequestSkewSeconds == 0 {
+		parsed.ActionRequestSkewSeconds = 5 * 60
+	}
+	if parsed.ActionTokenTTLSeconds == 0 {
+		parsed.ActionTokenTTLSeconds = parsed.ActionClickWindowHours * 60 * 60
+	}
+	if parsed.ActionRetentionHours == 0 {
+		parsed.ActionRetentionHours = parsed.ActionMaxAgeHours
+	}
+	if parsed.PrivacyTCFMinPolicyVersion == 0 {
+		parsed.PrivacyTCFMinPolicyVersion = defaultPrivacyTCFMinPolicyVersion
+	}
+	if len(parsed.PrivacyTCFPurposeIDs) == 0 {
+		parsed.PrivacyTCFPurposeIDs = append([]int(nil), defaultPrivacyTCFPurposeIDs...)
+	}
+	if parsed.PrivacyBrowserIDTTLSeconds == 0 {
+		parsed.PrivacyBrowserIDTTLSeconds = int(defaultPrivacyBrowserIDTTL.Seconds())
+	}
+	if parsed.PrivacyLogRetentionHours == 0 {
+		parsed.PrivacyLogRetentionHours = int(defaultPrivacyLogRetention / time.Hour)
+	}
+	if parsed.PrivacyAudienceTTLSeconds == 0 {
+		parsed.PrivacyAudienceTTLSeconds = int(defaultPrivacyAudienceTTL.Seconds())
+	}
+	if len(parsed.MetricsAllowedCIDRs) == 0 {
+		parsed.MetricsAllowedCIDRs = append([]string(nil), defaultMetricsAllowedCIDRs...)
+	}
+	parsed.TrafficDefault = parsed.TrafficDefault.withDefaults(defaultTrafficPolicy())
+	for partner, policy := range parsed.TrafficPartners {
+		parsed.TrafficPartners[partner] = policy.withDefaults(parsed.TrafficDefault)
+	}
+	parsed.ManagementAPI = parsed.ManagementAPI.WithDefaults(parsed.DeliveryCacheMaxAgeSeconds)
+	parsed.TrafficQuality = parsed.TrafficQuality.WithDefaults()
+	parsed.HostedPayments = parsed.HostedPayments.WithDefaults()
 
 	if err := parsed.Validate(); err != nil {
 		return nil, err
@@ -211,10 +298,95 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	if self.MiddlemanRouteCacheTTLMS <= 0 {
 		return fmt.Errorf("middleman_route_cache_ttl_ms must be positive")
 	}
+	if math.IsNaN(self.OpenRTBDebugSampleRate) || math.IsInf(self.OpenRTBDebugSampleRate, 0) || self.OpenRTBDebugSampleRate < 0 || self.OpenRTBDebugSampleRate > 1 {
+		return fmt.Errorf("openrtb_debug_sample_rate must be between 0 and 1")
+	}
+	if self.OpenRTBDebugEnabled && self.OpenRTBDebugSampleRate == 0 {
+		return fmt.Errorf("openrtb_debug_sample_rate must be positive when OpenRTB debug diagnostics are enabled")
+	}
+	clickWindow, viewWindow, maxAge, tokenTTL, requestSkew := self.actionPolicyValues()
+	if clickWindow <= 0 || clickWindow > 90*24 {
+		return fmt.Errorf("action_click_window_hours must be between 1 and 2160")
+	}
+	if viewWindow <= 0 || viewWindow > clickWindow {
+		return fmt.Errorf("action_view_window_hours must be positive and no greater than action_click_window_hours")
+	}
+	if maxAge < clickWindow || maxAge > 365*24 {
+		return fmt.Errorf("action_max_age_hours must cover action_click_window_hours and be at most 8760")
+	}
+	if tokenTTL < clickWindow*60*60 || tokenTTL > 365*24*60*60 {
+		return fmt.Errorf("action_token_ttl_seconds must cover action_click_window_hours and be at most 31536000")
+	}
+	if requestSkew <= 0 || requestSkew > 60*60 {
+		return fmt.Errorf("action_request_skew_seconds must be between 1 and 3600")
+	}
+	retentionHours := self.ActionRetentionHours
+	if retentionHours == 0 {
+		retentionHours = maxAge
+	}
+	if retentionHours < maxAge || retentionHours > 365*24 {
+		return fmt.Errorf("action_retention_hours must cover action_max_age_hours and be at most 8760")
+	}
+	if self.PrivacyTCFVendorID < 0 || self.PrivacyTCFVendorID > 65535 {
+		return fmt.Errorf("privacy_tcf_vendor_id must be between 0 and 65535")
+	}
+	if self.PrivacyTCFMinPolicyVersion < 0 || self.PrivacyTCFMinPolicyVersion > 63 {
+		return fmt.Errorf("privacy_tcf_min_policy_version must be between 0 and 63")
+	}
+	seenPrivacyPurposes := make(map[int]struct{}, len(self.PrivacyTCFPurposeIDs))
+	for _, purposeID := range self.PrivacyTCFPurposeIDs {
+		if purposeID < 1 || purposeID > 24 {
+			return fmt.Errorf("privacy_tcf_purpose_ids entry %d must be between 1 and 24", purposeID)
+		}
+		if _, exists := seenPrivacyPurposes[purposeID]; exists {
+			return fmt.Errorf("privacy_tcf_purpose_ids contains duplicate %d", purposeID)
+		}
+		seenPrivacyPurposes[purposeID] = struct{}{}
+	}
+	if self.PrivacyTCFVendorID != 0 && len(self.PrivacyTCFPurposeIDs) == 0 {
+		return fmt.Errorf("privacy_tcf_purpose_ids is required when privacy_tcf_vendor_id is configured")
+	}
+	if self.PrivacyBrowserIDTTLSeconds < 0 || self.PrivacyBrowserIDTTLSeconds > 365*24*60*60 {
+		return fmt.Errorf("privacy_browser_id_ttl_seconds must be between 0 and 31536000")
+	}
+	if self.PrivacyLogRetentionHours < 0 || self.PrivacyLogRetentionHours > 365*24 {
+		return fmt.Errorf("privacy_log_retention_hours must be between 0 and 8760")
+	}
+	if self.PrivacyAudienceTTLSeconds < 0 || self.PrivacyAudienceTTLSeconds > 365*24*60*60 {
+		return fmt.Errorf("privacy_audience_ttl_seconds must be between 0 and 31536000")
+	}
 	if self.LocalCacheMaxAgeSeconds < 0 {
 		return fmt.Errorf("local_cache_max_age_seconds must be non-negative")
 	}
+	if self.DeliveryCacheMaxAgeSeconds <= 0 {
+		return fmt.Errorf("delivery_cache_max_age_seconds must be positive")
+	}
+	if self.DeliveryReservationSeconds <= 0 {
+		return fmt.Errorf("delivery_reservation_ttl_seconds must be positive")
+	}
+	minimumReservationTTL := self.TrackingSignatureTTLSeconds + int(maxTrackingSignatureFutureSkew/time.Second)
+	if self.DeliveryReservationSeconds < minimumReservationTTL {
+		return fmt.Errorf("delivery_reservation_ttl_seconds must cover tracking_signature_ttl_seconds plus accepted future clock skew (%d seconds)", minimumReservationTTL)
+	}
+	if self.DeliveryStateTTLSeconds < self.DeliveryReservationSeconds+self.DeliveryCacheMaxAgeSeconds {
+		return fmt.Errorf("delivery_state_ttl_seconds must be at least delivery_reservation_ttl_seconds plus delivery_cache_max_age_seconds")
+	}
 	if _, err := parseTrustedProxyCIDRs(self.TrustedProxyCIDRs); err != nil {
+		return err
+	}
+	if _, err := parseMetricsAllowedCIDRs(self.MetricsAllowedCIDRs); err != nil {
+		return err
+	}
+	if err := self.validateTrafficPolicies(); err != nil {
+		return err
+	}
+	if err := self.ManagementAPI.Validate(); err != nil {
+		return err
+	}
+	if err := self.TrafficQuality.Validate(); err != nil {
+		return err
+	}
+	if err := self.HostedPayments.Validate(); err != nil {
 		return err
 	}
 
@@ -264,6 +436,32 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	return nil
 }
 
+func (self *Config) actionPolicyValues() (clickWindowHours, viewWindowHours, maxAgeHours, tokenTTLSeconds, requestSkewSeconds int) {
+	clickWindowHours, viewWindowHours, maxAgeHours = 30*24, 7*24, 90*24
+	requestSkewSeconds = 5 * 60
+	if self != nil {
+		if self.ActionClickWindowHours != 0 {
+			clickWindowHours = self.ActionClickWindowHours
+		}
+		if self.ActionViewWindowHours != 0 {
+			viewWindowHours = self.ActionViewWindowHours
+		}
+		if self.ActionMaxAgeHours != 0 {
+			maxAgeHours = self.ActionMaxAgeHours
+		}
+		if self.ActionRequestSkewSeconds != 0 {
+			requestSkewSeconds = self.ActionRequestSkewSeconds
+		}
+		if self.ActionTokenTTLSeconds != 0 {
+			tokenTTLSeconds = self.ActionTokenTTLSeconds
+		}
+	}
+	if tokenTTLSeconds == 0 {
+		tokenTTLSeconds = clickWindowHours * 60 * 60
+	}
+	return
+}
+
 func serverURLHost(raw string) string {
 	if raw == "" {
 		return ""
@@ -280,6 +478,15 @@ func serverURLHost(raw string) string {
 		raw = raw[:i]
 	}
 	return raw
+}
+
+// PrivacyLogRetention returns the configured lifetime of privacy-scrubbed
+// request, response, attribute, and measurement log files.
+func (self *Config) PrivacyLogRetention() time.Duration {
+	if self != nil && self.PrivacyLogRetentionHours > 0 {
+		return time.Duration(self.PrivacyLogRetentionHours) * time.Hour
+	}
+	return defaultPrivacyLogRetention
 }
 
 // GetRedisDB returns the Redis conn and database handler

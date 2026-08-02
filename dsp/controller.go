@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,6 +27,7 @@ import (
 	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/maxmind"
+	"github.com/guruperl/aofei/trafficquality"
 )
 
 const (
@@ -47,6 +49,10 @@ type Controller struct {
 	IsLocal                bool
 	localMu                sync.Mutex
 	local                  *localStaticCache
+	localReloadMu          sync.Mutex
+	localReloadCancel      context.CancelFunc
+	localReloadDone        chan struct{}
+	localReloadInterval    time.Duration
 	auditMu                sync.Mutex
 	audit                  *auditPublisher
 	auditClosed            bool
@@ -64,6 +70,11 @@ type Controller struct {
 	trackingNotifyOnce     func(context.Context, Status, string, time.Duration) (bool, error)
 	trackingEventOnce      func(context.Context, Status, url.Values, time.Duration) (bool, error)
 	publishWinLossFunc     func([]byte) error
+	qualityService         *trafficquality.Service
+	qualitySnapshot        atomic.Pointer[trafficquality.Snapshot]
+	qualityReloadMu        sync.Mutex
+	qualityReloadCancel    context.CancelFunc
+	qualityReloadDone      chan struct{}
 	ownRedis               bool
 	ownDB                  bool
 	ownNATS                bool
@@ -80,12 +91,15 @@ type controllerOptions struct {
 	logger           *zap.Logger
 	callbackURLGuard func(context.Context, string) error
 	callbackStore    middlemanCallbackStore
+	qualityService   *trafficquality.Service
 }
 
 type bidAudit struct {
-	Attr    *match.Attribute
-	One     match.RAdv
-	Elapsed time.Duration
+	Attr          *match.Attribute
+	One           match.RAdv
+	Elapsed       time.Duration
+	PrivacyMode   string
+	PrivacyReason string
 }
 
 type auditSource struct {
@@ -94,9 +108,11 @@ type auditSource struct {
 }
 
 type auditEnvelope struct {
-	Source   string          `json:"source"`
-	Contract string          `json:"contract"`
-	Payload  json.RawMessage `json:"payload"`
+	Source        string          `json:"source"`
+	Contract      string          `json:"contract"`
+	PrivacyMode   string          `json:"privacy_mode,omitempty"`
+	PrivacyReason string          `json:"privacy_reason,omitempty"`
+	Payload       json.RawMessage `json:"payload"`
 }
 
 var (
@@ -105,17 +121,18 @@ var (
 )
 
 type bidWinner struct {
-	ImpIndex      int
-	Seat          string
-	Bid           openrtb2.Bid
-	Audit         bidAudit
-	ResponseBidID string
-	ImpressionURL string
-	ClickURL      string
-	EffectiveCPM  float64
-	Comparable    bool
-	Local         bool
-	Middleman     *middlemanDownstreamBid
+	ImpIndex            int
+	Seat                string
+	Bid                 openrtb2.Bid
+	Audit               bidAudit
+	ResponseBidID       string
+	ImpressionURL       string
+	ClickURL            string
+	EffectiveCPM        float64
+	Comparable          bool
+	Local               bool
+	Middleman           *middlemanDownstreamBid
+	DeliveryReservation string
 }
 
 type localNoBidError struct {
@@ -200,6 +217,14 @@ func WithCallbackURLGuard(guard func(context.Context, string) error) ControllerO
 	}
 }
 
+// WithTrafficQualityService supplies an already initialized service. It is
+// primarily useful to tests and embeddings that own the service lifecycle.
+func WithTrafficQualityService(service *trafficquality.Service) ControllerOption {
+	return func(opts *controllerOptions) {
+		opts.qualityService = service
+	}
+}
+
 func withMiddlemanCallbackStore(store middlemanCallbackStore) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.callbackStore = store
@@ -265,6 +290,29 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		ownRedis:       ownRedis,
 		ownDB:          ownDB,
 	}
+	qualityService := options.qualityService
+	if qualityService == nil {
+		qualityService, err = trafficquality.NewService(c.TrafficQuality, db)
+		if err != nil {
+			closeOwnedControllerStores(redis, db, ownRedis, ownDB)
+			return nil, fmt.Errorf("initialize traffic-quality service: %w", err)
+		}
+	}
+	controller.qualityService = qualityService
+	if qualityService != nil {
+		qualityParent := ctx
+		if qualityParent == nil {
+			qualityParent = context.Background()
+		}
+		qualityCtx, qualityCancel := context.WithTimeout(context.WithoutCancel(qualityParent), 2*time.Second)
+		snapshot, loadErr := qualityService.LoadEnforcementSnapshot(qualityCtx)
+		qualityCancel()
+		if loadErr != nil {
+			closeOwnedControllerStores(redis, db, ownRedis, ownDB)
+			return nil, fmt.Errorf("load traffic-quality enforcement: %w", loadErr)
+		}
+		controller.qualitySnapshot.Store(snapshot)
+	}
 	if options.httpClient != nil {
 		controller.client = options.httpClient
 	}
@@ -299,8 +347,19 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		}
 		controller.Ips = ips
 	}
+	controller.StartLocalStaticCacheReload()
+	controller.startQualityEnforcementRefresh()
 
 	return controller, nil
+}
+
+func closeOwnedControllerStores(redis radix.Client, db *sql.DB, ownRedis, ownDB bool) {
+	if ownRedis && redis != nil {
+		_ = redis.Close()
+	}
+	if ownDB && db != nil {
+		_ = db.Close()
+	}
 }
 
 func applyControllerOptions(opts ...ControllerOption) controllerOptions {
@@ -313,6 +372,8 @@ func applyControllerOptions(opts ...ControllerOption) controllerOptions {
 
 // Close closes the Controller.
 func (self *Controller) Close() {
+	self.stopQualityEnforcementRefresh()
+	self.stopLocalStaticCacheReload()
 	self.auditMu.Lock()
 	self.auditClosed = true
 	publisher := self.audit
@@ -336,6 +397,11 @@ func (self *Controller) Close() {
 
 func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	metricBidRequests.Add(1)
+	w.Header().Set("x-openrtb-version", "2.5")
+	if status, err := validateOpenRTB25HTTP(r); err != nil {
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
 	logger := self.Logger
 	if logger == nil {
 		logger = zap.NewNop()
@@ -346,6 +412,11 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	bidStr, err := io.ReadAll(io.LimitReader(r.Body, maxBidRequestBodyBytes+1))
 	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		logger.Error("bid request body read failed", zap.Error(err))
 		return
@@ -374,6 +445,21 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+	privacy := self.privacyDecisionForBid(r, bid)
+	recordPrivacyDecision(privacy)
+	if err = self.applyPrivacyPolicy(bid, privacy); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		logger.Debug("bid request privacy sanitation failed",
+			zap.String("request_id", bid.ID),
+			zap.Error(err),
+		)
+		return
+	}
+	privacyMiddlemanRequest, err := json.Marshal(bid)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	pubStr, pubObj, err := self.getPub(ctx, r, bid)
 	if err != nil {
@@ -385,9 +471,11 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pubObj, current, pubStr, bidStr, logger)
-	seatOrder, seatBids, audits, responseBidID, _ := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, logger)
+	finalWinners, localWinners := self.auctionBidWinners(ctx, bid, pubObj, current, pubStr, privacyMiddlemanRequest, logger, privacy)
+	seatOrder, seatBids, audits, responseBidID, materialized := self.materializeBidWinners(ctx, bid, finalWinners, localWinners, logger)
+	recordWinnerSourceLatency(current, materialized)
 	if len(audits) == 0 {
+		self.releaseMaterializedDeliveries(ctx, materialized)
 		w.WriteHeader(http.StatusNoContent)
 		metricBidNoBids.Add(1)
 		return
@@ -410,6 +498,7 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	rspnStr, err := json.Marshal(response)
 	if err != nil {
+		self.releaseMaterializedDeliveries(ctx, materialized)
 		w.WriteHeader(http.StatusNoContent)
 		logger.Error("bid response marshal failed",
 			zap.String("request_id", bid.ID),
@@ -420,24 +509,39 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(rspnStr); err != nil {
+	if written, writeErr := w.Write(rspnStr); writeErr != nil || written != len(rspnStr) {
+		if writeErr == nil {
+			writeErr = io.ErrShortWrite
+		}
+		self.releaseMaterializedDeliveries(ctx, materialized)
 		logger.Warn("bid response write failed",
 			zap.String("request_id", bid.ID),
-			zap.Error(err),
+			zap.Error(writeErr),
 		)
+		return
 	}
 	metricBidResponses.Add(1)
 
 	elapsed := time.Since(current)
 	for i := range audits {
 		audits[i].Elapsed = elapsed
+		audits[i].PrivacyMode = string(privacy.Mode)
+		audits[i].PrivacyReason = privacy.Reason
 	}
 	if self.Nc != nil {
-		if err = self.publishBidAudits(bidStr, rspnStr, audits); err != nil {
+		if err = self.publishBidAudits(privacyMiddlemanRequest, rspnStr, audits); err != nil {
 			logger.Warn("bid audit publish failed",
 				zap.String("request_id", bid.ID),
 				zap.Error(err),
 			)
+		}
+	}
+}
+
+func (self *Controller) releaseMaterializedDeliveries(ctx context.Context, winners []bidWinner) {
+	for _, winner := range winners {
+		if winner.Local {
+			_ = self.releaseDeliveryReservation(ctx, winner.DeliveryReservation)
 		}
 	}
 }
@@ -450,12 +554,16 @@ func (self *Controller) middlemanTriggerModesForNoBid() []string {
 	return []string{"Fallback"}
 }
 
-func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, rawMiddlemanRequest []byte, logger *zap.Logger) (map[int]bidWinner, map[int]bidWinner) {
+func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, rawMiddlemanRequest []byte, logger *zap.Logger, decisions ...privacyDecision) (map[int]bidWinner, map[int]bidWinner) {
+	var privacy privacyDecision
+	if len(decisions) != 0 {
+		privacy = decisions[0].normalized()
+	}
 	var fallbackImps []middlemanFallbackImp
 	localWinners := make(map[int]bidWinner)
 	finalWinners := make(map[int]bidWinner)
 	for impIndex := range bid.Imp {
-		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex)
+		dspBid, audit, err := self.bidForImp(ctx, bid, pubObj, current, pubStr, impIndex, privacy)
 		if err != nil {
 			if logger != nil && !isLocalNoBid(err) {
 				logger.Warn("bid impression evaluation failed",
@@ -476,6 +584,7 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 		winloss := dspBid.WinLoss(StatusBid)
 		rspnsBid, err := dspBid.NewBid(winloss)
 		if err != nil {
+			_ = self.releaseDeliveryReservation(ctx, dspBid.deliveryReservation)
 			if logger != nil {
 				logger.Warn("bid impression materialization failed",
 					zap.String("request_id", bid.ID),
@@ -487,16 +596,17 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 		}
 		effectiveCPM, comparable := localBidEffectiveCPM(dspBid, audit, rspnsBid)
 		winner := bidWinner{
-			ImpIndex:      impIndex,
-			Seat:          dspBid.seat(),
-			Bid:           rspnsBid,
-			Audit:         audit,
-			ResponseBidID: dspBid.bidID(),
-			ImpressionURL: winloss.ImpURL(),
-			ClickURL:      clickURLForSSPBid(dspBid, winloss),
-			EffectiveCPM:  effectiveCPM,
-			Comparable:    comparable,
-			Local:         true,
+			ImpIndex:            impIndex,
+			Seat:                dspBid.seat(),
+			Bid:                 rspnsBid,
+			Audit:               audit,
+			ResponseBidID:       dspBid.bidID(),
+			ImpressionURL:       winloss.ImpURL(),
+			ClickURL:            clickURLForSSPBid(dspBid, winloss),
+			EffectiveCPM:        effectiveCPM,
+			Comparable:          comparable,
+			Local:               true,
+			DeliveryReservation: dspBid.deliveryReservation,
 		}
 		localWinners[impIndex] = winner
 		finalWinners[impIndex] = winner
@@ -508,7 +618,7 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 			})
 		}
 	}
-	if len(fallbackImps) != 0 {
+	if len(fallbackImps) != 0 && (privacy.Mode == "" || privacy.AllowMiddleman) {
 		middlemanBids, err := self.middleman().Fallback(ctx, bid, rawMiddlemanRequest, current, fallbackImps)
 		if err != nil {
 			if logger != nil {
@@ -524,6 +634,8 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 				finalWinners[middlemanBid.ImpIndex] = winner
 			}
 		}
+	} else if len(fallbackImps) != 0 {
+		metricPrivacyMiddlemanBlocked.Add(1)
 	}
 	return finalWinners, localWinners
 }
@@ -590,6 +702,9 @@ func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2
 				}
 				winner = local
 			} else {
+				if local, ok := localWinners[impIndex]; ok {
+					_ = self.releaseDeliveryReservation(ctx, local.DeliveryReservation)
+				}
 				winner.Bid = middlemanBid.Bid
 				winner.Audit = middlemanBid.Audit
 				winner.ResponseBidID = middlemanBid.ResponseBidID
@@ -609,12 +724,23 @@ func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2
 	return seatOrder, seatBids, audits, responseBidID, materialized
 }
 
-func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, impIndex int) (*DSP, bidAudit, error) {
+func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest, pubObj *acl.Pub, current time.Time, pubStr string, impIndex int, decisions ...privacyDecision) (*DSP, bidAudit, error) {
 	attr, err := match.NewAttributeForImp(ctx, self.Ips, bid, impIndex, pubObj, current, pubStr)
 	if err != nil {
 		return nil, bidAudit{}, err
 	}
+	if len(decisions) != 0 && decisions[0].Mode != "" {
+		self.protectPrivacyAttributeForBid(attr, bid, decisions[0])
+	}
 	audit := bidAudit{Attr: attr}
+	qualityEnabled := self.trafficQualityEnabled()
+	qualityKey := ""
+	if qualityEnabled {
+		qualityKey = qualityEventKey(bid, impIndex)
+		if action, enforcementID := self.qualityAction(trafficquality.Scope{Type: trafficquality.ScopePublisher, ID: uint64(attr.RPub.PubID)}, qualityKey, current); qualityBlocks(action) {
+			return nil, audit, noBidErrorf("publisher traffic withheld by reviewed quality enforcement %d", enforcementID)
+		}
+	}
 	var monitors match.RAdvs
 	top := self.C.Spread
 	if self.C.IsLocal {
@@ -628,16 +754,54 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	if len(monitors) == 0 {
 		return nil, audit, noBidErrorf("no ad for slot %d and size %d", attr.RPub.SlotID, attr.SizeID)
 	}
+	if qualityEnabled {
+		qualityByAdvertiser := make(map[uint32]bool)
+		qualityChecked := make(map[uint32]bool)
+		qualityCandidates := make(match.RAdvs, 0, len(monitors))
+		for _, candidate := range monitors {
+			blocked, checked := qualityByAdvertiser[candidate.AdvID], qualityChecked[candidate.AdvID]
+			if !checked {
+				action, _ := self.qualityAction(trafficquality.Scope{Type: trafficquality.ScopeAdvertiser, ID: uint64(candidate.AdvID)}, qualityKey, current)
+				blocked = qualityBlocks(action)
+				qualityByAdvertiser[candidate.AdvID] = blocked
+				qualityChecked[candidate.AdvID] = true
+			}
+			if !blocked {
+				qualityCandidates = append(qualityCandidates, candidate)
+			}
+		}
+		monitors = qualityCandidates
+		if len(monitors) == 0 {
+			return nil, audit, noBidErrorf("no ad after reviewed traffic-quality enforcement")
+		}
+	}
+	deliveryCandidates := make(match.RAdvs, 0, len(monitors))
+	for _, candidate := range monitors {
+		if eligible, reason := candidate.Delivery.EligibleAt(current, self.deliveryCacheMaxAge()); eligible {
+			deliveryCandidates = append(deliveryCandidates, candidate)
+		} else {
+			recordDeliveryEligibilityRejection(reason)
+		}
+	}
+	monitors = deliveryCandidates
+	if len(monitors) == 0 {
+		return nil, audit, noBidErrorf("no ad after delivery schedule and cached budget checks")
+	}
 	if self.Redis == nil && radvsNeedCaps(monitors) {
 		return nil, audit, fmt.Errorf("redis mutable state unavailable for frequency caps")
 	}
 
+	capStarted := time.Now()
+	observeCap := radvsNeedCaps(monitors)
 	candidates, bothcaps, err := monitors.FilterByCaps(ctx, self.Redis, current, attr.UserID)
+	if observeCap {
+		recordBidPathLatency("cap", time.Since(capStarted))
+	}
 	if err != nil {
 		return nil, audit, err
 	}
 	if len(candidates) == 0 {
-		return nil, audit, noBidErrorf("no ad after fcap for user %s", attr.UserID)
+		return nil, audit, noBidErrorf("no ad after frequency-cap evaluation")
 	}
 
 	var audiences match.Audiences
@@ -653,7 +817,9 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 		return nil, audit, fmt.Errorf("redis mutable state unavailable for uploaded audiences")
 	}
 
+	audienceStarted := time.Now()
 	radvs, auds, err := self.priorityAudienceMatches(ctx, bid, candidates, audiences, attr)
+	recordBidPathLatency("audience", time.Since(audienceStarted))
 	if err != nil {
 		return nil, audit, err
 	}
@@ -662,31 +828,106 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	}
 
 	imp := bid.Imp[impIndex]
-	index, bidPrice := radvs.PickIndexPrice(imp.BidFloor, imp.BidFloorCur)
-	if index < 0 {
-		return nil, audit, noBidErrorf("no ad to match for bid floor %f %s", imp.BidFloor, imp.BidFloorCur)
+	var one match.RAdv
+	var selectedAudience *match.Audience
+	var bidPrice float32
+	var deliveryReservation string
+	var creative *match.Creative
+	for len(radvs) != 0 {
+		index, selectedPrice := radvs.PickIndexPrice(imp.BidFloor, imp.BidFloorCur)
+		if index < 0 {
+			return nil, audit, noBidErrorf("no ad to match for bid floor %f %s", imp.BidFloor, imp.BidFloorCur)
+		}
+		candidate := radvs[index]
+		if self.C.IsLocal {
+			creative, err = self.localCreative(top, candidate.CreativeID)
+		} else {
+			creative, err = match.CreativeFromRedis(ctx, self.Redis, candidate.CreativeID)
+		}
+		if err != nil || creative.ValidateForImp(&imp, attr) != nil {
+			metricCreativeRejections.Add(1)
+			radvs, auds = removeCandidateAt(radvs, auds, index)
+			continue
+		}
+		reservation, reserveErr := self.reserveDelivery(ctx, candidate, current, auctionCPMToSpend(selectedPrice))
+		if reserveErr == nil {
+			one = candidate
+			bidPrice = selectedPrice
+			deliveryReservation = reservation
+			selectedAudience = auds[index]
+			break
+		}
+		if !errors.Is(reserveErr, errDeliveryLimit) {
+			return nil, audit, noBidErrorf("delivery reservation unavailable: %v", reserveErr)
+		}
+		radvs, auds = removeDemandUnit(radvs, auds, candidate)
 	}
-
-	one := radvs[index]
+	if len(radvs) == 0 || one.CreativeID == 0 {
+		return nil, audit, noBidErrorf("no ad after creative, live budget, and pacing checks")
+	}
 	var bothcap *match.BothCap
 	if bothcaps != nil {
 		if b, ok := bothcaps[one.ItemID]; ok {
 			bothcap = &b
 		}
 	}
-	var creative *match.Creative
-	if self.C.IsLocal {
-		creative, err = self.localCreative(top, one.CreativeID)
-	} else {
-		creative, err = match.CreativeFromRedis(ctx, self.Redis, one.CreativeID)
-	}
-	if err != nil {
-		return nil, audit, err
-	}
-
-	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, auds[index], bidPrice, self.C.ServerURL).
-		WithTrackingSecret(self.C.TrackingSecret)
+	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, selectedAudience, bidPrice, self.C.ServerURL).
+		WithTrackingSecret(self.C.TrackingSecret).
+		withDeliveryReservation(deliveryReservation)
+	_, _, _, actionTokenTTL, _ := self.actionPolicy()
+	dspBid.withActionTokenTTL(actionTokenTTL)
 	return dspBid, bidAudit{Attr: attr, One: one}, nil
+}
+
+func removeCandidateAt(radvs match.RAdvs, auds match.Audiences, index int) (match.RAdvs, match.Audiences) {
+	radvs = append(radvs[:index], radvs[index+1:]...)
+	auds = append(auds[:index], auds[index+1:]...)
+	return radvs, auds
+}
+
+func removeDemandUnit(radvs match.RAdvs, auds match.Audiences, selected match.RAdv) (match.RAdvs, match.Audiences) {
+	keptRAdvs := make(match.RAdvs, 0, len(radvs))
+	keptAudiences := make(match.Audiences, 0, len(auds))
+	for i, candidate := range radvs {
+		if candidate.AdvID == selected.AdvID && candidate.CampaignID == selected.CampaignID && candidate.ItemID == selected.ItemID {
+			continue
+		}
+		keptRAdvs = append(keptRAdvs, candidate)
+		keptAudiences = append(keptAudiences, auds[i])
+	}
+	return keptRAdvs, keptAudiences
+}
+
+func recordWinnerSourceLatency(started time.Time, winners []bidWinner) {
+	var local, middleman bool
+	for _, winner := range winners {
+		if winner.Local {
+			local = true
+		} else {
+			middleman = true
+		}
+	}
+	elapsed := time.Since(started)
+	if local {
+		recordBidPathLatency("local", elapsed)
+	}
+	if middleman {
+		recordBidPathLatency("middleman", elapsed)
+	}
+}
+
+func recordDeliveryEligibilityRejection(reason string) {
+	metricDeliveryScheduleRejected.Add(1)
+	switch reason {
+	case "stale delivery cache", "delivery cache timestamp is in the future":
+		metricDeliveryCacheStaleRejected.Add(1)
+	case "campaign schedule", "item schedule":
+		metricDeliveryWindowRejected.Add(1)
+	case "cached budget exhausted":
+		metricDeliveryCachedBudgetRejected.Add(1)
+	default:
+		metricDeliveryPolicyErrors.Add(1)
+	}
 }
 
 func radvsNeedCaps(radvs match.RAdvs) bool {
@@ -734,23 +975,105 @@ func validateBidRequest(bid *openrtb2.BidRequest) error {
 	if bid == nil {
 		return fmt.Errorf("bid request is nil")
 	}
-	if len(bid.Imp) == 0 {
+	if err := validateOpenRTBIdentifier("request", bid.ID); err != nil {
+		return err
+	}
+	if len(bid.Imp) == 0 || len(bid.Imp) > 64 {
 		return fmt.Errorf("bid request has no impressions")
 	}
 	if bid.Device == nil {
 		return fmt.Errorf("bid request has no device")
 	}
+	if bid.AT < 0 || bid.AT > 2 {
+		return fmt.Errorf("bid request auction type is unsupported")
+	}
+	if bid.TMax < 0 || bid.TMax > 60_000 {
+		return fmt.Errorf("bid request tmax must be between 0 and 60000 milliseconds")
+	}
+	for _, currency := range bid.Cur {
+		if !strings.EqualFold(strings.TrimSpace(currency), "USD") {
+			return fmt.Errorf("bid request currency must be USD")
+		}
+	}
+	seen := make(map[string]struct{}, len(bid.Imp))
+	for i := range bid.Imp {
+		imp := &bid.Imp[i]
+		if err := validateOpenRTBIdentifier("impression", imp.ID); err != nil {
+			return err
+		}
+		if _, duplicate := seen[imp.ID]; duplicate {
+			return fmt.Errorf("bid request impression id is duplicated")
+		}
+		seen[imp.ID] = struct{}{}
+		if imp.BidFloor < 0 || math.IsNaN(imp.BidFloor) || math.IsInf(imp.BidFloor, 0) {
+			return fmt.Errorf("bid request floor must be finite and nonnegative")
+		}
+		media := 0
+		if imp.Banner != nil {
+			media++
+		}
+		if imp.Video != nil {
+			media++
+		}
+		if imp.Native != nil {
+			media++
+		}
+		if media == 0 {
+			return fmt.Errorf("bid request impression must contain a supported media type")
+		}
+		if imp.Secure != nil && *imp.Secure != 0 && *imp.Secure != 1 {
+			return fmt.Errorf("bid request secure flag must be 0 or 1")
+		}
+	}
+	return nil
+}
+
+func validateOpenRTB25HTTP(r *http.Request) (int, error) {
+	if r == nil {
+		return http.StatusBadRequest, fmt.Errorf("request is nil")
+	}
+	if r.Method != http.MethodPost {
+		return http.StatusMethodNotAllowed, fmt.Errorf("OpenRTB requires POST")
+	}
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+	if contentType != "" && contentType != "application/json" && contentType != "application/openrtb+json" {
+		return http.StatusUnsupportedMediaType, fmt.Errorf("OpenRTB content type is unsupported")
+	}
+	if version := strings.TrimSpace(r.Header.Get("x-openrtb-version")); version != "" && version != "2.5" {
+		return http.StatusBadRequest, fmt.Errorf("OpenRTB version must be 2.5")
+	}
+	return 0, nil
+}
+
+func validateOpenRTBIdentifier(name, value string) error {
+	if value == "" || value != strings.TrimSpace(value) || len(value) > 256 || strings.IndexFunc(value, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return fmt.Errorf("bid %s id must be nonempty and at most 256 bytes without control characters", name)
+	}
 	return nil
 }
 
 func (self *Controller) publishWinLoss(bs []byte) error {
+	var wl WinLoss
+	if err := json.Unmarshal(bs, &wl); err != nil {
+		return err
+	}
+	if unpacked, err := UnpackBidID(wl.AuctionBidID); err == nil {
+		unpacked.UserID = ""
+		wl.AuctionBidID = unpacked.String()
+	} else {
+		wl.AuctionBidID = ""
+	}
+	privacySafe, err := json.Marshal(&wl)
+	if err != nil {
+		return err
+	}
 	if self.publishWinLossFunc != nil {
-		return self.publishWinLossFunc(bs)
+		return self.publishWinLossFunc(privacySafe)
 	}
 	if self.Nc == nil {
 		return nil
 	}
-	return self.Nc.Publish(SUBJECTWinLoss, bs)
+	return self.Nc.Publish(SUBJECTWinLoss, privacySafe)
 }
 
 func (self *Controller) publishBidAudit(bidStr, rspnStr []byte, attr *match.Attribute, one match.RAdv, elapsed time.Duration) error {
@@ -766,11 +1089,15 @@ func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAud
 }
 
 func (self *Controller) publishSSPBidAudits(bidStr, rspnStr []byte, audits []bidAudit) error {
-	request, err := wrapAuditPayload(auditSourceSSP, bidStr)
+	return self.publishSSPBidAuditsWithPrivacy(bidStr, rspnStr, audits, privacyDecisionFromAudits(audits))
+}
+
+func (self *Controller) publishSSPBidAuditsWithPrivacy(bidStr, rspnStr []byte, audits []bidAudit, privacy privacyDecision) error {
+	request, err := wrapAuditPayloadWithPrivacy(auditSourceSSP, bidStr, privacy)
 	if err != nil {
 		return err
 	}
-	response, err := wrapAuditPayload(auditSourceSSP, rspnStr)
+	response, err := wrapAuditPayloadWithPrivacy(auditSourceSSP, rspnStr, privacy)
 	if err != nil {
 		return err
 	}
@@ -778,14 +1105,34 @@ func (self *Controller) publishSSPBidAudits(bidStr, rspnStr []byte, audits []bid
 }
 
 func wrapAuditPayload(source auditSource, payload []byte) ([]byte, error) {
+	return wrapAuditPayloadWithPrivacy(source, payload, privacyDecision{})
+}
+
+func wrapAuditPayloadWithPrivacy(source auditSource, payload []byte, privacy privacyDecision) ([]byte, error) {
 	if len(payload) == 0 {
 		payload = []byte("null")
 	}
+	sanitized, err := privacySanitizeJSON(payload, true)
+	if err != nil {
+		return nil, err
+	}
+	privacy = privacy.normalized()
 	return json.Marshal(auditEnvelope{
-		Source:   source.Source,
-		Contract: source.Contract,
-		Payload:  json.RawMessage(payload),
+		Source:        source.Source,
+		Contract:      source.Contract,
+		PrivacyMode:   string(privacy.Mode),
+		PrivacyReason: privacy.Reason,
+		Payload:       json.RawMessage(sanitized),
 	})
+}
+
+func privacyDecisionFromAudits(audits []bidAudit) privacyDecision {
+	for _, audit := range audits {
+		if audit.PrivacyMode != "" {
+			return privacyDecision{Mode: privacyMode(audit.PrivacyMode), Reason: audit.PrivacyReason}
+		}
+	}
+	return privacyDecision{}
 }
 
 func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr []byte, audits []bidAudit) error {
@@ -793,18 +1140,29 @@ func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr 
 	if publisher == nil {
 		return nil
 	}
-	publisher.Enqueue(SUBJECTRequest, bidStr)
-	publisher.Enqueue(SUBJECTResponse, rspnStr)
+	safeRequest, err := privacySanitizeAuditRequest(source, bidStr)
+	if err != nil {
+		return err
+	}
+	safeResponse, err := privacySanitizeAuditResponse(source, rspnStr)
+	if err != nil {
+		return err
+	}
+	publisher.Enqueue(SUBJECTRequest, safeRequest)
+	publisher.Enqueue(SUBJECTResponse, safeResponse)
 	for _, audit := range audits {
 		if audit.Attr == nil {
 			continue
 		}
+		safeAttr := privacySafeAttribute(audit.Attr)
 		bs, err := json.Marshal(match.AttributePlus{
-			Attribute: *audit.Attr,
-			RAdv:      audit.One,
-			Elapsed:   audit.Elapsed.Milliseconds(),
-			Source:    source.Source,
-			Contract:  source.Contract,
+			Attribute:     *safeAttr,
+			RAdv:          audit.One,
+			Elapsed:       audit.Elapsed.Milliseconds(),
+			Source:        source.Source,
+			Contract:      source.Contract,
+			PrivacyMode:   audit.PrivacyMode,
+			PrivacyReason: audit.PrivacyReason,
 		})
 		if err != nil {
 			return err
@@ -812,6 +1170,47 @@ func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr 
 		publisher.Enqueue(SUBJECTAttribute, bs)
 	}
 	return nil
+}
+
+func privacySanitizeAuditRequest(source auditSource, raw []byte) ([]byte, error) {
+	if source.Source != auditSourceADX.Source || len(raw) == 0 {
+		return privacySanitizeJSON(raw, true)
+	}
+	var bid openrtb2.BidRequest
+	if err := json.Unmarshal(raw, &bid); err != nil {
+		return nil, err
+	}
+	typed, err := json.Marshal(&bid)
+	if err != nil {
+		return nil, err
+	}
+	return privacySanitizeJSON(typed, true)
+}
+
+func privacySanitizeAuditResponse(source auditSource, raw []byte) ([]byte, error) {
+	if source.Source != auditSourceADX.Source || len(raw) == 0 {
+		return privacySanitizeJSON(raw, true)
+	}
+	var response openrtb2.BidResponse
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return nil, err
+	}
+	for i := range response.SeatBid {
+		response.SeatBid[i].Ext = nil
+		for j := range response.SeatBid[i].Bid {
+			bid := &response.SeatBid[i].Bid[j]
+			bid.AdM = ""
+			bid.NURL = ""
+			bid.BURL = ""
+			bid.LURL = ""
+			bid.Ext = nil
+		}
+	}
+	typed, err := json.Marshal(&response)
+	if err != nil {
+		return nil, err
+	}
+	return privacySanitizeJSON(typed, true)
 }
 
 func (self *Controller) bidAuditPublisher() *auditPublisher {
@@ -937,11 +1336,15 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		}
 	}()
 	wl := &WinLoss{
-		Current:      current,
-		Status:       status,
-		AuctionID:    args.Get("auction_id"),
-		AuctionBidID: args.Get("auction_bid_id"),
-		AuctionImpID: args.Get("auction_imp_id"),
+		Current:             current,
+		Status:              status,
+		AuctionID:           args.Get("auction_id"),
+		AuctionBidID:        args.Get("auction_bid_id"),
+		AuctionImpID:        args.Get("auction_imp_id"),
+		DeliveryReservation: args.Get("delivery_reservation"),
+	}
+	if wl.Reporting, err = reportingDimensionsFromTracking(args); err != nil {
+		return err
 	}
 
 	demand := args.Get("demand")
@@ -1021,6 +1424,21 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		return err
 	}
 	measurementPublished = true
+	self.recordAttributionTouch(wl)
+	switch status {
+	case StatusTrackImp:
+		if deliveryErr := self.finalizeDeliveryReservation(ctx, wl.DeliveryReservation, signatureValidUntil); deliveryErr != nil && self.Logger != nil {
+			self.Logger.Warn("delivery reservation finalization failed", zap.Error(deliveryErr))
+		}
+	case StatusTrackClk:
+		if deliveryErr := self.recordDeliveryClick(ctx, wl.DeliveryReservation); deliveryErr != nil && self.Logger != nil {
+			self.Logger.Warn("delivery click update failed", zap.Error(deliveryErr))
+		}
+	case StatusLoss:
+		if deliveryErr := self.releaseDeliveryReservation(ctx, wl.DeliveryReservation); deliveryErr != nil && self.Logger != nil {
+			self.Logger.Warn("delivery reservation release failed", zap.Error(deliveryErr))
+		}
+	}
 	if replayClaim.owned() {
 		releaseReplayClaim = false
 		if err := self.completeTrackingEventClaim(replayClaim, signatureValidUntil); err != nil {
@@ -1029,6 +1447,129 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		}
 	}
 	return nil
+}
+
+func reportingDimensionsFromTracking(args url.Values) (*ReportingDimensions, error) {
+	keys := []string{
+		"report_country_id", "report_state_id", "report_device_os", "report_device_type",
+		"report_environment", "report_integration", "report_media_intent", "report_placement",
+		"report_render_context", "report_refresh_mode", "report_refresh_seconds", "report_ad_density", "report_traffic_quality",
+		"report_source_quality", "report_management", "report_seller_type", "report_seller_id",
+	}
+	present := false
+	for _, key := range keys {
+		if args.Get(key) != "" {
+			present = true
+			break
+		}
+	}
+	if !present {
+		return nil, nil
+	}
+	parse := func(key string, bits int) (uint64, error) {
+		raw := args.Get(key)
+		if raw == "" {
+			return 0, nil
+		}
+		value, err := strconv.ParseUint(raw, 10, bits)
+		if err != nil {
+			return 0, fmt.Errorf("invalid reporting dimension %s", key)
+		}
+		return value, nil
+	}
+	countryID, err := parse("report_country_id", 32)
+	if err != nil {
+		return nil, err
+	}
+	stateID, err := parse("report_state_id", 32)
+	if err != nil {
+		return nil, err
+	}
+	deviceOS, err := parse("report_device_os", 8)
+	if err != nil {
+		return nil, err
+	}
+	deviceType, err := parse("report_device_type", 8)
+	if err != nil {
+		return nil, err
+	}
+	controlled := func(key string, allowed []string) (string, error) {
+		value := strings.TrimSpace(args.Get(key))
+		if value == "" {
+			value = "Unknown"
+		}
+		for _, candidate := range allowed {
+			if value == candidate {
+				return value, nil
+			}
+		}
+		return "", fmt.Errorf("invalid reporting dimension %s", key)
+	}
+	environment, err := controlled("report_environment", acl.InventoryEnvironments)
+	if err != nil {
+		return nil, err
+	}
+	integration, err := controlled("report_integration", acl.IntegrationModes)
+	if err != nil {
+		return nil, err
+	}
+	mediaIntent, err := controlled("report_media_intent", acl.MediaIntents)
+	if err != nil {
+		return nil, err
+	}
+	placement, err := controlled("report_placement", acl.Placements)
+	if err != nil {
+		return nil, err
+	}
+	renderContext, err := controlled("report_render_context", acl.RenderContexts)
+	if err != nil {
+		return nil, err
+	}
+	refreshMode, err := controlled("report_refresh_mode", acl.RefreshModes)
+	if err != nil {
+		return nil, err
+	}
+	refreshSeconds, err := parse("report_refresh_seconds", 16)
+	if err != nil {
+		return nil, err
+	}
+	if (refreshMode == "Timed" && (refreshSeconds < 15 || refreshSeconds > 3600)) ||
+		(refreshMode != "Timed" && refreshSeconds != 0) {
+		return nil, fmt.Errorf("invalid reporting dimension report_refresh_seconds")
+	}
+	adDensity, err := controlled("report_ad_density", acl.AdDensities)
+	if err != nil {
+		return nil, err
+	}
+	trafficQuality, err := controlled("report_traffic_quality", acl.TrafficQualities)
+	if err != nil {
+		return nil, err
+	}
+	sourceQuality, err := controlled("report_source_quality", acl.SourceQualities)
+	if err != nil {
+		return nil, err
+	}
+	management, err := controlled("report_management", acl.ManagementControls)
+	if err != nil {
+		return nil, err
+	}
+	sellerType, err := controlled("report_seller_type", []string{"Unknown", "Publisher", "Intermediary"})
+	if err != nil {
+		return nil, err
+	}
+	sellerID := strings.TrimSpace(args.Get("report_seller_id"))
+	if err := (acl.SellerMetadata{ID: sellerID, Type: "Publisher"}).Validate(); err != nil {
+		return nil, fmt.Errorf("invalid reporting dimension report_seller_id")
+	}
+	if sellerType == "Unknown" && sellerID != "" {
+		return nil, fmt.Errorf("report_seller_id requires an approved seller type")
+	}
+	return &ReportingDimensions{
+		CountryID: uint32(countryID), StateID: uint32(stateID), DeviceOS: uint8(deviceOS), DeviceType: uint8(deviceType),
+		Environment: environment, IntegrationMode: integration, MediaIntent: mediaIntent, Placement: placement,
+		RenderContext: renderContext, RefreshMode: refreshMode, RefreshSeconds: uint16(refreshSeconds), AdDensity: adDensity, TrafficQuality: trafficQuality,
+		SourceQuality: sourceQuality, ManagementControl: management, SellerType: sellerType, SellerID: sellerID,
+	}, nil
 }
 
 func (self *Controller) setTrackingNotifyOnce(ctx context.Context, status Status, auctionBidID string, validUntil time.Time) (bool, error) {

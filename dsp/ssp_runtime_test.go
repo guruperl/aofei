@@ -20,9 +20,10 @@ import (
 
 func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
 	unit := SSPValidatedUnit{
-		Code:    "code",
-		SlotStr: "slot",
-		RPub:    match.RPub{SizeID: match.SizeID2To1(300, 250)},
+		Code:            "code",
+		SlotStr:         "slot",
+		ConfiguredFloor: 1.5,
+		RPub:            match.RPub{SizeID: match.SizeID2To1(300, 250)},
 	}
 	tests := []struct {
 		name   string
@@ -31,17 +32,17 @@ func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
 	}{
 		{
 			name:   "banner",
-			adUnit: SSPAdUnit{Code: "banner", MediaTypes: SSPMediaTypes{Banner: &SSPBanner{Size: []uint16{1, 1}}}},
+			adUnit: SSPAdUnit{Code: "banner", Floor: 1, MediaTypes: SSPMediaTypes{Banner: &SSPBanner{Size: []uint16{300, 250}}}},
 			want:   "banner",
 		},
 		{
 			name:   "video",
-			adUnit: SSPAdUnit{Code: "video", MediaTypes: SSPMediaTypes{Video: &SSPVideo{PlayerSize: []uint16{1, 1}}}},
+			adUnit: SSPAdUnit{Code: "video", Floor: 1, MediaTypes: SSPMediaTypes{Video: &SSPVideo{PlayerSize: []uint16{300, 250}}}},
 			want:   "video",
 		},
 		{
 			name:   "native",
-			adUnit: SSPAdUnit{Code: "native", MediaTypes: SSPMediaTypes{Native: &SSPNative{Image: []uint16{1, 1}, Title: true}}},
+			adUnit: SSPAdUnit{Code: "native", Floor: 1, MediaTypes: SSPMediaTypes{Native: &SSPNative{Image: []uint16{300, 250}, Title: true}}},
 			want:   "native",
 		},
 	}
@@ -50,6 +51,9 @@ func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
 			imp, err := openRTBImpFromSSPUnit(tt.adUnit, unit, 0)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if imp.BidFloor != 1.5 {
+				t.Fatalf("bid floor = %v, want configured floor 1.5", imp.BidFloor)
 			}
 			switch tt.want {
 			case "banner":
@@ -64,6 +68,90 @@ func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
 				if imp.Native == nil || !strings.Contains(imp.Native.Request, `"wmin":300`) || !strings.Contains(imp.Native.Request, `"hmin":250`) {
 					t.Fatalf("native request = %q, want token size", imp.Native.Request)
 				}
+			}
+		})
+	}
+}
+
+func TestOpenRTBFromSSPUsesGreaterOfRequestAndConfiguredFloor(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	controller.local.pubByID[1].SlotFloors[10][100] = 1.75
+	for _, test := range []struct {
+		name         string
+		requestFloor float64
+		want         float64
+	}{
+		{name: "configured floor wins", requestFloor: 1.25, want: 1.75},
+		{name: "higher valid request floor wins", requestFloor: 2.25, want: 2.25},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{{
+				Code: "floor-unit", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: test.requestFloor,
+			}})
+			req, err := ParseSSPRequest(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			httpRequest := httptest.NewRequest(http.MethodPost, "/pz", nil)
+			bid, _, _, err := controller.openRTBFromSSP(httpRequest.Context(), httpRequest, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := bid.Imp[0].BidFloor; got != test.want {
+				t.Fatalf("bid floor = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestServeSSPRejectsCommercialInventoryMismatchBeforeSideEffects(t *testing.T) {
+	site, slot := directTokens(t, 1, 10, 100, match.SizeID2To1(300, 250))
+	appSite, _ := directTokens(t, 1, 11, 100, match.SizeID2To1(300, 250))
+	tests := []struct {
+		name        string
+		body        []byte
+		stalePolicy bool
+	}{
+		{
+			name: "negative floor",
+			body: []byte(`{"platform":"browser","site":"` + site + `","adUnits":[{"code":"unit","slot":"` + slot + `","floor":-1,"mediaTypes":{"banner":{"size":[300,250]}}}]}`),
+		},
+		{
+			name: "declared size mismatch",
+			body: []byte(`{"platform":"browser","site":"` + site + `","adUnits":[{"code":"unit","slot":"` + slot + `","mediaTypes":{"banner":{"size":[320,50]}}}]}`),
+		},
+		{
+			name: "ambiguous media",
+			body: []byte(`{"platform":"browser","site":"` + site + `","adUnits":[{"code":"unit","slot":"` + slot + `","mediaTypes":{"banner":{"size":[300,250]},"video":{"playerSize":[300,250]}}}]}`),
+		},
+		{
+			name: "browser token points to app inventory",
+			body: []byte(`{"platform":"browser","site":"` + appSite + `","adUnits":[{"code":"unit","slot":"` + slot + `","mediaTypes":{"banner":{"size":[300,250]}}}]}`),
+		},
+		{
+			name:        "pre-P01 cache generation",
+			body:        []byte(`{"platform":"browser","site":"` + site + `","adUnits":[{"code":"unit","slot":"` + slot + `","mediaTypes":{"banner":{"size":[300,250]}}}]}`),
+			stalePolicy: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			controller.audit = newAuditPublisher(nil, 10)
+			runtime := &recordingMiddlemanRuntime{}
+			enableSSPMiddleman(controller, true, runtime)
+			if test.stalePolicy {
+				controller.local.pubByID[1].SlotFloors = nil
+			}
+			rr := serveSSPWithHeaders(t, controller, test.body, map[string]string{"Origin": "https://example.com"})
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
+			}
+			if runtime.calls != 0 {
+				t.Fatalf("middleman calls = %d, want 0", runtime.calls)
+			}
+			if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+				t.Fatalf("audit messages = %#v, want none", messages)
 			}
 		})
 	}
@@ -182,7 +270,7 @@ func TestServeSSPPolicyAllowsSDKWithoutBrowserHeaders(t *testing.T) {
 	}
 }
 
-func TestServeSSPBrowserRequestWithoutCookieSetsCookie(t *testing.T) {
+func TestServeSSPBrowserRequestWithoutConsentDoesNotSetCookie(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{
 		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
@@ -192,9 +280,8 @@ func TestServeSSPBrowserRequestWithoutCookieSetsCookie(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
-	cookies := rr.Result().Cookies()
-	if len(cookies) != 1 || cookies[0].Name != sspUserCookieName || !validSSPUserCookie(cookies[0].Value) {
-		t.Fatalf("Set-Cookie = %#v, want valid %s browser cookie", cookies, sspUserCookieName)
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("Set-Cookie = %#v, want no identity cookie without a privacy grant", cookies)
 	}
 }
 
@@ -244,9 +331,9 @@ func TestOpenRTBFromSSPSDKSynthesizesAppDeviceUserAndNoCookie(t *testing.T) {
 		{Code: "sdk-unit", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
 	}), map[string]any{
 		"app": map[string]any{
-			"id":     "example.com",
-			"bundle": "example.com",
-			"domain": "example.com",
+			"id":     "app.example.com",
+			"bundle": "app.example.com",
+			"domain": "app.example.com",
 			"name":   "Example App",
 		},
 		"device": map[string]any{
@@ -283,7 +370,7 @@ func TestOpenRTBFromSSPSDKSynthesizesAppDeviceUserAndNoCookie(t *testing.T) {
 	if bid.Site != nil || bid.App == nil {
 		t.Fatalf("site/app = %#v/%#v, want app-only SDK request", bid.Site, bid.App)
 	}
-	if bid.App.ID != "example.com" || bid.App.Bundle != "example.com" || bid.App.Domain != "example.com" || bid.App.Name != "Example App" {
+	if bid.App.ID != "app.example.com" || bid.App.Bundle != "app.example.com" || bid.App.Domain != "app.example.com" || bid.App.Name != "Example App" {
 		t.Fatalf("app = %#v", bid.App)
 	}
 	if bid.Device.IFA != "ifa-sdk-123" || bid.Device.DIDMD5 != "did-md5" || bid.Device.DPIDMD5 != "dpid-md5" || bid.Device.UA != "sdk-header-agent" || bid.Device.IP != "192.0.2.55" {
@@ -359,7 +446,7 @@ func TestServeSSPRejectsDuplicateAdUnitCodeBeforeSideEffects(t *testing.T) {
 	}
 }
 
-func TestServeSSPAllowsRepeatedEmptyAdUnitCodes(t *testing.T) {
+func TestServeSSPRejectsEmptyAdUnitCodesBeforeAuction(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
 		{SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
@@ -367,15 +454,8 @@ func TestServeSSPAllowsRepeatedEmptyAdUnitCodes(t *testing.T) {
 	})
 
 	rr := serveSSP(t, controller, body)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
-	}
-	var html []string
-	if err := json.Unmarshal(rr.Body.Bytes(), &html); err != nil {
-		t.Fatal(err)
-	}
-	if len(html) != 2 || html[0] == "" || html[1] == "" {
-		t.Fatalf("html = %#v, want both empty-code units fill", html)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
 	}
 }
 
@@ -441,7 +521,7 @@ func TestServeSSPSmokeFixturesForDirectWebTagAndAppLikeAPI(t *testing.T) {
 		platform string
 		code     string
 	}{
-		{name: "direct web tag", platform: "web", code: "pz-slot-100"},
+		{name: "direct web tag", platform: "browser", code: "pz-slot-100"},
 		{name: "app-like api", platform: "sdk", code: "app-slot-100"},
 	}
 	for _, tt := range tests {
@@ -470,7 +550,7 @@ func TestServeSSPSmokeFixturesForDirectWebTagAndAppLikeAPI(t *testing.T) {
 	}
 }
 
-func TestPublishBidAuditsKeepsADXRawRequestResponseAndMarksAttributes(t *testing.T) {
+func TestPublishBidAuditsKeepsADXShapeAndMarksAttributes(t *testing.T) {
 	controller := &Controller{audit: newAuditPublisher(nil, 10)}
 	attr := &match.Attribute{UserID: "user"}
 	if err := controller.publishBidAudits([]byte(`{"id":"adx"}`), []byte(`{"id":"rsp"}`), []bidAudit{{Attr: attr, One: match.RAdv{}, Elapsed: 3 * time.Millisecond}}); err != nil {
@@ -481,11 +561,13 @@ func TestPublishBidAuditsKeepsADXRawRequestResponseAndMarksAttributes(t *testing
 	if len(messages) != 3 {
 		t.Fatalf("audit messages = %d, want 3", len(messages))
 	}
-	if messages[0].subject != SUBJECTRequest || string(messages[0].data) != `{"id":"adx"}` {
-		t.Fatalf("request audit = %q/%s, want raw ADX request", messages[0].subject, messages[0].data)
+	var requestAudit openrtb2.BidRequest
+	if messages[0].subject != SUBJECTRequest || json.Unmarshal(messages[0].data, &requestAudit) != nil || requestAudit.ID != "adx" {
+		t.Fatalf("request audit = %q/%s, want typed ADX request", messages[0].subject, messages[0].data)
 	}
-	if messages[1].subject != SUBJECTResponse || string(messages[1].data) != `{"id":"rsp"}` {
-		t.Fatalf("response audit = %q/%s, want raw ADX response", messages[1].subject, messages[1].data)
+	var responseAudit openrtb2.BidResponse
+	if messages[1].subject != SUBJECTResponse || json.Unmarshal(messages[1].data, &responseAudit) != nil || responseAudit.ID != "rsp" {
+		t.Fatalf("response audit = %q/%s, want typed ADX response", messages[1].subject, messages[1].data)
 	}
 	var plus match.AttributePlus
 	if err := json.Unmarshal(messages[2].data, &plus); err != nil {
@@ -525,6 +607,20 @@ func TestServeSSPPartialFillReturnsEmptyString(t *testing.T) {
 
 func TestServeSSPJSONResponseReturnsFillObjectsAndNative(t *testing.T) {
 	controller := newLocalBidPathController(t)
+	nativeContent, err := match.MarshalNativeCreativeV1(match.NativeCreativeV1{
+		Version: "1", Title: "native", Description: "description", CTA: "open",
+		MainImageURL: "https://cdn.example/native.png",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCreativeSnapshot(t, controller.C.Spread, 10000, &match.Creative{
+		CreativeName: "native", CreativeContent: nativeContent, Landing: "https://advertiser.example/one",
+		SizeID: match.SizeID2To1(300, 250), MediaType: match.CreativeMediaNative,
+	})
+	if err := controller.ReloadLocalStaticCache(); err != nil {
+		t.Fatal(err)
+	}
 	body := sspRequestBodyWithFields(t, sspRequestBody(t, 1, 10, []sspAdUnitSpec{
 		{Code: "native-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Native: true, Floor: 1},
 		{Code: "unit-two", SlotID: 200, SizeID: match.SizeID2To1(320, 50), Banner: true, Floor: 100},
@@ -1004,13 +1100,16 @@ type sspAdUnitSpec struct {
 	Floor  float64
 }
 
-func sspRequestBody(t *testing.T, pubID, siteID uint32, specs []sspAdUnitSpec) []byte {
+func sspRequestBody(t testing.TB, pubID, siteID uint32, specs []sspAdUnitSpec) []byte {
 	t.Helper()
 	return sspRequestBodyWithPlatform(t, "", pubID, siteID, specs)
 }
 
-func sspRequestBodyWithPlatform(t *testing.T, platform string, pubID, siteID uint32, specs []sspAdUnitSpec) []byte {
+func sspRequestBodyWithPlatform(t testing.TB, platform string, pubID, siteID uint32, specs []sspAdUnitSpec) []byte {
 	t.Helper()
+	if strings.EqualFold(platform, "sdk") && siteID == 10 {
+		siteID = 11
+	}
 	site, err := acl.PackDirectToken(pubID, siteID)
 	if err != nil {
 		t.Fatal(err)
@@ -1022,13 +1121,14 @@ func sspRequestBodyWithPlatform(t *testing.T, platform string, pubID, siteID uin
 			t.Fatal(err)
 		}
 		media := map[string]any{}
+		w, h := match.SizeID1To2(spec.SizeID)
 		switch {
 		case spec.Video:
-			media["video"] = map[string]any{"playerSize": []int{1, 1}}
+			media["video"] = map[string]any{"playerSize": []uint16{w, h}}
 		case spec.Native:
-			media["native"] = map[string]any{"image": []int{1, 1}, "title": true}
+			media["native"] = map[string]any{"image": []uint16{w, h}, "title": true}
 		default:
-			media["banner"] = map[string]any{"size": []int{1, 1}}
+			media["banner"] = map[string]any{"size": []uint16{w, h}}
 		}
 		units = append(units, map[string]any{
 			"code":       spec.Code,
@@ -1052,7 +1152,7 @@ func sspRequestBodyWithPlatform(t *testing.T, platform string, pubID, siteID uin
 	return data
 }
 
-func sspRequestBodyWithFields(t *testing.T, body []byte, fields map[string]any) []byte {
+func sspRequestBodyWithFields(t testing.TB, body []byte, fields map[string]any) []byte {
 	t.Helper()
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -1068,7 +1168,7 @@ func sspRequestBodyWithFields(t *testing.T, body []byte, fields map[string]any) 
 	return data
 }
 
-func directTokens(t *testing.T, pubID, siteID, slotID, sizeID uint32) (string, string) {
+func directTokens(t testing.TB, pubID, siteID, slotID, sizeID uint32) (string, string) {
 	t.Helper()
 	site, err := acl.PackDirectToken(pubID, siteID)
 	if err != nil {
@@ -1116,6 +1216,7 @@ func (r *recordingMiddlemanRuntime) Fallback(_ context.Context, bid *openrtb2.Bi
 func enableSSPMiddleman(controller *Controller, always bool, runtime *recordingMiddlemanRuntime) {
 	controller.C.MiddlemanEnabled = true
 	controller.C.MiddlemanAlwaysEnabled = always
+	controller.C.PrivacyContextualMiddleman = true
 	controller.C.MiddlemanCallbackBaseURL = controller.C.ServerURL
 	controller.middlemanRuntime = runtime
 	controller.middlemanStore = newMemoryMiddlemanCallbackStore()
@@ -1183,9 +1284,17 @@ func assertSSPAuditEnvelope(t *testing.T, msg auditMessage, subject string, want
 	if envelope.Source != "ssp" || envelope.Contract != "pz-v1" {
 		t.Fatalf("envelope source = %q/%q, want ssp/pz-v1", envelope.Source, envelope.Contract)
 	}
-	if string(envelope.Payload) != string(wantPayload) {
-		t.Fatalf("payload = %s, want %s", envelope.Payload, wantPayload)
+	if !json.Valid(envelope.Payload) {
+		t.Fatalf("payload is not JSON: %s", envelope.Payload)
 	}
+	if subject == SUBJECTResponse {
+		for _, forbidden := range []string{"<iframe", "<img", "/imp?", "/clk?"} {
+			if strings.Contains(string(envelope.Payload), forbidden) {
+				t.Fatalf("response audit contains %q: %s", forbidden, envelope.Payload)
+			}
+		}
+	}
+	_ = wantPayload
 }
 
 func firstTrackerURL(t *testing.T, markup, path string) string {

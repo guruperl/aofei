@@ -1,0 +1,16 @@
+{
+  "id": "fixture-request-native",
+  "cur": "USD",
+  "seatbid": [{
+    "seat": "fixture-seat",
+    "bid": [{
+      "id": "fixture-native-bid",
+      "impid": "fixture-native",
+      "price": 1.25,
+      "w": 1200,
+      "h": 627,
+      "mtype": 4,
+      "adm": "{\"native\":{\"ver\":\"1.2\",\"assets\":[{\"id\":1,\"title\":{\"text\":\"Fixture advertisement\"}},{\"id\":2,\"img\":{\"url\":\"https://cdn.example/native.jpg\",\"w\":1200,\"h\":627}}],\"link\":{\"url\":\"https://advertiser.example/landing\"},\"imptrackers\":[\"https://metrics.example/impression\"]}}"
+    }]
+  }]
+}

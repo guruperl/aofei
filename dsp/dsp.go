@@ -3,22 +3,25 @@ package dsp
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 type DSP struct {
-	bid            *openrtb2.BidRequest
-	impIndex       int
-	attribute      *match.Attribute
-	one            match.RAdv
-	bothcap        *match.BothCap
-	creative       *match.Creative
-	audience       *match.Audience
-	bidPrice       float32
-	serverURL      string
-	trackingSecret string
+	bid                 *openrtb2.BidRequest
+	impIndex            int
+	attribute           *match.Attribute
+	one                 match.RAdv
+	bothcap             *match.BothCap
+	creative            *match.Creative
+	audience            *match.Audience
+	bidPrice            float32
+	serverURL           string
+	trackingSecret      string
+	actionTokenTTL      time.Duration
+	deliveryReservation string
 }
 
 // NewDSP creates a new DSP instance.
@@ -62,6 +65,16 @@ func NewDSPForImp(
 
 func (self *DSP) WithTrackingSecret(secret string) *DSP {
 	self.trackingSecret = secret
+	return self
+}
+
+func (self *DSP) withDeliveryReservation(token string) *DSP {
+	self.deliveryReservation = token
+	return self
+}
+
+func (self *DSP) withActionTokenTTL(ttl time.Duration) *DSP {
+	self.actionTokenTTL = ttl
 	return self
 }
 
@@ -162,7 +175,54 @@ func (self *DSP) WinLoss(StatusBid Status) *WinLoss {
 		self.impID(),
 		self.adID(),
 		self.serverURL,
-	).WithTrackingSecret(self.trackingSecret)
+	).WithTrackingSecret(self.trackingSecret).
+		withDeliveryReservation(self.deliveryReservation).
+		withActionTokenTTL(self.actionTokenTTL).
+		withReportingDimensions(reportingDimensionsFromAttribute(self.attribute))
+}
+
+func reportingDimensionsFromAttribute(attribute *match.Attribute) *ReportingDimensions {
+	dimensions := &ReportingDimensions{
+		Environment:       "Unknown",
+		IntegrationMode:   "Unknown",
+		MediaIntent:       "Unknown",
+		Placement:         "Unknown",
+		RenderContext:     "Unknown",
+		RefreshMode:       "Unknown",
+		AdDensity:         "Unknown",
+		TrafficQuality:    "Unknown",
+		SourceQuality:     "Unknown",
+		ManagementControl: "Unknown",
+		SellerType:        "Unknown",
+	}
+	if attribute == nil {
+		return dimensions
+	}
+	if attribute.Geo != nil {
+		dimensions.CountryID = attribute.Geo.CountryID
+		dimensions.StateID = attribute.Geo.StateID
+	}
+	if attribute.PzUa != nil {
+		dimensions.DeviceOS = uint8(attribute.PzUa.OS)
+		dimensions.DeviceType = uint8(attribute.PzUa.Device)
+	}
+	dimensions.Environment = attribute.Supply.Site.Normalize().Environment
+	dimensions.IntegrationMode = attribute.Supply.Site.Normalize().IntegrationMode
+	slot := attribute.Supply.Slot.Normalize()
+	dimensions.MediaIntent = slot.MediaIntent
+	dimensions.Placement = slot.Placement
+	dimensions.RenderContext = slot.RenderContext
+	dimensions.RefreshMode = slot.RefreshMode
+	dimensions.RefreshSeconds = slot.RefreshSeconds
+	dimensions.AdDensity = slot.AdDensity
+	dimensions.TrafficQuality = slot.TrafficQuality
+	dimensions.SourceQuality = slot.SourceQuality
+	dimensions.ManagementControl = slot.ManagementControl
+	if attribute.Supply.Seller.Authorized {
+		dimensions.SellerType = attribute.Supply.Seller.Type
+		dimensions.SellerID = attribute.Supply.Seller.ID
+	}
+	return dimensions
 }
 
 func (self *DSP) billableRAdv() match.RAdv {
@@ -260,33 +320,25 @@ func (self *DSP) Macro() map[string]string {
 		creativeName = self.creative.CreativeName
 	}
 
-	gaid := device.DPIDMD5
-	if gaid == "" {
-		gaid = device.DPIDSHA1
-	}
-	did := device.DIDMD5
-	if did == "" {
-		did = device.DIDSHA1
-	}
 	return map[string]string{
-		`{DSP_IP}`:              device.IP,
+		`{DSP_IP}`:              "",
 		`{DSP_COUNTRY}`:         geo.Country,
 		`{DSP_REGION}`:          geo.Region,
-		`{DSP_CITY}`:            geo.City,
-		`{DSP_CARRIER}`:         device.Carrier,
+		`{DSP_CITY}`:            "",
+		`{DSP_CARRIER}`:         "",
 		`{DSP_CONNECTION_TYPE}`: fmt.Sprintf("%v", device.ConnectionType),
-		`{DSP_USER_AGENT}`:      device.UA,
+		`{DSP_USER_AGENT}`:      "",
 		`{DSP_OS}`:              device.OS,
-		`{DSP_OS_VERSION}`:      device.OSV,
+		`{DSP_OS_VERSION}`:      "",
 		`{DSP_DEVICE_TYPE}`:     fmt.Sprintf("%v", device.DeviceType),
-		`{DSP_DEVICE_BRAND}`:    device.Make,
-		`{DSP_DEVICE_MODEL}`:    device.Model,
+		`{DSP_DEVICE_BRAND}`:    "",
+		`{DSP_DEVICE_MODEL}`:    "",
 		`{DSP_DEVICE_LANGUAGE}`: device.Language,
-		`{DSP_GAID}`:            gaid,
-		`{DSP_IDFA}`:            device.IFA,
-		`{DSP_DEVICE_ID}`:       did,
-		`{DSP_DEVICE_ID_MD5}`:   device.MACMD5,
-		`{DSP_DEVICE_ID_SHA1}`:  device.MACSHA1,
+		`{DSP_GAID}`:            "",
+		`{DSP_IDFA}`:            "",
+		`{DSP_DEVICE_ID}`:       "",
+		`{DSP_DEVICE_ID_MD5}`:   "",
+		`{DSP_DEVICE_ID_SHA1}`:  "",
 		`{DSP_BUNDLE}`:          app.Bundle,
 		`{DSP_TAGID}`:           imp.TagID,
 		`{DSP_AD_FORMAT}`:       fmt.Sprintf("%v", nativeFormat),

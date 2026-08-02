@@ -98,8 +98,12 @@ func TestWinLossUsesSelectedBidPrice(t *testing.T) {
 		Cost:     0.02,
 	}
 	creative := &match.Creative{
+		CreativeName:    "ad",
 		CreativeContent: "https://cdn.example/ad.html",
 		SizeID:          match.SizeID2To1(300, 250),
+		MediaType:       match.CreativeMediaBanner,
+		MIME:            "text/html",
+		Landing:         "https://advertiser.example/landing",
 	}
 	dsp := NewDSPForImp(bid, 0, attr, one, nil, creative, nil, 2.0, "https://dsp.example")
 

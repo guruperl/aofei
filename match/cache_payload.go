@@ -10,7 +10,7 @@ import (
 var cachePayloadMagic = []byte{'A', 'O', 'F', 'C'}
 
 const (
-	cachePayloadVersionRAdvs    uint8 = 1
+	cachePayloadVersionRAdvs    uint8 = 2
 	cachePayloadVersionAudience uint8 = 1
 	cachePayloadVersionCreative uint8 = 1
 

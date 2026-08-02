@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -25,8 +26,13 @@ type Pub struct {
 	DefaultWebSlotID uint32
 	DefaultAppSlotID uint32
 	Sites            map[string]uint32
+	SiteTypes        map[uint32]SiteType
 	Slots            map[uint32]map[string]uint32
 	SlotSizes        map[uint32]map[uint32]uint32
+	SlotFloors       map[uint32]map[uint32]float64
+	Seller           SellerMetadata
+	SiteSupply       map[uint32]SiteSupplyMetadata
+	SlotSupply       map[uint32]map[uint32]SlotSupplyMetadata
 }
 
 // Pack encodes a Pub object into a byte slice.
@@ -84,6 +90,27 @@ func (self *Pub) GetRPub(siteStr, slotStr string, isApp bool) (uint32, uint32, u
 	}
 
 	return self.PubID, siteID, slotID
+}
+
+// SupplyFor returns the public, cache-approved taxonomy for an exact inventory
+// tuple. Missing fields from an older gob generation become Unknown values.
+func (self *Pub) SupplyFor(siteID, slotID uint32) SupplyMetadata {
+	if self == nil {
+		return SupplyMetadata{
+			Site: SiteSupplyMetadata{}.Normalize(),
+			Slot: SlotSupplyMetadata{}.Normalize(),
+		}
+	}
+	metadata := SupplyMetadata{Seller: self.Seller}
+	metadata.Site = self.SiteSupply[siteID].Normalize()
+	metadata.Slot = self.SlotSupply[siteID][slotID].Normalize()
+	if metadata.Seller.Type == "" {
+		metadata.Seller.Type = "Publisher"
+	}
+	if !metadata.Seller.Authorized || metadata.Seller.Validate() != nil {
+		metadata.Seller = SellerMetadata{}
+	}
+	return metadata
 }
 
 // ToRedis writes the Pub object to Redis.
@@ -150,7 +177,14 @@ func DBGetPubByID(db *sql.DB, pubID string) (*Pub, string, error) {
 // DBGetPub retrieves the Pub from the database using domain
 func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	rows, err := db.Query(`
-	SELECT p.pub_id, p.active, foreign_id, s.site_id, s.site_type, t.slot_name, t.slot_id, t.size_id, b.limit_imp, b.current_imp
+	SELECT p.pub_id, p.active, foreign_id, s.site_id, s.site_type, t.slot_name,
+	       t.slot_id, t.size_id, t.bidfloor, b.limit_imp, b.current_imp,
+	       p.seller_id, p.seller_type, p.seller_asi, p.seller_name,
+	       p.seller_domain, p.seller_authorized,
+	       s.inventory_environment, s.canonical_identity, s.store_url, s.integration_mode,
+	       t.media_intent, t.placement, t.render_context, t.refresh_mode,
+	       t.refresh_seconds, t.ad_density, t.traffic_quality, t.source_quality,
+	       t.management_control
 	FROM pub p
 	INNER JOIN pub_site s USING (pub_id)
 	INNER JOIN pub_slot t USING (site_id)
@@ -162,19 +196,41 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	defer rows.Close()
 
 	p := &Pub{
-		Sites:     make(map[string]uint32),
-		Slots:     make(map[uint32]map[string]uint32),
-		SlotSizes: make(map[uint32]map[uint32]uint32),
+		Sites:      make(map[string]uint32),
+		SiteTypes:  make(map[uint32]SiteType),
+		Slots:      make(map[uint32]map[string]uint32),
+		SlotSizes:  make(map[uint32]map[uint32]uint32),
+		SlotFloors: make(map[uint32]map[uint32]float64),
+		SiteSupply: make(map[uint32]SiteSupplyMetadata),
+		SlotSupply: make(map[uint32]map[uint32]SlotSupplyMetadata),
 	}
 	for rows.Next() {
-		var siteID, slotID, sizeID uint32
+		var pubID, siteID, slotID, sizeID uint32
 		var limitImps, currentImps sql.NullInt64
+		var bidFloor sql.NullFloat64
 		var slotName, foreignID, siteType string
+		var sellerAuthorized string
+		var seller SellerMetadata
+		var siteSupply SiteSupplyMetadata
+		var slotSupply SlotSupplyMetadata
 		var active sql.NullString
-		err = rows.Scan(&p.PubID, &active, &foreignID, &siteID, &siteType, &slotName, &slotID, &sizeID, &limitImps, &currentImps)
+		err = rows.Scan(
+			&pubID, &active, &foreignID, &siteID, &siteType, &slotName, &slotID, &sizeID, &bidFloor, &limitImps, &currentImps,
+			&seller.ID, &seller.Type, &seller.ASI, &seller.Name, &seller.Domain, &sellerAuthorized,
+			&siteSupply.Environment, &siteSupply.CanonicalIdentity, &siteSupply.StoreURL, &siteSupply.IntegrationMode,
+			&slotSupply.MediaIntent, &slotSupply.Placement, &slotSupply.RenderContext, &slotSupply.RefreshMode,
+			&slotSupply.RefreshSeconds, &slotSupply.AdDensity, &slotSupply.TrafficQuality, &slotSupply.SourceQuality,
+			&slotSupply.ManagementControl,
+		)
 		if err != nil {
 			return nil, err
 		}
+		if p.PubID != 0 && p.PubID != pubID {
+			return nil, fmt.Errorf("publisher domain %q maps to ids %d and %d", domain, p.PubID, pubID)
+		}
+		p.PubID = pubID
+		seller.Authorized = sellerAuthorized == "Yes"
+		p.Seller = seller
 		if active.Valid && active.String == "Yes" {
 			p.Active = true
 		}
@@ -184,20 +240,44 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 		if currentImps.Valid {
 			p.CurrentImps = uint32(currentImps.Int64)
 		}
+		if existing, ok := p.Sites[foreignID]; ok && existing != siteID {
+			return nil, fmt.Errorf("publisher site identity %q maps to ids %d and %d", foreignID, existing, siteID)
+		}
 		if _, ok := p.Sites[foreignID]; !ok {
 			p.Sites[foreignID] = siteID
 		}
+		parsedSiteType := ParseSiteType(siteType)
+		if existing, ok := p.SiteTypes[siteID]; ok && existing != parsedSiteType {
+			return nil, fmt.Errorf("publisher site %d has conflicting types", siteID)
+		}
+		p.SiteTypes[siteID] = parsedSiteType
+		p.SiteSupply[siteID] = siteSupply.Normalize()
 		if _, ok := p.Slots[siteID]; !ok {
 			p.Slots[siteID] = make(map[string]uint32)
 		}
 		if _, ok := p.SlotSizes[siteID]; !ok {
 			p.SlotSizes[siteID] = make(map[uint32]uint32)
 		}
+		if _, ok := p.SlotFloors[siteID]; !ok {
+			p.SlotFloors[siteID] = make(map[uint32]float64)
+		}
+		if _, ok := p.SlotSupply[siteID]; !ok {
+			p.SlotSupply[siteID] = make(map[uint32]SlotSupplyMetadata)
+		}
+		p.SlotSupply[siteID][slotID] = slotSupply.Normalize()
+		if existing, ok := p.Slots[siteID][slotName]; ok && existing != slotID {
+			return nil, fmt.Errorf("publisher site %d slot name %q maps to ids %d and %d", siteID, slotName, existing, slotID)
+		}
 		if _, ok := p.Slots[siteID][slotName]; !ok {
 			p.Slots[siteID][slotName] = slotID
 		}
 		if _, ok := p.SlotSizes[siteID][slotID]; !ok {
 			p.SlotSizes[siteID][slotID] = sizeID
+		}
+		if bidFloor.Valid {
+			p.SlotFloors[siteID][slotID] = bidFloor.Float64
+		} else {
+			p.SlotFloors[siteID][slotID] = 0
 		}
 		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
 			p.DefaultAppSiteID = siteID
@@ -237,6 +317,13 @@ VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 		self.SlotSizes[siteID] = make(map[uint32]uint32)
 	}
 	self.SlotSizes[siteID][slotID] = defaultPubSlotSizeID
+	if self.SlotFloors == nil {
+		self.SlotFloors = make(map[uint32]map[uint32]float64)
+	}
+	if self.SlotFloors[siteID] == nil {
+		self.SlotFloors[siteID] = make(map[uint32]float64)
+	}
+	self.SlotFloors[siteID][slotID] = 0
 	return slotID, nil
 }
 
@@ -256,6 +343,10 @@ VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, si
 		self.Sites = make(map[string]uint32)
 	}
 	self.Sites[siteStr] = siteID
+	if self.SiteTypes == nil {
+		self.SiteTypes = make(map[uint32]SiteType)
+	}
+	self.SiteTypes[siteID] = ParseSiteType(siteType)
 	return siteID, nil
 }
 

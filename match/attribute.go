@@ -17,6 +17,7 @@ import (
 
 type Attribute struct {
 	RPub
+	Supply        acl.SupplyMetadata `json:"supply"`
 	*NativeFormat `json:"-"`
 	IsApp         bool      `json:"is_app"`
 	IsVideo       bool      `json:"is_video"`
@@ -33,9 +34,11 @@ type Attribute struct {
 type AttributePlus struct {
 	Attribute
 	RAdv
-	Elapsed  int64  `json:"elapsed"`
-	Source   string `json:"source,omitempty"`
-	Contract string `json:"contract,omitempty"`
+	Elapsed       int64  `json:"elapsed"`
+	Source        string `json:"source,omitempty"`
+	Contract      string `json:"contract,omitempty"`
+	PrivacyMode   string `json:"privacy_mode,omitempty"`
+	PrivacyReason string `json:"privacy_reason,omitempty"`
 }
 
 // NewAttribute creates a new Attribute from a bid request.
@@ -97,6 +100,7 @@ func NewAttributeForImp(ctx context.Context, ipSearch *maxmind.IPSearch, bidRequ
 	attr.ACL = acl.NewOpenRTBACLForImp(bidRequest, impIndex, pubStr)
 	d1, d2, d3 := pubObj.GetRPub(attr.ACL.SiteStr, attr.ACL.SlotStr, attr.IsApp)
 	attr.RPub = RPub{PubID: d1, SiteID: d2, SlotID: d3}
+	attr.Supply = pubObj.SupplyFor(d2, d3)
 	attr.RPub.SizeID, attr.NativeFormat, err = getSizeIDNativeForImp(&bidRequest.Imp[impIndex])
 	if err != nil {
 		return nil, err

@@ -4,12 +4,18 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/prebid/openrtb/v20/adcom1"
 )
 
 func TestCreativeAdMAppBannerUsesIframeWithImpressionPixels(t *testing.T) {
 	creative := &Creative{
 		CreativeContent: "https://cdn.example/banner.html",
+		CreativeName:    "banner",
 		SizeID:          SizeID2To1(300, 250),
+		MediaType:       CreativeMediaBanner,
+		MIME:            "text/html",
+		Landing:         "https://advertiser.example/landing",
 		ImpTrackers:     []string{"https://tracker.example/imp2"},
 		ClickTrackers:   []string{"https://tracker.example/click2"},
 	}
@@ -35,8 +41,11 @@ func TestCreativeAdMAppBannerUsesIframeWithImpressionPixels(t *testing.T) {
 func TestCreativeAdMBannerReplacesClickMacros(t *testing.T) {
 	creative := &Creative{
 		CreativeContent: "https://cdn.example/banner.html?click={CLICK_URL}&landing={LANDING_URL}",
+		CreativeName:    "banner",
 		Landing:         "https://advertiser.example/landing?campaign=1",
 		SizeID:          SizeID2To1(300, 250),
+		MediaType:       CreativeMediaBanner,
+		MIME:            "text/html",
 	}
 
 	adm, err := creative.AdM(&Attribute{}, "https://dsp.example/imp", "https://dsp.example/clk?redirect=https%3A%2F%2Fadvertiser.example%2Flanding%3Fcampaign%3D1", nil, nil)
@@ -56,15 +65,20 @@ func TestCreativeAdMBannerReplacesClickMacros(t *testing.T) {
 
 func TestCreativeAdMNativeUsesClickRedirectURLAndConfiguredClickTrackers(t *testing.T) {
 	creative := &Creative{
-		CreativeContent: "https://cdn.example/native.png",
+		CreativeContent: `{"version":"1","title":"native","description":"description","cta":"open","main_image_url":"https://cdn.example/native.png"}`,
 		CreativeName:    "native",
 		SizeID:          SizeID2To1(300, 250),
+		MediaType:       CreativeMediaNative,
 		Landing:         "https://advertiser.example/landing",
 		Failback:        "https://advertiser.example/fallback",
 		ClickTrackers:   []string{"https://tracker.example/click"},
 	}
 
-	adm, err := creative.AdM(&Attribute{NativeFormat: &NativeFormat{}}, "https://dsp.example/imp", "https://dsp.example/clk?redirect=https%3A%2F%2Fadvertiser.example%2Flanding", nil, nil)
+	format := &NativeFormat{Ver: "1.2", Assets: []*AssetFormat{{
+		AssetFormat: adcom1.AssetFormat{ID: 1, Title: &adcom1.TitleAssetFormat{Len: 50}},
+		Required:    1,
+	}}}
+	adm, err := creative.AdM(&Attribute{NativeFormat: format}, "https://dsp.example/imp", "https://dsp.example/clk?redirect=https%3A%2F%2Fadvertiser.example%2Flanding", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

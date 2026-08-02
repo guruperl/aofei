@@ -1,11 +1,50 @@
 package match
 
 import (
+	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/guruperl/aofei/acl"
 )
+
+func TestDBValidateMiddlemanActivationChecksEveryTopologyBoundary(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for range 5 {
+		mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	}
+	if err := DBValidateMiddlemanActivation(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDBValidateMiddlemanActivationRejectsEnabledSyntheticDemand(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for range 3 {
+		mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	}
+	mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	err = DBValidateMiddlemanActivation(context.Background(), db)
+	if err == nil || !strings.Contains(err.Error(), "synthetic reporting rows enabled") {
+		t.Fatalf("activation error = %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestMiddlemanRouteEntryEligibility(t *testing.T) {
 	entityType, entityID := EntityPointer(32, 333)
@@ -120,5 +159,34 @@ func TestMiddlemanRouteEntrySpecificity(t *testing.T) {
 
 	if !(slotWithSize.Specificity() > site.Specificity() && site.Specificity() > global.Specificity()) {
 		t.Fatalf("specificity order = slot+size %d, site %d, global %d", slotWithSize.Specificity(), site.Specificity(), global.Specificity())
+	}
+}
+
+func TestMiddlemanRouteEntryValidatesOpenRTB25PartnerProfile(t *testing.T) {
+	valid := MiddlemanRouteEntry{
+		BidderID: 1, AdvID: 2,
+		SyntheticCampaignID: 3, SyntheticItemID: 4, SyntheticCreativeID: 5,
+		EndpointURL: "https://bidder.example/openrtb", OpenRTBVersion: "2.5",
+		CredentialRef: "MIDDLEMAN_BIDDER_HEADERS", GroupTimeoutMS: 200, BidderTimeoutMS: 100,
+	}
+	if err := valid.ValidatePartnerProfile(); err != nil {
+		t.Fatalf("valid profile: %v", err)
+	}
+	for name, mutate := range map[string]func(*MiddlemanRouteEntry){
+		"version":         func(e *MiddlemanRouteEntry) { e.OpenRTBVersion = "2.6" },
+		"relative URL":    func(e *MiddlemanRouteEntry) { e.EndpointURL = "/bid" },
+		"credential":      func(e *MiddlemanRouteEntry) { e.CredentialRef = "" },
+		"credential name": func(e *MiddlemanRouteEntry) { e.CredentialRef = "secret/ref" },
+		"timeout":         func(e *MiddlemanRouteEntry) { e.BidderTimeoutMS = 0 },
+		"synthetic id":    func(e *MiddlemanRouteEntry) { e.SyntheticCreativeID = 0 },
+		"seat control":    func(e *MiddlemanRouteEntry) { e.Seat = "seat\nother" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			entry := valid
+			mutate(&entry)
+			if err := entry.ValidatePartnerProfile(); err == nil {
+				t.Fatal("invalid profile was accepted")
+			}
+		})
 	}
 }

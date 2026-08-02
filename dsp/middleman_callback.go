@@ -45,27 +45,29 @@ type redisMiddlemanCallbackStore struct {
 }
 
 type middlemanCallbackContext struct {
-	Token              string     `json:"token"`
-	Created            time.Time  `json:"created"`
-	RequestID          string     `json:"request_id"`
-	ImpID              string     `json:"imp_id"`
-	ResponseBidID      string     `json:"response_bid_id"`
-	DownstreamBidID    string     `json:"downstream_bid_id"`
-	DownstreamSeat     string     `json:"downstream_seat,omitempty"`
-	DownstreamAdID     string     `json:"downstream_ad_id,omitempty"`
-	DownstreamNURL     string     `json:"downstream_nurl,omitempty"`
-	DownstreamBURL     string     `json:"downstream_burl,omitempty"`
-	DownstreamLURL     string     `json:"downstream_lurl,omitempty"`
-	DownstreamBidPrice float64    `json:"downstream_bid_price"`
-	UpstreamBidPrice   float64    `json:"upstream_bid_price"`
-	MarginCPM          float64    `json:"margin_cpm"`
-	BillOnWin          bool       `json:"bill_on_win"`
-	BidderID           uint32     `json:"bidder_id,omitempty"`
-	GroupID            uint32     `json:"group_id,omitempty"`
-	RouteBidderID      uint32     `json:"route_bidder_id,omitempty"`
-	TargetID           uint32     `json:"target_id,omitempty"`
-	RPub               match.RPub `json:"rpub,omitempty"`
-	RAdv               match.RAdv `json:"radv,omitempty"`
+	Token              string               `json:"token"`
+	Created            time.Time            `json:"created"`
+	RequestID          string               `json:"request_id"`
+	ImpID              string               `json:"imp_id"`
+	ResponseBidID      string               `json:"response_bid_id"`
+	DownstreamBidID    string               `json:"downstream_bid_id"`
+	DownstreamSeat     string               `json:"downstream_seat,omitempty"`
+	DownstreamAdID     string               `json:"downstream_ad_id,omitempty"`
+	DownstreamNURL     string               `json:"downstream_nurl,omitempty"`
+	DownstreamBURL     string               `json:"downstream_burl,omitempty"`
+	DownstreamLURL     string               `json:"downstream_lurl,omitempty"`
+	DownstreamBidPrice float64              `json:"downstream_bid_price"`
+	UpstreamBidPrice   float64              `json:"upstream_bid_price"`
+	MarginCPM          float64              `json:"margin_cpm"`
+	BillOnWin          bool                 `json:"bill_on_win"`
+	BidderID           uint32               `json:"bidder_id,omitempty"`
+	GroupID            uint32               `json:"group_id,omitempty"`
+	RouteBidderID      uint32               `json:"route_bidder_id,omitempty"`
+	TargetID           uint32               `json:"target_id,omitempty"`
+	TriggerMode        string               `json:"trigger_mode,omitempty"`
+	RPub               match.RPub           `json:"rpub,omitempty"`
+	RAdv               match.RAdv           `json:"radv,omitempty"`
+	Reporting          *ReportingDimensions `json:"reporting,omitempty"`
 }
 
 type middlemanPrices struct {
@@ -359,10 +361,12 @@ func (self *Controller) prepareMiddlemanCallback(ctx context.Context, bid *openr
 		GroupID:            selected.Entry.GroupID,
 		RouteBidderID:      selected.Entry.RouteBidderID,
 		TargetID:           selected.Entry.TargetID,
+		TriggerMode:        selected.Entry.TriggerMode,
 		RAdv:               selected.Audit.One,
 	}
 	if selected.Audit.Attr != nil {
 		ctxValue.RPub = selected.Audit.Attr.RPub
+		ctxValue.Reporting = reportingDimensionsFromAttribute(selected.Audit.Attr)
 	}
 
 	ttl := self.middlemanCallbackTTL()
@@ -519,11 +523,13 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 		AuctionBidID: value.ResponseBidID,
 		AuctionImpID: value.ImpID,
 		AuctionAdID:  value.DownstreamAdID,
+		Reporting:    value.Reporting,
 		Middleman: &MiddlemanWinLossMeta{
 			BidderID:           value.BidderID,
 			GroupID:            value.GroupID,
 			RouteBidderID:      value.RouteBidderID,
 			TargetID:           value.TargetID,
+			TriggerMode:        value.TriggerMode,
 			Source:             source,
 			ForwardStatus:      forwardStatus,
 			ForwardHTTPStatus:  forwardCode,
@@ -541,7 +547,11 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 	if err != nil {
 		return err
 	}
-	return self.publishWinLoss(data)
+	if err := self.publishWinLoss(data); err != nil {
+		return err
+	}
+	self.recordAttributionTouch(wl)
+	return nil
 }
 
 func (value middlemanCallbackContext) reconciledPrices() middlemanPrices {

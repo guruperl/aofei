@@ -2,12 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-AOFEI_CONFIG="$ROOT/etc/aofei.local.json"
-SPREAD_DIR="$ROOT/.local/spread"
+LOCAL_STATE_DIR="${AOFEI_LOCAL_STATE_DIR:-$ROOT/.local}"
+AOFEI_CONFIG="${AOFEI_CONFIG_PATH:-$ROOT/etc/aofei.local.json}"
+SPREAD_DIR="${AOFEI_SPREAD_DIR:-$LOCAL_STATE_DIR/spread}"
 REDIS_CONTAINER="${AOFEI_REDIS_CONTAINER:-aofei-redis}"
 SPREAD_PID=""
 CACHE_READ_OUTPUT=""
-SPREAD_LOG="$ROOT/.local/spread-smoke.log"
+SPREAD_LOG="$LOCAL_STATE_DIR/spread-smoke.log"
 
 cleanup() {
 	if [ -n "$SPREAD_PID" ] && kill -0 "$SPREAD_PID" >/dev/null 2>&1; then
@@ -46,6 +47,12 @@ require_spread_dir() {
 echo "Resetting sample runtime..."
 "$ROOT/scripts/aofei-local.sh" reset-sample
 "$ROOT/scripts/aofei-local.sh" redis-flush
+case "$SPREAD_DIR" in
+	""|/|.|"$ROOT"|"$(dirname "$ROOT")")
+		echo "Refusing unsafe spread smoke directory: $SPREAD_DIR" >&2
+		exit 1
+		;;
+esac
 rm -rf "$SPREAD_DIR"
 mkdir -p "$SPREAD_DIR"
 

@@ -10,6 +10,17 @@ const (
 	defaultPubSlotSizeID = 4194368
 )
 
+func ParseSiteType(value string) SiteType {
+	switch value {
+	case "Web":
+		return SiteTypeWeb
+	case "App":
+		return SiteTypeAPP
+	default:
+		return SiteTypeUnknown
+	}
+}
+
 type SiteType uint8
 
 const (

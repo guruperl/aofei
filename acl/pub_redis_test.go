@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -56,6 +57,43 @@ func TestPubToRedisUpdatesPubmapAndDirectPubByID(t *testing.T) {
 	}
 }
 
+func TestPubMapRedisRoundTripPreservesCommercialSlotPolicy(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	const sizeID uint32 = 19661050
+	pubmap := PubMap{
+		"pub.example": {
+			PubID:      42,
+			Active:     true,
+			Sites:      map[string]uint32{"example.com": 7},
+			SiteTypes:  map[uint32]SiteType{7: SiteTypeWeb},
+			Slots:      map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+			SlotSizes:  map[uint32]map[uint32]uint32{7: {99: sizeID}},
+			SlotFloors: map[uint32]map[uint32]float64{7: {99: 1.75}},
+		},
+	}
+	if err := ValidateCommercialPubMap(pubmap); err != nil {
+		t.Fatal(err)
+	}
+	if err := pubmap.ToRedis(ctx, client); err != nil {
+		t.Fatal(err)
+	}
+	direct, err := PubByIDFromRedis(ctx, client, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, slot, siteType, floor, ok := direct.CommercialSlot(7, 99, sizeID)
+	if !ok || site != "example.com" || slot != "leaderboard" || siteType != SiteTypeWeb || floor != 1.75 {
+		t.Fatalf("CommercialSlot = (%q, %q, %v, %v, %v)", site, slot, siteType, floor, ok)
+	}
+}
+
 func TestPubToRedisDeletesPubmapAndDirectPubByID(t *testing.T) {
 	tests := []struct {
 		name string
@@ -99,9 +137,16 @@ func TestDBGetPubMapFiltersInactiveSitesAndSlots(t *testing.T) {
 	defer db.Close()
 
 	rows := sqlmock.NewRows([]string{
-		"domain", "pub_id", "active", "foreign_id", "site_id", "slot_name", "slot_id", "size_id", "limit_imp", "current_imp",
+		"domain", "pub_id", "active", "foreign_id", "site_id", "site_type", "slot_name", "slot_id", "size_id", "bidfloor", "limit_imp", "current_imp",
+		"seller_id", "seller_type", "seller_asi", "seller_name", "seller_domain", "seller_authorized",
+		"inventory_environment", "canonical_identity", "store_url", "integration_mode",
+		"media_intent", "placement", "render_context", "refresh_mode", "refresh_seconds",
+		"ad_density", "traffic_quality", "source_quality", "management_control",
 	}).
-		AddRow("pub.example", 42, "Yes", "example.com", 7, "leaderboard", 99, 300250, nil, nil)
+		AddRow("pub.example", 42, "Yes", "example.com", 7, "Web", "leaderboard", 99, 300250, 1.75, nil, nil,
+			"seller-42", "Publisher", "w8m.com", "Example", "example.com", "Yes",
+			"Web", "example.com", "https://example.com", "BrowserTag",
+			"Banner", "AboveFold", "WebPage", "None", 0, "Standard", "Reviewed", "OwnedOperated", "Publisher")
 	mock.ExpectQuery(`(?s)WHERE s\.active='Yes' AND t\.active='Yes'`).
 		WillReturnRows(rows)
 
@@ -111,6 +156,9 @@ func TestDBGetPubMapFiltersInactiveSitesAndSlots(t *testing.T) {
 	}
 	if pubmap["pub.example"].Slots[7]["leaderboard"] != 99 {
 		t.Fatalf("pubmap = %#v", pubmap)
+	}
+	if pubmap["pub.example"].SiteTypes[7] != SiteTypeWeb || pubmap["pub.example"].SlotFloors[7][99] != 1.75 {
+		t.Fatalf("commercial metadata = %#v", pubmap["pub.example"])
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

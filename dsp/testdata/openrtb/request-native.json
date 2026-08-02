@@ -1,0 +1,20 @@
+{
+  "id": "fixture-request-native",
+  "imp": [
+    {
+      "id": "fixture-native",
+      "native": {
+        "ver": "1.2",
+        "request": "{\"native\":{\"ver\":\"1.2\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":80}},{\"id\":2,\"required\":1,\"img\":{\"type\":3,\"wmin\":1200,\"hmin\":627,\"mimes\":[\"image/jpeg\"]}}]}}"
+      },
+      "bidfloor": 0.75,
+      "bidfloorcur": "USD",
+      "secure": 1
+    }
+  ],
+  "app": {"id": "fixture-app", "bundle": "com.example.publisher"},
+  "device": {"ua": "W8M-I01-Fixture/1.0"},
+  "at": 1,
+  "tmax": 500,
+  "cur": ["USD"]
+}

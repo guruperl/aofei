@@ -1,0 +1,31 @@
+{
+  "id": "fixture-request-multiimp",
+  "imp": [
+    {
+      "id": "fixture-banner",
+      "banner": {"w": 300, "h": 250, "mimes": ["text/html"]},
+      "bidfloor": 0.50,
+      "bidfloorcur": "USD",
+      "secure": 1
+    },
+    {
+      "id": "fixture-video",
+      "video": {
+        "mimes": ["video/mp4"],
+        "minduration": 5,
+        "maxduration": 30,
+        "protocols": [2, 3],
+        "w": 640,
+        "h": 360
+      },
+      "bidfloor": 1.25,
+      "bidfloorcur": "USD",
+      "secure": 1
+    }
+  ],
+  "site": {"id": "fixture-site", "domain": "publisher.example"},
+  "device": {"ua": "W8M-I01-Fixture/1.0"},
+  "at": 1,
+  "tmax": 500,
+  "cur": ["USD"]
+}

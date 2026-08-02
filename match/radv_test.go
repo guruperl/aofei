@@ -1,6 +1,7 @@
 package match
 
 import (
+	"math"
 	"testing"
 )
 
@@ -145,17 +146,14 @@ func BenchmarkSelectOneParallel(b *testing.B) {
 
 func TestRAdvECPMAndCurrencySelection(t *testing.T) {
 	radvs := RAdvs{
-		{Demand: Demand{ItemID: 1}, Weight: 1, CostType: 2, Cost: 1.5},
-		{Demand: Demand{ItemID: 2}, Weight: 1, CostType: 3, Cost: 0.02},
-		{Demand: Demand{ItemID: 3}, Weight: 1, CostType: 4, Cost: 400},
+		{Demand: Demand{CampaignID: 1, ItemID: 1}, Weight: 100, CostType: CostTypeCPM, Cost: 1.5},
+		{Demand: Demand{CampaignID: 2, ItemID: 2}, Weight: 0.01, CostType: CostTypeCPM, Cost: 3.0},
+		{Demand: Demand{CampaignID: 3, ItemID: 3}, Weight: 1, CostType: CostTypeCPC, Cost: 400},
 	}
 
 	index, price := radvs.PickIndexPrice(2.0, "USD")
-	if index < 0 {
-		t.Fatalf("PickIndexPrice returned no match")
-	}
-	if price < 2.0 {
-		t.Fatalf("selected price = %f, want above floor", price)
+	if index != 1 || price != 3.0 {
+		t.Fatalf("winner = %d at %f, want highest CPM item 2 at 3.0", index, price)
 	}
 
 	index, price = radvs.PickIndexPrice(0, "EUR")
@@ -163,8 +161,62 @@ func TestRAdvECPMAndCurrencySelection(t *testing.T) {
 		t.Fatalf("unsupported currency result = %d, %f; want no match", index, price)
 	}
 
-	index, price = RAdvs{{Weight: 1, CostType: 2, Cost: 0.5}}.PickIndexPrice(1.0, "")
+	index, price = RAdvs{{Weight: 1, CostType: CostTypeCPM, Cost: 0.5}}.PickIndexPrice(1.0, "")
 	if index != -1 || price != 0 {
 		t.Fatalf("below floor result = %d, %f; want no match", index, price)
+	}
+}
+
+func TestRAdvCommercialAuctionUsesWeightOnlyWithinWinningDemandUnit(t *testing.T) {
+	radvs := RAdvs{
+		{Demand: Demand{AdvID: 1, CampaignID: 20, ItemID: 200, CreativeID: 1}, Weight: 1_000, CostType: CostTypeCPM, Cost: 2},
+		{Demand: Demand{AdvID: 1, CampaignID: 10, ItemID: 100, CreativeID: 2}, Weight: 1, CostType: CostTypeCPM, Cost: 3},
+		{Demand: Demand{AdvID: 1, CampaignID: 10, ItemID: 100, CreativeID: 3}, Weight: 3, CostType: CostTypeCPM, Cost: 3},
+	}
+
+	index, price := radvs.pickIndexPriceAt(0, "USD", 0.10)
+	if index != 1 || price != 3 {
+		t.Fatalf("first rotation point = %d at %f, want creative 2 at 3 CPM", index, price)
+	}
+	index, price = radvs.pickIndexPriceAt(0, "USD", 0.90)
+	if index != 2 || price != 3 {
+		t.Fatalf("second rotation point = %d at %f, want creative 3 at 3 CPM", index, price)
+	}
+}
+
+func TestRAdvCommercialAuctionTieIsDeterministic(t *testing.T) {
+	radvs := RAdvs{
+		{Demand: Demand{AdvID: 1, CampaignID: 20, ItemID: 1, CreativeID: 1}, Weight: 1, CostType: CostTypeCPM, Cost: 2},
+		{Demand: Demand{AdvID: 2, CampaignID: 10, ItemID: 9, CreativeID: 2}, Weight: 1, CostType: CostTypeCPM, Cost: 2},
+		{Demand: Demand{AdvID: 3, CampaignID: 10, ItemID: 8, CreativeID: 3}, Weight: 1, CostType: CostTypeCPM, Cost: 2},
+	}
+	for _, point := range []float32{0, 0.25, 0.99} {
+		index, price := radvs.pickIndexPriceAt(2, "", point)
+		if index != 2 || price != 2 {
+			t.Fatalf("point %f winner = %d at %f, want campaign 10 item 8", point, index, price)
+		}
+	}
+}
+
+func TestRAdvCommercialAuctionRejectsLegacyAndInvalidPrices(t *testing.T) {
+	for _, candidate := range []RAdv{
+		{Weight: 1, CostType: CostTypeROI, Cost: 1},
+		{Weight: 1, CostType: CostTypeCPC, Cost: 1},
+		{Weight: 1, CostType: CostTypeCPA, Cost: 1},
+		{Weight: 1, CostType: CostTypeCPM, Cost: 0},
+		{Weight: 1, CostType: CostTypeCPM, Cost: -1},
+		{Weight: 1, CostType: CostTypeCPM, Cost: float32(math.NaN())},
+		{Weight: 1, CostType: CostTypeCPM, Cost: float32(math.Inf(1))},
+		{Weight: 0, CostType: CostTypeCPM, Cost: 1},
+	} {
+		if index, price := (RAdvs{candidate}).PickIndexPrice(0, "USD"); index != -1 || price != 0 {
+			t.Fatalf("invalid candidate %+v selected as %d at %f", candidate, index, price)
+		}
+	}
+	valid := RAdvs{{Weight: 1, CostType: CostTypeCPM, Cost: 1}}
+	for _, floor := range []float64{-1, math.NaN(), math.Inf(1)} {
+		if index, _ := valid.PickIndexPrice(floor, "USD"); index != -1 {
+			t.Fatalf("invalid floor %v selected index %d", floor, index)
+		}
 	}
 }

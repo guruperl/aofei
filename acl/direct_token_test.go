@@ -138,11 +138,13 @@ func TestDirectPubMapOmitsInactiveAndLimitedPublishers(t *testing.T) {
 
 func TestDirectPubPackRoundTrip(t *testing.T) {
 	pub := &Pub{
-		PubID:     42,
-		Active:    true,
-		Sites:     map[string]uint32{"example.com": 7},
-		Slots:     map[uint32]map[string]uint32{7: map[string]uint32{"leaderboard": 99}},
-		SlotSizes: map[uint32]map[uint32]uint32{7: map[uint32]uint32{99: 12345}},
+		PubID:      42,
+		Active:     true,
+		Sites:      map[string]uint32{"example.com": 7},
+		SiteTypes:  map[uint32]SiteType{7: SiteTypeWeb},
+		Slots:      map[uint32]map[string]uint32{7: map[string]uint32{"leaderboard": 99}},
+		SlotSizes:  map[uint32]map[uint32]uint32{7: map[uint32]uint32{99: 12345}},
+		SlotFloors: map[uint32]map[uint32]float64{7: map[uint32]float64{99: 1.75}},
 	}
 	direct := NewDirectPub("pub.example", pub)
 	data, err := direct.Pack()
@@ -153,7 +155,61 @@ func TestDirectPubPackRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Pub.PubID != 42 || got.Sites[7] != "example.com" || got.Slots[7][99] != "leaderboard" || got.SlotSizes[7][99] != 12345 {
+	if got.Pub.PubID != 42 || got.Sites[7] != "example.com" || got.SiteTypes[7] != SiteTypeWeb ||
+		got.Slots[7][99] != "leaderboard" || got.SlotSizes[7][99] != 12345 || got.SlotFloors[7][99] != 1.75 {
 		t.Fatalf("round trip = %#v", got)
+	}
+	if _, _, siteType, floor, ok := got.CommercialSlot(7, 99, 12345); !ok || siteType != SiteTypeWeb || floor != 1.75 {
+		t.Fatalf("commercial slot = type %v floor %v ok %v", siteType, floor, ok)
+	}
+}
+
+func TestValidateCommercialPubMapFailsClosedOnIncompletePolicy(t *testing.T) {
+	valid := func() *Pub {
+		return &Pub{
+			PubID:      42,
+			Active:     true,
+			Sites:      map[string]uint32{"example.com": 7},
+			SiteTypes:  map[uint32]SiteType{7: SiteTypeWeb},
+			Slots:      map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+			SlotSizes:  map[uint32]map[uint32]uint32{7: {99: (300 << 16) | 250}},
+			SlotFloors: map[uint32]map[uint32]float64{7: {99: 1.25}},
+		}
+	}
+	if err := ValidateCommercialPubMap(PubMap{"pub.example": valid()}); err != nil {
+		t.Fatalf("valid commercial inventory: %v", err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*Pub)
+	}{
+		{name: "missing site type", mutate: func(pub *Pub) { pub.SiteTypes = nil }},
+		{name: "missing floor", mutate: func(pub *Pub) { pub.SlotFloors = nil }},
+		{name: "empty size", mutate: func(pub *Pub) { pub.SlotSizes[7][99] = 0 }},
+		{name: "negative floor", mutate: func(pub *Pub) { pub.SlotFloors[7][99] = -1 }},
+		{name: "unknown site type", mutate: func(pub *Pub) { pub.SiteTypes[7] = SiteType(99) }},
+		{name: "web identity is URL", mutate: func(pub *Pub) { pub.Sites = map[string]uint32{"https://example.com/path": 7} }},
+		{name: "web identity has empty label", mutate: func(pub *Pub) { pub.Sites = map[string]uint32{"www..example.com": 7} }},
+		{name: "duplicate site id", mutate: func(pub *Pub) { pub.Sites["other.example"] = 7 }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pub := valid()
+			test.mutate(pub)
+			if err := ValidateCommercialPubMap(PubMap{"pub.example": pub}); err == nil {
+				t.Fatal("incomplete commercial inventory validated")
+			}
+		})
+	}
+	inactive := valid()
+	inactive.Active = false
+	inactive.SiteTypes = nil
+	if err := ValidateCommercialPubMap(PubMap{"inactive.example": inactive}); err != nil {
+		t.Fatalf("inactive inventory blocked an unrelated generation: %v", err)
+	}
+	second := valid()
+	second.Sites = map[string]uint32{"other.example": 7}
+	if err := ValidateCommercialPubMap(PubMap{"one.example": valid(), "two.example": second}); err == nil {
+		t.Fatal("duplicate publisher id across domains validated")
 	}
 }

@@ -11,9 +11,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/managementapi"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
@@ -29,6 +31,10 @@ const (
 	ModeSpread = "spread"
 	ModeAll    = "all"
 	ModeRoutes = "routes"
+
+	MiddlemanStagePreflight = "preflight"
+	MiddlemanStageFallback  = "fallback"
+	MiddlemanStageAlways    = "always"
 )
 
 type Options struct {
@@ -57,6 +63,9 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 	if opts.Mode == ModeRoutes {
 		return match.DBGetMiddlemanRoutesToRedis(ctx, redis, db)
 	}
+	if c == nil {
+		return fmt.Errorf("cache configuration is nil")
+	}
 	if opts.Mode == ModeSpread || opts.Mode == ModeAll {
 		if nc == nil {
 			return fmt.Errorf("cache mode %q requires NATS", opts.Mode)
@@ -65,6 +74,15 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 			return fmt.Errorf("cache mode %q requires spread directory", opts.Mode)
 		}
 		if err := os.MkdirAll(c.Spread, 0755); err != nil {
+			return err
+		}
+	}
+	activatesManagementAPI := publicationActivatesManagementAPI(c.IsLocal, opts.Mode)
+	var publicationToken []byte
+	if activatesManagementAPI {
+		var err error
+		publicationToken, err = managementapi.PrepareOperationsPublication(ctx, db)
+		if err != nil {
 			return err
 		}
 	}
@@ -78,6 +96,9 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 	if err != nil {
 		return err
 	}
+	if err := acl.ValidateCommercialPubMap(pubmap); err != nil {
+		return fmt.Errorf("publisher inventory readiness: %w", err)
+	}
 
 	if opts.UpdatePubMap {
 		if err := UpdatePubMap(c, db, pubmap, opts.UpdateInterval, opts.UpdateStamp); err != nil {
@@ -85,19 +106,37 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 		}
 	}
 
+	var publicationErr error
 	switch opts.Mode {
 	case ModeSpread:
-		return WriteToSpread(ctx, nc, db, pubmap, sizeIDs)
+		publicationErr = WriteToSpread(ctx, nc, db, pubmap, sizeIDs)
 	case ModeRedis:
-		return WriteToRedis(ctx, redis, db, pubmap, sizeIDs)
+		publicationErr = WriteToRedis(ctx, redis, db, pubmap, sizeIDs)
 	case ModeAll:
 		if err := WriteToSpread(ctx, nc, db, pubmap, sizeIDs); err != nil {
 			return err
 		}
-		return WriteToRedis(ctx, redis, db, pubmap, sizeIDs)
+		publicationErr = WriteToRedis(ctx, redis, db, pubmap, sizeIDs)
 	default:
 		return ValidateMode(opts.Mode)
 	}
+	if publicationErr != nil {
+		return publicationErr
+	}
+	if !activatesManagementAPI {
+		return nil
+	}
+	return managementapi.MarkOperationsActive(ctx, db, opts.Mode, publicationToken, time.Now())
+}
+
+func publicationActivatesManagementAPI(isLocal bool, mode string) bool {
+	if mode == ModeAll {
+		return true
+	}
+	if isLocal {
+		return mode == ModeSpread
+	}
+	return mode == ModeRedis
 }
 
 func Read(ctx context.Context, out io.Writer, c *dsp.Config, redis radix.Client, db *sql.DB, mode string) error {
@@ -128,6 +167,256 @@ func Read(ctx context.Context, out io.Writer, c *dsp.Config, redis radix.Client,
 	}
 }
 
+// ValidatePublisherInventory reads the current database inventory and emits a
+// deterministic, credential-free P01 activation manifest without mutating a
+// cache or database row.
+func ValidatePublisherInventory(out io.Writer, db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("publisher inventory database is nil")
+	}
+	pubmap, err := acl.DBGetPubMap(db)
+	if err != nil {
+		return err
+	}
+	return WritePublisherInventoryManifest(out, pubmap)
+}
+
+// ValidateMiddlemanActivation compares the current active MySQL route model to
+// the published v2 Redis generation, resolves every credential reference
+// without printing its value, and enforces the requested rollout gate. It is a
+// read-only activation check and performs no partner request.
+func ValidateMiddlemanActivation(ctx context.Context, out io.Writer, c *dsp.Config, redis radix.Client, db *sql.DB, stage string) error {
+	if db == nil {
+		return fmt.Errorf("middleman activation database is nil")
+	}
+	if redis == nil {
+		return fmt.Errorf("middleman activation redis client is nil")
+	}
+	if err := match.DBValidateMiddlemanActivation(ctx, db); err != nil {
+		return err
+	}
+	desired, err := match.DBGetMiddlemanRouteCache(ctx, db)
+	if err != nil {
+		return err
+	}
+	published, err := match.MiddlemanRouteCacheFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	return WriteMiddlemanActivationManifest(out, c, desired, published, stage, dsp.ValidateMiddlemanCredentialRef)
+}
+
+// WriteMiddlemanActivationManifest is the pure validation/reporting boundary
+// used by the command and activation tests.
+func WriteMiddlemanActivationManifest(out io.Writer, c *dsp.Config, desired, published *match.MiddlemanRouteCache, stage string, validateCredential func(string) error) error {
+	if out == nil {
+		return fmt.Errorf("middleman activation output is nil")
+	}
+	if c == nil {
+		return fmt.Errorf("middleman activation config is nil")
+	}
+	switch stage {
+	case MiddlemanStagePreflight, MiddlemanStageFallback, MiddlemanStageAlways:
+	default:
+		return fmt.Errorf("middleman activation stage %q is invalid; expected preflight, fallback, or always", stage)
+	}
+	activationConfig := *c
+	activationConfig.MiddlemanEnabled = true
+	if err := activationConfig.Validate(dsp.ConfigModeCache); err != nil {
+		return fmt.Errorf("middleman activation config: %w", err)
+	}
+	if activationConfig.MiddlemanTimeoutMS <= 0 || activationConfig.MiddlemanTimeoutMS > 5000 {
+		return fmt.Errorf("middleman activation config: middleman_timeout_ms must be between 1 and 5000")
+	}
+	if activationConfig.MiddlemanMaxBiddersPerImp <= 0 || activationConfig.MiddlemanMaxBiddersPerImp > 100 {
+		return fmt.Errorf("middleman activation config: middleman_max_bidders_per_imp must be between 1 and 100")
+	}
+	if strings.TrimSpace(activationConfig.MiddlemanExchangeDomain) != activationConfig.MiddlemanExchangeDomain || activationConfig.MiddlemanExchangeDomain == "" || len(activationConfig.MiddlemanExchangeDomain) > 253 {
+		return fmt.Errorf("middleman activation config: middleman_exchange_domain must be a nonempty bounded domain")
+	}
+	if c.MiddlemanAlwaysEnabled && !c.MiddlemanEnabled {
+		return fmt.Errorf("middleman activation config: middleman_always_enabled requires middleman_enabled")
+	}
+	if err := validateMiddlemanRouteGeneration("database", desired, false); err != nil {
+		return err
+	}
+	if err := validateMiddlemanRouteGeneration("redis", published, true); err != nil {
+		return err
+	}
+	if desired.RouteChecksum() != published.RouteChecksum() || desired.Metadata.RouteDBHighWater != published.Metadata.RouteDBHighWater {
+		return fmt.Errorf("published middleman routes do not match current database state; republish route cache")
+	}
+	if validateCredential == nil {
+		return fmt.Errorf("middleman credential validator is nil")
+	}
+	bidders := make(map[uint32]struct{})
+	groups := make(map[uint32]struct{})
+	credentials := make(map[string]struct{})
+	fallbackEntries, alwaysEntries := 0, 0
+	for _, entry := range desired.Entries {
+		bidders[entry.BidderID] = struct{}{}
+		groups[entry.GroupID] = struct{}{}
+		credentials[entry.CredentialRef] = struct{}{}
+		switch entry.TriggerMode {
+		case "", "Fallback":
+			fallbackEntries++
+		case "Always":
+			alwaysEntries++
+		default:
+			return fmt.Errorf("middleman route trigger mode %q is invalid", entry.TriggerMode)
+		}
+	}
+	for ref := range credentials {
+		if err := validateCredential(ref); err != nil {
+			return fmt.Errorf("middleman credential %q is not ready: %w", ref, err)
+		}
+	}
+	switch stage {
+	case MiddlemanStageFallback:
+		if !c.MiddlemanEnabled || !c.PrivacyContextualMiddleman || c.MiddlemanAlwaysEnabled {
+			return fmt.Errorf("fallback activation requires middleman_enabled and privacy_contextual_middleman_enabled true with middleman_always_enabled false")
+		}
+		if fallbackEntries == 0 {
+			return fmt.Errorf("fallback activation has no active Fallback route entries")
+		}
+	case MiddlemanStageAlways:
+		if !c.MiddlemanEnabled || !c.PrivacyContextualMiddleman || !c.MiddlemanAlwaysEnabled {
+			return fmt.Errorf("Always activation requires all middleman and privacy gates enabled")
+		}
+		if alwaysEntries == 0 {
+			return fmt.Errorf("Always activation has no active Always route entries")
+		}
+	}
+	_, err := fmt.Fprintf(out,
+		"middleman_activation_ready stage=%s entries=%d groups=%d bidders=%d credential_refs=%d fallback_entries=%d always_entries=%d middleman_enabled=%t privacy_contextual_middleman_enabled=%t middleman_always_enabled=%t route_db_high_water=%q checksum=%s\n",
+		stage, len(desired.Entries), len(groups), len(bidders), len(credentials), fallbackEntries, alwaysEntries,
+		c.MiddlemanEnabled, c.PrivacyContextualMiddleman, c.MiddlemanAlwaysEnabled,
+		published.Metadata.RouteDBHighWater, published.Metadata.Checksum)
+	return err
+}
+
+func validateMiddlemanRouteGeneration(source string, cache *match.MiddlemanRouteCache, requireCurrent bool) error {
+	if cache == nil || len(cache.Entries) == 0 {
+		return fmt.Errorf("%s middleman route generation has no active entries", source)
+	}
+	if requireCurrent && cache.Version != match.MiddlemanRouteCacheVersion {
+		return fmt.Errorf("%s middleman route generation version is %d, want %d", source, cache.Version, match.MiddlemanRouteCacheVersion)
+	}
+	if cache.Metadata == nil {
+		return fmt.Errorf("%s middleman route generation metadata is missing", source)
+	}
+	if cache.Metadata.Source != "mysql" {
+		return fmt.Errorf("%s middleman route source is %q, want mysql", source, cache.Metadata.Source)
+	}
+	if cache.Metadata.EntryCount != len(cache.Entries) {
+		return fmt.Errorf("%s middleman route entry count is %d, want %d", source, cache.Metadata.EntryCount, len(cache.Entries))
+	}
+	if cache.Metadata.Checksum == "" || cache.Metadata.Checksum != cache.RouteChecksum() {
+		return fmt.Errorf("%s middleman route checksum is invalid", source)
+	}
+	if _, err := time.Parse(time.RFC3339, cache.Metadata.GeneratedAt); err != nil {
+		return fmt.Errorf("%s middleman route generated_at is invalid: %w", source, err)
+	}
+	for _, entry := range cache.Entries {
+		if err := entry.ValidatePartnerProfile(); err != nil {
+			return fmt.Errorf("%s middleman bidder %d profile: %w", source, entry.BidderID, err)
+		}
+	}
+	return nil
+}
+
+func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap) error {
+	if out == nil {
+		return fmt.Errorf("publisher inventory output is nil")
+	}
+	if err := acl.ValidateCommercialPubMap(pubmap); err != nil {
+		return err
+	}
+	domains := make([]string, 0, len(pubmap))
+	for domain, pub := range pubmap {
+		if pub != nil && pub.Active && (pub.LimitImps == 0 || pub.CurrentImps < pub.LimitImps) {
+			domains = append(domains, domain)
+		}
+	}
+	sort.Strings(domains)
+	if len(domains) == 0 {
+		return fmt.Errorf("no active approved publisher inventory is publishable")
+	}
+	writef := func(format string, args ...interface{}) error {
+		_, err := fmt.Fprintf(out, format, args...)
+		return err
+	}
+	siteCount, slotCount := 0, 0
+	for _, domain := range domains {
+		pub := pubmap[domain]
+		seller := pub.Seller
+		if seller.Type == "" {
+			seller.Type = "Publisher"
+		}
+		if err := writef("publisher_ready pub_id=%d domain=%q seller_id=%q seller_type=%s seller_asi=%q seller_name=%q seller_domain=%q seller_authorized=%t\n",
+			pub.PubID, domain, seller.ID, seller.Type, seller.ASI,
+			seller.Name, seller.Domain, seller.Authorized); err != nil {
+			return err
+		}
+		siteIdentities := make([]string, 0, len(pub.Sites))
+		for identity := range pub.Sites {
+			siteIdentities = append(siteIdentities, identity)
+		}
+		sort.Strings(siteIdentities)
+		for _, identity := range siteIdentities {
+			siteID := pub.Sites[identity]
+			supply := pub.SupplyFor(siteID, 0).Site
+			siteToken, err := acl.PackDirectToken(pub.PubID, siteID)
+			if err != nil {
+				return err
+			}
+			if err := writef("site_ready pub_id=%d site_id=%d type=%s identity=%q environment=%s canonical_identity=%q store_url=%q integration_mode=%s site_token=%s\n",
+				pub.PubID, siteID, commercialSiteType(pub.SiteTypes[siteID]), identity,
+				supply.Environment, supply.CanonicalIdentity, supply.StoreURL,
+				supply.IntegrationMode, siteToken); err != nil {
+				return err
+			}
+			siteCount++
+			slotNames := make([]string, 0, len(pub.Slots[siteID]))
+			for name := range pub.Slots[siteID] {
+				slotNames = append(slotNames, name)
+			}
+			sort.Strings(slotNames)
+			for _, name := range slotNames {
+				slotID := pub.Slots[siteID][name]
+				supply := pub.SupplyFor(siteID, slotID).Slot
+				sizeID := pub.SlotSizes[siteID][slotID]
+				width, height := match.SizeID1To2(sizeID)
+				slotToken, err := acl.PackDirectToken(slotID, sizeID)
+				if err != nil {
+					return err
+				}
+				if err := writef("slot_ready pub_id=%d site_id=%d slot_id=%d name=%q size=%dx%d floor_usd_cpm=%.6f media_intent=%s placement=%s render_context=%s refresh_mode=%s refresh_seconds=%d ad_density=%s traffic_quality=%s source_quality=%s management_control=%s slot_token=%s\n",
+					pub.PubID, siteID, slotID, name, width, height,
+					pub.SlotFloors[siteID][slotID], supply.MediaIntent, supply.Placement,
+					supply.RenderContext, supply.RefreshMode, supply.RefreshSeconds,
+					supply.AdDensity, supply.TrafficQuality, supply.SourceQuality,
+					supply.ManagementControl, slotToken); err != nil {
+					return err
+				}
+				slotCount++
+			}
+		}
+	}
+	return writef("publisher_inventory_ready publishers=%d sites=%d slots=%d\n", len(domains), siteCount, slotCount)
+}
+
+func commercialSiteType(siteType acl.SiteType) string {
+	switch siteType {
+	case acl.SiteTypeWeb:
+		return "Web"
+	case acl.SiteTypeAPP:
+		return "App"
+	default:
+		return "Unknown"
+	}
+}
+
 func RedisRoutesRead(ctx context.Context, out io.Writer, redis radix.Client) error {
 	middlemanRoutes, err := match.MiddlemanRouteCacheFromRedis(ctx, redis)
 	if err != nil {
@@ -151,6 +440,15 @@ func RedisRead(ctx context.Context, out io.Writer, redis radix.Client, sizeIDs [
 		return err
 	}
 	fmt.Fprintf(out, "pubmap:\n%s\n", bs)
+	direct, err := acl.DirectPubMapFromRedis(ctx, redis)
+	if err != nil {
+		return err
+	}
+	bs, err = json.MarshalIndent(direct, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "\npubmap:by-id:\n%s\n", bs)
 
 	for _, sizeID := range sizeIDs {
 		width, height := match.SizeID1To2(sizeID)
@@ -350,6 +648,12 @@ func SpreadRead(out io.Writer, top string, sizeIDs []uint32) error {
 		return err
 	}
 	fmt.Fprintf(out, "pubmap:\n%s\n", bs)
+	direct := acl.DirectPubMapFromPubMap(pubmap)
+	bs, err = json.MarshalIndent(direct, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "\nderived pubmap:by-id:\n%s\n", bs)
 
 	for _, sizeID := range sizeIDs {
 		width, height := match.SizeID1To2(sizeID)

@@ -11,7 +11,7 @@ const currentPzdesignSSPSample = `{
   "platform": "browser",
   "adUnits": [{
     "code": "pz-image-1234",
-    "slot": "AAAACAAUAMAAA",
+    "slot": "AAAACAH2AAWAC",
     "mediaTypes": {
       "banner": {
         "size": [300, 250]
@@ -19,7 +19,7 @@ const currentPzdesignSSPSample = `{
     }
 	},{
 	    "code": "pz-video-5678",
-	    "slot": "CYBQAAH677776",
+	    "slot": "CYBQAAHAAGAAE",
 	    "mediaTypes": {
 	      "video": {
         "context": "instream",
@@ -28,7 +28,7 @@ const currentPzdesignSSPSample = `{
     }
   },{
     "code": "pz-html-9012",
-    "slot": "CUBQAAH774AAA",
+    "slot": "CUBQAABSACLAA",
     "mediaTypes": {
       "native": {
         "image": [150, 50],
@@ -84,7 +84,7 @@ func TestParseSSPRequestCurrentPzdesignSample(t *testing.T) {
 	if len(req.AdUnits) != 3 {
 		t.Fatalf("adUnits len = %d, want 3", len(req.AdUnits))
 	}
-	if req.AdUnits[0].Code != "pz-image-1234" || req.AdUnits[0].legacySlotToken() != "AAAACAAUAMAAA" {
+	if req.AdUnits[0].Code != "pz-image-1234" || req.AdUnits[0].legacySlotToken() != "AAAACAH2AAWAC" {
 		t.Fatalf("first adUnit = %#v", req.AdUnits[0])
 	}
 	if got := req.AdUnits[0].EffectiveMediaTypes().Banner.Size; len(got) != 2 || got[0] != 300 || got[1] != 250 {
@@ -157,7 +157,7 @@ func TestSSPValidateSupplyAgainstDirectPubCache(t *testing.T) {
 	if got.Code != "pz-html-9012" || got.SiteStr != "example.com" || got.SlotStr != "native-slot" {
 		t.Fatalf("third validated unit = %#v", got)
 	}
-	if got.RPub.PubID != 65536 || got.RPub.SiteID != 65535 || got.RPub.SlotID != 789 || got.RPub.SizeID != 65535 {
+	if got.RPub.PubID != 65536 || got.RPub.SiteID != 65535 || got.RPub.SlotID != 789 || got.RPub.SizeID != (150<<16)|50 {
 		t.Fatalf("third RPub = %#v", got.RPub)
 	}
 }
@@ -189,6 +189,9 @@ func directSSPTestPub() *acl.DirectPub {
 		PubID:  65536,
 		Active: true,
 		Sites:  map[string]uint32{"example.com": 65535},
+		SiteTypes: map[uint32]acl.SiteType{
+			65535: acl.SiteTypeWeb,
+		},
 		Slots: map[uint32]map[string]uint32{
 			65535: map[string]uint32{
 				"banner-slot": 65536,
@@ -198,10 +201,13 @@ func directSSPTestPub() *acl.DirectPub {
 		},
 		SlotSizes: map[uint32]map[uint32]uint32{
 			65535: map[uint32]uint32{
-				65536: 788,
-				790:   4294967294,
-				789:   65535,
+				65536: (300 << 16) | 250,
+				790:   (640 << 16) | 480,
+				789:   (150 << 16) | 50,
 			},
+		},
+		SlotFloors: map[uint32]map[uint32]float64{
+			65535: map[uint32]float64{65536: 1.5, 790: 2.5, 789: 0},
 		},
 	}
 	return acl.NewDirectPub("pub.example", pub)

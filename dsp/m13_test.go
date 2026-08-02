@@ -77,19 +77,26 @@ func newLocalBidPathController(t testing.TB) *Controller {
 		Active:           true,
 		DefaultWebSiteID: 10,
 		DefaultWebSlotID: 100,
-		Sites:            map[string]uint32{"example.com": 10},
+		Sites:            map[string]uint32{"example.com": 10, "app.example.com": 11},
+		SiteTypes:        map[uint32]acl.SiteType{10: acl.SiteTypeWeb, 11: acl.SiteTypeAPP},
 		Slots: map[uint32]map[string]uint32{
 			10: map[string]uint32{"slot-one": 100, "slot-two": 200},
+			11: map[string]uint32{"slot-one": 100, "slot-two": 200},
 		},
 		SlotSizes: map[uint32]map[uint32]uint32{
 			10: map[uint32]uint32{100: sizeOne, 200: sizeTwo},
+			11: map[uint32]uint32{100: sizeOne, 200: sizeTwo},
+		},
+		SlotFloors: map[uint32]map[uint32]float64{
+			10: map[uint32]float64{100: 0, 200: 0},
+			11: map[uint32]float64{100: 0, 200: 0},
 		},
 	}
 	writePubSnapshot(t, top, "pub.example", pub)
 	writeRAdvsSnapshot(t, top, sizeOne, 100, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Weight: 1, CostType: 2, Cost: 2}})
 	writeRAdvsSnapshot(t, top, sizeTwo, 200, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 2000, CreativeID: 20000}, Weight: 1, CostType: 2, Cost: 3}})
-	writeCreativeSnapshot(t, top, 10000, &match.Creative{CreativeContent: "https://cdn.example/one.html?click={CLICK_URL}", Landing: "https://advertiser.example/one", SizeID: sizeOne})
-	writeCreativeSnapshot(t, top, 20000, &match.Creative{CreativeContent: "https://cdn.example/two.html", Landing: "https://advertiser.example/two", SizeID: sizeTwo})
+	writeCreativeSnapshot(t, top, 10000, &match.Creative{CreativeName: "one", CreativeContent: "https://cdn.example/one.html?click={CLICK_URL}", Landing: "https://advertiser.example/one", SizeID: sizeOne, MediaType: match.CreativeMediaBanner, MIME: "text/html"})
+	writeCreativeSnapshot(t, top, 20000, &match.Creative{CreativeName: "two", CreativeContent: "https://cdn.example/two.html", Landing: "https://advertiser.example/two", SizeID: sizeTwo, MediaType: match.CreativeMediaBanner, MIME: "text/html"})
 
 	controller := &Controller{
 		C:      &Config{Spread: top, IsLocal: true, ServerURL: "https://dsp.example", TrackingSecret: "test-secret"},

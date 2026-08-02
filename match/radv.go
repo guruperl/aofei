@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"os"
 	"strconv"
@@ -60,12 +61,28 @@ func UnpackDemandIO(r *bytes.Reader) (Demand, error) {
 	return demand, err
 }
 
-// RAdv is the block of the slot. it is 33 bytes long.
+// RAdv is the compiled demand record for one slot candidate.
 type RAdv struct {
 	Demand
 	Weight   float32 `json:"weight,omitempty"`
 	CostType uint8   `json:"cost_type,omitempty"`
 	Cost     float32 `json:"cost,omitempty"`
+	Cap
+	Delivery Delivery `json:"-"`
+}
+
+const (
+	CostTypeROI uint8 = iota + 1
+	CostTypeCPM
+	CostTypeCPC
+	CostTypeCPA
+)
+
+type legacyRAdv struct {
+	Demand
+	Weight   float32
+	CostType uint8
+	Cost     float32
 	Cap
 }
 
@@ -95,13 +112,13 @@ func (self RAdv) updateRow(
 	if costType.Valid {
 		switch costType.String {
 		case "ROI":
-			self.CostType = 1
+			self.CostType = CostTypeROI
 		case "CPM":
-			self.CostType = 2
+			self.CostType = CostTypeCPM
 		case "CPC":
-			self.CostType = 3
+			self.CostType = CostTypeCPC
 		case "CPA":
-			self.CostType = 4
+			self.CostType = CostTypeCPA
 		default:
 		}
 	}
@@ -120,8 +137,6 @@ INNER JOIN adv_item i USING (item_id)
 INNER JOIN adv_campaign c USING (campaign_id)
 INNER JOIN adv a USING (adv_id)
 WHERE a.active="Yes" AND c.active="Yes" AND i.active="Yes" AND v.active="Yes"
-AND (i.startx <= NOW() OR i.startx IS NULL)
-AND (i.endx >= NOW() OR i.endx IS NULL)
 ORDER BY v.size_id`)
 	if err != nil {
 		return nil, err
@@ -145,7 +160,7 @@ func (self RAdvs) Pack() ([]byte, error) {
 	if err := writeCachePayloadHeader(buf, cachePayloadKindRAdvs, cachePayloadVersionRAdvs); err != nil {
 		return nil, err
 	}
-	err := self.packLegacy(buf)
+	err := self.packCurrent(buf)
 	return buf.Bytes(), err
 }
 
@@ -154,10 +169,10 @@ func (self RAdvs) PackIO(w *bytes.Buffer) error {
 	if err := writeCachePayloadHeader(w, cachePayloadKindRAdvs, cachePayloadVersionRAdvs); err != nil {
 		return err
 	}
-	return self.packLegacy(w)
+	return self.packCurrent(w)
 }
 
-func (self RAdvs) packLegacy(w io.Writer) error {
+func (self RAdvs) packCurrent(w io.Writer) error {
 	return binary.Write(w, binary.LittleEndian, self)
 }
 
@@ -197,40 +212,65 @@ func (self RAdvs) Delete(invalids map[uint32]RAdv) RAdvs {
 
 // UnpackRAdvs unpacks the weights from binary.
 func UnpackRAdvs(data []byte) (RAdvs, error) {
-	var err error
-	data, err = unpackCachePayload(data, cachePayloadKindRAdvs, cachePayloadVersionRAdvs)
+	body, version, err := unpackRAdvsPayload(data)
 	if err != nil {
 		return nil, err
 	}
-	if len(data)%33 != 0 {
-		return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
-	}
-	n := len(data) / 33
-	blocks := make([]RAdv, n)
-	buf := bytes.NewReader(data)
-	err = binary.Read(buf, binary.LittleEndian, &blocks)
-	return blocks, err
+	return unpackRAdvsBody(body, version)
 }
 
 // UnpackRAdvsIO unpacks the RAdvs from an IO reader.
 func UnpackRAdvsIO(r io.Reader) (RAdvs, error) {
-	// Create a bytes.Reader to read from the io.Reader
-	data, err := readAllCachePayload(r, cachePayloadKindRAdvs, cachePayloadVersionRAdvs)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-	return unpackRAdvsLegacy(data)
+	return UnpackRAdvs(data)
 }
 
 func unpackRAdvsLegacy(data []byte) (RAdvs, error) {
-	if len(data)%33 != 0 {
+	return unpackRAdvsBody(data, 0)
+}
+
+func unpackRAdvsPayload(data []byte) ([]byte, uint8, error) {
+	headerSize := len(cachePayloadMagic) + 2
+	if len(data) < headerSize || !bytes.Equal(data[:len(cachePayloadMagic)], cachePayloadMagic) {
+		return data, 0, nil
+	}
+	kind := data[len(cachePayloadMagic)]
+	version := data[len(cachePayloadMagic)+1]
+	if kind != cachePayloadKindRAdvs {
+		return nil, 0, fmt.Errorf("cache payload kind %d does not match expected kind %d", kind, cachePayloadKindRAdvs)
+	}
+	if version != 1 && version != cachePayloadVersionRAdvs {
+		return nil, 0, fmt.Errorf("unsupported cache payload version %d for kind %d", version, kind)
+	}
+	return data[headerSize:], version, nil
+}
+
+func unpackRAdvsBody(data []byte, version uint8) (RAdvs, error) {
+	currentSize := binary.Size(RAdv{})
+	legacySize := binary.Size(legacyRAdv{})
+	if version == cachePayloadVersionRAdvs {
+		if currentSize <= 0 || len(data)%currentSize != 0 {
+			return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
+		}
+		blocks := make(RAdvs, len(data)/currentSize)
+		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &blocks)
+		return blocks, err
+	}
+	if legacySize <= 0 || len(data)%legacySize != 0 {
 		return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
 	}
-	n := len(data) / 33
-	blocks := make([]RAdv, n)
-	buf := bytes.NewReader(data)
-	err := binary.Read(buf, binary.LittleEndian, &blocks)
-	return blocks, err
+	legacy := make([]legacyRAdv, len(data)/legacySize)
+	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &legacy); err != nil {
+		return nil, err
+	}
+	blocks := make(RAdvs, len(legacy))
+	for i, block := range legacy {
+		blocks[i] = RAdv{Demand: block.Demand, Weight: block.Weight, CostType: block.CostType, Cost: block.Cost, Cap: block.Cap}
+	}
+	return blocks, nil
 }
 
 // DBGetRAdvsToRedisSpreadByItemID retrieves RAdvs from the database with give item and inserts them into Redis.
@@ -333,11 +373,10 @@ func dbRAdvsBySizeID(ctx context.Context, db *sql.DB, sizeID uint32) (map[uint32
 
 func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint32) (RAdvs, error) {
 	rows, err := db.QueryContext(ctx, `
-	CALL proc_slot(?, ?)`, slotID, sizeID)
+	CALL proc_slotall(?, ?)`, slotID, sizeID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var blocks RAdvs
 	for rows.Next() {
@@ -345,13 +384,185 @@ func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint3
 		var costType sql.NullString
 		var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
 		var cost sql.NullFloat64
-		err = rows.Scan(&w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod)
+		var itemStart, itemEnd any
+		err = rows.Scan(&w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod, &itemStart, &itemEnd)
 		if err != nil {
+			rows.Close()
 			return nil, err
 		}
-		blocks = append(blocks, w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType))
+		w = w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType)
+		if _, ok := w.ECPM(); !ok {
+			rows.Close()
+			return nil, fmt.Errorf("item %d uses unsupported commercial cost type %q or invalid price %v; migrate it to a reviewed positive USD CPM price", w.ItemID, costType.String, cost)
+		}
+		if !finitePositiveFloat32(w.Weight) {
+			rows.Close()
+			return nil, fmt.Errorf("creative %d has invalid rotation weight %v", w.CreativeID, w.Weight)
+		}
+		blocks = append(blocks, w)
 	}
-	return blocks, rows.Err()
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	for rows.NextResultSet() {
+		for rows.Next() {
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	return hydrateRAdvDeliveries(ctx, db, blocks)
+}
+
+type deliveryBalanceRow struct {
+	id           uint32
+	limitSpend   float64
+	limitImp     uint64
+	limitClick   uint64
+	currentSpend float64
+	currentImp   uint64
+	currentClick uint64
+}
+
+func (r *deliveryBalanceRow) scanArgs() []any {
+	return []any{&r.id, &r.limitSpend, &r.limitImp, &r.limitClick, &r.currentSpend, &r.currentImp, &r.currentClick}
+}
+
+func (r deliveryBalanceRow) value() DeliveryBalance {
+	return DeliveryBalance{
+		ID:           r.id,
+		LimitSpend:   r.limitSpend,
+		LimitImp:     r.limitImp,
+		LimitClick:   r.limitClick,
+		CurrentSpend: r.currentSpend,
+		CurrentImp:   r.currentImp,
+		CurrentClick: r.currentClick,
+	}
+}
+
+func hydrateRAdvDeliveries(ctx context.Context, db *sql.DB, blocks RAdvs) (RAdvs, error) {
+	if len(blocks) == 0 {
+		return blocks, nil
+	}
+	itemIDs := make([]uint32, 0, len(blocks))
+	seen := make(map[uint32]struct{}, len(blocks))
+	for _, block := range blocks {
+		if _, ok := seen[block.ItemID]; ok {
+			continue
+		}
+		seen[block.ItemID] = struct{}{}
+		itemIDs = append(itemIDs, block.ItemID)
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(itemIDs)), ",")
+	query := `
+SELECT i.item_id, c.campaign_id,
+  COALESCE(TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', c.startx), 0), COALESCE(TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', c.endx), 0),
+  COALESCE(TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', i.startx), 0), COALESCE(TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', i.endx), 0),
+  COALESCE(c.delivery_timezone, 'UTC'), COALESCE(c.weekly_schedule, ''), COALESCE(c.pacing_mode, 'Fast'),
+  COALESCE(i.weekly_schedule, ''), COALESCE(i.pacing_mode, 'Fast'),
+  COALESCE(ct.balance_id, 0), COALESCE(ct.limit_spend, 0), COALESCE(ct.limit_imp, 0), COALESCE(ct.limit_cli, 0), COALESCE(ct.current_spend, 0), COALESCE(ct.current_imp, 0), COALESCE(ct.current_cli, 0),
+  COALESCE(cd.balance_id, 0), COALESCE(cd.limit_spend, 0), COALESCE(cd.limit_imp, 0), COALESCE(cd.limit_cli, 0), IF(cd.current_day=UTC_DATE(), COALESCE(cd.current_spend, 0), 0), IF(cd.current_day=UTC_DATE(), COALESCE(cd.current_imp, 0), 0), IF(cd.current_day=UTC_DATE(), COALESCE(cd.current_cli, 0), 0),
+  COALESCE(it.balance_id, 0), COALESCE(it.limit_spend, 0), COALESCE(it.limit_imp, 0), COALESCE(it.limit_cli, 0), COALESCE(it.current_spend, 0), COALESCE(it.current_imp, 0), COALESCE(it.current_cli, 0),
+  COALESCE(id.balance_id, 0), COALESCE(id.limit_spend, 0), COALESCE(id.limit_imp, 0), COALESCE(id.limit_cli, 0), IF(id.current_day=UTC_DATE(), COALESCE(id.current_spend, 0), 0), IF(id.current_day=UTC_DATE(), COALESCE(id.current_imp, 0), 0), IF(id.current_day=UTC_DATE(), COALESCE(id.current_cli, 0), 0)
+FROM adv_item i
+INNER JOIN adv_campaign c USING (campaign_id)
+LEFT JOIN adv_balance ct ON ct.balance_id=c.total_balance_id
+LEFT JOIN adv_balance cd ON cd.balance_id=c.daily_balance_id
+LEFT JOIN adv_balance it ON it.balance_id=i.total_balance_id
+LEFT JOIN adv_balance id ON id.balance_id=i.daily_balance_id
+WHERE i.item_id IN (` + placeholders + `)`
+	args := make([]any, len(itemIDs))
+	for i, itemID := range itemIDs {
+		args[i] = itemID
+	}
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	deliveries := make(map[uint32]Delivery, len(itemIDs))
+	generatedAt := time.Now().Unix()
+	for rows.Next() {
+		var itemID, campaignID uint32
+		var campaignStart, campaignEnd, itemStart, itemEnd int64
+		var timezone, campaignSchedule, campaignPacing, itemSchedule, itemPacing string
+		var campaignTotal, campaignDaily, itemTotal, itemDaily deliveryBalanceRow
+		scan := []any{&itemID, &campaignID, &campaignStart, &campaignEnd, &itemStart, &itemEnd, &timezone, &campaignSchedule, &campaignPacing, &itemSchedule, &itemPacing}
+		scan = append(scan, campaignTotal.scanArgs()...)
+		scan = append(scan, campaignDaily.scanArgs()...)
+		scan = append(scan, itemTotal.scanArgs()...)
+		scan = append(scan, itemDaily.scanArgs()...)
+		if err := rows.Scan(scan...); err != nil {
+			return nil, err
+		}
+		campaignPacingValue, err := parseDeliveryPacing(campaignPacing)
+		if err != nil {
+			return nil, fmt.Errorf("campaign %d: %w", campaignID, err)
+		}
+		itemPacingValue, err := parseDeliveryPacing(itemPacing)
+		if err != nil {
+			return nil, fmt.Errorf("item %d: %w", itemID, err)
+		}
+		delivery := Delivery{
+			GeneratedAtUnix: generatedAt,
+			Campaign:        DeliveryWindow{StartUnix: campaignStart, EndUnix: campaignEnd, Pacing: campaignPacingValue},
+			Item:            DeliveryWindow{StartUnix: itemStart, EndUnix: itemEnd, Pacing: itemPacingValue},
+			CampaignTotal:   campaignTotal.value(),
+			CampaignDaily:   campaignDaily.value(),
+			ItemTotal:       itemTotal.value(),
+			ItemDaily:       itemDaily.value(),
+		}
+		for _, named := range []struct {
+			name    string
+			balance DeliveryBalance
+		}{
+			{name: "campaign total", balance: delivery.CampaignTotal},
+			{name: "campaign daily", balance: delivery.CampaignDaily},
+			{name: "item total", balance: delivery.ItemTotal},
+			{name: "item daily", balance: delivery.ItemDaily},
+		} {
+			if err := named.balance.Validate(); err != nil {
+				return nil, fmt.Errorf("item %d %s balance: %w", itemID, named.name, err)
+			}
+		}
+		if err := delivery.SetTimezone(timezone); err != nil {
+			return nil, fmt.Errorf("item %d: %w", itemID, err)
+		}
+		if err := delivery.Campaign.SetWeeklySchedule(campaignSchedule); err != nil {
+			return nil, fmt.Errorf("campaign %d: %w", campaignID, err)
+		}
+		if err := delivery.Item.SetWeeklySchedule(itemSchedule); err != nil {
+			return nil, fmt.Errorf("item %d: %w", itemID, err)
+		}
+		deliveries[itemID] = delivery
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range blocks {
+		delivery, ok := deliveries[blocks[i].ItemID]
+		if !ok {
+			return nil, fmt.Errorf("delivery policy missing for item %d", blocks[i].ItemID)
+		}
+		blocks[i].Delivery = delivery
+	}
+	return blocks, nil
+}
+
+func parseDeliveryPacing(value string) (uint8, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "fast":
+		return DeliveryPacingFast, nil
+	case "even":
+		return DeliveryPacingEven, nil
+	default:
+		return 0, fmt.Errorf("invalid delivery pacing %q", value)
+	}
 }
 
 // radvHashToRedisSpread the size slot cache, used for the 10 minute refresh.
@@ -603,21 +814,14 @@ func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, bid 
 }
 
 func (self RAdv) ECPM() (float32, bool) {
-	switch self.CostType {
-	case 1:
-		return 100.0 * self.Cost, true
-	case 2:
-		return self.Cost, true
-	case 3:
-		return 100.0 * self.Cost, true
-	case 4:
-		return 0.01 * self.Cost, true
+	if self.CostType != CostTypeCPM || !finitePositiveFloat32(self.Cost) {
+		return 0, false
 	}
-	return 0, false
+	return self.Cost, true
 }
 
 func (self RAdv) GetItemWeight(bidFloor float64, bidFoorCur string) (float32, bool) {
-	if !supportedBidFloorCurrency(bidFoorCur) {
+	if !supportedBidFloorCurrency(bidFoorCur) || math.IsNaN(bidFloor) || math.IsInf(bidFloor, 0) || bidFloor < 0 {
 		return 0.0, false
 	}
 	cpm, ok := self.ECPM()
@@ -633,23 +837,71 @@ func (self RAdvs) PickIndex(bidFloor float64, bidFoorCur string) int {
 }
 
 func (self RAdvs) PickIndexPrice(bidFloor float64, bidFoorCur string) (int, float32) {
-	var weights []float32
-	var prices []float32
-	for _, block := range self {
-		weight, engage := block.GetItemWeight(bidFloor, bidFoorCur)
-		if engage {
-			weights = append(weights, weight*block.Weight)
-			prices = append(prices, weight)
-		} else {
-			weights = append(weights, 0.0)
-			prices = append(prices, 0.0)
+	return self.pickIndexPriceAt(bidFloor, bidFoorCur, rand.Float32())
+}
+
+// pickIndexPriceAt applies the commercial auction contract with a caller-
+// supplied point in [0,1). Price selects the winning demand unit first;
+// creative weight is used only to rotate creatives inside that unit.
+func (self RAdvs) pickIndexPriceAt(bidFloor float64, bidFloorCur string, point float32) (int, float32) {
+	bestPrice := float32(0)
+	best := RAdv{}
+	found := false
+	for _, candidate := range self {
+		price, ok := candidate.GetItemWeight(bidFloor, bidFloorCur)
+		if !ok || !finitePositiveFloat32(candidate.Weight) {
+			continue
+		}
+		if !found || price > bestPrice || (price == bestPrice && demandUnitLess(candidate, best)) {
+			bestPrice = price
+			best = candidate
+			found = true
 		}
 	}
-	index := selectOne(weights)
-	if index < 0 {
+	if !found {
 		return -1, 0
 	}
-	return index, prices[index]
+
+	weights := make([]float32, len(self))
+	total := float32(0)
+	lastPositive := -1
+	for i, candidate := range self {
+		price, ok := candidate.GetItemWeight(bidFloor, bidFloorCur)
+		if !ok || price != bestPrice || !sameDemandUnit(candidate, best) || !finitePositiveFloat32(candidate.Weight) {
+			continue
+		}
+		weights[i] = candidate.Weight
+		total += candidate.Weight
+		lastPositive = i
+	}
+	if total <= 0 || math.IsNaN(float64(total)) || math.IsInf(float64(total), 0) {
+		return -1, 0
+	}
+	if point < 0 {
+		point = 0
+	}
+	if point >= 1 {
+		point = math.Nextafter32(1, 0)
+	}
+	return selectOneAt(weights, point*total, lastPositive), bestPrice
+}
+
+func sameDemandUnit(a, b RAdv) bool {
+	return a.AdvID == b.AdvID && a.CampaignID == b.CampaignID && a.ItemID == b.ItemID
+}
+
+func demandUnitLess(a, b RAdv) bool {
+	if a.CampaignID != b.CampaignID {
+		return a.CampaignID < b.CampaignID
+	}
+	if a.ItemID != b.ItemID {
+		return a.ItemID < b.ItemID
+	}
+	return a.AdvID < b.AdvID
+}
+
+func finitePositiveFloat32(value float32) bool {
+	return value > 0 && !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }
 
 func selectOne(weights []float32) int {

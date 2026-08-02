@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/guruperl/aofei/match"
@@ -28,19 +29,23 @@ const (
 // ${AUCTION_SEAT_ID} ID of the bidder seat;for whom the bid was made.
 // ${AUCTION_AD_ID} ID of the ad markup the bidder wishes to serve; from bid.adid attribute.
 type WinLoss struct {
-	Status         `json:"status,omitempty"`
-	Current        time.Time `json:"current,omitempty"`
-	match.RPub     `json:"rpub,omitempty"`
-	match.RAdv     `json:"radv,omitempty"`
-	BothCap        *match.BothCap        `json:"-"`
-	Seat           string                `json:"seat,omitempty"`
-	AuctionID      string                `json:"auction_id,omitempty"`
-	AuctionBidID   string                `json:"auction_bid_id,omitempty"`
-	AuctionImpID   string                `json:"auction_imp_id,omitempty"`
-	AuctionAdID    string                `json:"auction_ad_id,omitempty"`
-	Middleman      *MiddlemanWinLossMeta `json:"middleman,omitempty"`
-	serverURL      string
-	trackingSecret string
+	Status              `json:"status,omitempty"`
+	Current             time.Time `json:"current,omitempty"`
+	match.RPub          `json:"rpub,omitempty"`
+	match.RAdv          `json:"radv,omitempty"`
+	BothCap             *match.BothCap        `json:"-"`
+	Seat                string                `json:"seat,omitempty"`
+	AuctionID           string                `json:"auction_id,omitempty"`
+	AuctionBidID        string                `json:"auction_bid_id,omitempty"`
+	AuctionImpID        string                `json:"auction_imp_id,omitempty"`
+	AuctionAdID         string                `json:"auction_ad_id,omitempty"`
+	Middleman           *MiddlemanWinLossMeta `json:"middleman,omitempty"`
+	Reporting           *ReportingDimensions  `json:"reporting,omitempty"`
+	DeliveryReservation string                `json:"-"`
+	serverURL           string
+	trackingSecret      string
+	actionTokenTTL      time.Duration
+	actionToken         string
 }
 
 // MiddlemanWinLossMeta carries charge/pay audit details for proxied middleman
@@ -50,6 +55,7 @@ type MiddlemanWinLossMeta struct {
 	GroupID            uint32  `json:"group_id,omitempty"`
 	RouteBidderID      uint32  `json:"route_bidder_id,omitempty"`
 	TargetID           uint32  `json:"target_id,omitempty"`
+	TriggerMode        string  `json:"trigger_mode,omitempty"`
 	Source             string  `json:"source,omitempty"`
 	ForwardStatus      string  `json:"forward_status,omitempty"`
 	ForwardHTTPStatus  int     `json:"forward_http_status,omitempty"`
@@ -59,6 +65,29 @@ type MiddlemanWinLossMeta struct {
 	PayPrice           float64 `json:"pay_price,omitempty"`
 	MarginCPM          float64 `json:"margin_cpm,omitempty"`
 	Currency           string  `json:"currency,omitempty"`
+}
+
+// ReportingDimensions contains only bounded, coarse classifications approved
+// for R02 aggregation. It never carries an IP, user agent, IFA, cookie,
+// consent string, or raw geographic label.
+type ReportingDimensions struct {
+	CountryID         uint32 `json:"country_id,omitempty"`
+	StateID           uint32 `json:"state_id,omitempty"`
+	DeviceOS          uint8  `json:"device_os,omitempty"`
+	DeviceType        uint8  `json:"device_type,omitempty"`
+	Environment       string `json:"environment,omitempty"`
+	IntegrationMode   string `json:"integration_mode,omitempty"`
+	MediaIntent       string `json:"media_intent,omitempty"`
+	Placement         string `json:"placement,omitempty"`
+	RenderContext     string `json:"render_context,omitempty"`
+	RefreshMode       string `json:"refresh_mode,omitempty"`
+	RefreshSeconds    uint16 `json:"refresh_seconds,omitempty"`
+	AdDensity         string `json:"ad_density,omitempty"`
+	TrafficQuality    string `json:"traffic_quality,omitempty"`
+	SourceQuality     string `json:"source_quality,omitempty"`
+	ManagementControl string `json:"management_control,omitempty"`
+	SellerType        string `json:"seller_type,omitempty"`
+	SellerID          string `json:"seller_id,omitempty"`
 }
 
 // NewWinLoss creates a new WinLoss instance from the current time, status, rpub, radv, and bothcap.
@@ -87,6 +116,21 @@ func NewWinLoss(
 
 func (self *WinLoss) WithTrackingSecret(secret string) *WinLoss {
 	self.trackingSecret = secret
+	return self
+}
+
+func (self *WinLoss) withDeliveryReservation(token string) *WinLoss {
+	self.DeliveryReservation = token
+	return self
+}
+
+func (self *WinLoss) withActionTokenTTL(ttl time.Duration) *WinLoss {
+	self.actionTokenTTL = ttl
+	return self
+}
+
+func (self *WinLoss) withReportingDimensions(dimensions *ReportingDimensions) *WinLoss {
+	self.Reporting = dimensions
 	return self
 }
 
@@ -129,6 +173,10 @@ func (self *WinLoss) ClkRedirectURL(landing string) string {
 	if landing == "" {
 		return self.ClkURL()
 	}
+	if self.actionToken == "" {
+		self.actionToken, _ = newActionToken(self.trackingSecret, self, self.actionTokenTTL, self.Current)
+	}
+	landing = appendActionToken(landing, self.actionToken)
 	return self.trackerURL("/clk", true, landing)
 }
 
@@ -172,6 +220,28 @@ func (self *WinLoss) packURLValues(tracking bool) url.Values {
 	args.Set("demand", demand)
 	supply, _ := self.RPub.PackString()
 	args.Set("supply", supply)
+	if self.DeliveryReservation != "" {
+		args.Set("delivery_reservation", self.DeliveryReservation)
+	}
+	if self.Reporting != nil {
+		args.Set("report_country_id", strconv.FormatUint(uint64(self.Reporting.CountryID), 10))
+		args.Set("report_state_id", strconv.FormatUint(uint64(self.Reporting.StateID), 10))
+		args.Set("report_device_os", strconv.FormatUint(uint64(self.Reporting.DeviceOS), 10))
+		args.Set("report_device_type", strconv.FormatUint(uint64(self.Reporting.DeviceType), 10))
+		args.Set("report_environment", self.Reporting.Environment)
+		args.Set("report_integration", self.Reporting.IntegrationMode)
+		args.Set("report_media_intent", self.Reporting.MediaIntent)
+		args.Set("report_placement", self.Reporting.Placement)
+		args.Set("report_render_context", self.Reporting.RenderContext)
+		args.Set("report_refresh_mode", self.Reporting.RefreshMode)
+		args.Set("report_refresh_seconds", strconv.FormatUint(uint64(self.Reporting.RefreshSeconds), 10))
+		args.Set("report_ad_density", self.Reporting.AdDensity)
+		args.Set("report_traffic_quality", self.Reporting.TrafficQuality)
+		args.Set("report_source_quality", self.Reporting.SourceQuality)
+		args.Set("report_management", self.Reporting.ManagementControl)
+		args.Set("report_seller_type", self.Reporting.SellerType)
+		args.Set("report_seller_id", self.Reporting.SellerID)
+	}
 
 	return args
 }

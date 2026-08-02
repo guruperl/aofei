@@ -60,8 +60,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer sc.Close()
+	var lock *cmdboot.Lock
 	if !allowConcurrent {
-		lock, err := cmdboot.AcquireLock(ctx, sc.Redis, "aofei:winloss", lockTTL)
+		lock, err = cmdboot.AcquireLock(ctx, sc.Redis, "aofei:winloss", lockTTL)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -70,7 +71,7 @@ func main() {
 
 	buf := bytes.NewBuffer(jsonBid)
 	host := strings.Replace(sc.C.ServerURL, "https", "http", 1)
-	req, err := http.NewRequest(http.MethodPost, host+address, buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, host+address, buf)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func main() {
 
 	if res.StatusCode == http.StatusNoContent {
 		log.Printf("status code: %d", res.StatusCode)
-		os.Exit(0)
+		return
 	} else if res.StatusCode != http.StatusOK {
 		log.Fatalf("status code: %d", res.StatusCode)
 	}
@@ -104,32 +105,32 @@ func main() {
 	switch how {
 	case "win":
 		log.Printf("win %s", trackers.nurl.String())
-		rspns, err = httpClient.Get(trackers.nurl.String())
+		rspns, err = getWithContext(ctx, trackers.nurl.String())
 		if err == nil {
 			time.Sleep(1 * time.Second)
 			log.Printf("impression %s", trackers.imp.String())
-			impRspns, err = httpClient.Get(trackers.imp.String())
+			impRspns, err = getWithContext(ctx, trackers.imp.String())
 		}
 	case "loss":
 		log.Printf("loss %s", trackers.lurl.String())
-		rspns, err = httpClient.Get(trackers.lurl.String())
+		rspns, err = getWithContext(ctx, trackers.lurl.String())
 	case "imp":
 		log.Printf("impression %s", trackers.imp.String())
-		impRspns, err = httpClient.Get(trackers.imp.String())
+		impRspns, err = getWithContext(ctx, trackers.imp.String())
 	case "clk":
 		log.Printf("clicking %s", trackers.click.String())
-		clkRspns, err = httpClient.Get(trackers.click.String())
+		clkRspns, err = getWithContext(ctx, trackers.click.String())
 	default:
 		if rand.Intn(10) < 5 {
-			if rspns, err = httpClient.Get(trackers.nurl.String()); err == nil {
+			if rspns, err = getWithContext(ctx, trackers.nurl.String()); err == nil {
 				time.Sleep(1 * time.Second)
-				if impRspns, err = httpClient.Get(trackers.imp.String()); err == nil && rand.Intn(10) < 5 {
+				if impRspns, err = getWithContext(ctx, trackers.imp.String()); err == nil && rand.Intn(10) < 5 {
 					time.Sleep(2 * time.Second)
-					clkRspns, err = httpClient.Get(trackers.click.String())
+					clkRspns, err = getWithContext(ctx, trackers.click.String())
 				}
 			}
 		} else {
-			rspns, err = httpClient.Get(trackers.lurl.String())
+			rspns, err = getWithContext(ctx, trackers.lurl.String())
 		}
 	}
 	if err != nil {
@@ -145,6 +146,19 @@ func main() {
 	if clkRspns != nil {
 		clkRspns.Body.Close()
 	}
+	if lock != nil {
+		if err := lock.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func getWithContext(ctx context.Context, address string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
+	if err != nil {
+		return nil, err
+	}
+	return httpClient.Do(req)
 }
 
 type bidResponseTrackers struct {
