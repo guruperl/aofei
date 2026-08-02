@@ -22,10 +22,19 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 	}
 
 	var config struct {
+		Identity struct {
+			Enabled            bool
+			KeyEnv             string
+			RequiredTOTP       []string
+			AuditRetentionDays int
+		}
 		Roles map[string]struct {
-			Issuers map[string]struct {
-				PasswordHash string   `json:"Password_hash"`
-				OutPars      []string `json:"OutPars"`
+			Permissions  []string
+			RequireGrant bool
+			Issuers      map[string]struct {
+				PasswordHash          string   `json:"Password_hash"`
+				LegacyPasswordUpgrade bool     `json:"Legacy_password_upgrade"`
+				OutPars               []string `json:"OutPars"`
 			} `json:"Issuers"`
 		} `json:"Roles"`
 	}
@@ -33,18 +42,66 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string][]string{
-		"adv":   {"adv_id", "a_email", "a_company", "a_contact", "a_timezone_id", "passwd"},
-		"pub":   {"pub_id", "p_email", "p_company", "p_contact", "p_timezone_id", "passwd"},
-		"agent": {"agent_id", "agent_login", "agent_level", "passwd"},
-		"admin": {"admin_id", "admin_login", "passwd"},
+		"adv":     {"adv_id", "a_email", "a_company", "a_contact", "a_timezone_id", "passwd"},
+		"pub":     {"pub_id", "p_email", "p_company", "p_contact", "p_timezone_id", "passwd"},
+		"agent":   {"agent_id", "agent_login", "agent_level", "passwd"},
+		"admin":   {"admin_id", "admin_login", "passwd"},
+		"analyst": {"analyst_id", "analyst_login", "passwd"},
 	}
 	for role, fields := range want {
 		issuer := config.Roles[role].Issuers["db"]
 		if issuer.PasswordHash != "passwd" {
 			t.Errorf("%s db issuer Password_hash = %q, want passwd", role, issuer.PasswordHash)
 		}
+		if !issuer.LegacyPasswordUpgrade {
+			t.Errorf("%s db issuer must atomically upgrade legacy passwords during migration", role)
+		}
 		if !reflect.DeepEqual(issuer.OutPars, fields) {
 			t.Errorf("%s db issuer OutPars = %#v, want %#v", role, issuer.OutPars, fields)
 		}
+	}
+	if config.Identity.Enabled {
+		t.Fatal("example identity boundary must require an explicit production enablement step")
+	}
+	if config.Identity.KeyEnv != "GENELET_IDENTITY_KEY" || config.Identity.AuditRetentionDays < 365 {
+		t.Fatalf("identity key/retention policy is incomplete: %#v", config.Identity)
+	}
+	if len(config.Roles["analyst"].Permissions) == 0 || !config.Roles["analyst"].RequireGrant {
+		t.Fatal("analyst role must be permission-limited and grant-scoped")
+	}
+}
+
+func TestAofeiExampleKeepsManagementAPIDisabledAndKeyOutOfJSON(t *testing.T) {
+	data, err := os.ReadFile("aofei.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config struct {
+		ManagementAPI struct {
+			Enabled bool   `json:"enabled"`
+			KeyEnv  string `json:"key_env"`
+		} `json:"management_api"`
+		TrafficQuality struct {
+			Enabled                   bool   `json:"enabled"`
+			DigestKeyEnv              string `json:"digest_key_env"`
+			EnforcementRefreshSeconds int    `json:"enforcement_refresh_seconds"`
+			EnforcementMaxAgeSeconds  int    `json:"enforcement_max_age_seconds"`
+		} `json:"traffic_quality"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	if config.ManagementAPI.Enabled || config.ManagementAPI.KeyEnv != "MANAGEMENT_API_HMAC_KEY" {
+		t.Fatalf("management API must require explicit enablement and an environment key: %#v", config.ManagementAPI)
+	}
+	if strings.Contains(string(data), "w8m_v1_") {
+		t.Fatal("management API example contains a bearer credential")
+	}
+	if config.TrafficQuality.Enabled || config.TrafficQuality.DigestKeyEnv != "TRAFFIC_QUALITY_DIGEST_KEY" ||
+		config.TrafficQuality.EnforcementRefreshSeconds != 30 || config.TrafficQuality.EnforcementMaxAgeSeconds != 120 {
+		t.Fatalf("traffic quality must require explicit enablement, an environment key, and bounded snapshot ages: %#v", config.TrafficQuality)
+	}
+	if strings.Contains(string(data), `"traffic_quality_key"`) {
+		t.Fatal("traffic-quality example contains key material")
 	}
 }

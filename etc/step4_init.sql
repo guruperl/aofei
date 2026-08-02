@@ -44,6 +44,129 @@ LOCK TABLES `ac` WRITE;
 /*!40000 ALTER TABLE `ac` DISABLE KEYS */;
 /*!40000 ALTER TABLE `ac` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- S02 identity, delegated authorization, and immutable security evidence.
+-- Account roles are deliberately closed and account identifiers are
+-- polymorphic so the existing advertiser, publisher, agent, and admin tables
+-- retain their public schema and ownership boundaries.
+--
+
+DROP TABLE IF EXISTS `analyst`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `analyst` (
+  `analyst_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `login` varchar(255) NOT NULL,
+  `passwd` varchar(255) NOT NULL,
+  `active` enum('Yes','No','Pause') NOT NULL DEFAULT 'No',
+  `created` datetime NOT NULL,
+  PRIMARY KEY (`analyst_id`),
+  UNIQUE KEY `analyst_login` (`login`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `auth_mfa`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `auth_mfa` (
+  `account_role` enum('admin','adv','pub','agent','analyst') NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
+  `secret_cipher` varchar(512) NOT NULL,
+  `state` enum('Pending','Enabled') NOT NULL DEFAULT 'Pending',
+  `last_totp_step` bigint NOT NULL DEFAULT '-1',
+  `created_at` datetime(6) NOT NULL,
+  `confirmed_at` datetime(6) DEFAULT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`account_role`,`account_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `auth_recovery_code`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `auth_recovery_code` (
+  `recovery_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `account_role` enum('admin','adv','pub','agent','analyst') NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
+  `code_hash` binary(32) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `used_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`recovery_id`),
+  UNIQUE KEY `auth_recovery_code_once` (`account_role`,`account_id`,`code_hash`),
+  KEY `auth_recovery_account` (`account_role`,`account_id`,`used_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `auth_session`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `auth_session` (
+  `session_hash` binary(32) NOT NULL,
+  `account_role` enum('admin','adv','pub','agent','analyst') NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
+  `mfa_verified` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` datetime(6) NOT NULL,
+  `last_seen_at` datetime(6) NOT NULL,
+  `reauthenticated_until` datetime(6) NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `revoked_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`session_hash`),
+  KEY `auth_session_account` (`account_role`,`account_id`,`revoked_at`,`expires_at`),
+  KEY `auth_session_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `auth_permission_grant`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `auth_permission_grant` (
+  `grant_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `subject_role` enum('admin','adv','pub','agent','analyst') NOT NULL,
+  `subject_id` bigint unsigned NOT NULL,
+  `permission` varchar(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `resource_role` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `resource_id` bigint unsigned NOT NULL DEFAULT '0',
+  `granted_by_role` enum('admin','adv','pub','agent','analyst') NOT NULL,
+  `granted_by_id` bigint unsigned NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `revoked_at` datetime(6) DEFAULT NULL,
+  `active_marker` tinyint GENERATED ALWAYS AS ((CASE WHEN (`revoked_at` IS NULL) THEN 1 ELSE NULL END)) STORED,
+  PRIMARY KEY (`grant_id`),
+  UNIQUE KEY `auth_permission_active_identity` (`subject_role`,`subject_id`,`permission`,`resource_role`,`resource_id`,`active_marker`),
+  KEY `auth_permission_subject` (`subject_role`,`subject_id`,`revoked_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `auth_security_audit`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `auth_security_audit` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `event_name` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `actor_role` varchar(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+  `actor_id` bigint unsigned DEFAULT NULL,
+  `subject_role` varchar(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+  `subject_id` bigint unsigned DEFAULT NULL,
+  `subject_hash` binary(32) DEFAULT NULL,
+  `permission_name` varchar(96) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+  `resource_role` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+  `resource_id` bigint unsigned DEFAULT NULL,
+  `object_hash` binary(32) DEFAULT NULL,
+  `prior_state` varchar(64) NOT NULL DEFAULT '',
+  `new_state` varchar(64) NOT NULL DEFAULT '',
+  `reason` varchar(255) NOT NULL DEFAULT '',
+  `outcome` enum('Success','Denied','Failure') NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`audit_id`),
+  KEY `auth_audit_actor` (`actor_role`,`actor_id`,`created_at`),
+  KEY `auth_audit_subject` (`subject_role`,`subject_id`,`created_at`),
+  KEY `auth_audit_event` (`event_name`,`created_at`),
+  KEY `auth_audit_retention` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_auth_security_audit_no_update` BEFORE UPDATE ON `auth_security_audit` FOR EACH ROW BEGIN
+  IF COALESCE(@aofei_auth_audit_retention, 0) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'auth_security_audit is immutable';
+  END IF;
+END */;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_auth_security_audit_no_delete` BEFORE DELETE ON `auth_security_audit` FOR EACH ROW BEGIN
+  IF COALESCE(@aofei_auth_audit_retention, 0) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'auth_security_audit is immutable';
+  END IF;
+END */;;
+DELIMITER ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
@@ -173,6 +296,112 @@ CREATE TABLE `adv` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- I03 external campaign-management credentials, idempotency, cache
+-- activation state, and immutable redacted audit. Bearer tokens are never
+-- stored; token_digest and idempotency_hash are deployment-keyed digests.
+--
+
+DROP TABLE IF EXISTS `api_audit`;
+DROP TABLE IF EXISTS `api_operation`;
+DROP TABLE IF EXISTS `api_idempotency`;
+DROP TABLE IF EXISTS `api_credential`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `api_credential` (
+  `credential_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `adv_id` int unsigned NOT NULL,
+  `credential_name` varchar(128) NOT NULL,
+  `public_id` char(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `token_digest` binary(32) NOT NULL,
+  `permissions` varchar(512) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `revoked_at` datetime(6) DEFAULT NULL,
+  `rotated_at` datetime(6) DEFAULT NULL,
+  `last_used_at` datetime(6) DEFAULT NULL,
+  `created_by_role` enum('admin','adv') NOT NULL,
+  `created_by_id` bigint unsigned NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`credential_id`),
+  UNIQUE KEY `api_credential_public` (`public_id`),
+  UNIQUE KEY `api_credential_digest` (`token_digest`),
+  KEY `api_credential_account` (`adv_id`,`revoked_at`,`expires_at`),
+  CONSTRAINT `api_credential_adv_fk` FOREIGN KEY (`adv_id`) REFERENCES `adv` (`adv_id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `api_idempotency` (
+  `idempotency_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `credential_id` bigint unsigned NOT NULL,
+  `adv_id` int unsigned NOT NULL,
+  `idempotency_hash` binary(32) NOT NULL,
+  `request_hash` binary(32) NOT NULL,
+  `claim_token` binary(16) NOT NULL,
+  `state` enum('InProgress','Complete') NOT NULL,
+  `response_status` smallint unsigned DEFAULT NULL,
+  `response_body` mediumblob,
+  `created_at` datetime(6) NOT NULL,
+  `completed_at` datetime(6) DEFAULT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`idempotency_id`),
+  UNIQUE KEY `api_idempotency_once` (`credential_id`,`idempotency_hash`),
+  KEY `api_idempotency_expiry` (`expires_at`),
+  CONSTRAINT `api_idempotency_credential_fk` FOREIGN KEY (`credential_id`) REFERENCES `api_credential` (`credential_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `api_idempotency_adv_fk` FOREIGN KEY (`adv_id`) REFERENCES `adv` (`adv_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `api_idempotency_response_chk` CHECK (((`state` = _utf8mb4'Complete') AND (`response_status` IS NOT NULL) AND (`response_body` IS NOT NULL) AND (`completed_at` IS NOT NULL)) OR ((`state` = _utf8mb4'InProgress') AND (`response_status` IS NULL) AND (`response_body` IS NULL) AND (`completed_at` IS NULL)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `api_operation` (
+  `operation_id` char(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `adv_id` int unsigned NOT NULL,
+  `credential_id` bigint unsigned NOT NULL,
+  `resource_type` enum('campaign','item','creative','targeting') NOT NULL,
+  `resource_id` bigint unsigned NOT NULL,
+  `accepted_version` bigint unsigned NOT NULL,
+  `configuration_state` enum('Accepted') NOT NULL DEFAULT 'Accepted',
+  `activation_state` enum('Pending','Active','Failed') NOT NULL DEFAULT 'Pending',
+  `accepted_at` datetime(6) NOT NULL,
+  `activation_deadline` datetime(6) NOT NULL,
+  `activated_at` datetime(6) DEFAULT NULL,
+  `publication_mode` varchar(16) NOT NULL DEFAULT '',
+  `publication_token` binary(16) DEFAULT NULL,
+  PRIMARY KEY (`operation_id`),
+  KEY `api_operation_account` (`adv_id`,`accepted_at`),
+  KEY `api_operation_pending` (`activation_state`,`publication_token`),
+  CONSTRAINT `api_operation_credential_fk` FOREIGN KEY (`credential_id`) REFERENCES `api_credential` (`credential_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `api_operation_adv_fk` FOREIGN KEY (`adv_id`) REFERENCES `adv` (`adv_id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `api_audit` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `event_name` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `actor_role` varchar(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `actor_id` bigint unsigned DEFAULT NULL,
+  `credential_id` bigint unsigned DEFAULT NULL,
+  `adv_id` int unsigned NOT NULL,
+  `object_type` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `object_id` bigint unsigned DEFAULT NULL,
+  `idempotency_hash` binary(32) DEFAULT NULL,
+  `prior_state` varchar(64) NOT NULL DEFAULT '',
+  `new_state` varchar(64) NOT NULL DEFAULT '',
+  `reason` varchar(255) NOT NULL DEFAULT '',
+  `outcome` enum('Success','Denied','Failure') NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`audit_id`),
+  KEY `api_audit_account` (`adv_id`,`created_at`),
+  KEY `api_audit_credential` (`credential_id`,`created_at`),
+  KEY `api_audit_retention` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DELIMITER ;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_api_audit_no_update` BEFORE UPDATE ON `api_audit` FOR EACH ROW BEGIN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'api_audit is immutable';
+END */;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_api_audit_no_delete` BEFORE DELETE ON `api_audit` FOR EACH ROW BEGIN
+  IF COALESCE(@aofei_api_audit_retention, 0) <> 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'api_audit is immutable';
+  END IF;
+END */;;
+DELIMITER ;
+
+--
 -- Dumping data for table `adv`
 --
 
@@ -273,6 +502,7 @@ CREATE TABLE `adv_balance` (
   `current_spend` float DEFAULT '0',
   `current_imp` int unsigned DEFAULT '0',
   `current_cli` int unsigned DEFAULT '0',
+  `current_day` date DEFAULT NULL,
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`balance_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -326,8 +556,12 @@ CREATE TABLE `adv_campaign` (
   `iurl` text,
   `total_balance_id` int unsigned DEFAULT NULL,
   `daily_balance_id` int unsigned DEFAULT NULL,
+  `delivery_timezone` varchar(64) NOT NULL DEFAULT 'UTC',
+  `weekly_schedule` char(168) DEFAULT NULL,
+  `pacing_mode` enum('Fast','Even') NOT NULL DEFAULT 'Fast',
   `access_order` enum('White','Black','Inherit') DEFAULT 'Inherit',
   `active` enum('New','Pass2','Yes','No','Pause') DEFAULT 'New',
+  `api_version` bigint unsigned NOT NULL DEFAULT '1',
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`campaign_id`),
   KEY `adv_id` (`adv_id`),
@@ -356,6 +590,9 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_campaign_api_version` BEFORE UPDATE ON `adv_campaign` FOR EACH ROW BEGIN
+  SET NEW.api_version = OLD.api_version + 1;
+END */;;
 /*!50003 CREATE*/ /*!50003 TRIGGER `trig_campaign` AFTER UPDATE ON `adv_campaign` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
@@ -388,6 +625,7 @@ CREATE TABLE `adv_creative` (
   `content` text,
   `weight` float DEFAULT '0.5',
   `active` enum('Yes','No') DEFAULT 'Yes',
+  `api_version` bigint unsigned NOT NULL DEFAULT '1',
   `created` datetime DEFAULT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`creative_id`),
@@ -432,6 +670,9 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_creative_api_version` BEFORE UPDATE ON `adv_creative` FOR EACH ROW BEGIN
+  SET NEW.api_version = OLD.api_version + 1;
+END */;;
 /*!50003 CREATE*/ /*!50003 TRIGGER `trig_creative` AFTER UPDATE ON `adv_creative` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
@@ -508,12 +749,14 @@ CREATE TABLE `adv_item` (
   `item_click` text NOT NULL,
   `imp_url` text,
   `click_url` text,
-  `cost_type` enum('ROI','CPM','CPC','CPA') DEFAULT 'CPC',
+  `cost_type` enum('ROI','CPM','CPC','CPA') DEFAULT 'CPM',
   `cost` double DEFAULT NULL,
   `total_balance_id` int unsigned DEFAULT NULL,
   `daily_balance_id` int unsigned DEFAULT NULL,
   `startx` datetime DEFAULT NULL,
   `endx` datetime DEFAULT NULL,
+  `weekly_schedule` char(168) DEFAULT NULL,
+  `pacing_mode` enum('Fast','Even') NOT NULL DEFAULT 'Fast',
   `cpm_fc` smallint unsigned DEFAULT NULL,
   `cpm_length` int unsigned DEFAULT NULL,
   `cpm_throttle` int unsigned DEFAULT NULL,
@@ -532,6 +775,7 @@ CREATE TABLE `adv_item` (
   `qa_mime` enum('0','1','2','3','4') DEFAULT '4',
   `channel_order` enum('White','Black') DEFAULT 'Black',
   `active` enum('Prepare','New','Pass2','Yes','No','Pause') DEFAULT 'Prepare',
+  `api_version` bigint unsigned NOT NULL DEFAULT '1',
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`item_id`),
   KEY `campaign_id` (`campaign_id`),
@@ -560,6 +804,9 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_item_api_version` BEFORE UPDATE ON `adv_item` FOR EACH ROW BEGIN
+  SET NEW.api_version = OLD.api_version + 1;
+END */;;
 /*!50003 CREATE*/ /*!50003 TRIGGER `trig_item` AFTER UPDATE ON `adv_item` FOR EACH ROW BEGIN
   IF ((NEW.active <=> OLD.active) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
@@ -923,7 +1170,7 @@ CREATE TABLE `daily_log` (
   `clis` int unsigned DEFAULT NULL,
   `created` datetime NOT NULL,
   PRIMARY KEY (`log_id`),
-  KEY `daily` (`daily`)
+  UNIQUE KEY `daily` (`daily`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -1435,7 +1682,8 @@ CREATE TABLE `ledger_log` (
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   `created` datetime NOT NULL,
-  PRIMARY KEY (`log_id`)
+  PRIMARY KEY (`log_id`),
+  UNIQUE KEY `timely` (`timely`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -1757,6 +2005,825 @@ LOCK TABLES `mid_callback_retry` WRITE;
 /*!40000 ALTER TABLE `mid_callback_retry` ENABLE KEYS */;
 UNLOCK TABLES;
 
+--
+-- Table structure for table `measurement_touch`
+--
+
+DROP TABLE IF EXISTS `measurement_touch`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `measurement_touch` (
+  `touch_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `lineage_hash` binary(32) NOT NULL,
+  `touch_type` enum('view','click') NOT NULL,
+  `occurred_at` datetime(6) NOT NULL,
+  `adv_id` int unsigned NOT NULL,
+  `campaign_id` int unsigned NOT NULL,
+  `item_id` int unsigned NOT NULL,
+  `creative_id` int unsigned NOT NULL,
+  `pub_id` int unsigned NOT NULL DEFAULT '0',
+  `site_id` int unsigned NOT NULL DEFAULT '0',
+  `slot_id` int unsigned NOT NULL DEFAULT '0',
+  `auction_id` varchar(255) NOT NULL,
+  `auction_bid_id` varchar(255) NOT NULL,
+  `auction_imp_id` varchar(255) NOT NULL,
+  `privacy_mode` enum('contextual','personalized') NOT NULL DEFAULT 'contextual',
+  `privacy_reason` varchar(64) NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`touch_id`),
+  UNIQUE KEY `measurement_touch_lineage_type` (`lineage_hash`,`touch_type`),
+  KEY `measurement_touch_adv_occurred` (`adv_id`,`occurred_at`),
+  KEY `measurement_touch_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `measurement_action`
+--
+
+DROP TABLE IF EXISTS `measurement_action`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `measurement_action` (
+  `action_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `adv_id` int unsigned NOT NULL,
+  `campaign_id` int unsigned NOT NULL,
+  `item_id` int unsigned NOT NULL,
+  `creative_id` int unsigned NOT NULL,
+  `pub_id` int unsigned NOT NULL DEFAULT '0',
+  `site_id` int unsigned NOT NULL DEFAULT '0',
+  `slot_id` int unsigned NOT NULL DEFAULT '0',
+  `lineage_hash` binary(32) NOT NULL,
+  `token_hash` binary(32) NOT NULL,
+  `event_fingerprint` binary(32) NOT NULL,
+  `event_id` varchar(128) NOT NULL,
+  `event_type` enum('conversion','purchase','download','video_complete','custom') NOT NULL,
+  `action_name` varchar(65) DEFAULT NULL,
+  `occurred_at` datetime(6) NOT NULL,
+  `received_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `value_usd` decimal(20,6) DEFAULT NULL,
+  `currency` char(3) NOT NULL DEFAULT 'USD',
+  `attribution_type` enum('click','view','unattributed') NOT NULL,
+  `touch_at` datetime(6) DEFAULT NULL,
+  `late` tinyint(1) NOT NULL DEFAULT '0',
+  `privacy_mode` enum('contextual','personalized') NOT NULL DEFAULT 'contextual',
+  `privacy_reason` varchar(64) NOT NULL,
+  `action_pseudonym` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`action_id`),
+  UNIQUE KEY `measurement_action_adv_event` (`adv_id`,`event_id`),
+  KEY `measurement_action_report` (`adv_id`,`occurred_at`,`event_type`,`attribution_type`),
+  KEY `measurement_action_lineage` (`lineage_hash`,`occurred_at`),
+  KEY `measurement_action_pseudonym` (`action_pseudonym`),
+  KEY `measurement_action_expiry` (`expires_at`),
+  CONSTRAINT `measurement_action_currency_chk` CHECK ((`currency` = _utf8mb4'USD')),
+  CONSTRAINT `measurement_action_purchase_value_chk` CHECK (((`event_type` = _utf8mb4'purchase') AND (`value_usd` > 0)) OR ((`event_type` <> _utf8mb4'purchase') AND (`value_usd` IS NULL)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- R02 reporting facts. These rows are derived from immutable win/loss facts
+-- and are not an accounting or delivery-control authority.
+--
+
+DROP TABLE IF EXISTS `report_delivery`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `report_delivery` (
+  `report_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `timely` datetime NOT NULL,
+  `demand_source` enum('Local','Fallback','Always','MiddlemanUnknown') NOT NULL,
+  `adv_id` int unsigned NOT NULL DEFAULT '0',
+  `campaign_id` int unsigned NOT NULL DEFAULT '0',
+  `item_id` int unsigned NOT NULL DEFAULT '0',
+  `creative_id` int unsigned NOT NULL DEFAULT '0',
+  `bidder_id` int unsigned NOT NULL DEFAULT '0',
+  `group_id` int unsigned NOT NULL DEFAULT '0',
+  `route_bidder_id` int unsigned NOT NULL DEFAULT '0',
+  `target_id` int unsigned NOT NULL DEFAULT '0',
+  `pub_id` int unsigned NOT NULL DEFAULT '0',
+  `site_id` int unsigned NOT NULL DEFAULT '0',
+  `slot_id` int unsigned NOT NULL DEFAULT '0',
+  `country_id` int unsigned NOT NULL DEFAULT '0',
+  `state_id` int unsigned NOT NULL DEFAULT '0',
+  `device_os` tinyint unsigned NOT NULL DEFAULT '0',
+  `device_type` tinyint unsigned NOT NULL DEFAULT '0',
+  `device_key` smallint unsigned GENERATED ALWAYS AS (((`device_os` * 256) + `device_type`)) STORED,
+  `inventory_environment` enum('Unknown','Web','App','CTV','DOOH','Other') NOT NULL DEFAULT 'Unknown',
+  `integration_mode` enum('Unknown','ADX','BrowserTag','SDK','ServerAPI') NOT NULL DEFAULT 'Unknown',
+  `media_intent` enum('Unknown','Banner','Video','Native','Audio','Multi') NOT NULL DEFAULT 'Unknown',
+  `placement` enum('Unknown','AboveFold','InFeed','Interstitial','Rewarded','Sticky','Popup','Other') NOT NULL DEFAULT 'Unknown',
+  `render_context` enum('Unknown','WebPage','InApp','Player','Fullscreen','Other') NOT NULL DEFAULT 'Unknown',
+  `refresh_mode` enum('Unknown','None','Timed','Event') NOT NULL DEFAULT 'Unknown',
+  `refresh_seconds` smallint unsigned NOT NULL DEFAULT '0',
+  `ad_density` enum('Unknown','Low','Standard','High') NOT NULL DEFAULT 'Unknown',
+  `traffic_quality` enum('Unknown','Reviewed','Sampled','Suspicious','Blocked') NOT NULL DEFAULT 'Unknown',
+  `source_quality` enum('Unknown','OwnedOperated','Partner','Network','Resale') NOT NULL DEFAULT 'Unknown',
+  `management_control` enum('Unknown','Publisher','Operator','Partner') NOT NULL DEFAULT 'Unknown',
+  `seller_type` enum('Unknown','Publisher','Intermediary') NOT NULL DEFAULT 'Unknown',
+  `seller_id` varchar(64) NOT NULL DEFAULT '',
+  `dimension_hash` binary(32) NOT NULL,
+  `wins` int unsigned NOT NULL DEFAULT '0',
+  `losses` int unsigned NOT NULL DEFAULT '0',
+  `imps` int unsigned NOT NULL DEFAULT '0',
+  `clis` int unsigned NOT NULL DEFAULT '0',
+  `spend_usd` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `revenue_usd` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `cost_usd` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `margin_usd` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `downstream_cpm_sum` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `returned_cpm_sum` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `callback_errors` int unsigned NOT NULL DEFAULT '0',
+  `accounting_version` varchar(32) NOT NULL DEFAULT 'usd-cpm-impression-v2',
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`report_id`),
+  UNIQUE KEY `report_delivery_interval_dimension` (`timely`,`dimension_hash`),
+  KEY `report_delivery_adv` (`adv_id`,`timely`),
+  KEY `report_delivery_pub` (`pub_id`,`timely`),
+  KEY `report_delivery_route` (`group_id`,`route_bidder_id`,`target_id`,`timely`),
+  KEY `report_delivery_geo_device` (`country_id`,`state_id`,`device_type`,`device_os`,`timely`),
+  CONSTRAINT `report_delivery_margin_chk` CHECK ((`margin_usd` >= 0)),
+  CONSTRAINT `report_delivery_currency_amounts_chk` CHECK (((`spend_usd` >= 0) AND (`revenue_usd` >= 0) AND (`cost_usd` >= 0))),
+  CONSTRAINT `report_delivery_refresh_chk` CHECK (((`refresh_mode` = _utf8mb4'Timed') AND (`refresh_seconds` BETWEEN 15 AND 3600)) OR ((`refresh_mode` <> _utf8mb4'Timed') AND (`refresh_seconds` = 0)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+DROP TABLE IF EXISTS `report_experiment_outcome`;
+DROP TABLE IF EXISTS `report_exposure`;
+DROP TABLE IF EXISTS `report_experiment_variant`;
+DROP TABLE IF EXISTS `report_experiment_audit`;
+DROP TABLE IF EXISTS `report_experiment`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `report_experiment` (
+  `experiment_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `owner_type` enum('Operator','Advertiser') NOT NULL,
+  `adv_id` int unsigned DEFAULT NULL,
+  `experiment_name` varchar(128) NOT NULL,
+  `experiment_version` int unsigned NOT NULL,
+  `status` enum('Draft','Running','Stopped','Completed') NOT NULL DEFAULT 'Draft',
+  `assignment_salt` char(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `primary_metric` varchar(64) NOT NULL,
+  `guardrail_metric` varchar(64) NOT NULL,
+  `retention_hours` int unsigned NOT NULL DEFAULT '2160',
+  `starts_at` datetime(6) NOT NULL,
+  `ends_at` datetime(6) DEFAULT NULL,
+  `stop_reason` varchar(500) DEFAULT NULL,
+  `created_by_uid` bigint unsigned NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`experiment_id`),
+  UNIQUE KEY `report_experiment_id_version` (`experiment_id`,`experiment_version`),
+  UNIQUE KEY `report_experiment_name_version` (`experiment_name`,`experiment_version`),
+  KEY `report_experiment_adv` (`adv_id`,`status`,`starts_at`),
+  CONSTRAINT `report_experiment_owner_chk` CHECK (((`owner_type` = _utf8mb4'Operator') AND (`adv_id` IS NULL)) OR ((`owner_type` = _utf8mb4'Advertiser') AND (`adv_id` IS NOT NULL))),
+  CONSTRAINT `report_experiment_retention_chk` CHECK (((`retention_hours` >= 24) AND (`retention_hours` <= 9600)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `report_experiment_variant` (
+  `experiment_id` bigint unsigned NOT NULL,
+  `experiment_version` int unsigned NOT NULL,
+  `variant_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `allocation_basis_points` smallint unsigned NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`experiment_id`,`experiment_version`,`variant_key`),
+  CONSTRAINT `report_experiment_variant_experiment_fk` FOREIGN KEY (`experiment_id`,`experiment_version`) REFERENCES `report_experiment` (`experiment_id`,`experiment_version`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `report_experiment_variant_allocation_chk` CHECK (((`allocation_basis_points` > 0) AND (`allocation_basis_points` <= 10000)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `report_exposure` (
+  `exposure_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `experiment_id` bigint unsigned NOT NULL,
+  `experiment_version` int unsigned NOT NULL,
+  `subject_hash` binary(32) NOT NULL,
+  `variant_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `exposed_at` datetime(6) NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`exposure_id`),
+  UNIQUE KEY `report_exposure_subject` (`experiment_id`,`experiment_version`,`subject_hash`),
+  KEY `report_exposure_variant_time` (`experiment_id`,`experiment_version`,`variant_key`,`exposed_at`),
+  KEY `report_exposure_expiry` (`expires_at`,`exposure_id`),
+  CONSTRAINT `report_exposure_variant_fk` FOREIGN KEY (`experiment_id`,`experiment_version`,`variant_key`) REFERENCES `report_experiment_variant` (`experiment_id`,`experiment_version`,`variant_key`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `report_experiment_outcome` (
+  `outcome_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `exposure_id` bigint unsigned NOT NULL,
+  `metric_name` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `metric_value` decimal(20,6) NOT NULL,
+  `idempotency_key` binary(32) NOT NULL,
+  `occurred_at` datetime(6) NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`outcome_id`),
+  UNIQUE KEY `report_experiment_outcome_idempotency` (`exposure_id`,`idempotency_key`),
+  KEY `report_experiment_outcome_metric_time` (`exposure_id`,`metric_name`,`occurred_at`),
+  CONSTRAINT `report_experiment_outcome_exposure_fk` FOREIGN KEY (`exposure_id`) REFERENCES `report_exposure` (`exposure_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `report_experiment_audit` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `experiment_id` bigint unsigned NOT NULL,
+  `experiment_version` int unsigned NOT NULL,
+  `actor_uid` bigint unsigned NOT NULL,
+  `event` enum('Created','Started','Stopped','Completed','SubjectErased') NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`audit_id`),
+  KEY `report_experiment_audit_time` (`experiment_id`,`experiment_version`,`created_at`),
+  CONSTRAINT `report_experiment_audit_experiment_fk` FOREIGN KEY (`experiment_id`,`experiment_version`) REFERENCES `report_experiment` (`experiment_id`,`experiment_version`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+DELIMITER ;;
+CREATE TRIGGER `report_exposure_immutable_update` BEFORE UPDATE ON `report_exposure` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report exposures are immutable'; END ;;
+CREATE TRIGGER `report_experiment_outcome_immutable_update` BEFORE UPDATE ON `report_experiment_outcome` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment outcomes are immutable'; END ;;
+CREATE TRIGGER `report_experiment_audit_immutable_update` BEFORE UPDATE ON `report_experiment_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment audit records are immutable'; END ;;
+CREATE TRIGGER `report_experiment_audit_immutable_delete` BEFORE DELETE ON `report_experiment_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment audit records are immutable'; END ;;
+DELIMITER ;
+
+-- Table structure for traffic-quality rule, evidence, review, enforcement,
+-- billing-recommendation, aggregate, and audit state.
+--
+
+DROP TABLE IF EXISTS `quality_billing`;
+DROP TABLE IF EXISTS `quality_enforcement`;
+DROP TABLE IF EXISTS `quality_case_event`;
+DROP TABLE IF EXISTS `quality_case`;
+DROP TABLE IF EXISTS `quality_evidence`;
+DROP TABLE IF EXISTS `quality_decision`;
+DROP TABLE IF EXISTS `quality_counter`;
+DROP TABLE IF EXISTS `quality_audit`;
+DROP TABLE IF EXISTS `quality_rule`;
+
+CREATE TABLE `quality_rule` (
+  `rule_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `rule_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `rule_version` int unsigned NOT NULL,
+  `signal_type` enum('Replay','ImpossibleSequence','InvalidOriginApp','MalformedIdentity','AbnormalRate','AbnormalCTR','Automation','PartnerPolicy') NOT NULL,
+  `rule_action` enum('Observe','Flag','Throttle','Reject','Quarantine') NOT NULL,
+  `rollout_mode` enum('Draft','Observe','Canary','Active','Disabled') NOT NULL DEFAULT 'Draft',
+  `scope_type` enum('Global','Advertiser','Publisher','Partner') NOT NULL,
+  `scope_id` bigint unsigned NOT NULL DEFAULT '0',
+  `threshold_value` decimal(20,6) NOT NULL,
+  `window_seconds` int unsigned NOT NULL,
+  `canary_basis_points` smallint unsigned NOT NULL DEFAULT '0',
+  `reason_code` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `evidence_retention_hours` smallint unsigned NOT NULL,
+  `aggregate_retention_days` smallint unsigned NOT NULL,
+  `false_positive_limit_bps` smallint unsigned NOT NULL DEFAULT '0',
+  `supersedes_rule_id` bigint unsigned DEFAULT NULL,
+  `created_by` varchar(128) NOT NULL,
+  `activated_by` varchar(128) DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `activated_at` datetime(6) DEFAULT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`rule_id`),
+  UNIQUE KEY `quality_rule_version` (`rule_key`,`rule_version`),
+  KEY `quality_rule_runtime` (`rollout_mode`,`signal_type`,`scope_type`,`scope_id`),
+  KEY `quality_rule_supersedes` (`supersedes_rule_id`),
+  CONSTRAINT `quality_rule_supersedes_fk` FOREIGN KEY (`supersedes_rule_id`) REFERENCES `quality_rule` (`rule_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `quality_rule_scope_chk` CHECK (((`scope_type` = _utf8mb4'Global' AND `scope_id` = 0) OR (`scope_type` <> _utf8mb4'Global' AND `scope_id` > 0))),
+  CONSTRAINT `quality_rule_threshold_chk` CHECK ((`threshold_value` >= 0 AND `threshold_value` <= 1000000000)),
+  CONSTRAINT `quality_rule_window_chk` CHECK ((`window_seconds` BETWEEN 1 AND 2592000)),
+  CONSTRAINT `quality_rule_canary_chk` CHECK (((`rollout_mode` = _utf8mb4'Canary' AND `canary_basis_points` BETWEEN 1 AND 10000) OR (`rollout_mode` <> _utf8mb4'Canary' AND `canary_basis_points` = 0))),
+  CONSTRAINT `quality_rule_evidence_retention_chk` CHECK ((`evidence_retention_hours` BETWEEN 1 AND 720)),
+  CONSTRAINT `quality_rule_aggregate_retention_chk` CHECK ((`aggregate_retention_days` BETWEEN 365 AND 2555)),
+  CONSTRAINT `quality_rule_false_positive_chk` CHECK ((`false_positive_limit_bps` <= 10000))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_decision` (
+  `decision_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `rule_id` bigint unsigned NOT NULL,
+  `rule_key` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `rule_version` int unsigned NOT NULL,
+  `signal_type` enum('Replay','ImpossibleSequence','InvalidOriginApp','MalformedIdentity','AbnormalRate','AbnormalCTR','Automation','PartnerPolicy') NOT NULL,
+  `configured_action` enum('Observe','Flag','Throttle','Reject','Quarantine') NOT NULL,
+  `applied_action` enum('Observe','Flag','Throttle','Reject','Quarantine') NOT NULL,
+  `rule_mode` enum('Observe','Canary','Active') NOT NULL,
+  `scope_type` enum('Advertiser','Publisher','Partner') NOT NULL,
+  `scope_id` bigint unsigned NOT NULL,
+  `event_digest` binary(32) NOT NULL,
+  `partner_digest` binary(32) DEFAULT NULL,
+  `observed_value` decimal(20,6) NOT NULL,
+  `threshold_value` decimal(20,6) NOT NULL,
+  `matched` enum('No','Yes') NOT NULL,
+  `canary_selected` enum('No','Yes') NOT NULL,
+  `evidence_state` enum('Complete','Partial','Missing') NOT NULL,
+  `reason_code` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `billing_disposition` enum('Observe','Exclude','Hold','Reverse') NOT NULL DEFAULT 'Observe',
+  `observed_at` datetime(6) NOT NULL,
+  `evidence_expires_at` datetime(6) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`decision_id`),
+  UNIQUE KEY `quality_decision_once` (`rule_id`,`event_digest`),
+  KEY `quality_decision_scope` (`scope_type`,`scope_id`,`observed_at`,`decision_id`),
+  KEY `quality_decision_rule` (`rule_id`,`observed_at`),
+  KEY `quality_decision_evidence_expiry` (`evidence_expires_at`),
+  CONSTRAINT `quality_decision_rule_fk` FOREIGN KEY (`rule_id`) REFERENCES `quality_rule` (`rule_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `quality_decision_scope_chk` CHECK ((`scope_id` > 0)),
+  CONSTRAINT `quality_decision_values_chk` CHECK ((`observed_value` >= 0 AND `threshold_value` >= 0)),
+  CONSTRAINT `quality_decision_evidence_chk` CHECK ((`evidence_state` = _utf8mb4'Complete' OR (`applied_action` = _utf8mb4'Observe' AND `billing_disposition` = _utf8mb4'Observe'))),
+  CONSTRAINT `quality_decision_action_chk` CHECK (((`applied_action` = `configured_action`) OR (`applied_action` = _utf8mb4'Observe'))),
+  CONSTRAINT `quality_decision_billing_chk` CHECK (((`applied_action` = _utf8mb4'Reject' AND `billing_disposition` = _utf8mb4'Exclude') OR (`applied_action` = _utf8mb4'Quarantine' AND `billing_disposition` = _utf8mb4'Hold') OR (`applied_action` NOT IN (_utf8mb4'Reject',_utf8mb4'Quarantine') AND `billing_disposition` = _utf8mb4'Observe')))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_evidence` (
+  `evidence_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `decision_id` bigint unsigned NOT NULL,
+  `event_digest` binary(32) NOT NULL,
+  `safe_summary` varchar(255) NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`evidence_id`),
+  UNIQUE KEY `quality_evidence_decision` (`decision_id`),
+  KEY `quality_evidence_expiry` (`expires_at`),
+  CONSTRAINT `quality_evidence_decision_fk` FOREIGN KEY (`decision_id`) REFERENCES `quality_decision` (`decision_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_case` (
+  `case_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `decision_id` bigint unsigned NOT NULL,
+  `scope_type` enum('Advertiser','Publisher','Partner') NOT NULL,
+  `scope_id` bigint unsigned NOT NULL,
+  `status` enum('Open','ValidTraffic','InvalidTraffic','Appealed','AppealUpheld','AppealDenied') NOT NULL DEFAULT 'Open',
+  `opened_by` varchar(128) NOT NULL,
+  `resolved_by` varchar(128) DEFAULT NULL,
+  `version` int unsigned NOT NULL DEFAULT '1',
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`case_id`),
+  UNIQUE KEY `quality_case_decision` (`decision_id`),
+  KEY `quality_case_scope` (`scope_type`,`scope_id`,`status`,`case_id`),
+  CONSTRAINT `quality_case_decision_fk` FOREIGN KEY (`decision_id`) REFERENCES `quality_decision` (`decision_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `quality_case_scope_chk` CHECK ((`scope_id` > 0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_case_event` (
+  `case_event_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `case_id` bigint unsigned NOT NULL,
+  `event_name` enum('Opened','ResolvedValid','ResolvedInvalid','Appealed','AppealUpheld','AppealDenied') NOT NULL,
+  `actor_role` enum('admin','adv','pub','agent','analyst','service') NOT NULL,
+  `actor_id` varchar(128) NOT NULL,
+  `prior_status` enum('Open','ValidTraffic','InvalidTraffic','Appealed','AppealUpheld','AppealDenied') DEFAULT NULL,
+  `new_status` enum('Open','ValidTraffic','InvalidTraffic','Appealed','AppealUpheld','AppealDenied') NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`case_event_id`),
+  KEY `quality_case_event_case` (`case_id`,`created_at`,`case_event_id`),
+  CONSTRAINT `quality_case_event_case_fk` FOREIGN KEY (`case_id`) REFERENCES `quality_case` (`case_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_enforcement` (
+  `enforcement_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `rule_id` bigint unsigned NOT NULL,
+  `decision_id` bigint unsigned NOT NULL,
+  `scope_type` enum('Advertiser','Publisher','Partner') NOT NULL,
+  `scope_id` bigint unsigned NOT NULL,
+  `enforcement_action` enum('Throttle','Reject','Quarantine') NOT NULL,
+  `state` enum('Canary','Active','RolledBack','Expired') NOT NULL,
+  `canary_basis_points` smallint unsigned NOT NULL DEFAULT '0',
+  `created_by` varchar(128) NOT NULL,
+  `rolled_back_by` varchar(128) DEFAULT NULL,
+  `rollback_reason` varchar(500) DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `expires_at` datetime(6) NOT NULL,
+  `rolled_back_at` datetime(6) DEFAULT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`enforcement_id`),
+  KEY `quality_enforcement_runtime` (`scope_type`,`scope_id`,`state`,`expires_at`),
+  KEY `quality_enforcement_rule` (`rule_id`,`state`),
+  CONSTRAINT `quality_enforcement_rule_fk` FOREIGN KEY (`rule_id`) REFERENCES `quality_rule` (`rule_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `quality_enforcement_decision_fk` FOREIGN KEY (`decision_id`) REFERENCES `quality_decision` (`decision_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `quality_enforcement_scope_chk` CHECK ((`scope_id` > 0)),
+  CONSTRAINT `quality_enforcement_canary_chk` CHECK (((`state` = _utf8mb4'Canary' AND `canary_basis_points` BETWEEN 1 AND 9999) OR (`state` = _utf8mb4'Active' AND `canary_basis_points` IN (0,10000)) OR (`state` IN (_utf8mb4'RolledBack',_utf8mb4'Expired') AND `canary_basis_points` <= 10000))),
+  CONSTRAINT `quality_enforcement_expiry_chk` CHECK ((`expires_at` > `created_at`))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_billing` (
+  `billing_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `decision_id` bigint unsigned NOT NULL,
+  `statement_id` bigint unsigned NOT NULL,
+  `billable_digest` binary(32) NOT NULL,
+  `accounting_version` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `disposition` enum('Observe','Exclude','Hold','Reverse') NOT NULL,
+  `state` enum('Recommended','Approved','Rejected','Applied') NOT NULL DEFAULT 'Recommended',
+  `recommended_by` varchar(128) NOT NULL,
+  `approved_by` varchar(128) DEFAULT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`billing_id`),
+  UNIQUE KEY `quality_billing_decision_statement` (`decision_id`,`statement_id`),
+  KEY `quality_billing_statement` (`statement_id`,`state`),
+  CONSTRAINT `quality_billing_decision_fk` FOREIGN KEY (`decision_id`) REFERENCES `quality_decision` (`decision_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_counter` (
+  `rule_id` bigint unsigned NOT NULL,
+  `hour_start` datetime NOT NULL,
+  `decisions` bigint unsigned NOT NULL DEFAULT '0',
+  `matched` bigint unsigned NOT NULL DEFAULT '0',
+  `enforced` bigint unsigned NOT NULL DEFAULT '0',
+  `valid_traffic` bigint unsigned NOT NULL DEFAULT '0',
+  `invalid_traffic` bigint unsigned NOT NULL DEFAULT '0',
+  `appeals` bigint unsigned NOT NULL DEFAULT '0',
+  `appeals_upheld` bigint unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`rule_id`,`hour_start`),
+  KEY `quality_counter_expiry` (`hour_start`),
+  CONSTRAINT `quality_counter_rule_fk` FOREIGN KEY (`rule_id`) REFERENCES `quality_rule` (`rule_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `quality_audit` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `event_name` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `actor_role` enum('admin','adv','pub','agent','analyst','service') NOT NULL,
+  `actor_id` varchar(128) NOT NULL,
+  `object_type` enum('Rule','Decision','Case','Enforcement','Billing','Retention') NOT NULL,
+  `object_id` bigint unsigned NOT NULL,
+  `scope_type` enum('Global','Advertiser','Publisher','Partner') NOT NULL,
+  `scope_id` bigint unsigned NOT NULL DEFAULT '0',
+  `prior_state` varchar(32) NOT NULL,
+  `new_state` varchar(32) NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`audit_id`),
+  KEY `quality_audit_object` (`object_type`,`object_id`,`created_at`),
+  KEY `quality_audit_scope` (`scope_type`,`scope_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DELIMITER ;;
+CREATE TRIGGER `quality_rule_versioned_update` BEFORE UPDATE ON `quality_rule` FOR EACH ROW
+BEGIN
+  IF NOT (NEW.rule_key <=> OLD.rule_key) OR NOT (NEW.rule_version <=> OLD.rule_version) OR
+     NOT (NEW.signal_type <=> OLD.signal_type) OR NOT (NEW.rule_action <=> OLD.rule_action) OR
+     NOT (NEW.scope_type <=> OLD.scope_type) OR NOT (NEW.scope_id <=> OLD.scope_id) OR
+     NOT (NEW.threshold_value <=> OLD.threshold_value) OR NOT (NEW.window_seconds <=> OLD.window_seconds) OR
+     NOT (NEW.reason_code <=> OLD.reason_code) OR NOT (NEW.evidence_retention_hours <=> OLD.evidence_retention_hours) OR
+     NOT (NEW.aggregate_retention_days <=> OLD.aggregate_retention_days) OR
+     NOT (NEW.false_positive_limit_bps <=> OLD.false_positive_limit_bps) OR
+     NOT (NEW.supersedes_rule_id <=> OLD.supersedes_rule_id) OR NOT (NEW.created_by <=> OLD.created_by) OR
+     NOT (NEW.created_at <=> OLD.created_at)
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality rule behavior requires a new version'; END IF;
+END ;;
+CREATE TRIGGER `quality_rule_immutable_delete` BEFORE DELETE ON `quality_rule` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality rule versions are immutable'; END ;;
+CREATE TRIGGER `quality_decision_immutable_update` BEFORE UPDATE ON `quality_decision` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality decisions are immutable'; END ;;
+CREATE TRIGGER `quality_decision_immutable_delete` BEFORE DELETE ON `quality_decision` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality decisions are immutable'; END ;;
+CREATE TRIGGER `quality_evidence_immutable_update` BEFORE UPDATE ON `quality_evidence` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality evidence is immutable'; END ;;
+CREATE TRIGGER `quality_evidence_retained_delete` BEFORE DELETE ON `quality_evidence` FOR EACH ROW
+BEGIN IF COALESCE(@aofei_quality_retention,0) <> 1 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality evidence deletion requires retention mode'; END IF; END ;;
+CREATE TRIGGER `quality_case_event_immutable_update` BEFORE UPDATE ON `quality_case_event` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality case events are immutable'; END ;;
+CREATE TRIGGER `quality_case_event_immutable_delete` BEFORE DELETE ON `quality_case_event` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality case events are immutable'; END ;;
+CREATE TRIGGER `quality_audit_immutable_update` BEFORE UPDATE ON `quality_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality audit records are immutable'; END ;;
+CREATE TRIGGER `quality_audit_immutable_delete` BEFORE DELETE ON `quality_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality audit records are immutable'; END ;;
+DELIMITER ;
+
+--
+-- Table structure for table `acct_contract`
+--
+
+DROP TABLE IF EXISTS `acct_contract`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `acct_contract` (
+  `contract_id` tinyint unsigned NOT NULL,
+  `unit_version` varchar(32) NOT NULL,
+  `currency` char(3) NOT NULL,
+  `effective_at` datetime NOT NULL,
+  `notes` varchar(255) NOT NULL,
+  PRIMARY KEY (`contract_id`),
+  CONSTRAINT `acct_contract_singleton_chk` CHECK ((`contract_id` = 1)),
+  CONSTRAINT `acct_contract_currency_chk` CHECK ((`currency` = _utf8mb4'USD'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `acct_contract` WRITE;
+/*!40000 ALTER TABLE `acct_contract` DISABLE KEYS */;
+INSERT INTO `acct_contract` VALUES (1,'usd-cpm-impression-v2','USD','2026-08-01 00:00:00','OpenRTB CPM divided by 1000 at reservation and billable-impression boundaries');
+/*!40000 ALTER TABLE `acct_contract` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `acct_statement`
+--
+
+DROP TABLE IF EXISTS `acct_statement`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `acct_statement` (
+  `statement_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `request_key` varchar(64) NOT NULL,
+  `party_type` enum('advertiser','publisher') NOT NULL,
+  `party_id` int unsigned NOT NULL,
+  `cadence` enum('daily','weekly','monthly') NOT NULL,
+  `period_start` date NOT NULL,
+  `period_end` date NOT NULL,
+  `currency` char(3) NOT NULL DEFAULT 'USD',
+  `source_amount` decimal(20,6) NOT NULL,
+  `adjustment_amount` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `total_amount` decimal(20,6) NOT NULL,
+  `status` enum('Draft','Held','Confirmed','Settled','Corrected') NOT NULL DEFAULT 'Draft',
+  `supersedes_id` bigint unsigned DEFAULT NULL,
+  `external_ref` varchar(72) DEFAULT NULL,
+  `created_by` varchar(128) NOT NULL,
+  `confirmed_by` varchar(128) DEFAULT NULL,
+  `settled_by` varchar(128) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`statement_id`),
+  UNIQUE KEY `request_key` (`request_key`),
+  KEY `party_period` (`party_type`,`party_id`,`period_start`,`period_end`),
+  KEY `status_period` (`status`,`period_end`),
+  KEY `supersedes_id` (`supersedes_id`),
+  CONSTRAINT `acct_statement_supersedes_fk` FOREIGN KEY (`supersedes_id`) REFERENCES `acct_statement` (`statement_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `acct_statement_currency_chk` CHECK ((`currency` = _utf8mb4'USD')),
+  CONSTRAINT `acct_statement_period_chk` CHECK ((`period_start` <= `period_end`)),
+  CONSTRAINT `acct_statement_total_chk` CHECK ((`total_amount` = (`source_amount` + `adjustment_amount`))),
+  CONSTRAINT `acct_statement_nonnegative_chk` CHECK ((`total_amount` >= 0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+ALTER TABLE `quality_billing`
+  ADD CONSTRAINT `quality_billing_statement_fk` FOREIGN KEY (`statement_id`) REFERENCES `acct_statement` (`statement_id`) ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+LOCK TABLES `acct_statement` WRITE;
+/*!40000 ALTER TABLE `acct_statement` DISABLE KEYS */;
+/*!40000 ALTER TABLE `acct_statement` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `acct_adjustment`
+--
+
+DROP TABLE IF EXISTS `acct_adjustment`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `acct_adjustment` (
+  `adjustment_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `statement_id` bigint unsigned NOT NULL,
+  `amount` decimal(20,6) NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_by` varchar(128) NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`adjustment_id`),
+  KEY `statement_id` (`statement_id`),
+  CONSTRAINT `acct_adjustment_statement_fk` FOREIGN KEY (`statement_id`) REFERENCES `acct_statement` (`statement_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `acct_adjustment_nonzero_chk` CHECK ((`amount` <> 0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `acct_adjustment` WRITE;
+/*!40000 ALTER TABLE `acct_adjustment` DISABLE KEYS */;
+/*!40000 ALTER TABLE `acct_adjustment` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `acct_audit`
+--
+
+DROP TABLE IF EXISTS `acct_audit`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `acct_audit` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `statement_id` bigint unsigned NOT NULL,
+  `actor` varchar(128) NOT NULL,
+  `event` varchar(32) NOT NULL,
+  `status_from` enum('Draft','Held','Confirmed','Settled','Corrected') DEFAULT NULL,
+  `status_to` enum('Draft','Held','Confirmed','Settled','Corrected') DEFAULT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`audit_id`),
+  KEY `statement_created` (`statement_id`,`created_at`),
+  CONSTRAINT `acct_audit_statement_fk` FOREIGN KEY (`statement_id`) REFERENCES `acct_statement` (`statement_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `acct_audit` WRITE;
+/*!40000 ALTER TABLE `acct_audit` DISABLE KEYS */;
+/*!40000 ALTER TABLE `acct_audit` ENABLE KEYS */;
+UNLOCK TABLES;
+
+DELIMITER ;;
+CREATE TRIGGER `acct_adjustment_immutable_update` BEFORE UPDATE ON `acct_adjustment` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting adjustments are immutable'; END ;;
+CREATE TRIGGER `acct_adjustment_immutable_delete` BEFORE DELETE ON `acct_adjustment` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting adjustments are immutable'; END ;;
+CREATE TRIGGER `acct_audit_immutable_update` BEFORE UPDATE ON `acct_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting audit records are immutable'; END ;;
+CREATE TRIGGER `acct_audit_immutable_delete` BEFORE DELETE ON `acct_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting audit records are immutable'; END ;;
+DELIMITER ;
+
+--
+-- Hosted/tokenized funding and payout state. These tables contain opaque
+-- provider identifiers and sanitized facts only; no card or bank credentials.
+--
+
+DROP TABLE IF EXISTS `hosted_audit`;
+DROP TABLE IF EXISTS `hosted_reconciliation`;
+DROP TABLE IF EXISTS `hosted_event`;
+DROP TABLE IF EXISTS `hosted_provider_object`;
+DROP TABLE IF EXISTS `hosted_operation`;
+DROP TABLE IF EXISTS `hosted_binding`;
+
+CREATE TABLE `hosted_binding` (
+  `binding_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `request_key` varchar(128) NOT NULL,
+  `provider` enum('stripe') NOT NULL,
+  `party_type` enum('advertiser','publisher') NOT NULL,
+  `party_id` int unsigned NOT NULL,
+  `binding_kind` enum('FundingCustomer','PayoutAccount') NOT NULL,
+  `provider_token` varchar(128) NOT NULL,
+  `country` char(2) DEFAULT NULL,
+  `status` enum('Proposed','Ready','Approved','Revoked') NOT NULL DEFAULT 'Proposed',
+  `provider_ready` tinyint(1) NOT NULL DEFAULT '0',
+  `version` int unsigned NOT NULL DEFAULT '1',
+  `created_by` varchar(128) NOT NULL,
+  `approved_by` varchar(128) DEFAULT NULL,
+  `revoked_by` varchar(128) DEFAULT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`binding_id`),
+  UNIQUE KEY `request_key` (`request_key`),
+  UNIQUE KEY `provider_token` (`provider`,`provider_token`),
+  KEY `party_kind_status` (`party_type`,`party_id`,`binding_kind`,`status`),
+  CONSTRAINT `hosted_binding_party_kind_chk` CHECK (((`party_type` = _utf8mb4'advertiser') AND (`binding_kind` = _utf8mb4'FundingCustomer')) OR ((`party_type` = _utf8mb4'publisher') AND (`binding_kind` = _utf8mb4'PayoutAccount'))),
+  CONSTRAINT `hosted_binding_country_chk` CHECK (((`binding_kind` = _utf8mb4'FundingCustomer') AND (`country` IS NULL)) OR ((`binding_kind` = _utf8mb4'PayoutAccount') AND REGEXP_LIKE(`country`,_utf8mb4'^[A-Z]{2}$'))),
+  CONSTRAINT `hosted_binding_ready_chk` CHECK ((`provider_ready` IN (0,1))),
+  CONSTRAINT `hosted_binding_approval_chk` CHECK (((`status` IN (_utf8mb4'Approved',_utf8mb4'Revoked')) AND (`approved_by` IS NOT NULL)) OR ((`status` IN (_utf8mb4'Proposed',_utf8mb4'Ready')) AND (`approved_by` IS NULL)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosted_operation` (
+  `operation_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `request_key` varchar(128) NOT NULL,
+  `provider` enum('stripe') NOT NULL,
+  `operation_kind` enum('Funding','Payout','Refund') NOT NULL,
+  `parent_operation_id` bigint unsigned DEFAULT NULL,
+  `binding_id` bigint unsigned DEFAULT NULL,
+  `statement_id` bigint unsigned NOT NULL,
+  `party_type` enum('advertiser','publisher') NOT NULL,
+  `party_id` int unsigned NOT NULL,
+  `amount` decimal(20,6) NOT NULL,
+  `currency` char(3) NOT NULL DEFAULT 'USD',
+  `status` enum('Proposed','Approved','Submitting','Submitted','Canceling','Succeeded','Failed','Canceled','Disputed','Refunded','PartiallyRefunded') NOT NULL DEFAULT 'Proposed',
+  `current_object_token` varchar(128) DEFAULT NULL,
+  `version` int unsigned NOT NULL DEFAULT '1',
+  `created_by` varchar(128) NOT NULL,
+  `approved_by` varchar(128) DEFAULT NULL,
+  `executed_by` varchar(128) DEFAULT NULL,
+  `reason` varchar(500) NOT NULL,
+  `failure_code` varchar(64) DEFAULT NULL,
+  `attempt_count` tinyint unsigned NOT NULL DEFAULT '0',
+  `provider_event_created_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`operation_id`),
+  UNIQUE KEY `request_key` (`request_key`),
+  KEY `statement_kind` (`statement_id`,`operation_kind`),
+  KEY `party_status` (`party_type`,`party_id`,`status`,`created_at`),
+  KEY `current_object_token` (`provider`,`current_object_token`),
+  KEY `parent_operation_id` (`parent_operation_id`),
+  KEY `binding_id` (`binding_id`),
+  CONSTRAINT `hosted_operation_statement_fk` FOREIGN KEY (`statement_id`) REFERENCES `acct_statement` (`statement_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_operation_parent_fk` FOREIGN KEY (`parent_operation_id`) REFERENCES `hosted_operation` (`operation_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_operation_binding_fk` FOREIGN KEY (`binding_id`) REFERENCES `hosted_binding` (`binding_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_operation_party_kind_chk` CHECK (((`party_type` = _utf8mb4'advertiser') AND (`operation_kind` IN (_utf8mb4'Funding',_utf8mb4'Refund'))) OR ((`party_type` = _utf8mb4'publisher') AND (`operation_kind` = _utf8mb4'Payout'))),
+  CONSTRAINT `hosted_operation_parent_chk` CHECK (((`operation_kind` = _utf8mb4'Refund') AND (`parent_operation_id` IS NOT NULL)) OR ((`operation_kind` IN (_utf8mb4'Funding',_utf8mb4'Payout')) AND (`parent_operation_id` IS NULL))),
+  CONSTRAINT `hosted_operation_binding_chk` CHECK (((`operation_kind` = _utf8mb4'Refund') AND (`binding_id` IS NULL)) OR ((`operation_kind` IN (_utf8mb4'Funding',_utf8mb4'Payout')) AND (((`attempt_count` = 0) AND (`binding_id` IS NULL)) OR ((`attempt_count` > 0) AND (`binding_id` IS NOT NULL))))),
+  CONSTRAINT `hosted_operation_amount_chk` CHECK ((`amount` > 0)),
+  CONSTRAINT `hosted_operation_currency_chk` CHECK ((`currency` = _utf8mb4'USD')),
+  CONSTRAINT `hosted_operation_approval_chk` CHECK (((`status` = _utf8mb4'Proposed') AND (`approved_by` IS NULL)) OR (`status` = _utf8mb4'Canceled') OR ((`status` NOT IN (_utf8mb4'Proposed',_utf8mb4'Canceled')) AND (`approved_by` IS NOT NULL)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosted_provider_object` (
+  `object_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `provider` enum('stripe') NOT NULL,
+  `object_kind` enum('Customer','Checkout','PaymentIntent','Charge','PayoutAccount','Transfer','Refund','BalanceTransaction','Payout','Dispute') NOT NULL,
+  `provider_token` varchar(128) NOT NULL,
+  `operation_id` bigint unsigned DEFAULT NULL,
+  `binding_id` bigint unsigned DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`object_id`),
+  UNIQUE KEY `provider_token` (`provider`,`provider_token`),
+  KEY `operation_kind` (`operation_id`,`object_kind`),
+  KEY `binding_kind` (`binding_id`,`object_kind`),
+  CONSTRAINT `hosted_provider_object_operation_fk` FOREIGN KEY (`operation_id`) REFERENCES `hosted_operation` (`operation_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_provider_object_binding_fk` FOREIGN KEY (`binding_id`) REFERENCES `hosted_binding` (`binding_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_provider_object_owner_chk` CHECK (((`operation_id` IS NOT NULL) AND (`binding_id` IS NULL)) OR ((`operation_id` IS NULL) AND (`binding_id` IS NOT NULL)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosted_event` (
+  `event_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `provider` enum('stripe') NOT NULL,
+  `provider_event_token` varchar(128) NOT NULL,
+  `event_type` varchar(96) NOT NULL,
+  `object_kind` varchar(32) NOT NULL,
+  `provider_object_token` varchar(128) NOT NULL,
+  `operation_id` bigint unsigned DEFAULT NULL,
+  `binding_id` bigint unsigned DEFAULT NULL,
+  `provider_created_at` datetime NOT NULL,
+  `payload_sha256` binary(32) NOT NULL,
+  `disposition` enum('Applied','Ignored','Unresolved') NOT NULL,
+  `failure_code` varchar(64) DEFAULT NULL,
+  `received_at` datetime NOT NULL,
+  PRIMARY KEY (`event_id`),
+  UNIQUE KEY `provider_event_token` (`provider`,`provider_event_token`),
+  KEY `operation_created` (`operation_id`,`provider_created_at`),
+  KEY `binding_created` (`binding_id`,`provider_created_at`),
+  KEY `disposition_received` (`disposition`,`received_at`),
+  CONSTRAINT `hosted_event_operation_fk` FOREIGN KEY (`operation_id`) REFERENCES `hosted_operation` (`operation_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_event_binding_fk` FOREIGN KEY (`binding_id`) REFERENCES `hosted_binding` (`binding_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosted_reconciliation` (
+  `reconciliation_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `request_key` varchar(128) NOT NULL,
+  `operation_id` bigint unsigned DEFAULT NULL,
+  `binding_id` bigint unsigned DEFAULT NULL,
+  `event_id` bigint unsigned DEFAULT NULL,
+  `category` enum('Settlement','Fee','Refund','Dispute','Chargeback','PayoutFailure','ProviderMismatch','MissingEvent') NOT NULL,
+  `provider_object_token` varchar(128) DEFAULT NULL,
+  `currency` char(3) NOT NULL DEFAULT 'USD',
+  `amount` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `fee` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `net` decimal(20,6) NOT NULL DEFAULT '0.000000',
+  `status` enum('Matched','Unresolved','Resolved') NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `created_by` varchar(128) NOT NULL,
+  `resolved_by` varchar(128) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `resolved_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`reconciliation_id`),
+  UNIQUE KEY `request_key` (`request_key`),
+  KEY `operation_status` (`operation_id`,`status`),
+  KEY `binding_status` (`binding_id`,`status`),
+  KEY `status_created` (`status`,`created_at`),
+  CONSTRAINT `hosted_reconciliation_operation_fk` FOREIGN KEY (`operation_id`) REFERENCES `hosted_operation` (`operation_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_reconciliation_binding_fk` FOREIGN KEY (`binding_id`) REFERENCES `hosted_binding` (`binding_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_reconciliation_event_fk` FOREIGN KEY (`event_id`) REFERENCES `hosted_event` (`event_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `hosted_reconciliation_currency_chk` CHECK ((`currency` = _utf8mb4'USD')),
+  CONSTRAINT `hosted_reconciliation_fee_chk` CHECK ((`fee` >= 0)),
+  CONSTRAINT `hosted_reconciliation_resolution_chk` CHECK (((`status` = _utf8mb4'Resolved') AND (`resolved_by` IS NOT NULL) AND (`resolved_at` IS NOT NULL)) OR ((`status` IN (_utf8mb4'Matched',_utf8mb4'Unresolved')) AND (`resolved_by` IS NULL) AND (`resolved_at` IS NULL)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `hosted_audit` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `object_type` enum('Binding','Operation','Event','Reconciliation','SecretReadiness') NOT NULL,
+  `object_id` bigint unsigned NOT NULL,
+  `actor` varchar(128) NOT NULL,
+  `event` varchar(64) NOT NULL,
+  `prior_state` varchar(32) DEFAULT NULL,
+  `new_state` varchar(32) DEFAULT NULL,
+  `reason` varchar(500) NOT NULL,
+  `provider_token_sha256` binary(32) DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`audit_id`),
+  KEY `object_created` (`object_type`,`object_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DELIMITER ;;
+CREATE TRIGGER `hosted_binding_identity_immutable` BEFORE UPDATE ON `hosted_binding` FOR EACH ROW
+BEGIN IF OLD.request_key <> NEW.request_key OR OLD.provider <> NEW.provider OR OLD.party_type <> NEW.party_type OR OLD.party_id <> NEW.party_id OR OLD.binding_kind <> NEW.binding_kind OR OLD.provider_token <> NEW.provider_token OR NOT (OLD.country <=> NEW.country) OR OLD.created_by <> NEW.created_by OR OLD.reason <> NEW.reason OR OLD.created_at <> NEW.created_at THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted binding identity is immutable'; END IF; END ;;
+CREATE TRIGGER `hosted_binding_no_delete` BEFORE DELETE ON `hosted_binding` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted bindings cannot be deleted'; END ;;
+CREATE TRIGGER `hosted_operation_identity_immutable` BEFORE UPDATE ON `hosted_operation` FOR EACH ROW
+BEGIN IF OLD.request_key <> NEW.request_key OR OLD.provider <> NEW.provider OR OLD.operation_kind <> NEW.operation_kind OR NOT (OLD.parent_operation_id <=> NEW.parent_operation_id) OR (OLD.binding_id IS NOT NULL AND NOT (OLD.binding_id <=> NEW.binding_id)) OR (OLD.binding_id IS NULL AND NEW.binding_id IS NOT NULL AND NOT (OLD.status = _utf8mb4'Approved' AND NEW.status = _utf8mb4'Submitting' AND OLD.operation_kind IN (_utf8mb4'Funding',_utf8mb4'Payout'))) OR OLD.statement_id <> NEW.statement_id OR OLD.party_type <> NEW.party_type OR OLD.party_id <> NEW.party_id OR OLD.amount <> NEW.amount OR OLD.currency <> NEW.currency OR OLD.created_by <> NEW.created_by OR OLD.reason <> NEW.reason OR OLD.created_at <> NEW.created_at THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted operation financial identity is immutable'; END IF; END ;;
+CREATE TRIGGER `hosted_operation_no_delete` BEFORE DELETE ON `hosted_operation` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted operations cannot be deleted'; END ;;
+CREATE TRIGGER `hosted_provider_object_immutable_update` BEFORE UPDATE ON `hosted_provider_object` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted provider object mappings are immutable'; END ;;
+CREATE TRIGGER `hosted_provider_object_immutable_delete` BEFORE DELETE ON `hosted_provider_object` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted provider object mappings are immutable'; END ;;
+CREATE TRIGGER `hosted_event_immutable_update` BEFORE UPDATE ON `hosted_event` FOR EACH ROW
+BEGIN IF OLD.provider <> NEW.provider OR OLD.provider_event_token <> NEW.provider_event_token OR OLD.event_type <> NEW.event_type OR OLD.object_kind <> NEW.object_kind OR OLD.provider_object_token <> NEW.provider_object_token OR OLD.provider_created_at <> NEW.provider_created_at OR OLD.payload_sha256 <> NEW.payload_sha256 OR OLD.received_at <> NEW.received_at OR NOT (OLD.disposition = _utf8mb4'Unresolved' AND NEW.disposition IN (_utf8mb4'Applied',_utf8mb4'Ignored') AND ((OLD.operation_id <=> NEW.operation_id) OR (OLD.operation_id IS NULL AND NEW.operation_id IS NOT NULL)) AND ((OLD.binding_id <=> NEW.binding_id) OR (OLD.binding_id IS NULL AND NEW.binding_id IS NOT NULL))) THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted provider event identity is immutable'; END IF; END ;;
+CREATE TRIGGER `hosted_event_retained_delete` BEFORE DELETE ON `hosted_event` FOR EACH ROW
+BEGIN IF COALESCE(@aofei_hosted_event_retention,0) <> 1 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted provider event deletion requires retention mode'; END IF; END ;;
+CREATE TRIGGER `hosted_reconciliation_identity_immutable` BEFORE UPDATE ON `hosted_reconciliation` FOR EACH ROW
+BEGIN IF OLD.request_key <> NEW.request_key OR NOT (OLD.operation_id <=> NEW.operation_id) OR NOT (OLD.binding_id <=> NEW.binding_id) OR NOT (OLD.event_id <=> NEW.event_id) OR OLD.category <> NEW.category OR NOT (OLD.provider_object_token <=> NEW.provider_object_token) OR OLD.currency <> NEW.currency OR OLD.amount <> NEW.amount OR OLD.fee <> NEW.fee OR OLD.net <> NEW.net OR OLD.reason <> NEW.reason OR OLD.created_by <> NEW.created_by OR OLD.created_at <> NEW.created_at THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted reconciliation evidence is immutable'; END IF; END ;;
+CREATE TRIGGER `hosted_reconciliation_no_delete` BEFORE DELETE ON `hosted_reconciliation` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted reconciliation evidence cannot be deleted'; END ;;
+CREATE TRIGGER `hosted_audit_immutable_update` BEFORE UPDATE ON `hosted_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted payment audit records are immutable'; END ;;
+CREATE TRIGGER `hosted_audit_immutable_delete` BEFORE DELETE ON `hosted_audit` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='hosted payment audit records are immutable'; END ;;
+DELIMITER ;
+
+--
 -- Table structure for table `pay_alipay`
 --
 
@@ -1766,12 +2833,9 @@ DROP TABLE IF EXISTS `pay_alipay`;
 CREATE TABLE `pay_alipay` (
   `alipay_id` int unsigned NOT NULL AUTO_INCREMENT,
   `payment_id` int unsigned NOT NULL,
-  `sender_name` varchar(255) DEFAULT NULL,
-  `sender_id` varchar(255) DEFAULT NULL,
   `transaction_id` varchar(255) DEFAULT NULL,
   `status` enum('New','Authorized','Expired','Failed') DEFAULT 'New',
   `created` datetime DEFAULT NULL,
-  `ip` varchar(15) DEFAULT NULL,
   PRIMARY KEY (`alipay_id`),
   KEY `payment_id` (`payment_id`),
   CONSTRAINT `pay_alipay_ibfk_1` FOREIGN KEY (`payment_id`) REFERENCES `pay_payment` (`payment_id`) ON DELETE CASCADE ON UPDATE RESTRICT
@@ -1788,75 +2852,40 @@ LOCK TABLES `pay_alipay` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `pay_cc`
+-- Retained inactive compatibility metadata for historical hosted/manual
+-- payment references. No active application route writes these tables. Full
+-- card, routing, and account credentials are not part of the active schema.
 --
 
 DROP TABLE IF EXISTS `pay_cc`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `pay_cc` (
   `cc_id` int unsigned NOT NULL AUTO_INCREMENT,
   `payment_id` int unsigned NOT NULL,
-  `cardtype` enum('Visa','Master','AmExpress') DEFAULT 'Visa',
-  `cardnumber` varchar(255) NOT NULL,
-  `expire` date NOT NULL,
   `address_id` int unsigned NOT NULL,
   `transaction_id` varchar(255) DEFAULT NULL,
   `status` enum('New','Authorized','Expired','Failed') DEFAULT 'New',
   `created` datetime DEFAULT NULL,
-  `ip` varchar(15) DEFAULT NULL,
   PRIMARY KEY (`cc_id`),
   KEY `address_id` (`address_id`),
   KEY `payment_id` (`payment_id`),
   CONSTRAINT `pay_cc_ibfk_1` FOREIGN KEY (`address_id`) REFERENCES `add_address` (`address_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `pay_cc_ibfk_2` FOREIGN KEY (`payment_id`) REFERENCES `pay_payment` (`payment_id`) ON DELETE CASCADE ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `pay_cc`
---
-
-LOCK TABLES `pay_cc` WRITE;
-/*!40000 ALTER TABLE `pay_cc` DISABLE KEYS */;
-/*!40000 ALTER TABLE `pay_cc` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `pay_cheque`
---
 
 DROP TABLE IF EXISTS `pay_cheque`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `pay_cheque` (
   `cheque_id` int unsigned NOT NULL AUTO_INCREMENT,
   `payment_id` int unsigned NOT NULL,
-  `accountype` enum('Checking','Saving') DEFAULT 'Checking',
-  `bank` varchar(255) NOT NULL,
-  `routing_number` varchar(255) NOT NULL,
-  `account_number` varchar(255) NOT NULL,
   `address_id` int unsigned NOT NULL,
   `transaction_id` varchar(255) DEFAULT NULL,
   `status` enum('New','Authorized','Expired','Failed') DEFAULT 'New',
   `created` datetime DEFAULT NULL,
-  `ip` varchar(15) DEFAULT NULL,
   PRIMARY KEY (`cheque_id`),
   KEY `address_id` (`address_id`),
   KEY `payment_id` (`payment_id`),
   CONSTRAINT `pay_cheque_ibfk_1` FOREIGN KEY (`address_id`) REFERENCES `add_address` (`address_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `pay_cheque_ibfk_2` FOREIGN KEY (`payment_id`) REFERENCES `pay_payment` (`payment_id`) ON DELETE CASCADE ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `pay_cheque`
---
-
-LOCK TABLES `pay_cheque` WRITE;
-/*!40000 ALTER TABLE `pay_cheque` DISABLE KEYS */;
-/*!40000 ALTER TABLE `pay_cheque` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `pay_payment`
@@ -1871,7 +2900,6 @@ CREATE TABLE `pay_payment` (
   `adv_id` int unsigned NOT NULL,
   `amount` float NOT NULL,
   `status` enum('New','Confirmed','Completed','Failed') DEFAULT 'New',
-  `ip` varchar(15) DEFAULT NULL,
   `created` datetime NOT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`payment_id`),
@@ -1890,29 +2918,6 @@ LOCK TABLES `pay_payment` WRITE;
 /*!40000 ALTER TABLE `pay_payment` DISABLE KEYS */;
 /*!40000 ALTER TABLE `pay_payment` ENABLE KEYS */;
 UNLOCK TABLES;
-/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
-/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
-/*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8mb4 */ ;
-/*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
-/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
-/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
-DELIMITER ;;
-/*!50003 CREATE*/ /*!50003 TRIGGER `trig_payment` AFTER UPDATE ON `pay_payment` FOR EACH ROW BEGIN
-  DECLARE advID int unsigned;
-  DECLARE advBalance float;
-  IF (OLD.status="New" && NEW.status="Confirmed") THEN
-    SELECT adv.adv_id, adv.balance INTO advID, advBalance FROM pay_payment INNER JOIN adv USING (adv_id) WHERE payment_id=New.payment_id;
-    UPDATE adv SET balance=advBalance+NEW.amount WHERE adv_id=advID;
-    INSERT INTO his_payment (payment_id, amount, balance_new, balance_old, created) VALUES (NEW.payment_id, NEW.amount, advBalance+NEW.amount, advBalance, NOW());
-  END IF;
-END */;;
-DELIMITER ;
-/*!50003 SET sql_mode              = @saved_sql_mode */ ;
-/*!50003 SET character_set_client  = @saved_cs_client */ ;
-/*!50003 SET character_set_results = @saved_cs_results */ ;
-/*!50003 SET collation_connection  = @saved_col_connection */ ;
 
 --
 -- Table structure for table `pay_wechat`
@@ -1924,12 +2929,9 @@ DROP TABLE IF EXISTS `pay_wechat`;
 CREATE TABLE `pay_wechat` (
   `wechat_id` int unsigned NOT NULL AUTO_INCREMENT,
   `payment_id` int unsigned NOT NULL,
-  `sender_name` varchar(255) DEFAULT NULL,
-  `sender_id` varchar(255) DEFAULT NULL,
   `transaction_id` varchar(255) DEFAULT NULL,
   `status` enum('New','Authorized','Expired','Failed') DEFAULT 'New',
   `created` datetime DEFAULT NULL,
-  `ip` varchar(15) DEFAULT NULL,
   PRIMARY KEY (`wechat_id`),
   KEY `payment_id` (`payment_id`),
   CONSTRAINT `pay_wechat_ibfk_1` FOREIGN KEY (`payment_id`) REFERENCES `pay_payment` (`payment_id`) ON DELETE CASCADE ON UPDATE RESTRICT
@@ -1959,6 +2961,12 @@ CREATE TABLE `pub` (
   `firstname` varchar(255) DEFAULT NULL,
   `lastname` varchar(255) DEFAULT NULL,
   `domain` varchar(255) DEFAULT NULL,
+  `seller_id` varchar(64) NOT NULL DEFAULT '',
+  `seller_type` enum('Publisher','Intermediary') NOT NULL DEFAULT 'Publisher',
+  `seller_asi` varchar(255) NOT NULL DEFAULT '',
+  `seller_name` varchar(255) NOT NULL DEFAULT '',
+  `seller_domain` varchar(255) NOT NULL DEFAULT '',
+  `seller_authorized` enum('Yes','No') NOT NULL DEFAULT 'No',
   `daily_balance_id` int unsigned DEFAULT NULL,
   `total_balance_id` int unsigned DEFAULT NULL,
   `timezone_id` tinyint unsigned DEFAULT NULL,
@@ -1995,6 +3003,30 @@ UNLOCK TABLES;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
+/*!50003 CREATE*/ /*!50003 TRIGGER `trig_pub_seller_approval` BEFORE UPDATE ON `pub` FOR EACH ROW BEGIN
+  IF (OLD.seller_authorized = 'Yes' AND NEW.seller_authorized = 'Yes' AND
+      ((NEW.seller_id <=> OLD.seller_id) = 0 OR
+       (NEW.seller_type <=> OLD.seller_type) = 0 OR
+       (NEW.seller_asi <=> OLD.seller_asi) = 0 OR
+       (NEW.seller_name <=> OLD.seller_name) = 0 OR
+       (NEW.seller_domain <=> OLD.seller_domain) = 0)) THEN
+    SET NEW.seller_authorized = 'No';
+  END IF;
+END */;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION' */ ;
+DELIMITER ;;
 /*!50003 CREATE*/ /*!50003 TRIGGER `trig_pub` AFTER UPDATE ON `pub` FOR EACH ROW BEGIN
 
   IF ((NEW.active = "No") && (OLD.active = "Yes")) THEN
@@ -2004,6 +3036,15 @@ DELIMITER ;;
   IF ((NEW.access_order <=> OLD.access_order) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created) 
       VALUES (3, NEW.pub_id, 'bw', NOW());
+  END IF;
+  IF ((NEW.seller_id <=> OLD.seller_id) = 0 OR
+      (NEW.seller_type <=> OLD.seller_type) = 0 OR
+      (NEW.seller_asi <=> OLD.seller_asi) = 0 OR
+      (NEW.seller_name <=> OLD.seller_name) = 0 OR
+      (NEW.seller_domain <=> OLD.seller_domain) = 0 OR
+      (NEW.seller_authorized <=> OLD.seller_authorized) = 0) THEN
+    INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
+      VALUES (3, NEW.pub_id, 'supply', NOW());
   END IF;
 END */;;
 DELIMITER ;
@@ -2080,6 +3121,10 @@ CREATE TABLE `pub_site` (
   `site_url` varchar(255) NOT NULL,
   `foreign_id` varchar(255) DEFAULT NULL,
   `site_type` enum('App','Web') DEFAULT NULL,
+  `inventory_environment` enum('Unknown','Web','App','CTV','DOOH','Other') NOT NULL DEFAULT 'Unknown',
+  `canonical_identity` varchar(255) NOT NULL DEFAULT '',
+  `store_url` varchar(1024) NOT NULL DEFAULT '',
+  `integration_mode` enum('Unknown','ADX','BrowserTag','SDK','ServerAPI') NOT NULL DEFAULT 'Unknown',
   `description` text,
   `access_order` enum('White','Black','Inherit') DEFAULT 'Inherit',
   `active` enum('Yes','No','New') DEFAULT 'Yes',
@@ -2117,6 +3162,13 @@ DELIMITER ;;
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created) 
       VALUES (31, NEW.site_id, 'bw', NOW());
   END IF;
+  IF ((NEW.inventory_environment <=> OLD.inventory_environment) = 0 OR
+      (NEW.canonical_identity <=> OLD.canonical_identity) = 0 OR
+      (NEW.store_url <=> OLD.store_url) = 0 OR
+      (NEW.integration_mode <=> OLD.integration_mode) = 0) THEN
+    INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
+      VALUES (31, NEW.site_id, 'supply', NOW());
+  END IF;
 END */;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
@@ -2142,6 +3194,15 @@ CREATE TABLE `pub_slot` (
   `qa_language` enum('EN','ES','RU','DE','FR','JA','PT','TR','IT','FA','NL','PL','ZH','VI','ID','CS','KO','UK','AR','EL','FI','HE','SV','RO','HU','TH','DA','SK','BG','SR','NB','Other') DEFAULT 'EN',
   `qa_device` enum('0','1','2','3','4','5','6','7') DEFAULT '0',
   `qa_position` enum('0','1','2','3','4','5','6','7') DEFAULT '0',
+  `media_intent` enum('Unknown','Banner','Video','Native','Audio','Multi') NOT NULL DEFAULT 'Unknown',
+  `placement` enum('Unknown','AboveFold','InFeed','Interstitial','Rewarded','Sticky','Popup','Other') NOT NULL DEFAULT 'Unknown',
+  `render_context` enum('Unknown','WebPage','InApp','Player','Fullscreen','Other') NOT NULL DEFAULT 'Unknown',
+  `refresh_mode` enum('Unknown','None','Timed','Event') NOT NULL DEFAULT 'Unknown',
+  `refresh_seconds` smallint unsigned NOT NULL DEFAULT '0',
+  `ad_density` enum('Unknown','Low','Standard','High') NOT NULL DEFAULT 'Unknown',
+  `traffic_quality` enum('Unknown','Reviewed','Sampled','Suspicious','Blocked') NOT NULL DEFAULT 'Unknown',
+  `source_quality` enum('Unknown','OwnedOperated','Partner','Network','Resale') NOT NULL DEFAULT 'Unknown',
+  `management_control` enum('Unknown','Publisher','Operator','Partner') NOT NULL DEFAULT 'Unknown',
   `fl_creative` set('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18') DEFAULT '0',
   `fl_expnd` set('0','1','2','3','4','5') DEFAULT '0,1,2,3,4,5',
   `fl_mime` set('0','1','2','3','4') DEFAULT '0,1,2,3,4',
@@ -2151,6 +3212,7 @@ CREATE TABLE `pub_slot` (
   PRIMARY KEY (`slot_id`),
   KEY `site_id` (`site_id`),
   CONSTRAINT `pub_slot_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `pub_site` (`site_id`) ON DELETE RESTRICT ON UPDATE CASCADE
+  ,CONSTRAINT `pub_slot_refresh_chk` CHECK (((`refresh_mode` = _utf8mb4'Timed') AND (`refresh_seconds` BETWEEN 15 AND 3600)) OR ((`refresh_mode` <> _utf8mb4'Timed') AND (`refresh_seconds` = 0)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -2180,6 +3242,18 @@ DELIMITER ;;
   IF ((NEW.channel_order <=> OLD.channel_order) = 0) THEN
     INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created) 
       VALUES (32, NEW.slot_id, 'channel', NOW());
+  END IF;
+  IF ((NEW.media_intent <=> OLD.media_intent) = 0 OR
+      (NEW.placement <=> OLD.placement) = 0 OR
+      (NEW.render_context <=> OLD.render_context) = 0 OR
+      (NEW.refresh_mode <=> OLD.refresh_mode) = 0 OR
+      (NEW.refresh_seconds <=> OLD.refresh_seconds) = 0 OR
+      (NEW.ad_density <=> OLD.ad_density) = 0 OR
+      (NEW.traffic_quality <=> OLD.traffic_quality) = 0 OR
+      (NEW.source_quality <=> OLD.source_quality) = 0 OR
+      (NEW.management_control <=> OLD.management_control) = 0) THEN
+    INSERT INTO cron_halfhour (entitytype_id, entity_id, why, created)
+      VALUES (32, NEW.slot_id, 'supply', NOW());
   END IF;
 END */;;
 DELIMITER ;
@@ -2245,29 +3319,6 @@ LOCK TABLES `pub_white` WRITE;
 /*!40000 ALTER TABLE `pub_white` DISABLE KEYS */;
 /*!40000 ALTER TABLE `pub_white` ENABLE KEYS */;
 UNLOCK TABLES;
-
---
--- Temporary view structure for view `view_payment`
---
-
-DROP TABLE IF EXISTS `view_payment`;
-/*!50001 DROP VIEW IF EXISTS `view_payment`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `view_payment` AS SELECT 
- 1 AS `payment_id`,
- 1 AS `status`,
- 1 AS `entitytype_id`,
- 1 AS `entity_id`,
- 1 AS `adv_id`,
- 1 AS `amount`,
- 1 AS `ip`,
- 1 AS `created`,
- 1 AS `paytype_value`,
- 1 AS `sender_name`,
- 1 AS `sender_id`,
- 1 AS `transaction_id`*/;
-SET character_set_client = @saved_cs_client;
 
 --
 -- Dumping routines for database 'aofei'
@@ -2529,23 +3580,6 @@ DELIMITER ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 
---
--- Final view structure for view `view_payment`
---
-
-/*!50001 DROP VIEW IF EXISTS `view_payment`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 SQL SECURITY DEFINER */
-/*!50001 VIEW `view_payment` AS select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`p`.`payment_id` AS `entity_id`,`a`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,concat(`a`.`firstname`,' ',`a`.`lastname`) AS `sender_name`,`a`.`adv_id` AS `sender_id`,unix_timestamp(`p`.`created`) AS `transaction_id` from ((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `adv` `a` on((`p`.`adv_id` = `a`.`adv_id`))) where (`p`.`paytype_id` in (1,2)) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`cc`.`cc_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`a`.`contact` AS `sender_name`,`a`.`address_id` AS `sender_id`,`cc`.`transaction_id` AS `transaction_id` from (((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_cc` `cc` on(((`p`.`paytype_id` = 3) and (`p`.`payment_id` = `cc`.`payment_id`)))) join `add_address` `a` on((`cc`.`address_id` = `a`.`address_id`))) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`cq`.`cheque_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`a`.`contact` AS `sender_name`,`a`.`address_id` AS `sender_id`,`cq`.`transaction_id` AS `transaction_id` from (((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_cheque` `cq` on(((`p`.`paytype_id` = 4) and (`p`.`payment_id` = `cq`.`payment_id`)))) join `add_address` `a` on((`cq`.`address_id` = `a`.`address_id`))) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`w`.`wechat_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`w`.`sender_name` AS `sender_name`,`w`.`sender_id` AS `sender_id`,`w`.`transaction_id` AS `transaction_id` from ((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_wechat` `w` on(((`p`.`paytype_id` = 5) and (`p`.`payment_id` = `w`.`payment_id`)))) union select `p`.`payment_id` AS `payment_id`,`p`.`status` AS `status`,`p`.`paytype_id` AS `entitytype_id`,`a`.`alipay_id` AS `entity_id`,`p`.`adv_id` AS `adv_id`,`p`.`amount` AS `amount`,`p`.`ip` AS `ip`,`p`.`created` AS `created`,`d`.`paytype_value` AS `paytype_value`,`a`.`sender_name` AS `sender_name`,`a`.`sender_id` AS `sender_id`,`a`.`transaction_id` AS `transaction_id` from ((`pay_payment` `p` join `def_paytype` `d` on((`p`.`paytype_id` = `d`.`paytype_id`))) join `pay_alipay` `a` on(((`p`.`paytype_id` = 6) and (`p`.`payment_id` = `a`.`payment_id`)))) */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

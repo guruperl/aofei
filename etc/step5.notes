@@ -40,6 +40,57 @@ already has schema objects, so use `reset` before replaying the baseline.
 The baseline now includes empty middleman AdX tables for advertiser-owned bidder
 endpoints and route configuration. The M17 Summer portal can manage and approve
 bidder endpoint metadata, but runtime fanout remains disabled until M18+.
+It also includes D01 delivery fields: `adv_balance.current_day`, campaign
+delivery timezone/weekly schedule/pacing, and ad-group weekly schedule/pacing.
+The D02 baseline defaults new ad-group pricing to reviewed USD CPM, retains
+legacy enum labels only for migration readability, and requires explicit
+creative media type plus URL/structured-Native source data before active rows
+can compile into cache. Campaign `foreign_id` remains an external business
+identifier and is not treated as a creative URL.
+The A01 baseline adds the `usd-cpm-impression-v2` contract and empty immutable
+statement/adjustment/audit tables. It strips credential, sender-identity, and
+payment-IP fields from inactive compatibility tables, removes the legacy
+payment view and balance-crediting trigger, and leaves Summer funding/account-
+balance routes inactive.
+O02 makes `ledger_log.timely` and `daily_log.daily` unique. Renewable Redis
+leases remain the first singleton guard; these source identities are the
+durable database backstop if lease ownership becomes uncertain during a
+dependency partition.
+The R01 baseline adds empty `measurement_touch` and `measurement_action`
+tables. They store only signed auction lineage, contextual privacy metadata,
+domain-separated action pseudonyms, configured expiry, and analytical action
+facts; neither table is a source for CPM billing or delivery reservations.
+Existing deployments must use a reviewed migration; never replay this baseline
+over a populated database.
+The R02/P02 baseline adds empty interval reporting facts and controlled experiment
+definition, variant, pseudonymous exposure, immutable outcome, and audit
+tables. The report interval identity uses UTC time plus a deterministic SHA-256
+dimension hash while retaining every demand, route, supply taxonomy,
+authorized-seller, geo, and device field as an explicit queryable column. The
+generated device key remains available for lookup compatibility. Deploy the reviewed
+schema migration before the ledger writer or Summer reports, and use
+`scripts/aofei-reporting-benchmark.sh` plus the clean-room recovery drill for
+evidence. The baseline is not a production migration.
+The S02 baseline adds empty analyst, TOTP, recovery-code, session, exact-grant,
+and immutable security-audit tables. Identity remains disabled in the example
+configuration. A production HTTP database principal must not have `UPDATE` or
+`DELETE` on `auth_security_audit`; the bounded retention command uses a
+separate maintenance configuration and database principal. See
+`docs/identity-access-security.md` before enabling the feature.
+The I03 baseline adds empty external-API credential, idempotency, activation,
+and immutable audit tables plus monotonically updated API versions on campaign,
+item, and creative. The API is disabled in the example and requires a separate
+environment HMAC key, S02 identity, a reviewed populated-system migration, and
+the rollout in `docs/advertiser-management-api.md`.
+The A02 baseline adds six empty hosted-payment tables and twelve protective
+triggers. They retain exact A01 statement linkage, opaque Stripe object
+identifiers, the payout account's non-secret two-letter country code,
+the immutable provider binding selected for each attempted funding or payout,
+idempotent signed-event hashes, immutable reconciliation evidence, and
+redacted audit only. Full card/bank credentials, API keys, webhook secrets,
+signatures, and raw provider payloads remain outside the database. The feature
+is disabled by default; populated deployments require the additive migration
+and sandbox/rollback process in `docs/hosted-funding-payout.md`.
 
 For a one-shot reset with sample helpers:
 
@@ -80,6 +131,11 @@ Redis cache only:
 GOWORK=off AOFEI=$PWD/etc/aofei.local.json go run ./cmd/redis-cache -cache=redis
 ```
 
+D01 delivery snapshots expire for bidding after the configured maximum age
+(900 seconds by default). A production singleton timer should publish a full
+Redis or combined generation at least every 300 seconds; route-only refresh is
+not sufficient.
+
 NATS/spread publishing:
 
 ```sh
@@ -116,3 +172,7 @@ export SUMMER=$PWD/etc/summer.local.json
 Then run the relevant commands directly with `go run` or installed binaries.
 Historical service examples, migrations, runtime configurations, and database
 dumps are intentionally not retained in this repository.
+-- D03 activation is staged: publish routes through the singleton cache job,
+-- then run the read-only redis-cache -validate-middleman preflight from the
+-- canary service environment before enabling Fallback or Always gates. Routes
+-- remain Redis-only and credential values remain environment-managed.

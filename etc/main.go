@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
-	_ "github.com/go-sql-driver/mysql"
 )
 
 func main() {

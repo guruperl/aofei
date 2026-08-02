@@ -11,6 +11,19 @@
     "ConnectArray": ["mysql","aofei:aofei_pass@tcp(127.0.0.1:3307)/aofei?parseTime=true"],
     "Pubrole": "web",
     "Secret": "replace-summer-secret",
+    "Identity": {
+        "Enabled": false,
+        "KeyEnv": "GENELET_IDENTITY_KEY",
+        "Issuer": "W8M",
+        "SessionAbsoluteSeconds": 43200,
+        "SessionIdleSeconds": 1800,
+        "ReauthSeconds": 600,
+        "RecoveryTTLSeconds": 900,
+        "TOTPWindow": 1,
+        "RecoveryCodeCount": 10,
+        "RequiredTOTP": ["admin", "adv", "pub", "agent", "analyst"],
+        "AuditRetentionDays": 400
+    },
     "Chartags": {
         "e": {
             "ContentType": "text/html; charset='UTF-8'",
@@ -60,6 +73,7 @@
             "Surface": "gadv",
             "Duration": 86400,
             "MaxAge": 86400,
+	    "Permissions": ["account.security.*", "account.password.change", "api.credential.*", "adv.*", "ac.*", "address.*", "attrname.*", "balance.*", "bidder.propose", "bidder.read", "campaign.*", "chac.*", "creative.*", "item.*", "targetname.*", "report.advertiser.*", "report.marketplace.read", "report.marketplace.export", "report.middleman.read", "report.middleman.export", "quality.evidence.read", "quality.appeal.submit", "payment.read", "payment.funding.bind", "payment.checkout.propose", "payment.operation.execute", "payment.operation.cancel"],
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -68,6 +82,7 @@
                     "Sql": "SELECT p.adv_id, p.email AS a_email, a.company AS a_company, a.contact AS a_contact, p.timezone_id AS a_timezone_id, p.passwd FROM adv p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.active='Yes'",
                     "Sql_as": "proc_adv_as",
                     "Password_hash": "passwd",
+		    "Legacy_password_upgrade": true,
                     "OutPars": [ "adv_id", "a_email", "a_company", "a_contact", "a_timezone_id", "passwd" ],
                     "Credential": [ "email", "passwd", "direct", "gadv" ],
                     "ConditionURI" : [
@@ -86,6 +101,7 @@
             "Surface": "gpub",
             "Duration": 86400,
             "MaxAge": 86400,
+	    "Permissions": ["account.security.*", "account.password.change", "pub.*", "ac.*", "address.*", "balance.*", "chac.*", "item.*", "site.*", "slot.*", "weight.*", "supply.propose", "report.publisher.*", "report.marketplace.read", "report.marketplace.export", "quality.evidence.read", "quality.appeal.submit", "payment.read", "payment.payout.bind"],
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -94,6 +110,7 @@
                     "Sql": "SELECT p.pub_id, p.email AS p_email, a.company AS p_company, a.contact AS p_contact, p.timezone_id AS p_timezone_id, p.passwd FROM pub p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.active='Yes'",
                     "Sql_as": "proc_pub_as",
                     "Password_hash": "passwd",
+		    "Legacy_password_upgrade": true,
                     "OutPars": [ "pub_id", "p_email", "p_company", "p_contact", "p_timezone_id", "passwd" ],
                     "Credential": ["email", "passwd", "direct", "gpub"],
                     "ConditionURI" : [
@@ -112,6 +129,7 @@
             "Surface": "gagent",
             "Duration": 86400,
             "MaxAge": 86400,
+	    "Permissions": ["account.security.*", "adv.topics", "campaign.topics", "campaign.authen", "item.topics", "item.authen", "advertiser.read", "campaign.review", "creative.review", "quality.evidence.read"],
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -120,6 +138,7 @@
                     "Sql_as": "SELECT agent_id, login, level FROM agent WHERE login=? AND active='Yes'",
                     "Sql": "SELECT agent_id, login AS agent_login, level AS agent_level, passwd FROM agent WHERE login=? AND active='Yes'",
                     "Password_hash": "passwd",
+		    "Legacy_password_upgrade": true,
                     "OutPars": [ "agent_id", "agent_login", "agent_level", "passwd" ]
                 }
             }
@@ -134,6 +153,7 @@
             "Surface": "gadmin",
             "Duration": 86400,
             "MaxAge": 86400,
+	    "Permissions": ["*"],
             "Logout": "/",
             "Issuers": {
                 "db": {
@@ -141,7 +161,31 @@
                     "Credential": [ "login", "passwd", "direct", "gadmin" ],
                     "Sql": "SELECT admin_id, login AS admin_login, passwd FROM admin WHERE login=? AND active='Yes'",
                     "Password_hash": "passwd",
+		    "Legacy_password_upgrade": true,
                     "OutPars": [ "admin_id", "admin_login", "passwd" ]
+                }
+            }
+        },
+        "analyst": {
+            "Id_name": "analyst_id",
+            "Type_id": 1,
+            "Attributes": ["analyst_id", "analyst_login"],
+            "Secret": "replace-analyst-secret",
+            "Coding": "replace-analyst-coding",
+            "Surface": "ganalyst",
+            "Duration": 43200,
+            "MaxAge": 43200,
+            "Logout": "/",
+            "Permissions": ["account.security.*", "report.marketplace.read", "report.advertiser.read", "report.publisher.read", "experiment.read", "quality.evidence.read"],
+            "RequireGrant": true,
+            "Issuers": {
+                "db": {
+                    "Default": true,
+                    "Credential": ["login", "passwd", "direct", "ganalyst"],
+                    "Sql": "SELECT analyst_id, login AS analyst_login, passwd FROM analyst WHERE login=? AND active='Yes'",
+                    "Password_hash": "passwd",
+		    "Legacy_password_upgrade": true,
+                    "OutPars": ["analyst_id", "analyst_login", "passwd"]
                 }
             }
         }
