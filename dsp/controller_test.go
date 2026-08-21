@@ -724,6 +724,12 @@ func TestServeWinLossRequiresSignature(t *testing.T) {
 }
 
 func TestServeWinLossPublishesWinOnce(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
 	winloss := NewWinLoss(
 		StatusBid,
 		time.Now(),
@@ -749,17 +755,10 @@ func TestServeWinLossPublishesWinOnce(t *testing.T) {
 	q.Set("auction_currency", "USD")
 	u.RawQuery = q.Encode()
 
-	seen := false
 	published := 0
 	controller := &Controller{
-		C: &Config{TrackingSecret: "test-secret"},
-		trackingNotifyOnce: func(_ context.Context, _ Status, _ string, _ time.Duration) (bool, error) {
-			if seen {
-				return false, nil
-			}
-			seen = true
-			return true, nil
-		},
+		C:     &Config{TrackingSecret: "test-secret"},
+		Redis: client,
 		publishWinLossFunc: func(_ []byte) error {
 			published++
 			return nil
@@ -779,6 +778,12 @@ func TestServeWinLossPublishesWinOnce(t *testing.T) {
 }
 
 func TestServeWinLossMarkerUsesRemainingSignatureValidity(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
 	signedAt := time.Now().Add(-30 * time.Minute).Truncate(time.Second)
 	args := url.Values{
 		"auction_id":       []string{"auction"},
@@ -789,20 +794,57 @@ func TestServeWinLossMarkerUsesRemainingSignatureValidity(t *testing.T) {
 	}
 	args.Set(trackingSignatureTimestampParam, strconv.FormatInt(signedAt.Unix(), 10))
 	args.Set(trackingSignatureParam, signTrackingValues("test-secret", "/win", args))
-	var markerTTL time.Duration
 	controller := &Controller{
-		C: &Config{TrackingSecret: "test-secret", TrackingSignatureTTLSeconds: 3600},
-		trackingNotifyOnce: func(_ context.Context, _ Status, _ string, ttl time.Duration) (bool, error) {
-			markerTTL = ttl
-			return true, nil
-		},
+		C:                  &Config{TrackingSecret: "test-secret", TrackingSignatureTTLSeconds: 3600},
+		Redis:              client,
 		publishWinLossFunc: func([]byte) error { return nil },
 	}
 	if err := controller.serveStatus(context.Background(), StatusWin, time.Now(), args); err != nil {
 		t.Fatal(err)
 	}
+	markerTTL := server.TTL(trackingNotifyKey(StatusWin, "bid"))
 	if markerTTL < 29*time.Minute || markerTTL > 31*time.Minute {
 		t.Fatalf("marker TTL = %s, want remaining signature validity", markerTTL)
+	}
+}
+
+func TestServeWinLossSuppressesConcurrentProcessingClaim(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 2}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	args := trackingTestArgs("concurrent-win", true)
+	addTrackingSignature("test-secret", "/win", args)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var published atomic.Int32
+	controller := &Controller{
+		C:     &Config{TrackingSecret: "test-secret", TrackingSignatureTTLSeconds: 3600},
+		Redis: client,
+		publishWinLossFunc: func([]byte) error {
+			if published.Add(1) == 1 {
+				close(started)
+			}
+			<-release
+			return nil
+		},
+	}
+	ownerErr := make(chan error, 1)
+	go func() {
+		ownerErr <- controller.serveStatus(context.Background(), StatusWin, time.Now(), args)
+	}()
+	<-started
+	if err := controller.serveStatus(context.Background(), StatusWin, time.Now(), args); err != nil {
+		t.Fatalf("concurrent duplicate failed: %v", err)
+	}
+	close(release)
+	if err := <-ownerErr; err != nil {
+		t.Fatalf("claim owner failed: %v", err)
+	}
+	if got := published.Load(); got != 1 {
+		t.Fatalf("published = %d, want 1", got)
 	}
 }
 

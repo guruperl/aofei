@@ -377,6 +377,54 @@ func TestTrackingPublishRetryDoesNotDoubleReserveDelivery(t *testing.T) {
 	}
 }
 
+func TestLossPublishFailureReleasesClaimAndKeepsReservationRetryable(t *testing.T) {
+	controller, server := newDeliveryTestController(t)
+	controller.C.TrackingSecret = "test-secret"
+	controller.C.TrackingSignatureTTLSeconds = int(defaultTrackingSignatureTTL.Seconds())
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	block := deliveryTestRAdv(now)
+	block.Delivery.ItemTotal = match.DeliveryBalance{ID: 31, LimitImp: 1}
+	token, err := controller.reserveDelivery(context.Background(), block, now, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := signedDeliveryTrackingArgs("loss-publish-retry", "/loss", token)
+	attempts := 0
+	controller.publishWinLossFunc = func([]byte) error {
+		attempts++
+		if attempts == 1 {
+			return errors.New("publish failed")
+		}
+		return nil
+	}
+
+	if err := controller.serveStatus(context.Background(), StatusLoss, now, args); err == nil {
+		t.Fatal("first publication unexpectedly succeeded")
+	}
+	if status := server.HGet(deliveryReservationKey(token), "status"); status != "active" {
+		t.Fatalf("reservation after failed publication = %q, want active", status)
+	}
+	if server.Exists(trackingNotifyKey(StatusLoss, args.Get("auction_bid_id"))) {
+		t.Fatal("failed publication retained its replay claim")
+	}
+
+	if err := controller.serveStatus(context.Background(), StatusLoss, now, args); err != nil {
+		t.Fatal(err)
+	}
+	if server.Exists(deliveryReservationKey(token)) {
+		t.Fatal("successful loss publication did not release reservation")
+	}
+	if value, err := server.Get(trackingNotifyKey(StatusLoss, args.Get("auction_bid_id"))); err != nil || value != "done" {
+		t.Fatalf("completed replay marker = %q, %v; want done", value, err)
+	}
+	if err := controller.serveStatus(context.Background(), StatusLoss, now, args); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 {
+		t.Fatalf("publication attempts = %d, want failed attempt plus one successful retry", attempts)
+	}
+}
+
 func signedDeliveryTrackingArgs(id, path, token string) url.Values {
 	args := trackingTestArgs(id, true)
 	args.Set("delivery_reservation", token)

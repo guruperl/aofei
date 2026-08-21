@@ -100,6 +100,12 @@ increment the counter twice. A cap-state failure does not release an owned claim
 before publication. Successful publication still finalizes replay suppression.
 Duplicates preserve the normal `204` or click redirect response without
 repeating either side effect.
+Win/loss callbacks use the same owner-token lifecycle without cap mutation. In
+particular, a transient win/loss publication failure releases its processing
+claim, and a loss keeps the delivery reservation active until a retry publishes
+the loss durably. Only that successful publication attempts the idempotent
+reservation release; concurrent or completed duplicates publish nothing and do
+not touch the reservation.
 
 This path is deliberately fail-open: claim or cap Redis errors do not reject an
 otherwise valid `/imp` or `/clk`. Keyed events still attempt the idempotent cap

@@ -67,7 +67,6 @@ type Controller struct {
 	middlemanRouteLoad     func(context.Context) (*match.MiddlemanRouteCache, error)
 	middlemanRouteNow      func() time.Time
 	middlemanRouteWaitHook func()
-	trackingNotifyOnce     func(context.Context, Status, string, time.Duration) (bool, error)
 	trackingEventOnce      func(context.Context, Status, url.Values, time.Duration) (bool, error)
 	publishWinLossFunc     func([]byte) error
 	qualityService         *trafficquality.Service
@@ -1407,13 +1406,11 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	}
 
 	if status == StatusWin || status == StatusLoss {
-		first, err := self.setTrackingNotifyOnce(ctx, status, wl.AuctionBidID, signatureValidUntil)
-		if err != nil {
-			return err
-		}
-		if !first {
+		replayClaim = self.claimTrackingNotify(ctx, status, wl.AuctionBidID, signatureValidUntil)
+		if !replayClaim.records() {
 			return nil
 		}
+		releaseReplayClaim = replayClaim.owned()
 	}
 
 	bs, err := json.Marshal(wl)
@@ -1572,25 +1569,13 @@ func reportingDimensionsFromTracking(args url.Values) (*ReportingDimensions, err
 	}, nil
 }
 
-func (self *Controller) setTrackingNotifyOnce(ctx context.Context, status Status, auctionBidID string, validUntil time.Time) (bool, error) {
+func (self *Controller) claimTrackingNotify(ctx context.Context, status Status, auctionBidID string, validUntil time.Time) trackingEventClaim {
 	if auctionBidID == "" {
-		return true, nil
+		metricTrackingReplayUnkeyed.Add(1)
+		metricTrackingReplayFailOpen.Add(1)
+		return trackingEventClaim{outcome: trackingClaimUnkeyed}
 	}
-	remaining := time.Until(validUntil)
-	if remaining <= 0 {
-		return true, nil
-	}
-	if self != nil && self.trackingNotifyOnce != nil {
-		return self.trackingNotifyOnce(ctx, status, auctionBidID, remaining)
-	}
-	if self == nil || self.Redis == nil {
-		return true, nil
-	}
-	redisCtx, cancel := trackingRedisOperationContext(ctx)
-	defer cancel()
-	var result string
-	err := self.Redis.Do(redisCtx, radix.Cmd(&result, "SET", trackingNotifyKey(status, auctionBidID), "1", "EX", strconv.Itoa(ttlSeconds(remaining)), "NX"))
-	return result == "OK", err
+	return self.claimTrackingKey(ctx, trackingNotifyKey(status, auctionBidID), validUntil)
 }
 
 func trackingNotifyKey(status Status, auctionBidID string) string {
@@ -1634,6 +1619,15 @@ func (self *Controller) claimTrackingEvent(ctx context.Context, status Status, a
 			metricTrackingReplaySuppressed.Add(1)
 			return trackingEventClaim{key: key, outcome: trackingClaimDuplicate}
 		}
+		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
+	}
+	return self.claimTrackingKey(ctx, key, validUntil)
+}
+
+func (self *Controller) claimTrackingKey(ctx context.Context, key string, validUntil time.Time) trackingEventClaim {
+	remaining := time.Until(validUntil)
+	if remaining <= 0 {
+		metricTrackingReplayFailOpen.Add(1)
 		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
 	}
 	if self == nil || self.Redis == nil {
