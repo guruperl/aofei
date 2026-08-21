@@ -211,6 +211,12 @@ per-event cap marker even when replay-claim acquisition fails; unkeyed events
 publish without cap mutation. Redis operations run for at most two seconds on a
 context detached from HTTP cancellation.
 
+Each successful cap mutation rewrites that item to the version-2 `BothCap`
+wire format. Its UTC epoch-minute trailer is authoritative through the 90-day
+retention window; its leading legacy view saturates elapsed minutes rather than
+wrapping. New workers read both legacy-only and version-2 values, while old
+workers can read the version-2 prefix during a bounded rolling deployment.
+
 When `/clk` receives a valid HTTP(S) `redirect` query parameter and the normal
 packed tracking fields, it records the click best-effort and returns `302` to
 that target. The redirect URL must carry a valid HMAC `sig` generated from the

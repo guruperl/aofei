@@ -107,13 +107,17 @@ static lookups from memory.
   `middleman_timeout_ms` deadline and is detached from each waiting request.
   Canceling the initiating request therefore does not cancel the Redis load,
   fail other waiters, or prevent the loaded/error snapshot from being cached.
-- Frequency-cap refresh keeps the existing `bothcap:<user_id>` hash and binary
-  `BothCap` payload, but writes through a Redis optimistic transaction so
+- Frequency-cap refresh keeps the existing `bothcap:<user_id>` hash and writes
+  a version-2 `BothCap` payload through a Redis optimistic transaction so
   concurrent `/imp` and `/clk` callbacks do not lose increments. Counters
   saturate at 255, and each write ensures at least the configured
   `cap_state_ttl_seconds` remains without shortening a longer existing TTL.
-  The default 90-day idle retention exceeds the packed format's maximum active
-  cap period and bounds abandoned user keys without changing payload layout.
+  Version 2 stores start/last as UTC epoch minutes for the full 90-day default
+  idle retention. Its leading 12 bytes remain a saturated legacy view: new
+  readers accept either legacy-only or version-2 values, while old readers can
+  consume the prefix during a bounded mixed-version rollout. Once every writer
+  is upgraded, touched legacy values are naturally rewritten as version 2; no
+  key-space scan is required.
   Bulk compatibility writes use one Redis script to commit hash fields and add
   expiry only for new, persistent, or shorter-lived keys, so they preserve a
   longer TTL without exposing written data without its required expiry.

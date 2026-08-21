@@ -147,6 +147,13 @@ win/loss, middleman callback, and cap-mutation tracker payloads. Set
 86400 seconds. Set `cap_state_ttl_seconds` to bound idle Redis frequency-cap
 state; the default is 7776000 seconds (90 days), and refreshes never shorten a
 longer existing key TTL.
+Frequency-cap payload version 2 is rolling-compatible: upgrade readers/writers
+normally, monitor cap decode/refresh errors, and keep the rollout bounded to the
+callback TTL. New workers read legacy-only values and version-2 values; old
+workers read the saturated legacy prefix of version 2. Touched legacy entries
+upgrade in place, so do not scan or delete `bothcap:*`. During rollback, retain
+the version-2 values; the previous worker uses their prefix and a later upgraded
+worker recovers the authoritative UTC trailer.
 Set `delivery_cache_max_age_seconds` (default 900) as the hard maximum age for
 compiled budget/schedule policy, schedule full cache publication at least every
 one-third of it, and keep `delivery_reservation_ttl_seconds` long enough for the

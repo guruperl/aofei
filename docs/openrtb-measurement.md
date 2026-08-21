@@ -119,7 +119,11 @@ Valid signed capped events with no user suffix in `auction_bid_id` still enter
 the measurement log but skip Redis cap mutation. Cap counters saturate at the
 packed `uint8` maximum instead of wrapping. `bothcap:<user_id>` hashes receive
 the configured `cap_state_ttl_seconds` idle TTL, default 90 days; refreshes do
-not shorten a longer existing TTL.
+not shorten a longer existing TTL. New cap-state writes use a versioned UTC
+epoch-minute trailer that covers the retention window without the former
+45-day elapsed-minute wrap. A saturated legacy prefix keeps bounded rolling
+deployments readable in both directions, and new workers upgrade touched
+legacy-only fields without a bulk scan.
 
 Replay operations expose `aofei_tracking_replay_suppressed_total`,
 `aofei_tracking_replay_fail_open_total`,

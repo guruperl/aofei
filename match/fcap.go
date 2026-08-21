@@ -19,6 +19,11 @@ const (
 	bothCapRefreshRetries = 8
 	defaultBothCapTTL     = 90 * 24 * time.Hour
 	bothCapCleanupTimeout = 2 * time.Second
+	bothCapFormatMagic    = "BC"
+	bothCapFormatUTC      = byte(2)
+	fcapFormatUTC         = uint8(2)
+	maxUnixMinute         = int64((1<<63 - 1) / 60)
+	minUnixMinute         = int64((-1 << 63) / 60)
 )
 
 var ErrBothCapRefreshConflict = errors.New("bothcap refresh conflict")
@@ -30,61 +35,124 @@ var (
 	metricBothCapRefreshLastMS    = expvar.NewInt("aofei_bothcap_refresh_last_ms")
 )
 
-// Fcap is frequecy cap class
-// Total is total number of access since the starting time
-// StartYM and StartDHM are for starting time
-// Last is the minutes passed since the last time
+// Fcap is frequency-cap state. The exported calendar fields retain the legacy
+// diagnostic view. New state uses unexported UTC epoch-minute fields so the
+// public Go shape remains source compatible while the Redis wire format can
+// cover the configured retention without local-time or uint16 wrap.
 type Fcap struct {
-	Total    uint8  `json:"total"`
-	StartYM  uint8  `json:"start_ym"`
-	StartDHM uint16 `json:"start_dhm"`
-	Last     uint16 `json:"last"`
+	Total          uint8  `json:"total"`
+	StartYM        uint8  `json:"start_ym"`
+	StartDHM       uint16 `json:"start_dhm"`
+	Last           uint16 `json:"last"`
+	format         uint8
+	startUTCMinute int64
+	lastUTCMinute  int64
+}
+
+type legacyFcapWire struct {
+	Total    uint8
+	StartYM  uint8
+	StartDHM uint16
+	Last     uint16
+}
+
+type legacyBothCapWire struct {
+	Imp legacyFcapWire
+	Cli legacyFcapWire
 }
 
 // NewFcap creates a new Fcap instance from time
-// DO NOT exceeds 45 days!
 func NewFcap(when time.Time) Fcap {
-	years := when.Year() - FCAPStartYear
-	months := int(when.Month())
-	days := when.Day()
-	hours := when.Hour()
-	minutes := when.Minute()
-
-	return Fcap{
-		Total:    uint8(0),
-		StartYM:  uint8(years<<4 + months),
-		StartDHM: uint16(days<<11 + hours<<6 + minutes),
-		Last:     uint16(0),
+	when = when.UTC().Truncate(time.Minute)
+	fcap := Fcap{
+		format:         fcapFormatUTC,
+		startUTCMinute: when.Unix() / 60,
+		lastUTCMinute:  when.Unix() / 60,
 	}
+	fcap.setLegacyView(when, when)
+	return fcap
 }
 
 // Refresh adds one more count and update the last access time
 func (self *Fcap) Refresh(when time.Time) {
+	if self == nil {
+		return
+	}
+	self.ensureUTC()
 	if self.Total < ^uint8(0) {
 		self.Total++
 	}
-	(*self).Last = uint16(when.Sub(self.GetStart()) / time.Minute)
+	whenMinute := when.UTC().Unix() / 60
+	if whenMinute > self.lastUTCMinute {
+		self.lastUTCMinute = whenMinute
+	}
+	self.Last = saturatedMinutes(self.lastUTCMinute - self.startUTCMinute)
 }
 
 // GetStart gets starting time in time
 func (self Fcap) GetStart() time.Time {
-	return time.Date(FCAPStartYear+int(self.StartYM>>4), time.Month(15&self.StartYM), int(self.StartDHM>>11), int(31&(self.StartDHM>>6)), int(63&self.StartDHM), 0, 0, time.Local)
+	if self.format == fcapFormatUTC {
+		return time.Unix(self.startUTCMinute*60, 0).UTC()
+	}
+	return self.legacyStartUTC()
 }
 
 // GetLast gets last access time in time
 func (self Fcap) GetLast() time.Time {
-	s := self.GetStart()
-	return s.Add(time.Duration(self.Last) * time.Minute)
+	if self.format == fcapFormatUTC {
+		return time.Unix(self.lastUTCMinute*60, 0).UTC()
+	}
+	return self.legacyStartUTC().Add(time.Duration(self.Last) * time.Minute)
 }
 
 // SinceStart reports minutes passed since the start
 func (self Fcap) SinceStart(when time.Time) uint16 {
-	return uint16(when.Sub(self.GetStart()) / time.Minute)
+	return saturatedMinutes(elapsedMinutes(self.GetStart(), when))
 }
 
 // SinceLast reports minutes passed since the last access
 func (self Fcap) SinceLast(when time.Time) uint16 {
-	return uint16(when.Sub(self.GetLast()) / time.Minute)
+	return saturatedMinutes(elapsedMinutes(self.GetLast(), when))
+}
+
+func (self Fcap) legacyStartUTC() time.Time {
+	return time.Date(FCAPStartYear+int(self.StartYM>>4), time.Month(15&self.StartYM), int(self.StartDHM>>11), int(31&(self.StartDHM>>6)), int(63&self.StartDHM), 0, 0, time.UTC)
+}
+
+func (self *Fcap) ensureUTC() {
+	if self.format == fcapFormatUTC {
+		return
+	}
+	start := self.legacyStartUTC()
+	last := start.Add(time.Duration(self.Last) * time.Minute)
+	self.format = fcapFormatUTC
+	self.startUTCMinute = start.Unix() / 60
+	self.lastUTCMinute = last.Unix() / 60
+}
+
+func (self *Fcap) setLegacyView(start, last time.Time) {
+	start = start.UTC()
+	self.StartYM = uint8((start.Year()-FCAPStartYear)<<4 + int(start.Month()))
+	self.StartDHM = uint16(start.Day()<<11 + start.Hour()<<6 + start.Minute())
+	self.Last = saturatedMinutes(elapsedMinutes(start, last.UTC()))
+}
+
+func elapsedMinutes(start, when time.Time) int64 {
+	minutes := int64(when.UTC().Sub(start.UTC()) / time.Minute)
+	if minutes < 0 {
+		return 0
+	}
+	return minutes
+}
+
+func saturatedMinutes(minutes int64) uint16 {
+	if minutes <= 0 {
+		return 0
+	}
+	if minutes > int64(^uint16(0)) {
+		return ^uint16(0)
+	}
+	return uint16(minutes)
 }
 
 type BothCap struct {
@@ -102,9 +170,29 @@ func NewBothCap(when time.Time) BothCap {
 
 // Pack packs the BothCap into bytes
 func (self BothCap) Pack() ([]byte, error) {
+	self.Imp.ensureUTC()
+	self.Cli.ensureUTC()
+	self.Imp.setLegacyView(self.Imp.GetStart(), self.Imp.GetLast())
+	self.Cli.setLegacyView(self.Cli.GetStart(), self.Cli.GetLast())
 	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.LittleEndian, self)
-	return buf.Bytes(), err
+	legacy := legacyBothCapWire{
+		Imp: legacyFcapWire{Total: self.Imp.Total, StartYM: self.Imp.StartYM, StartDHM: self.Imp.StartDHM, Last: self.Imp.Last},
+		Cli: legacyFcapWire{Total: self.Cli.Total, StartYM: self.Cli.StartYM, StartDHM: self.Cli.StartDHM, Last: self.Cli.Last},
+	}
+	if err := binary.Write(buf, binary.LittleEndian, legacy); err != nil {
+		return nil, err
+	}
+	_, _ = buf.WriteString(bothCapFormatMagic)
+	_ = buf.WriteByte(bothCapFormatUTC)
+	for _, current := range []Fcap{self.Imp, self.Cli} {
+		if err := binary.Write(buf, binary.LittleEndian, current.startUTCMinute); err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.LittleEndian, current.lastUTCMinute); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
 }
 
 // PackString packs the BothCap into RawURL string
@@ -118,10 +206,54 @@ func (self BothCap) PackString() (string, error) {
 
 // UnpackBothCap unpacks the BothCap from bytes
 func UnpackBothCap(data []byte) (BothCap, error) {
-	buf := bytes.NewReader(data)
-	bothcap := BothCap{}
-	err := binary.Read(buf, binary.LittleEndian, &bothcap)
-	return bothcap, err
+	legacySize := binary.Size(legacyBothCapWire{})
+	if len(data) < legacySize {
+		return BothCap{}, fmt.Errorf("unsupported bothcap payload format")
+	}
+	var legacy legacyBothCapWire
+	if err := binary.Read(bytes.NewReader(data[:legacySize]), binary.LittleEndian, &legacy); err != nil {
+		return BothCap{}, err
+	}
+	legacyState := BothCap{
+		Imp: Fcap{Total: legacy.Imp.Total, StartYM: legacy.Imp.StartYM, StartDHM: legacy.Imp.StartDHM, Last: legacy.Imp.Last},
+		Cli: Fcap{Total: legacy.Cli.Total, StartYM: legacy.Cli.StartYM, StartDHM: legacy.Cli.StartDHM, Last: legacy.Cli.Last},
+	}
+	if len(data) == legacySize {
+		return legacyState, nil
+	}
+	if len(data) != legacySize+3+2*(8+8) || string(data[legacySize:legacySize+2]) != bothCapFormatMagic || data[legacySize+2] != bothCapFormatUTC {
+		return BothCap{}, fmt.Errorf("unsupported bothcap payload format")
+	}
+	buf := bytes.NewReader(data[legacySize+3:])
+	decode := func(total uint8) (Fcap, error) {
+		var startMinute, lastMinute int64
+		if err := binary.Read(buf, binary.LittleEndian, &startMinute); err != nil {
+			return Fcap{}, err
+		}
+		if err := binary.Read(buf, binary.LittleEndian, &lastMinute); err != nil {
+			return Fcap{}, err
+		}
+		if startMinute < minUnixMinute || startMinute > maxUnixMinute || lastMinute < minUnixMinute || lastMinute > maxUnixMinute {
+			return Fcap{}, fmt.Errorf("bothcap UTC minute is outside the supported range")
+		}
+		if lastMinute < startMinute {
+			return Fcap{}, fmt.Errorf("bothcap last minute precedes start minute")
+		}
+		start := time.Unix(startMinute*60, 0).UTC()
+		last := time.Unix(lastMinute*60, 0).UTC()
+		fcap := Fcap{Total: total, format: fcapFormatUTC, startUTCMinute: startMinute, lastUTCMinute: lastMinute}
+		fcap.setLegacyView(start, last)
+		return fcap, nil
+	}
+	imp, err := decode(legacy.Imp.Total)
+	if err != nil {
+		return BothCap{}, err
+	}
+	cli, err := decode(legacy.Cli.Total)
+	if err != nil {
+		return BothCap{}, err
+	}
+	return BothCap{Imp: imp, Cli: cli}, nil
 }
 
 // UnpackBothCapString unpacks the BothCap from RawURL string

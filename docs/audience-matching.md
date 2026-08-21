@@ -95,7 +95,9 @@ Scoped helpers delete one authorized identifier or an entire advertiser/marker
 set without listing its contents.
 
 Frequency-cap callbacks keep the existing `bothcap:<user_id>` hash shape and
-binary `match.BothCap` payload. `/imp` and `/clk` cap mutations require valid
+use the versioned binary `match.BothCap` payload. Version-2 values retain a
+legacy-readable prefix and add authoritative UTC epoch-minute start/last data;
+new readers also accept legacy-only values. `/imp` and `/clk` cap mutations require valid
 DSP tracking signatures and refresh Redis through `WATCH`/`MULTI`/`EXEC` with
 bounded retry to avoid lost updates under concurrent callbacks.
 

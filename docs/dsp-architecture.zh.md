@@ -67,7 +67,7 @@ type Cap struct {
     ClickPeriod  uint16 // 点击统计窗口（分钟）
 }
 
-// Redis动态记录
+// Redis 动态记录的兼容视图
 type Fcap struct {
     Total     uint8  // 总展示/点击次数
     StartYM   uint8  // 开始时间戳（年-月）
@@ -82,7 +82,11 @@ type BothCap struct {
 其中：  
 - `CapNumber`表示在`CapPeriod`（分钟）内允许的展示次数。  
 - `CapThrottle`表示两次连续展示的最小间隔。  
-- `Fcap`中的`Total`记录从开始时间（`StartYM`, `StartDHM`）起对用户的总展示次数；`Last`记录距离最后一次展示的分钟数。  
+- `Fcap`中的`Total`记录窗口内的总展示或点击次数。`StartYM`、`StartDHM`
+  和`Last`现在是兼容旧进程的饱和视图；Redis version 2 数据另带 UTC
+  epoch-minute 开始/最近时间，90 天保留期内不会因 16 位分钟数回绕。新进程可读
+  旧 12 字节数据，旧进程也可读取 version 2 的前 12 字节，因此可进行有界滚动
+  发布；被更新的旧值会自然升级，无需扫描全部用户键。
 
 频次控制数据通过Redis读写。  
 

@@ -362,9 +362,13 @@ The multiple-cache split is documented in
 audience, and creative data is local and snapshot-swapped in memory for
 local/spread bid serving. Redis remains the shared mutable-state backend for
 frequency caps, uploaded audience sets, and delivery reservations/counters. Frequency-cap
-tracker updates keep the `bothcap:<user_id>` hash and binary `BothCap` payload,
-but refresh through Redis optimistic transactions to avoid concurrent lost
-updates. Packed counters saturate at 255, valid signed events without a user
+tracker updates keep the `bothcap:<user_id>` hash and use a versioned binary
+`BothCap` payload with a legacy-compatible 12-byte prefix and authoritative UTC
+epoch-minute trailer. New readers accept legacy-only values, and old readers
+can safely consume the saturated prefix during a bounded mixed-version rollout.
+Refresh uses Redis optimistic transactions to avoid concurrent lost updates.
+Packed counters saturate at 255, elapsed legacy views saturate instead of
+wrapping, valid signed events without a user
 identity skip cap mutation but remain measurable, and each cap write ensures
 the configured idle TTL without shortening a longer key TTL. Bulk cap writes
 commit data and conditional expiry in one Redis script, preserving any longer

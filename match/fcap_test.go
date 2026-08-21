@@ -1,7 +1,9 @@
 package match
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -74,6 +76,122 @@ func TestFcapRefreshSaturatesTotal(t *testing.T) {
 	fcap.Refresh(when)
 	if fcap.Total != 255 {
 		t.Fatalf("Total = %d, want saturated 255", fcap.Total)
+	}
+}
+
+func TestFcapUTCFormatCoversNinetyDaysWithoutMinuteWrap(t *testing.T) {
+	location, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, time.March, 7, 1, 30, 0, 0, location)
+	last := start.Add(90 * 24 * time.Hour)
+	state := NewBothCap(start)
+	state.Imp.Refresh(last)
+	packed, err := state.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacySize := binary.Size(legacyBothCapWire{})
+	if len(packed) < legacySize+3 || string(packed[legacySize:legacySize+2]) != bothCapFormatMagic || packed[legacySize+2] != bothCapFormatUTC {
+		t.Fatalf("wire prefix = %x, want versioned UTC format", packed)
+	}
+	var legacyReader legacyBothCapWire
+	if err := binary.Read(bytes.NewReader(packed), binary.LittleEndian, &legacyReader); err != nil {
+		t.Fatal(err)
+	}
+	if legacyReader.Imp.Total != state.Imp.Total || legacyReader.Imp.Last != ^uint16(0) {
+		t.Fatalf("legacy-prefix view = %+v, want safe saturated compatibility", legacyReader.Imp)
+	}
+	roundTrip, err := UnpackBothCap(packed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !roundTrip.Imp.GetStart().Equal(start.UTC().Truncate(time.Minute)) {
+		t.Fatalf("start = %s, want %s", roundTrip.Imp.GetStart(), start.UTC())
+	}
+	if !roundTrip.Imp.GetLast().Equal(last.UTC().Truncate(time.Minute)) {
+		t.Fatalf("last = %s, want %s", roundTrip.Imp.GetLast(), last.UTC())
+	}
+	if got := roundTrip.Imp.SinceStart(last); got != ^uint16(0) {
+		t.Fatalf("90-day elapsed view = %d, want saturated %d", got, ^uint16(0))
+	}
+	if roundTrip.Imp.Last != ^uint16(0) {
+		t.Fatalf("legacy last view = %d, want saturated diagnostic value", roundTrip.Imp.Last)
+	}
+}
+
+func TestFcapFutureAndOutOfOrderTimesClampSafely(t *testing.T) {
+	now := time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC)
+	future := NewFcap(now.Add(time.Hour))
+	future.Total = 2
+	if got := future.SinceStart(now); got != 0 {
+		t.Fatalf("future start elapsed = %d, want zero", got)
+	}
+	if (Cap{CapNumber: 2, CapPeriod: 60}).CanServe(now, BothCap{Imp: future}) {
+		t.Fatal("future cap state bypassed an already reached limit")
+	}
+	last := future.GetLast()
+	future.Refresh(now)
+	if !future.GetLast().Equal(last) {
+		t.Fatalf("out-of-order refresh moved last backward: %s -> %s", last, future.GetLast())
+	}
+}
+
+func TestLegacyBothCapReadsAreUTCAndUpgradeOnWrite(t *testing.T) {
+	type legacyFcap struct {
+		Total    uint8
+		StartYM  uint8
+		StartDHM uint16
+		Last     uint16
+	}
+	type legacyBothCap struct {
+		Imp legacyFcap
+		Cli legacyFcap
+	}
+	start := time.Date(2026, time.March, 8, 1, 30, 0, 0, time.UTC)
+	legacy := legacyFcap{
+		Total: 3, StartYM: uint8((start.Year()-FCAPStartYear)<<4 + int(start.Month())),
+		StartDHM: uint16(start.Day()<<11 + start.Hour()<<6 + start.Minute()), Last: 45,
+	}
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, legacyBothCap{Imp: legacy, Cli: legacy}); err != nil {
+		t.Fatal(err)
+	}
+	originalLocal := time.Local
+	defer func() { time.Local = originalLocal }()
+	for _, name := range []string{"America/Los_Angeles", "Asia/Shanghai"} {
+		location, err := time.LoadLocation(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Local = location
+		state, err := UnpackBothCap(buf.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !state.Imp.GetStart().Equal(start) || !state.Imp.GetLast().Equal(start.Add(45*time.Minute)) {
+			t.Fatalf("legacy state under %s = %s/%s", name, state.Imp.GetStart(), state.Imp.GetLast())
+		}
+		upgraded, err := state.Pack()
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacySize := binary.Size(legacyBothCapWire{})
+		if len(upgraded) == len(buf.Bytes()) || string(upgraded[legacySize:legacySize+2]) != bothCapFormatMagic || upgraded[legacySize+2] != bothCapFormatUTC {
+			t.Fatalf("upgraded wire under %s = %x", name, upgraded)
+		}
+	}
+}
+
+func TestFcapElapsedBoundariesDoNotWrap(t *testing.T) {
+	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	fcap := NewFcap(start)
+	if got := fcap.SinceStart(start.Add(45 * 24 * time.Hour)); got != 64800 {
+		t.Fatalf("45-day elapsed = %d, want 64800", got)
+	}
+	if got := fcap.SinceStart(start.Add(90 * 24 * time.Hour)); got != ^uint16(0) {
+		t.Fatalf("90-day elapsed = %d, want saturated %d", got, ^uint16(0))
 	}
 }
 
