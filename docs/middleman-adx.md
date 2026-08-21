@@ -250,8 +250,15 @@ returned callback fields with signed Aofei proxy URLs:
 Billing authority is `burl` first. When a downstream bid has `burl`, `/mid/bill`
 is the billable event. When a downstream bid does not have `burl`, `/mid/win`
 is the billable fallback. Billable middleman events are idempotent through
-`middleman:bill:<token>`, and duplicate `/mid/win` or `/mid/loss` notifications
-do not republish win/loss records.
+`middleman:bill:<token>`. Downstream notification results are retained under
+`middleman:notify:<source>:<token>`, while local win/loss/click publication uses
+the independent `middleman:publish:<source>:<token>` family. A local publication
+retry therefore does not resend a successfully forwarded downstream callback,
+and duplicate `/mid/win`, `/mid/loss`, or `/mid/click` requests do not republish
+facts. If the downstream side effect succeeds but its result cannot be stored,
+the request fails and clears notification ownership; the resulting downstream
+retry window remains deliberately at-least-once and requires idempotent partner
+callbacks.
 
 M21 records both sides of the middleman price:
 

@@ -154,6 +154,18 @@ becomes the billable fallback. Cooperative click notification is exposed in the
 forwarded request as `ext.aofei_middleman.click_notify_urls`; downstream ad
 markup must opt in, because Aofei does not rewrite arbitrary middleman `adm`.
 
+Downstream forwarding state and local NATS publication state use separate
+idempotency markers. A retry after a local publish failure therefore reuses the
+recorded downstream result without sending the downstream callback again, then
+retries only the unpublished local fact. `/mid/click` uses the same local
+publication guard. An in-flight duplicate does nothing until its owner
+finishes, and a completed duplicate performs neither side effect. If a
+downstream callback succeeds but writing its completed forwarding state fails,
+the marker is cleared and the request returns an error; a retry may forward the
+callback again. This narrow post-forward persistence boundary is intentionally
+at-least-once, so downstream endpoints must be idempotent by auction and
+impression identity.
+
 ## NATS And Log Flow
 
 The bid path publishes these NATS subjects after a successful HTTP response:

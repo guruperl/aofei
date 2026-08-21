@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/guruperl/aofei/internal/jobs/midcallback"
@@ -27,6 +28,8 @@ const (
 	middlemanClickKeyPrefix    = "middleman:click:"
 	middlemanBillKeyPrefix     = "middleman:bill:"
 	middlemanNotifyKeyPrefix   = "middleman:notify:"
+	middlemanPublishKeyPrefix  = "middleman:publish:"
+	middlemanNotifyProcessing  = "processing"
 )
 
 type middlemanCallbackStore interface {
@@ -37,7 +40,11 @@ type middlemanCallbackStore interface {
 	SetBillOnce(context.Context, string, time.Duration) (bool, error)
 	ClearBill(context.Context, string) error
 	SetNotifyOnce(context.Context, string, string, time.Duration) (bool, error)
+	GetNotify(context.Context, string, string) (middlemanForwardState, error)
+	CompleteNotify(context.Context, string, string, middlemanForwardState, time.Duration) error
 	ClearNotify(context.Context, string, string) error
+	SetPublishOnce(context.Context, string, string, time.Duration) (bool, error)
+	ClearPublish(context.Context, string, string) error
 }
 
 type redisMiddlemanCallbackStore struct {
@@ -74,6 +81,12 @@ type middlemanPrices struct {
 	ChargePrice float64
 	PayPrice    float64
 	Currency    string
+}
+
+type middlemanForwardState struct {
+	Status     string `json:"status"`
+	HTTPStatus int    `json:"http_status,omitempty"`
+	Processing bool   `json:"-"`
 }
 
 func (s redisMiddlemanCallbackStore) SetCallback(ctx context.Context, token string, value middlemanCallbackContext, ttl time.Duration) error {
@@ -147,8 +160,43 @@ func (s redisMiddlemanCallbackStore) SetNotifyOnce(ctx context.Context, token, s
 		return false, fmt.Errorf("middleman callback redis is not configured")
 	}
 	var result string
-	err := s.redis.Do(ctx, radix.Cmd(&result, "SET", middlemanNotifyKey(token, source), "1", "EX", strconv.Itoa(ttlSeconds(ttl)), "NX"))
+	err := s.redis.Do(ctx, radix.Cmd(&result, "SET", middlemanNotifyKey(token, source), middlemanNotifyProcessing, "EX", strconv.Itoa(ttlSeconds(ttl)), "NX"))
 	return result == "OK", err
+}
+
+func (s redisMiddlemanCallbackStore) GetNotify(ctx context.Context, token, source string) (middlemanForwardState, error) {
+	if s.redis == nil {
+		return middlemanForwardState{}, fmt.Errorf("middleman callback redis is not configured")
+	}
+	var data string
+	if err := s.redis.Do(ctx, radix.Cmd(&data, "GET", middlemanNotifyKey(token, source))); err != nil {
+		return middlemanForwardState{}, err
+	}
+	if data == middlemanNotifyProcessing {
+		return middlemanForwardState{Processing: true}, nil
+	}
+	if data == "" {
+		return middlemanForwardState{}, fmt.Errorf("middleman notification state not found")
+	}
+	var state middlemanForwardState
+	if err := json.Unmarshal([]byte(data), &state); err != nil {
+		return middlemanForwardState{}, err
+	}
+	if state.Status == "" {
+		return middlemanForwardState{}, fmt.Errorf("middleman notification state is incomplete")
+	}
+	return state, nil
+}
+
+func (s redisMiddlemanCallbackStore) CompleteNotify(ctx context.Context, token, source string, state middlemanForwardState, ttl time.Duration) error {
+	if s.redis == nil {
+		return fmt.Errorf("middleman callback redis is not configured")
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return s.redis.Do(ctx, radix.Cmd(nil, "SETEX", middlemanNotifyKey(token, source), strconv.Itoa(ttlSeconds(ttl)), string(data)))
 }
 
 func (s redisMiddlemanCallbackStore) ClearNotify(ctx context.Context, token, source string) error {
@@ -156,6 +204,22 @@ func (s redisMiddlemanCallbackStore) ClearNotify(ctx context.Context, token, sou
 		return fmt.Errorf("middleman callback redis is not configured")
 	}
 	return s.redis.Do(ctx, radix.Cmd(nil, "DEL", middlemanNotifyKey(token, source)))
+}
+
+func (s redisMiddlemanCallbackStore) SetPublishOnce(ctx context.Context, token, source string, ttl time.Duration) (bool, error) {
+	if s.redis == nil {
+		return false, fmt.Errorf("middleman callback redis is not configured")
+	}
+	var result string
+	err := s.redis.Do(ctx, radix.Cmd(&result, "SET", middlemanPublishKey(token, source), "1", "EX", strconv.Itoa(ttlSeconds(ttl)), "NX"))
+	return result == "OK", err
+}
+
+func (s redisMiddlemanCallbackStore) ClearPublish(ctx context.Context, token, source string) error {
+	if s.redis == nil {
+		return fmt.Errorf("middleman callback redis is not configured")
+	}
+	return s.redis.Do(ctx, radix.Cmd(nil, "DEL", middlemanPublishKey(token, source)))
 }
 
 func middlemanCallbackKey(token string) string {
@@ -172,6 +236,10 @@ func middlemanBillKey(token string) string {
 
 func middlemanNotifyKey(token, source string) string {
 	return middlemanNotifyKeyPrefix + source + ":" + token
+}
+
+func middlemanPublishKey(token, source string) string {
+	return middlemanPublishKeyPrefix + source + ":" + token
 }
 
 func ttlSeconds(ttl time.Duration) int {
@@ -429,7 +497,7 @@ func (self *Controller) serveMiddlemanClick(ctx context.Context, args url.Values
 		return err
 	}
 	prices := value.reconciledPrices()
-	return self.publishMiddlemanWinLoss(StatusTrackClk, value, "click", prices, "none", 0)
+	return self.publishMiddlemanEventOnce(ctx, StatusTrackClk, value, "click", prices, "none", 0)
 }
 
 func (self *Controller) serveMiddlemanStatus(ctx context.Context, path string, args url.Values) error {
@@ -448,51 +516,56 @@ func (self *Controller) serveMiddlemanStatus(ctx context.Context, path string, a
 
 	switch path {
 	case "/mid/win":
-		status, code, err := self.forwardMiddlemanCallbackOnce(ctx, value, "win", value.DownstreamNURL, prices)
+		forward, ready, err := self.forwardMiddlemanCallbackOnce(ctx, value, "win", value.DownstreamNURL, prices)
 		if err != nil {
 			return err
 		}
-		if status == "duplicate" {
+		if !ready {
 			return nil
 		}
-		if err := self.publishMiddlemanWinLoss(StatusWin, value, "win", prices, status, code); err != nil {
+		if err := self.publishMiddlemanEventOnce(ctx, StatusWin, value, "win", prices, forward.Status, forward.HTTPStatus); err != nil {
 			return err
 		}
 		if value.BillOnWin {
-			if err := self.publishMiddlemanBillOnce(ctx, value, "win", prices, status, code); err != nil {
+			if err := self.publishMiddlemanBillOnce(ctx, value, "win", prices, forward.Status, forward.HTTPStatus); err != nil {
 				return err
 			}
 		}
 	case "/mid/bill":
-		first, err := self.callbackStore().SetBillOnce(ctx, value.Token, self.middlemanCallbackTTL())
+		forward, ready, err := self.forwardMiddlemanCallbackOnce(ctx, value, "bill", value.DownstreamBURL, prices)
 		if err != nil {
 			return err
 		}
-		status, code := "duplicate", 0
-		if first {
-			status, code, err = self.forwardMiddlemanCallbackOnce(ctx, value, "bill", value.DownstreamBURL, prices)
-			if err != nil {
-				_ = self.callbackStore().ClearBill(ctx, value.Token)
-				return err
-			}
-		}
-		if first {
-			if err := self.publishMiddlemanWinLoss(StatusTrackImp, value, "bill", prices, status, code); err != nil {
-				_ = self.callbackStore().ClearBill(ctx, value.Token)
-				return err
-			}
-		}
-	case "/mid/loss":
-		status, code, err := self.forwardMiddlemanCallbackOnce(ctx, value, "loss", value.DownstreamLURL, prices)
-		if err != nil {
-			return err
-		}
-		if status == "duplicate" {
+		if !ready {
 			return nil
 		}
-		return self.publishMiddlemanWinLoss(StatusLoss, value, "loss", prices, status, code)
+		return self.publishMiddlemanBillOnce(ctx, value, "bill", prices, forward.Status, forward.HTTPStatus)
+	case "/mid/loss":
+		forward, ready, err := self.forwardMiddlemanCallbackOnce(ctx, value, "loss", value.DownstreamLURL, prices)
+		if err != nil {
+			return err
+		}
+		if !ready {
+			return nil
+		}
+		return self.publishMiddlemanEventOnce(ctx, StatusLoss, value, "loss", prices, forward.Status, forward.HTTPStatus)
 	default:
 		return fmt.Errorf("invalid middleman callback path")
+	}
+	return nil
+}
+
+func (self *Controller) publishMiddlemanEventOnce(ctx context.Context, status Status, value middlemanCallbackContext, source string, prices middlemanPrices, forwardStatus string, forwardCode int) error {
+	first, err := self.callbackStore().SetPublishOnce(ctx, value.Token, source, self.middlemanCallbackTTL())
+	if err != nil {
+		return err
+	}
+	if !first {
+		return nil
+	}
+	if err := self.publishMiddlemanWinLoss(status, value, source, prices, forwardStatus, forwardCode); err != nil {
+		_ = self.callbackStore().ClearPublish(ctx, value.Token, source)
+		return err
 	}
 	return nil
 }
@@ -569,15 +642,22 @@ func (value middlemanCallbackContext) reconciledPrices() middlemanPrices {
 	return middlemanPrices{ChargePrice: charge, PayPrice: pay, Currency: "USD"}
 }
 
-func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value middlemanCallbackContext, source, raw string, prices middlemanPrices) (string, int, error) {
-	first, err := self.callbackStore().SetNotifyOnce(ctx, value.Token, source, self.middlemanCallbackTTL())
+func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value middlemanCallbackContext, source, raw string, prices middlemanPrices) (middlemanForwardState, bool, error) {
+	store := self.callbackStore()
+	first, err := store.SetNotifyOnce(ctx, value.Token, source, defaultTrackingProcessingTTL)
 	if err != nil {
-		return "", 0, err
+		return middlemanForwardState{}, false, err
 	}
 	if !first {
-		return "duplicate", 0, nil
+		state, err := store.GetNotify(ctx, value.Token, source)
+		if err != nil {
+			return middlemanForwardState{}, false, err
+		}
+		return state, !state.Processing, nil
 	}
 	target, status, code, lastErr := self.forwardMiddlemanCallback(ctx, raw, value, prices)
+	state := middlemanForwardState{Status: status, HTTPStatus: code}
+	persist := true
 	if midcallback.RetryableForward(status, code) {
 		queued, err := self.enqueueMiddlemanCallbackRetry(ctx, value, source, target, prices, status, code, lastErr)
 		if err != nil && self.Logger != nil {
@@ -588,10 +668,19 @@ func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value 
 			)
 		}
 		if !queued {
-			_ = self.callbackStore().ClearNotify(ctx, value.Token, source)
+			persist = false
+			if err := store.ClearNotify(ctx, value.Token, source); err != nil {
+				return middlemanForwardState{}, false, err
+			}
 		}
 	}
-	return status, code, nil
+	if persist {
+		if err := store.CompleteNotify(ctx, value.Token, source, state, self.middlemanCallbackTTL()); err != nil {
+			_ = store.ClearNotify(ctx, value.Token, source)
+			return middlemanForwardState{}, false, err
+		}
+	}
+	return state, true, nil
 }
 
 func (self *Controller) enqueueMiddlemanCallbackRetry(ctx context.Context, value middlemanCallbackContext, source, target string, prices middlemanPrices, status string, code int, lastErr string) (bool, error) {
@@ -703,10 +792,12 @@ func expandMiddlemanCallbackURL(raw string, value middlemanCallbackContext, pric
 }
 
 type memoryMiddlemanCallbackStore struct {
+	mu        sync.Mutex
 	callbacks map[string]middlemanCallbackContext
 	clicks    map[string]string
 	bills     map[string]struct{}
-	notifies  map[string]struct{}
+	notifies  map[string]middlemanForwardState
+	publishes map[string]struct{}
 }
 
 func newMemoryMiddlemanCallbackStore() *memoryMiddlemanCallbackStore {
@@ -714,16 +805,21 @@ func newMemoryMiddlemanCallbackStore() *memoryMiddlemanCallbackStore {
 		callbacks: make(map[string]middlemanCallbackContext),
 		clicks:    make(map[string]string),
 		bills:     make(map[string]struct{}),
-		notifies:  make(map[string]struct{}),
+		notifies:  make(map[string]middlemanForwardState),
+		publishes: make(map[string]struct{}),
 	}
 }
 
 func (s *memoryMiddlemanCallbackStore) SetCallback(_ context.Context, token string, value middlemanCallbackContext, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.callbacks[token] = value
 	return nil
 }
 
 func (s *memoryMiddlemanCallbackStore) GetCallback(_ context.Context, token string) (middlemanCallbackContext, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	value, ok := s.callbacks[token]
 	if !ok {
 		return middlemanCallbackContext{}, fmt.Errorf("middleman callback token not found")
@@ -732,11 +828,15 @@ func (s *memoryMiddlemanCallbackStore) GetCallback(_ context.Context, token stri
 }
 
 func (s *memoryMiddlemanCallbackStore) SetClick(_ context.Context, requestToken, impID, token string, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.clicks[middlemanClickKey(requestToken, impID)] = token
 	return nil
 }
 
 func (s *memoryMiddlemanCallbackStore) GetClick(_ context.Context, requestToken, impID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	token, ok := s.clicks[middlemanClickKey(requestToken, impID)]
 	if !ok {
 		return "", fmt.Errorf("middleman click token not found")
@@ -745,6 +845,8 @@ func (s *memoryMiddlemanCallbackStore) GetClick(_ context.Context, requestToken,
 }
 
 func (s *memoryMiddlemanCallbackStore) SetBillOnce(_ context.Context, token string, _ time.Duration) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.bills[token]; ok {
 		return false, nil
 	}
@@ -753,20 +855,62 @@ func (s *memoryMiddlemanCallbackStore) SetBillOnce(_ context.Context, token stri
 }
 
 func (s *memoryMiddlemanCallbackStore) ClearBill(_ context.Context, token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.bills, token)
 	return nil
 }
 
 func (s *memoryMiddlemanCallbackStore) SetNotifyOnce(_ context.Context, token, source string, _ time.Duration) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	key := middlemanNotifyKey(token, source)
 	if _, ok := s.notifies[key]; ok {
 		return false, nil
 	}
-	s.notifies[key] = struct{}{}
+	s.notifies[key] = middlemanForwardState{Processing: true}
 	return true, nil
 }
 
+func (s *memoryMiddlemanCallbackStore) GetNotify(_ context.Context, token, source string) (middlemanForwardState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, ok := s.notifies[middlemanNotifyKey(token, source)]
+	if !ok {
+		return middlemanForwardState{}, fmt.Errorf("middleman notification state not found")
+	}
+	return state, nil
+}
+
+func (s *memoryMiddlemanCallbackStore) CompleteNotify(_ context.Context, token, source string, state middlemanForwardState, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state.Processing = false
+	s.notifies[middlemanNotifyKey(token, source)] = state
+	return nil
+}
+
 func (s *memoryMiddlemanCallbackStore) ClearNotify(_ context.Context, token, source string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.notifies, middlemanNotifyKey(token, source))
+	return nil
+}
+
+func (s *memoryMiddlemanCallbackStore) SetPublishOnce(_ context.Context, token, source string, _ time.Duration) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := middlemanPublishKey(token, source)
+	if _, ok := s.publishes[key]; ok {
+		return false, nil
+	}
+	s.publishes[key] = struct{}{}
+	return true, nil
+}
+
+func (s *memoryMiddlemanCallbackStore) ClearPublish(_ context.Context, token, source string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.publishes, middlemanPublishKey(token, source))
 	return nil
 }

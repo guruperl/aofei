@@ -9,10 +9,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/guruperl/aofei/match"
+	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
@@ -25,6 +28,52 @@ func TestMiddlemanReconciledPricesUseServerOwnedPrice(t *testing.T) {
 	got := value.reconciledPrices()
 	if !closeFloat(got.ChargePrice, 1.2) || !closeFloat(got.PayPrice, 1.0) {
 		t.Fatalf("prices = %+v, want charge 1.2 pay 1.0", got)
+	}
+}
+
+func TestRedisMiddlemanStoreSeparatesForwardAndPublishState(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	store := redisMiddlemanCallbackStore{redis: client}
+	ctx := context.Background()
+	first, err := store.SetNotifyOnce(ctx, "tok", "win", time.Minute)
+	if err != nil || !first {
+		t.Fatalf("initial forward claim = %v, %v", first, err)
+	}
+	state, err := store.GetNotify(ctx, "tok", "win")
+	if err != nil || !state.Processing {
+		t.Fatalf("processing state = %+v, %v", state, err)
+	}
+	completed := middlemanForwardState{Status: "ok", HTTPStatus: http.StatusNoContent}
+	if err := store.CompleteNotify(ctx, "tok", "win", completed, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	first, err = store.SetNotifyOnce(ctx, "tok", "win", time.Minute)
+	if err != nil || first {
+		t.Fatalf("completed forward claim = %v, %v; want duplicate", first, err)
+	}
+	state, err = store.GetNotify(ctx, "tok", "win")
+	if err != nil || state.Processing || state.Status != "ok" || state.HTTPStatus != http.StatusNoContent {
+		t.Fatalf("completed state = %+v, %v", state, err)
+	}
+	publishFirst, err := store.SetPublishOnce(ctx, "tok", "win", time.Hour)
+	if err != nil || !publishFirst {
+		t.Fatalf("initial publish claim = %v, %v", publishFirst, err)
+	}
+	publishFirst, err = store.SetPublishOnce(ctx, "tok", "win", time.Hour)
+	if err != nil || publishFirst {
+		t.Fatalf("duplicate publish claim = %v, %v", publishFirst, err)
+	}
+	if err := store.ClearPublish(ctx, "tok", "win"); err != nil {
+		t.Fatal(err)
+	}
+	publishFirst, err = store.SetPublishOnce(ctx, "tok", "win", time.Hour)
+	if err != nil || !publishFirst {
+		t.Fatalf("released publish claim = %v, %v", publishFirst, err)
 	}
 }
 
@@ -331,6 +380,125 @@ func TestServeMiddlemanWinDoesNotForwardDuplicateNotifications(t *testing.T) {
 	}
 }
 
+func TestServeMiddlemanStatusPublishFailureRetriesLocallyWithoutRefiringDownstream(t *testing.T) {
+	for _, test := range []struct {
+		path   string
+		status Status
+	}{
+		{path: "/mid/win", status: StatusWin},
+		{path: "/mid/loss", status: StatusLoss},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			forwarded := 0
+			downstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				forwarded++
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer downstream.Close()
+
+			store := newMemoryMiddlemanCallbackStore()
+			value := middlemanCallbackContext{
+				Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp",
+				DownstreamNURL: downstream.URL + "/win", DownstreamLURL: downstream.URL + "/loss",
+				DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
+				RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+			}
+			if err := store.SetCallback(context.Background(), value.Token, value, time.Hour); err != nil {
+				t.Fatal(err)
+			}
+			publishAttempts := 0
+			controller := &Controller{
+				C:      &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+				client: downstream.Client(), middlemanStore: store,
+				publishWinLossFunc: func(data []byte) error {
+					publishAttempts++
+					if publishAttempts == 1 {
+						return errors.New("publish failed")
+					}
+					var wl WinLoss
+					if err := json.Unmarshal(data, &wl); err != nil {
+						return err
+					}
+					if wl.Status != test.status || wl.Middleman.ForwardStatus != "ok" {
+						t.Fatalf("published callback = %+v", wl)
+					}
+					return nil
+				},
+			}
+			req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, test.path, value.Token, "1.000"), nil)
+			first := httptest.NewRecorder()
+			controller.ServeMiddlemanCallback(first, req)
+			if first.Code != http.StatusBadRequest {
+				t.Fatalf("first status = %d, want publish failure", first.Code)
+			}
+			for i := 0; i < 2; i++ {
+				retry := httptest.NewRecorder()
+				controller.ServeMiddlemanCallback(retry, req)
+				if retry.Code != http.StatusNoContent {
+					t.Fatalf("retry status = %d body=%s", retry.Code, retry.Body.String())
+				}
+			}
+			if forwarded != 1 {
+				t.Fatalf("downstream forwards = %d, want one", forwarded)
+			}
+			if publishAttempts != 2 {
+				t.Fatalf("local publish attempts = %d, want failed attempt plus successful retry", publishAttempts)
+			}
+		})
+	}
+}
+
+func TestServeMiddlemanWinSuppressesConcurrentForwardAndPublication(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var forwarded atomic.Int32
+	downstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if forwarded.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer downstream.Close()
+	store := newMemoryMiddlemanCallbackStore()
+	value := middlemanCallbackContext{
+		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp", DownstreamNURL: downstream.URL,
+		DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
+		RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+	}
+	if err := store.SetCallback(context.Background(), value.Token, value, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	var published atomic.Int32
+	controller := &Controller{
+		C:      &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+		client: downstream.Client(), middlemanStore: store,
+		publishWinLossFunc: func([]byte) error { published.Add(1); return nil },
+	}
+	target := signedMiddlemanTestURL(t, controller, "/mid/win", value.Token, "1.000")
+	ownerDone := make(chan int, 1)
+	go func() {
+		rr := httptest.NewRecorder()
+		controller.ServeMiddlemanCallback(rr, httptest.NewRequest(http.MethodGet, target, nil))
+		ownerDone <- rr.Code
+	}()
+	<-started
+	duplicate := httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(duplicate, httptest.NewRequest(http.MethodGet, target, nil))
+	if duplicate.Code != http.StatusNoContent || published.Load() != 0 {
+		t.Fatalf("in-flight duplicate status=%d published=%d", duplicate.Code, published.Load())
+	}
+	close(release)
+	if code := <-ownerDone; code != http.StatusNoContent {
+		t.Fatalf("owner status = %d", code)
+	}
+	completed := httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(completed, httptest.NewRequest(http.MethodGet, target, nil))
+	if completed.Code != http.StatusNoContent || forwarded.Load() != 1 || published.Load() != 1 {
+		t.Fatalf("completed duplicate status=%d forwarded=%d published=%d", completed.Code, forwarded.Load(), published.Load())
+	}
+}
+
 func TestServeMiddlemanRejectsMissingTimestampSignature(t *testing.T) {
 	store := newMemoryMiddlemanCallbackStore()
 	value := middlemanCallbackContext{
@@ -548,6 +716,100 @@ func TestServeMiddlemanClickUsesCooperativeMapping(t *testing.T) {
 	}
 	if len(published) != 1 || published[0].Status != StatusTrackClk {
 		t.Fatalf("published = %#v, want one click", published)
+	}
+	rr = httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(rr, req)
+	if rr.Code != http.StatusNoContent || len(published) != 1 {
+		t.Fatalf("duplicate status = %d published=%d, want no duplicate click", rr.Code, len(published))
+	}
+}
+
+func TestServeMiddlemanClickPublishFailureAllowsRetry(t *testing.T) {
+	store := newMemoryMiddlemanCallbackStore()
+	value := middlemanCallbackContext{
+		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp",
+		DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
+		RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+	}
+	if err := store.SetCallback(context.Background(), value.Token, value, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetClick(context.Background(), "rtok", "imp", value.Token, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	publishAttempts := 0
+	controller := &Controller{
+		C: &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"}, middlemanStore: store,
+		publishWinLossFunc: func([]byte) error {
+			publishAttempts++
+			if publishAttempts == 1 {
+				return errors.New("publish failed")
+			}
+			return nil
+		},
+	}
+	clickURL, err := controller.middlemanClickProxyURL("rtok", "imp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, clickURL, nil)
+	first := httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(first, req)
+	if first.Code != http.StatusBadRequest {
+		t.Fatalf("first status = %d, want publish failure", first.Code)
+	}
+	retry := httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(retry, req)
+	if retry.Code != http.StatusNoContent || publishAttempts != 2 {
+		t.Fatalf("retry status = %d attempts=%d", retry.Code, publishAttempts)
+	}
+}
+
+type failCompleteNotifyStore struct {
+	*memoryMiddlemanCallbackStore
+	failures int
+}
+
+func (s *failCompleteNotifyStore) CompleteNotify(ctx context.Context, token, source string, state middlemanForwardState, ttl time.Duration) error {
+	if s.failures > 0 {
+		s.failures--
+		return errors.New("notify completion failed")
+	}
+	return s.memoryMiddlemanCallbackStore.CompleteNotify(ctx, token, source, state, ttl)
+}
+
+func TestMiddlemanPostForwardStateFailureRetainsAtLeastOnceBoundary(t *testing.T) {
+	forwarded := 0
+	downstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		forwarded++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer downstream.Close()
+	store := &failCompleteNotifyStore{memoryMiddlemanCallbackStore: newMemoryMiddlemanCallbackStore(), failures: 1}
+	value := middlemanCallbackContext{
+		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp", DownstreamNURL: downstream.URL,
+		DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
+		RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
+	}
+	if err := store.SetCallback(context.Background(), value.Token, value, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	published := 0
+	controller := &Controller{
+		C:      &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+		client: downstream.Client(), middlemanStore: store,
+		publishWinLossFunc: func([]byte) error { published++; return nil },
+	}
+	req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, "/mid/win", value.Token, "1.000"), nil)
+	first := httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(first, req)
+	if first.Code != http.StatusBadRequest || published != 0 {
+		t.Fatalf("first callback status=%d published=%d", first.Code, published)
+	}
+	retry := httptest.NewRecorder()
+	controller.ServeMiddlemanCallback(retry, req)
+	if retry.Code != http.StatusNoContent || published != 1 || forwarded != 2 {
+		t.Fatalf("retry status=%d published=%d forwarded=%d; want at-least-once downstream retry", retry.Code, published, forwarded)
 	}
 }
 

@@ -325,12 +325,21 @@ middleman:routes
 bothcap:<user_id>
 upload:<adv_id>:<marker>
 middleman:cb:<token>
+middleman:click:<request_token>:<imp_id>
 middleman:bill:<token>
+middleman:notify:<source>:<token>
+middleman:publish:<source>:<token>
 跟踪事件重复抑制和频控事件标记
 delivery:reservation:<token>
 delivery:budget:total:<balance_id>
 delivery:budget:daily:<UTC日期>:<balance_id>
 ```
+
+`middleman:notify:*` 记录向下游发送回调的状态和结果，
+`middleman:publish:*` 记录本地 NATS 事实是否已发布，两者不能合并或单独批量
+删除。这样本地发布失败后的重试不会再次发送已经成功的下游回调。若下游已接收
+回调、但完成状态写入失败，重试可能再次发送；这是明确保留的 at-least-once
+边界，接入方必须按竞价和广告位身份实现幂等。
 
 `bothcap` 更新保证至少保留配置 TTL，并且不会缩短更长 TTL。展示/点击重复标记的过期时间对应签名的确切有效截止点，最长可能是配置 TTL 再加接收端允许的 5 分钟未来时钟偏差。
 `upload:<adv_id>:<marker>` 在写入成员的同一个 Redis 脚本中设置上传人群 TTL；持久键或较短 TTL 会提升到配置值，较长 TTL 不会被缩短。删除必须按已核验的广告主、marker 和标识符精确执行，不能导出或扫描相邻广告主的数据。
