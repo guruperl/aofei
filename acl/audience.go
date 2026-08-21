@@ -45,6 +45,10 @@ func UnpackACLAudience(data []byte) (*ACLAudience, error) {
 }
 
 func (self *ACLAudience) Has(a *ACL) bool {
+	if self == nil || a == nil {
+		return false
+	}
+
 	grepString := func(a []string, s string) bool {
 		for _, v := range a {
 			if v == s {
@@ -183,7 +187,7 @@ WHERE ac.entitytype_id=4 AND ac.entity_id=?`
 SELECT p.domain
 FROM ac ac
 INNER JOIN pub p ON (ac.othertype_id=3 AND p.pub_id=ac.other_id)
-WHERE (ac.entitytype_id=41 AND ac.entity_id=?`
+WHERE (ac.entitytype_id=41 AND ac.entity_id=?)`
 		appSQL = `
 SELECT s.foreign_id
 FROM ac ac

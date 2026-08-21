@@ -34,6 +34,9 @@ type Audience struct {
 }
 
 func (self *Audience) Has(attr *Attribute) bool {
+	if self == nil || attr == nil {
+		return false
+	}
 
 	d := attr.Demo
 	g := attr.Geo

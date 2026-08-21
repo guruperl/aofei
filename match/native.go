@@ -28,17 +28,44 @@ type NativeFormat struct {
 
 // GetSizes return the width and height of the native format
 func (self *NativeFormat) GetSizes() (uint16, uint16) {
-	for _, asset := range self.Assets {
+	w, h, _ := self.validatedSizes()
+	return w, h
+}
+
+func (self *NativeFormat) validatedSizes() (uint16, uint16, error) {
+	if self == nil {
+		return 0, 0, nil
+	}
+	for index, asset := range self.Assets {
+		if asset == nil {
+			return 0, 0, fmt.Errorf("native asset %d is nil", index)
+		}
 		if img := asset.Img; img != nil {
-			if img.W > 0 && img.H > 0 {
-				return uint16(img.W), uint16(img.H)
+			for _, dimension := range []struct {
+				name  string
+				value int64
+			}{
+				{name: "width", value: img.W},
+				{name: "height", value: img.H},
+				{name: "minimum width", value: img.WMin},
+				{name: "minimum height", value: img.HMin},
+			} {
+				if dimension.value < 0 || dimension.value > maxSizeDimension {
+					return 0, 0, fmt.Errorf("native image %s %d is outside the supported range 0..%d", dimension.name, dimension.value, maxSizeDimension)
+				}
 			}
-			return uint16(img.WMin), uint16(img.HMin)
+			if img.W != 0 || img.H != 0 {
+				return validatedSizePair("native image", img.W, img.H)
+			}
+			if img.WMin != 0 || img.HMin != 0 {
+				return validatedSizePair("native image minimum", img.WMin, img.HMin)
+			}
+			return 0, 0, nil
 		} else if asset.Video != nil {
-			return uint16(asset.Video.W), uint16(asset.Video.H)
+			return validatedSizePair("native video", asset.Video.W, asset.Video.H)
 		}
 	}
-	return 0, 0
+	return 0, 0, nil
 }
 
 func requestStringToNativeFormat(bs []byte) (*NativeFormat, error) {

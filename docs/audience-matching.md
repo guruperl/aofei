@@ -43,6 +43,9 @@ IP plus user-agent is no longer a runtime identity fallback.
 Nil or empty subaudiences generally mean wildcard targeting. Uploaded audiences
 are different: when upload targeting is configured, every configured identifier
 type must be present in the bid and present in the advertiser upload set.
+The combined matcher rejects a nil request attribute, and an ACL subaudience
+rejects a missing request ACL rather than dereferencing it. Empty, nonnil
+audiences remain wildcards for valid attributes.
 
 Middleman bidder fallback reuses this same ACL and channel eligibility surface
 through each bidder's synthetic item. Admin approval creates or validates that
@@ -114,6 +117,10 @@ The current bid path applies filters in this order:
 9. Optionally run middleman routing from `middleman:routes:v2`, filtering each
    bidder through trigger mode and synthetic ACL/channel eligibility before any
    downstream OpenRTB call.
+
+Banner, video, and Native width/height values must be positive and fit the
+existing 16-bit size-key contract (`1..65535`). Malformed dimensions are
+rejected before any wrapped/truncated cache key can be queried.
 
 `Audience.Has` evaluates geo, demo, user-agent, date/hour, and ACL predicates.
 If a candidate has no audience object, both Redis and spread/IO modes treat it
