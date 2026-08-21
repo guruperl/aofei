@@ -26,8 +26,12 @@ Use [docs/README.md](docs/README.md) to find the current user/operator contract
 for every A/D/I/O/P/R/S lane and to distinguish implementation from production
 activation.
 
-For a slash-goal request that spans multiple status files, also read and follow
-[GOAL.md](GOAL.md) before starting the first milestone.
+For a multi-milestone request, also read and follow [GOAL.md](GOAL.md) before
+starting the first milestone. The plugin launcher is
+`$memory-bank:memory-bank-goal`; `memory-bank/suggested.txt`, when present, is
+disposable input that must be reconciled rather than treated as status truth.
+During that run, the request's `COMMIT_POLICY`, then `GOAL.md`, overrides the
+ordinary per-row commit cadence below; the protocol defaults to no commits.
 
 Do not recreate duplicate root-level product, architecture, roadmap, or status
 documents. Long-form references live in `docs/`; README is the operator entry
@@ -122,8 +126,10 @@ maintained in [memory-bank/tech-stack.md](memory-bank/tech-stack.md).
 - Treat each section in [memory-bank/milestone.md](memory-bank/milestone.md) as
   a review unit.
 - After the last task in a milestone is complete, run a deep code review of the
-  milestone before closing it. Resolve review findings in the same milestone or
-  carry them forward explicitly in the matching status file.
+  milestone before closing it. P1, P2, and higher-severity findings must be
+  resolved in that milestone; only lower-severity findings may be carried with
+  a named pending owner and explicit rationale. Multi-milestone runs use
+  `GOAL.md`'s bounded review-fix gate and persist its iteration count.
 - Close a milestone by running required verification, updating docs and memory,
   reconciling affected pending status files and the remaining order, checking
   whether `evolution/` needs a new version, marking the matching status file

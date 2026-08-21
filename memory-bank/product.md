@@ -133,12 +133,15 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 
 ## Current Product Direction
 
-The completed M-lane established the local runtime and the completed
-D/P/R/I/S/A/O lanes now form the commercially safe W8M advertiser-publisher
-marketplace baseline. The only existing open lane is I02: maintained Android
-and iOS publisher SDKs, which remain demand-gated until a named integration
-defines supported platforms and lifecycle requirements. Lane state and strict
-dependency order live in [milestone.md](milestone.md); the guide-to-lane map is
+The completed M-lane established the local runtime and the completed original
+D/P/R/I/S/A/O lanes form the implemented W8M advertiser-publisher marketplace
+baseline. A 2026-08-21 deep review opened D04, P03, S05, O03, R03, and A03 for
+confirmed correctness fixes, request authenticity, trust-boundary hardening,
+operational reliability, experiment privacy, and an exact-money migration.
+I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
+are complete and a named integration defines supported platforms and lifecycle
+requirements. Lane state and strict dependency order live in
+[milestone.md](milestone.md); the guide-to-lane map is
 [docs/README.md](../docs/README.md). Explicitly deferred investments and their
 reconsideration triggers live in [docs/defer.md](../docs/defer.md).
 

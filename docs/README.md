@@ -6,10 +6,12 @@ lane to its authoritative status file. The status files record implementation
 completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
-Current baseline: D01 through A02 in the strict roadmap order are complete.
-I02 is the only planned lane and remains blocked until a named Android or iOS
-integration defines supported platforms and lifecycle requirements. The active
-MySQL baseline contains 94 tables, 0 views, 6 routines, and 55 triggers.
+Current implemented baseline: D01 through A02 in the original strict roadmap
+order are complete. The planned review-remediation order is D04, P03, S05, O03,
+R03, then A03. I02 remains separately demand-gated until P03/S05 are complete
+and a named Android or iOS integration defines supported platforms and lifecycle
+requirements. The active MySQL baseline remains 94 tables, 0 views, 6 routines,
+and 55 triggers; planned milestones do not imply schema or runtime activation.
 
 ## Start By Audience
 
@@ -38,10 +40,13 @@ MySQL baseline contains 94 tables, 0 views, 6 routines, and 55 triggers.
 | D01 delivery guardrails | Completed | [status-D01.md](../memory-bank/status-D01.md) | [Campaign delivery guardrails](delivery-guardrails.md) |
 | D02 auction, pricing, creatives | Completed | [status-D02.md](../memory-bank/status-D02.md) | [Auction, pricing, and creative contract](auction-pricing-creatives.md) |
 | D03 external DSP / AdX middleman | Completed; activation-gated | [status-D03.md](../memory-bank/status-D03.md) | [Middleman activation](middleman-activation.md) and [runtime contract](middleman-adx.md) |
+| D04 delivery/tracking integrity | Planned | [status-D04.md](../memory-bank/status-D04.md) | Existing [delivery](delivery-guardrails.md), [auction](auction-pricing-creatives.md), and [measurement](openrtb-measurement.md) contracts |
 | P01 direct SSP readiness | Completed; publisher activation-gated | [status-P01.md](../memory-bank/status-P01.md) | [Publisher activation](publisher-activation.md) and [`/pz` contract](ssp-direct-traffic.md) |
 | P02 supply and seller transparency | Completed | [status-P02.md](../memory-bank/status-P02.md) | [Supply taxonomy ADR](adr/0001-richer-supply-taxonomy.md) and [ownership ADR](adr/0002-ssp-account-schema-boundary.md) |
+| P03 direct SSP authenticity | Planned | [status-P03.md](../memory-bank/status-P03.md) | Existing [`/pz` contract](ssp-direct-traffic.md), [publisher activation](publisher-activation.md), and [identity boundary](identity-access-security.md) |
 | R01 conversion and attribution | Completed | [status-R01.md](../memory-bank/status-R01.md) | [Conversion and attribution](conversion-attribution.md) |
 | R02 analytics and experiments | Completed | [status-R02.md](../memory-bank/status-R02.md) | [Marketplace analytics and experiments](marketplace-analytics-experiments.md) |
+| R03 experiment/report integrity | Planned | [status-R03.md](../memory-bank/status-R03.md) | Existing [analytics and experiment contract](marketplace-analytics-experiments.md) |
 | I01 OpenRTB interoperability | Completed | [status-I01.md](../memory-bank/status-I01.md) | [DSP workflow](dsp-workflow.md), [middleman OpenRTB](middleman-adx.md), and [adoption review](prebid-openrtb-adoption.md) |
 | I02 Android/iOS publisher SDKs | Planned; demand-gated | [status-I02.md](../memory-bank/status-I02.md) | Current server contract only: [`/pz`](ssp-direct-traffic.md). Maintained native SDK packages do not exist. |
 | I03 advertiser management API | Completed; disabled by default | [status-I03.md](../memory-bank/status-I03.md) | [Management API guide](advertiser-management-api.md) and [OpenAPI 3.1](management-api-openapi.yaml) |
@@ -49,10 +54,13 @@ MySQL baseline contains 94 tables, 0 views, 6 routines, and 55 triggers.
 | S02 identity, MFA, and RBAC | Completed; disabled by default | [status-S02.md](../memory-bank/status-S02.md) | [Identity and access security](identity-access-security.md) |
 | S03 traffic quality | Completed; disabled by default | [status-S03.md](../memory-bank/status-S03.md) | [Traffic quality and anti-fraud](traffic-quality-anti-fraud.md) |
 | S04 template/XSS safety | Completed | [status-S04.md](../memory-bank/status-S04.md) | [Template rendering security](template-rendering-security.md) and [pzdesign rendering inventory](../../pzdesign/docs/rendering-security.md) |
+| S05 runtime trust boundaries | Planned | [status-S05.md](../memory-bank/status-S05.md) | Existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
 | A01 accounting and settlement | Completed | [status-A01.md](../memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |
+| A03 exact monetary sources | Planned | [status-A03.md](../memory-bank/status-A03.md) | Existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |
 | O01 production traffic controls | Completed | [status-O01.md](../memory-bank/status-O01.md) | [Production traffic and observability](production-traffic-observability.md) |
 | O02 single-region availability | Completed; production claims evidence-gated | [status-O02.md](../memory-bank/status-O02.md) | [Availability, recovery, and SLO](single-region-availability.md) |
+| O03 job/cache/filesystem reliability | Planned | [status-O03.md](../memory-bank/status-O03.md) | Existing [operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
 
 ## Supporting Runtime References
 

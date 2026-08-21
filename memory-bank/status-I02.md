@@ -10,8 +10,10 @@ when customer demand justifies their long-term support cost.
 ## Dependencies
 
 - P01 direct SSP commercial readiness.
+- P03 direct SSP request authenticity.
 - I01 interoperability and error semantics.
 - S01 mobile identity, consent, and disclosure rules.
+- S05 native rendering and runtime trust-boundary hardening.
 - A named Android or iOS integration with supported OS/version requirements.
 
 ## Tasks
@@ -167,3 +169,14 @@ when customer demand justifies their long-term support cost.
   tests must prove that a stale/failed quality snapshot preserves the documented
   fail-open serving behavior and that reviewed publisher enforcement yields the
   ordinary `/pz` no-fill contract without disclosing the reason to the app.
+
+## Reconciliation From P03 And S05
+
+- A native SDK must use the P03 publisher/App-scoped request credential,
+  freshness proof, replay rules, rotation, and revocation contract. Packed or
+  HMAC-protected inventory locators are public identifiers and are never used as
+  the application's authentication secret.
+- SDK WebViews/renderers must implement S05's tested origin, navigation,
+  storage, bridge, redirect, and URL isolation for every Banner, Video, and
+  Native consumer. A named integration cannot start until the P03 legacy
+  compatibility window and S05 rendering requirements are explicit.

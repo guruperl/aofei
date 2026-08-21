@@ -141,14 +141,46 @@ instructions explicitly define safe parallel ownership.
 - Exercise required migration, compatibility, rollback, security, concurrency,
   and failure-path checks for the changed surfaces.
 - Run required checks in every related repository changed by the milestone.
-- Deep-review correctness, failure semantics, security/privacy, compatibility,
-  operations, and documentation after automated checks pass.
-- Resolve review findings in the current milestone. Carry a finding forward
-  only when it has a named pending owner and explicit rationale.
+- After automated checks pass, run the bounded review-fix gate below.
+- Carry a lower-severity finding forward only when it has a named pending owner
+  and explicit rationale. P1, P2, and higher-severity findings cannot be carried
+  forward.
 - Update the project's decision/evolution log only when its documented trigger
   is met.
 - Mark the milestone complete only when all required tasks, acceptance
-  criteria, verification, documentation, and review findings are closed.
+  criteria, verification, documentation, and the review-fix gate are closed.
+
+#### Bounded Review-Fix Gate
+
+Use the project's documented severity definitions when they exist. Otherwise:
+
+- **P1** is a severe defect in milestone acceptance, correctness,
+  security/privacy, data integrity, or a public compatibility contract.
+- **P2** is a material defect in supported behavior, reliability,
+  compatibility, operations, or required verification/documentation that does
+  not rise to P1.
+
+Any severity above P1 also blocks this gate. The initial deep-review pass is
+iteration 1. In each iteration:
+
+1. Review the full milestone implementation and diff, with special attention to
+   fixes made by the preceding iteration. Check correctness, failure semantics,
+   security/privacy, compatibility, operations, tests, and documentation.
+2. Classify and record the findings. Persist the iteration number and findings
+   in the current status notes or equivalent active goal state before applying
+   fixes, so a continuation cannot reset the counter. If the pass finds no P1,
+   P2, or higher-severity finding, the gate passes.
+3. Otherwise, when the current iteration is below 10, fix every P1, P2, and
+   higher-severity finding in the current milestone and rerun the affected
+   verification before beginning the next iteration. The next pass reviews the
+   whole milestone again, not only the latest patch.
+
+Run at most 10 iterations; a session or reviewer change does not reset the
+counter. If iteration 10 still finds a P1, P2, or higher-severity issue, the
+gate fails: do not start another automatic fix-review cycle, leave the milestone
+incomplete, record the remaining findings using the project's blocked-status
+mechanism, and report the iteration limit as the blocker. Do not begin
+downstream reconciliation; further attempts require explicit user direction.
 
 ### 4. Reconcile Downstream Work
 
@@ -223,7 +255,7 @@ At the end of each milestone, record:
 - completed status and task units;
 - material interface, data, configuration, UI, and operator changes;
 - downstream specifications reconciled and any order change;
-- verification and deep-review results;
+- verification and deep-review results, including review-fix iteration count;
 - commits or external mutations, if authorized;
 - conditional statuses skipped; and
 - remaining blockers or external actions.

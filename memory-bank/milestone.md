@@ -28,8 +28,10 @@ its status file exists. Cancelled work keeps its file and is marked cancelled.
 
 The W8M marketplace roadmap prioritizes commercial correctness, privacy,
 accounting safety, and production controls before expanding automation or
-scale. D01 through A02 in the sequence below are complete. I02 remains planned
-and must not start until a named Android or iOS integration supplies supported
+scale. D01 through A02 in the original sequence below are complete. A 2026-08-21
+deep review opened a dependency-ordered remediation horizon: D04, P03, S05,
+O03, R03, and A03. I02 remains demand-gated and must not start until P03/S05
+are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
 authoritative completion record; completed M-lane files retain earlier runtime
 history.
@@ -40,8 +42,11 @@ Delivery sequence:
 2. Foundation completion: A01 after D01, then P01 after D01/S01/A01/O01.
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
-5. Demand-gated mobile delivery: I02 after a named mobile integration requires
-   supported native SDKs.
+5. Review remediation: D04 callback/runtime correctness, P03 direct-SSP
+   authenticity, S05 trust boundaries, O03 job/cache/filesystem reliability,
+   R03 experiment/report integrity, then A03 exact monetary sources.
+6. Demand-gated mobile delivery: I02 after P03/S05 and a named mobile
+   integration requires supported native SDKs.
 
 The strict serial order is:
 
@@ -49,7 +54,8 @@ The strict serial order is:
 D01 -> S01 -> S04 -> O01 -> A01 -> P01
 -> D02 -> I01 -> R01 -> O02 -> D03
 -> R02 -> P02 -> S02 -> I03 -> S03 -> A02
--> I02 (only after a named mobile integration exists)
+-> D04 -> P03 -> S05 -> O03 -> R03 -> A03
+-> I02 (only after P03/S05 and a named mobile integration)
 ```
 
 Controlled direct-SSP and middleman staging may begin with existing runtime
@@ -61,10 +67,13 @@ acceptance criteria recorded in the corresponding status files.
 | D01 | Completed | [status-D01.md](status-D01.md) | Campaign delivery guardrails. |
 | D02 | Completed | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
 | D03 | Completed; activation-gated | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
+| D04 | Planned | [status-D04.md](status-D04.md) | Delivery, tracking, and auction integrity. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
+| P03 | Planned | [status-P03.md](status-P03.md) | Direct SSP request authenticity. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
+| R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
 | I01 | Completed | [status-I01.md](status-I01.md) | OpenRTB partner interoperability. |
 | I02 | Planned; demand-gated | [status-I02.md](status-I02.md) | Android and iOS publisher SDKs. |
 | I03 | Completed; disabled by default | [status-I03.md](status-I03.md) | External campaign management API. |
@@ -72,10 +81,13 @@ acceptance criteria recorded in the corresponding status files.
 | S02 | Completed; disabled by default | [status-S02.md](status-S02.md) | Identity, two-factor authentication, and RBAC. |
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
+| S05 | Planned | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
+| A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
+| O03 | Planned | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
 
 Historical M-lane status index:
 
@@ -138,6 +150,40 @@ Status markers:
 | `[!]` | Blocked |
 | `[X]` | Cancelled |
 
+## Review Finding Severity
+
+P1 and P2 are engineering review priorities, not product-domain lane priority,
+milestone execution order, or status markers. When a narrower linked review
+policy does not define them:
+
+- **P1** is a severe defect in milestone acceptance, correctness,
+  security/privacy, data integrity, or a public compatibility contract.
+- **P2** is a material defect in supported behavior, reliability,
+  compatibility, operations, or required verification/documentation that does
+  not rise to P1.
+
+Classify from impact, likelihood, and affected scope rather than implementation
+or fix size. P1, P2, and any higher-severity finding block milestone closure and
+cannot be carried into a later milestone. A lower-severity finding may be
+carried only with a named pending owner and explicit rationale.
+
+## Milestone Review Procedure
+
+After implementation and automated verification, review the complete milestone
+for correctness, failure semantics, security/privacy, compatibility,
+operations, tests, and documentation. The initial review is iteration 1. Record
+each iteration number and its findings in the active status notes before fixing
+anything. After every P1/P2-or-higher fix, rerun affected verification and
+review the whole milestone again.
+
+The gate passes only when an iteration finds no P1, P2, or higher-severity
+issue. Run no more than 10 iterations, without resetting for a new session or
+reviewer. If iteration 10 still has a blocking finding, leave the milestone
+incomplete, mark it through the status file's blocked mechanism, report the
+limit, and do not begin downstream reconciliation without explicit user
+direction. [GOAL.md](../GOAL.md) owns the full multi-milestone execution
+protocol.
+
 ## Closeout Checklist
 
 Use this order when closing a milestone:
@@ -145,13 +191,14 @@ Use this order when closing a milestone:
 1. Run the milestone's required verification commands.
 2. Update code-adjacent docs and the memory-bank files that changed behavior,
    contracts, tools, or operator workflow.
-3. Resolve review findings or carry them forward explicitly in the matching
-   lane status file with a dated note.
+3. Pass the bounded milestone review gate. Resolve every P1/P2-or-higher
+   finding; carry a lower-severity finding only with a named pending owner and
+   explicit rationale in the matching lane status file.
 4. Reconcile every affected pending status file and recompute the remaining
    dependency order according to [GOAL.md](../GOAL.md).
 5. Check whether `evolution/` needs a new prompt/result version.
 6. Mark the matching lane status tasks, review findings, and milestone state
-   complete only after verification passes.
+   complete only after verification and a clean review-fix iteration pass.
 7. Commit the milestone only when the execution request includes commit
    handling.
 
@@ -1461,6 +1508,13 @@ Fallback and optional `Always` require distinct evidence gates; checked-in and
 deployed traffic remains off until a named partner is approved. Detailed tasks
 and verification are in [status-D03.md](status-D03.md).
 
+## D04 - Delivery, Tracking, And Auction Integrity `[ ]`
+
+Correct confirmed ACL SQL, callback publication/idempotency, CPM type, cap-time,
+and bounded matching defects while preserving D01/A01 reconciliation and the
+documented deterministic auction policy. Detailed tasks and verification are in
+[status-D04.md](status-D04.md).
+
 ## P01 - Direct SSP Commercial Readiness And Activation `[+]`
 
 Make configured publisher slot floors authoritative and prove the existing
@@ -1474,6 +1528,13 @@ Implement the additive supply taxonomy selected by ADR 0001 and introduce
 seller/supply-chain metadata without changing the existing publisher account
 boundary. Detailed tasks are in [status-P02.md](status-P02.md).
 
+## P03 - Direct SSP Request Authenticity `[ ]`
+
+Version direct-SSP inventory token integrity and add a distinct authenticated,
+fresh publisher/App request boundary for SDK-style traffic. Public browser
+locators remain replayable identifiers rather than publisher authentication.
+Detailed tasks and verification are in [status-P03.md](status-P03.md).
+
 ## R01 - Conversion, Action, And Attribution Measurement `[+]`
 
 Add signed, idempotent conversion and post-click action collection, attribution
@@ -1485,6 +1546,13 @@ measurement. Detailed tasks are in [status-R01.md](status-R01.md).
 Expand reporting dimensions and commercial metrics, define reporting freshness,
 and add controlled A/B assignment only after conversion attribution is
 reliable. Detailed tasks are in [status-R02.md](status-R02.md).
+
+## R03 - Experiment And Reporting Integrity `[ ]`
+
+Make new experiment assignment namespaces server-owned and cross-experiment
+unlinkable, preserve existing assignments through an explicit algorithm
+version, and reject malformed or mis-scoped analytical facts. Detailed tasks
+and verification are in [status-R03.md](status-R03.md).
 
 ## I01 - OpenRTB Partner Interoperability `[+]`
 
@@ -1530,6 +1598,13 @@ intentional stored-markup previews, and centralize the narrow sanitized
 safe-HTML boundary without weakening contextual `html/template` escaping.
 Detailed tasks are in [status-S04.md](status-S04.md).
 
+## S05 - Runtime Trust-Boundary Hardening `[ ]`
+
+Harden special-use address rejection, injected HTTP clients, creative consumers,
+principal provenance, quality-rule version selection, and protected database
+columns without stripping legitimate sandboxed ad scripts or blocking valid
+state transitions. Detailed tasks are in [status-S05.md](status-S05.md).
+
 ## A01 - Billing And Manual Settlement Safety `[+]`
 
 Define charge/pay and CPM/eCPM accounting contracts, support auditable manual
@@ -1553,6 +1628,13 @@ routines, and 55 triggers. Recorded/disposable verification is complete; live
 provider sandbox, migration, governance, and production enablement remain
 external go-live gates rather than repository completion claims.
 
+## A03 - Exact Monetary Source Migration `[ ]`
+
+Extend exact money through authoritative demand, reservation, ledger, daily,
+management, statement, and hosted reconciliation sources using a versioned,
+auditable migration that does not invent precision for historical float data.
+Detailed tasks and verification are in [status-A03.md](status-A03.md).
+
 ## O01 - Production Traffic Controls And Observability `[+]`
 
 Operationalize protected metrics and alerts, add partner QPS/concurrency and
@@ -1568,6 +1650,13 @@ rebuild, recovery objectives, and an evidence-gated 99.9% SLO contract are
 complete. Production 99.9% and provider RPO/RTO achievement remain explicitly
 unclaimed until a named production window supplies retained evidence. Detailed
 results are in [status-O02.md](status-O02.md).
+
+## O03 - Job, Cache, And Filesystem Reliability `[ ]`
+
+Harden singleton renewal, atomic reusable cache publication, spread-generation
+ordering, callback recovery evidence, filesystem permissions/atomicity, and
+malformed geodata handling without weakening O02 split-brain safety. Detailed
+tasks and verification are in [status-O03.md](status-O03.md).
 
 ## Deferred Product Investments
 

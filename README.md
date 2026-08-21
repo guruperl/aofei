@@ -130,23 +130,31 @@ placement and direct `go install` invocations in
 
 ## Capability And Activation Status
 
-The D/P/R/I/S/A/O roadmap is implemented through A02 except for native mobile
-SDKs (I02). Implementation does not imply production activation:
+The original D/P/R/I/S/A/O baseline is implemented through A02. A new review
+remediation horizon is planned in the order D04, P03, S05, O03, R03, and A03;
+I02 remains separately demand-gated. Implementation does not imply production
+activation:
 
 | Area | Current state |
 |---|---|
 | D01 delivery, D02 auction/creative safety | Implemented and part of the core runtime contract. |
 | D03 external DSP / AdX middleman | Implemented; checked-in disclosure and traffic gates remain off until a named partner passes staged activation. |
+| D04 delivery/tracking integrity | Planned; owns confirmed ACL, callback, cap-time, and tracking semantic corrections. |
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
+| P03 direct SSP authenticity | Planned; will separate browser-token integrity from authenticated SDK/server traffic. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
+| R03 experiment/report integrity | Planned; will version assignment privacy and strengthen analytical validation. |
 | I01 OpenRTB interoperability | Implemented as a bounded OpenRTB 2.5 profile. |
 | I02 Android/iOS publisher SDKs | Planned and demand-gated; `/pz` JSON/OpenRTB examples exist, but maintained native SDK packages do not. |
 | I03 advertiser management API | Implemented but independently disabled by default. |
 | S01 privacy, S04 rendering safety | Implemented core boundaries. |
 | S02 identity/RBAC, S03 traffic quality | Implemented but independently disabled by default pending migration, keys, permissions, and rollout evidence. |
+| S05 runtime trust boundaries | Planned; owns outbound-network, creative-consumer, principal, and quality-version hardening. |
 | A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
+| A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |
 | O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
+| O03 job/cache/filesystem reliability | Planned; owns singleton, publication, spread, filesystem, and geodata hardening. |
 
 See the [documentation and milestone index](docs/README.md) for the authoritative
 guide for each lane and the matching status file. Historical M-lane evidence is
@@ -167,8 +175,8 @@ kept in `memory-bank/`; it is not a current deployment guide.
 - [memory-bank/](memory-bank/): current product, architecture, toolchain,
   milestone, and per-lane status source of truth.
 - [AGENTS.md](AGENTS.md), [GOAL.md](GOAL.md), and [SECURITY.md](SECURITY.md):
-  repository work protocol, reusable slash-goal loop, and private security
-  reporting/data-handling rules.
+  repository work protocol, reusable multi-milestone loop with bounded
+  review/fix iterations, and private security reporting/data-handling rules.
 - `../pzdesign` and `../genelet`: separately versioned service/UI and Web
   framework modules.
 - [backup/README.md](backup/README.md): policy that keeps operational snapshots,

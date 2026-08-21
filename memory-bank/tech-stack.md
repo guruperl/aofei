@@ -17,8 +17,12 @@ from this checkout under that parent workspace.
 status files. The caller supplies a linear `STATUS_ORDER`; optional
 `DOWNSTREAM_IMPACTS` identify pending plans to reconcile after each completed
 milestone. Commit and external-mutation authority remain explicit and default
-to none. `memory-bank/milestone.md` and the lane status files remain the roadmap
-and task sources of truth.
+to none. Its bounded review-fix gate persists review iterations, requires a new
+full review after every P1/P2-or-higher fix, and stops incomplete after iteration
+10 if a blocking finding remains. `memory-bank/suggested.txt`, when present, is
+disposable launch input for `$memory-bank:memory-bank-goal`; it must be
+reconciled and deleted after launch or when stale. `memory-bank/milestone.md`
+and the lane status files remain the roadmap and task sources of truth.
 
 ## Core Dependencies
 
@@ -494,9 +498,10 @@ git diff --check
 ```
 
 The documentation guard requires `docs/README.md` to index every active
-Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies
-that I02 remains planned while the other current lanes are completed, checks
-the 94/0/6/55 schema inventory, and rejects attempts to test the removed
+Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
+completed original lane set, the planned D04/P03/S05/O03/R03/A03 remediation
+horizon, demand-gated I02, and the bounded `GOAL.md` review-fix contract; checks
+the 94/0/6/55 schema inventory; and rejects attempts to test the removed
 `./genelet` package path from inside pzdesign. Historical status and
 legacy-operation evidence may retain commands and counts that were accurate at
 their recorded closeout.

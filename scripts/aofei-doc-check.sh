@@ -75,17 +75,44 @@ current_entry_docs=(
 )
 
 lane_ids=(
-	D01 D02 D03
-	P01 P02
-	R01 R02
+	D01 D02 D03 D04
+	P01 P02 P03
+	R01 R02 R03
 	I01 I02 I03
-	S01 S02 S03 S04
-	A01 A02
-	O01 O02
+	S01 S02 S03 S04 S05
+	A01 A02 A03
+	O01 O02 O03
 )
 
 if [ ! -f docs/README.md ]; then
 	fail "docs/README.md is required as the current documentation and lane index."
+fi
+
+for goal_contract in \
+	'#### Bounded Review-Fix Gate' \
+	'P1, P2, and higher-severity findings cannot be carried' \
+	'Run at most 10 iterations' \
+	'review-fix iteration count'
+do
+	if ! grep -Fq "$goal_contract" GOAL.md; then
+		fail "GOAL.md is missing the current bounded review-fix contract: $goal_contract"
+	fi
+done
+
+if [ -f memory-bank/suggested.txt ]; then
+	if ! grep -Fq 'D04 -> P03 -> S05 -> O03 -> R03 -> A03 -> I02?' memory-bank/suggested.txt; then
+		fail "memory-bank/suggested.txt must use the current remediation order."
+	fi
+	for suggested_lane in D04 P03 S05 O03 R03 A03 I02; do
+		if [ ! -f "memory-bank/status-${suggested_lane}.md" ] ||
+			! grep -Fq "${suggested_lane} = memory-bank/status-${suggested_lane}.md" memory-bank/suggested.txt; then
+			fail "memory-bank/suggested.txt must map ${suggested_lane} to its current status file."
+		fi
+	done
+	if ! grep -Fq 'COMMIT_POLICY: task' memory-bank/suggested.txt ||
+		! grep -Fq 'EXTERNAL_MUTATIONS: none' memory-bank/suggested.txt; then
+		fail "memory-bank/suggested.txt must keep explicit task commits and no external mutations."
+	fi
 fi
 
 for lane_id in "${lane_ids[@]}"; do
@@ -99,20 +126,29 @@ for lane_id in "${lane_ids[@]}"; do
 		fail "docs/README.md must link status-${lane_id}.md."
 	fi
 
-	if [ "$lane_id" = I02 ]; then
+	case "$lane_id" in
+	I02|D04|P03|R03|S05|A03|O03)
 		if ! grep -Fq 'State: `[ ]` Planned' "$status_file"; then
-			fail "$status_file must remain explicitly planned until a named mobile integration exists."
+			fail "$status_file must record the current planned state."
 		fi
-	else
+		;;
+	*)
 		if ! grep -Fq 'State: `[+]` Completed' "$status_file"; then
 			fail "$status_file must record the reconciled completed state."
 		fi
-	fi
+		;;
+	esac
 done
 
 if ! grep -Fq '| I02 Android/iOS publisher SDKs | Planned; demand-gated |' docs/README.md; then
 	fail "docs/README.md must identify I02 as planned and demand-gated."
 fi
+
+for planned_lane in D04 P03 S05 O03 R03 A03; do
+	if ! grep -Eq "^\\| ${planned_lane} .* \\| Planned \\|" docs/README.md; then
+		fail "docs/README.md must identify ${planned_lane} as planned remediation."
+	fi
+done
 
 mapfile -t indexed_docs < <(
 	find docs -type f -name '*.md' \
