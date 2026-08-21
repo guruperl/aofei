@@ -205,7 +205,7 @@ func (self *WinLoss) packURLValues(tracking bool) url.Values {
 		args.Set("auction_imp_id", self.AuctionImpID)
 		args.Set("auction_price", fmt.Sprintf("%f", self.Cost))
 		args.Set("auction_currency", "USD")
-		if self.RAdv.Cap.CapNumber > 0 || self.RAdv.Cap.ClickNumber > 0 {
+		if self.RAdv.Cap.CapNumber > 0 || self.RAdv.Cap.CapThrottle > 0 || self.RAdv.Cap.ClickNumber > 0 {
 			cap, _ := self.RAdv.Cap.PackString()
 			args.Set("cap", cap)
 		}

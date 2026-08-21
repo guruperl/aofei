@@ -39,3 +39,17 @@ func TestGetSizeIDNativeForImpAcceptsLargestRepresentableDimension(t *testing.T)
 		t.Fatalf("size id = %d, want %d", sizeID, SizeID2To1(65535, 1))
 	}
 }
+
+func TestGetSizeIDNativeForImpValidatesEveryAsset(t *testing.T) {
+	requests := []string{
+		`{"native":{"assets":[{"id":1,"img":{"w":300,"h":250}},{"id":2,"img":{"w":65536,"h":250}}]}}`,
+		`{"native":{"assets":[{"id":1,"img":{"w":300,"h":250,"wmin":64,"hmin":0}}]}}`,
+		`{"native":{"assets":[{"id":1,"img":{"w":300,"h":250},"video":{"w":70000,"h":360}}]}}`,
+	}
+	for _, request := range requests {
+		imp := &openrtb2.Imp{Native: &openrtb2.Native{Request: request}}
+		if _, _, err := getSizeIDNativeForImp(imp); err == nil || !strings.Contains(err.Error(), "supported range") {
+			t.Fatalf("Native request %s error = %v, want supported-range rejection", request, err)
+		}
+	}
+}

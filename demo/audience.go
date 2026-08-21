@@ -69,11 +69,15 @@ func (self *DemoAudience) hasLanguages(langs WLangs) bool {
 	return false
 }
 
-// Has returns true if the DemoAudience has the given Demo.
+// Has returns true if the DemoAudience has the given Demo. Missing demographics
+// match only an unconstrained demographic audience.
 func (self *DemoAudience) Has(dmo *Demo) bool {
 	// if self == nil, it means no audience is set, so it should be true.
 	if self == nil {
 		return true
+	}
+	if dmo == nil {
+		return self.Genders == 0 && self.Yobs == 0 && self.Languages == 0
 	}
 
 	if !self.hasGender(dmo.Gender) {

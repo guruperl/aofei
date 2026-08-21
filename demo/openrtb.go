@@ -6,6 +6,9 @@ import (
 
 // NewDemo creates a new Demo from a bid request.
 func NewOpenRTBDemo(bidRequest *openrtb2.BidRequest) *Demo {
+	if bidRequest == nil {
+		return NewDemo("", 0, nil)
+	}
 	var demo *Demo
 	user := bidRequest.User
 	if user != nil {

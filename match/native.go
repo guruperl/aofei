@@ -36,36 +36,44 @@ func (self *NativeFormat) validatedSizes() (uint16, uint16, error) {
 	if self == nil {
 		return 0, 0, nil
 	}
+	var selectedWidth, selectedHeight uint16
 	for index, asset := range self.Assets {
 		if asset == nil {
 			return 0, 0, fmt.Errorf("native asset %d is nil", index)
 		}
 		if img := asset.Img; img != nil {
-			for _, dimension := range []struct {
-				name  string
-				value int64
-			}{
-				{name: "width", value: img.W},
-				{name: "height", value: img.H},
-				{name: "minimum width", value: img.WMin},
-				{name: "minimum height", value: img.HMin},
-			} {
-				if dimension.value < 0 || dimension.value > maxSizeDimension {
-					return 0, 0, fmt.Errorf("native image %s %d is outside the supported range 0..%d", dimension.name, dimension.value, maxSizeDimension)
+			var width, height, minWidth, minHeight uint16
+			var err error
+			if img.W != 0 || img.H != 0 {
+				width, height, err = validatedSizePair("native image", img.W, img.H)
+				if err != nil {
+					return 0, 0, err
 				}
 			}
-			if img.W != 0 || img.H != 0 {
-				return validatedSizePair("native image", img.W, img.H)
-			}
 			if img.WMin != 0 || img.HMin != 0 {
-				return validatedSizePair("native image minimum", img.WMin, img.HMin)
+				minWidth, minHeight, err = validatedSizePair("native image minimum", img.WMin, img.HMin)
 			}
-			return 0, 0, nil
-		} else if asset.Video != nil {
-			return validatedSizePair("native video", asset.Video.W, asset.Video.H)
+			if err != nil {
+				return 0, 0, err
+			}
+			if width == 0 {
+				width, height = minWidth, minHeight
+			}
+			if selectedWidth == 0 && width != 0 {
+				selectedWidth, selectedHeight = width, height
+			}
+		}
+		if asset.Video != nil {
+			width, height, err := validatedSizePair("native video", asset.Video.W, asset.Video.H)
+			if err != nil {
+				return 0, 0, err
+			}
+			if selectedWidth == 0 {
+				selectedWidth, selectedHeight = width, height
+			}
 		}
 	}
-	return 0, 0, nil
+	return selectedWidth, selectedHeight, nil
 }
 
 func requestStringToNativeFormat(bs []byte) (*NativeFormat, error) {

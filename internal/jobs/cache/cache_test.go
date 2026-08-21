@@ -123,7 +123,7 @@ func middlemanActivationConfig() *dsp.Config {
 		MiddlemanMaxBiddersPerImp:   5,
 		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanExchangeDomain:     "exchange.example",
-		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanCallbackBaseURL:    "https://exchange.example",
 		PrivacyContextualMiddleman:  true,

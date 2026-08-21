@@ -260,6 +260,36 @@ the request fails and clears notification ownership; the resulting downstream
 retry window remains deliberately at-least-once and requires idempotent partner
 callbacks.
 
+Notify, publish, and bill markers begin as random-token-owned processing claims
+with a lease that covers the configured downstream timeout. Successful state or
+local publication atomically converts the matching owner claim to a completed
+callback-TTL marker. Publication failure releases only the matching owner on a
+bounded context detached from HTTP cancellation. A process exit leaves only a
+short processing lease, so a retry can resume instead of suppressing an
+unpublished fact for the full callback TTL; a late owner cannot clear or
+complete a replacement claim.
+`middleman_callback_ttl_seconds` must cover the complete accepted tracking
+signature lifetime, including the five-minute future-clock-skew allowance, and
+the processing lease. Its default is therefore 86,700 seconds when the tracking
+signature TTL is 24 hours. `middleman_callback_timeout_ms` is bounded to
+1..60,000 milliseconds.
+
+Malformed signatures and expired, missing, or corrupt callback context return
+HTTP `400`. Redis/context dependency failures, retryable local publication
+failures, and retryable downstream failures that cannot be placed in the durable
+queue return `503` so the exchange can retry. A retryable downstream failure
+that is durably queued retains the completed notify marker and returns the normal
+`204`; later queue processing forwards downstream only and never republishes the
+local fact.
+
+`aofei_middleman_callback_outcomes_total` exposes only fixed outcome keys for
+in-flight/completed forward duplicates, local publication/billing duplicates,
+retryable local publication, retry queue availability, and claim release or
+release/completion failure. It never uses a callback token, auction identity, partner
+endpoint, or inventory identity as a metric key. Callback retry warnings contain
+only the bounded callback source and a fixed dependency reason, never the raw
+callback token.
+
 M21 records both sides of the middleman price:
 
 ```text
@@ -302,6 +332,14 @@ it does not republish win/loss or delivery records, so ledger counts remain
 idempotent. Once a retryable `/mid/*` failure is durably queued, duplicate
 exchange callbacks remain suppressed by the Redis notify key and are not
 enqueued again.
+
+Deploy the split notify/publication lifecycle as one callback-tier rollout:
+drain or route `/mid/*` consistently to upgraded workers instead of allowing an
+old worker and a new worker to alternate on one callback token. Preserve
+`middleman:notify:*`, `middleman:publish:*`, `middleman:bill:*`, and queued retry
+rows during rollout and rollback. If rollback is required, roll the callback
+tier together and let existing marker TTLs expire naturally; deleting marker
+families can refire downstream side effects and is not a rollback procedure.
 
 Forwarded requests contain only that bidder's assigned impression list and add
 cooperative click notify URLs under `ext.aofei_middleman.click_notify_urls`.

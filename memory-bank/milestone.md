@@ -28,9 +28,10 @@ its status file exists. Cancelled work keeps its file and is marked cancelled.
 
 The W8M marketplace roadmap prioritizes commercial correctness, privacy,
 accounting safety, and production controls before expanding automation or
-scale. D01 through A02 in the original sequence below are complete. A 2026-08-21
-deep review opened a dependency-ordered remediation horizon: D04, P03, S05,
-O03, R03, and A03. I02 remains demand-gated and must not start until P03/S05
+scale. D01 through A02 in the original sequence below and D04 are complete. A
+2026-08-21 deep review opened a dependency-ordered remediation horizon; the
+remaining order is P03, S05, O03, R03, and A03. I02 remains demand-gated and
+must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
 authoritative completion record; completed M-lane files retain earlier runtime
@@ -42,9 +43,10 @@ Delivery sequence:
 2. Foundation completion: A01 after D01, then P01 after D01/S01/A01/O01.
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
-5. Review remediation: D04 callback/runtime correctness, P03 direct-SSP
-   authenticity, S05 trust boundaries, O03 job/cache/filesystem reliability,
-   R03 experiment/report integrity, then A03 exact monetary sources.
+5. Review remediation: D04 callback/runtime correctness is complete; next are
+   P03 direct-SSP authenticity, S05 trust boundaries, O03 job/cache/filesystem
+   reliability, R03 experiment/report integrity, then A03 exact monetary
+   sources.
 6. Demand-gated mobile delivery: I02 after P03/S05 and a named mobile
    integration requires supported native SDKs.
 
@@ -67,7 +69,7 @@ acceptance criteria recorded in the corresponding status files.
 | D01 | Completed | [status-D01.md](status-D01.md) | Campaign delivery guardrails. |
 | D02 | Completed | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
 | D03 | Completed; activation-gated | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
-| D04 | Planned | [status-D04.md](status-D04.md) | Delivery, tracking, and auction integrity. |
+| D04 | Completed | [status-D04.md](status-D04.md) | Delivery, tracking, and auction integrity. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
 | P03 | Planned | [status-P03.md](status-P03.md) | Direct SSP request authenticity. |
@@ -1508,7 +1510,7 @@ Fallback and optional `Always` require distinct evidence gates; checked-in and
 deployed traffic remains off until a named partner is approved. Detailed tasks
 and verification are in [status-D03.md](status-D03.md).
 
-## D04 - Delivery, Tracking, And Auction Integrity `[ ]`
+## D04 - Delivery, Tracking, And Auction Integrity `[+]`
 
 Correct confirmed ACL SQL, callback publication/idempotency, CPM type, cap-time,
 and bounded matching defects while preserving D01/A01 reconciliation and the

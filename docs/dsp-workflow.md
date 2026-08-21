@@ -89,8 +89,12 @@ delivery snapshot deadline are checked before shared mutable-state reads. This
 means out-of-window or stale demand cannot consume cap or reservation state.
 
 Frequency caps are then checked by reading `bothcap:<user_id>` for capped item
-ids. Expired cap entries are deleted from Redis. This mutable cap state remains
-Redis-backed in both Redis and local/spread bid modes.
+ids. Expired numbered windows stop blocking immediately and that individual
+counter resets on the next accepted callback; bid-time matching does not delete
+the shared item record because its sibling click window or throttle timestamp
+may still be active. Idle hash retention remains governed by
+`cap_state_ttl_seconds`. This mutable cap state remains Redis-backed in both
+Redis and local/spread bid modes.
 
 A numbered impression or click cap requires a positive corresponding period.
 The cache compiler rejects missing, negative, or out-of-wire-range cap values;

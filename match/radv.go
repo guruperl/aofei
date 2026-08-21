@@ -757,7 +757,7 @@ func RAdvsFromIOBySizeID(top string, sizeID uint32) (map[uint32]RAdvs, error) {
 func (self RAdvs) capItemIDs() []string {
 	var ids []string
 	for _, block := range self {
-		if block.Cap.CapNumber == 0 && block.Cap.ClickNumber == 0 {
+		if block.Cap.CapNumber == 0 && block.Cap.CapThrottle == 0 && block.Cap.ClickNumber == 0 {
 			continue
 		}
 		ids = append(ids, fmt.Sprintf("%d", block.ItemID))
@@ -781,7 +781,6 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 	}
 
 	var blocks []RAdv
-	var expired []string
 	//var denied []uint32
 	for _, block := range self {
 		bothcap, ok := bothcaps[block.ItemID]
@@ -789,18 +788,9 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 			blocks = append(blocks, block)
 			continue
 		}
-		if !block.Cap.ValidPeriodImp(when, bothcap.Imp) { // cap expired so start over again
-			expired = append(expired, fmt.Sprintf("%d", block.ItemID))
-			delete(bothcaps, block.ItemID)
-			blocks = append(blocks, block)
-			continue
-		}
 		if block.Cap.CanServe(when, bothcap) { //do we need denied list?
 			blocks = append(blocks, block)
 		}
-	}
-	if len(expired) > 0 {
-		err = BothCapsCleanupExpired(ctx, conn, pid, expired)
 	}
 
 	if len(blocks) == 0 {

@@ -96,6 +96,14 @@ When a cap payload is present, a positive impression or click count must have a
 positive corresponding period. Invalid, truncated, or trailing cap data is
 rejected before replay claims, cap mutation, or publication. A positive
 impression throttle remains valid by itself.
+Redirecting clicks apply the same payload validation: malformed signed demand,
+supply, price, reporting, bid identity, or cap data returns `400` and does not
+redirect. Only a retryable local publication or delivery-state dependency
+failure after all validation is allowed to preserve the valid advertiser
+redirect.
+For non-redirect `/imp`, `/clk`, `/win`, and `/loss` callbacks, that typed local
+publication or delivery-state failure returns retryable HTTP `503`; malformed
+data remains `400`.
 Duplicate `/win` and `/loss` notifications for the same auction bid are
 short-circuited until the signed timestamp's exact validity deadline when Redis
 is available. Signed `/imp` and `/clk` events are also deduplicated independently
@@ -106,18 +114,25 @@ starting a fresh configured TTL at callback time.
 
 The first event acquires a short owner-token processing claim, performs cap
 mutation and log publication, then converts the claim to the deadline-bound
-completion marker. A publication failure releases the claim for retry; cap
-mutation uses a separate transactional event marker so that retry does not
+completion marker before applying the idempotent delivery finalization, click,
+or loss-release operation. A publication failure releases the claim for retry;
+cap mutation uses a separate transactional event marker so that retry does not
 increment the counter twice. A cap-state failure does not release an owned claim
-before publication. Successful publication still finalizes replay suppression.
-Duplicates preserve the normal `204` or click redirect response without
-repeating either side effect.
+before publication. A completed duplicate never republishes the measurement but
+does retry the idempotent delivery operation, so a transient post-publication
+Redis failure cannot strand it. An in-flight callback carrying a delivery
+reservation returns `503` until its owner completes or its short lease expires;
+an unlimited in-flight duplicate preserves the normal `204`. Redirecting clicks
+still preserve the valid advertiser redirect.
 Win/loss callbacks use the same owner-token lifecycle without cap mutation. In
 particular, a transient win/loss publication failure releases its processing
 claim, and a loss keeps the delivery reservation active until a retry publishes
-the loss durably. Only that successful publication attempts the idempotent
-reservation release; concurrent or completed duplicates publish nothing and do
-not touch the reservation.
+the loss durably. Successful publication records completion before attempting
+the idempotent reservation release; a completed retry publishes nothing and may
+repeat only that release. If completion-marker persistence itself is uncertain,
+delivery work is still attempted and the callback remains retryable until the
+processing lease resolves, retaining the documented fail-open at-least-once
+measurement boundary.
 
 This path is deliberately fail-open: claim or cap Redis errors do not reject an
 otherwise valid `/imp` or `/clk`. Keyed events still attempt the idempotent cap
@@ -142,7 +157,19 @@ Replay operations expose `aofei_tracking_replay_suppressed_total`,
 `aofei_tracking_replay_redis_errors_total`, and
 `aofei_tracking_replay_unkeyed_total` through `/debug/vars`.
 `aofei_tracking_cap_update_fail_open_total` counts valid events published
-without a successful cap update.
+without a successful cap update. `aofei_tracking_retryable_publish_errors_total`
+counts owned callbacks whose local publication failed and can retry;
+`aofei_tracking_claim_releases_total` and
+`aofei_tracking_claim_release_errors_total` distinguish confirmed versus failed
+owner-claim cleanup. Duplicate evidence remains
+`aofei_tracking_replay_suppressed_total`.
+
+`aofei_bothcap_formats_total` uses only `legacy`, `utc_v2`, and `malformed`
+keys. It shows rolling-read progress and corrupt/incompatible state without a
+user, item, or Redis key label. No callback, auction, user, or inventory
+identifier is placed in these metrics. Runtime bid-path logs use a bounded
+request-ID hash and fixed reason categories rather than raw request IDs or
+request-derived error text.
 
 Successful signed `/imp` and `/clk` publication also attempts a bounded,
 detached MySQL `measurement_touch` write for R01 attribution. This write is

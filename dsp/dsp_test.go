@@ -130,6 +130,37 @@ func TestWinLossUsesSelectedBidPrice(t *testing.T) {
 	}
 }
 
+func TestWinLossTrackingURLIncludesStandaloneThrottle(t *testing.T) {
+	winloss := NewWinLoss(
+		StatusBid,
+		time.Now(),
+		match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
+		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cap: match.Cap{CapThrottle: 10}},
+		nil,
+		"5",
+		"auction",
+		"bid",
+		"imp",
+		"7",
+		"https://dsp.example",
+	)
+	tracker, err := url.Parse(winloss.ImpURL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	packed := tracker.Query().Get("cap")
+	if packed == "" {
+		t.Fatal("standalone throttle was omitted from the impression tracker")
+	}
+	cap, err := match.UnpackCapString(packed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cap.CapThrottle != 10 {
+		t.Fatalf("tracker throttle = %d, want 10", cap.CapThrottle)
+	}
+}
+
 func TestWinLossClickRedirectURL(t *testing.T) {
 	winloss := NewWinLoss(
 		StatusBid,

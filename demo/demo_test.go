@@ -15,6 +15,7 @@ func TestGetLangsHandlesMissingDevice(t *testing.T) {
 	if got := getLangs(nil); got != nil {
 		t.Fatalf("nil request languages = %#v, want nil", got)
 	}
+	_ = NewOpenRTBDemo(nil)
 }
 
 func TestGetLangsUsesDeviceLanguages(t *testing.T) {

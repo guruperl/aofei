@@ -67,6 +67,10 @@ var (
 	metricTrackingReplayRedisErrors      = expvar.NewInt("aofei_tracking_replay_redis_errors_total")
 	metricTrackingReplayUnkeyed          = expvar.NewInt("aofei_tracking_replay_unkeyed_total")
 	metricTrackingCapUpdateFailOpen      = expvar.NewInt("aofei_tracking_cap_update_fail_open_total")
+	metricTrackingRetryablePublishErrors = expvar.NewInt("aofei_tracking_retryable_publish_errors_total")
+	metricTrackingClaimReleases          = expvar.NewInt("aofei_tracking_claim_releases_total")
+	metricTrackingClaimReleaseErrors     = expvar.NewInt("aofei_tracking_claim_release_errors_total")
+	metricMiddlemanCallbackOutcomes      = expvar.NewMap("aofei_middleman_callback_outcomes_total")
 	metricActionRequests                 = expvar.NewInt("aofei_action_requests_total")
 	metricActionAccepted                 = expvar.NewInt("aofei_action_accepted_total")
 	metricActionDuplicates               = expvar.NewInt("aofei_action_duplicates_total")
@@ -99,6 +103,16 @@ var (
 	metricDependencyCheckErrors          = expvar.NewMap("aofei_dependency_check_errors_total")
 	metricDBPool                         = expvar.NewMap("aofei_db_pool")
 )
+
+func recordMiddlemanCallbackOutcome(outcome string) {
+	switch outcome {
+	case "forward_inflight_duplicate", "forward_completed_duplicate", "publish_duplicate", "bill_duplicate",
+		"local_publish_retryable", "claim_released", "claim_release_error", "claim_completion_error", "retry_queued", "retry_unavailable", "retry_enqueue_error":
+	default:
+		outcome = "other"
+	}
+	metricMiddlemanCallbackOutcomes.Add(outcome, 1)
+}
 
 func recordActionRejection(reason string) {
 	switch reason {

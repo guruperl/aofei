@@ -19,6 +19,61 @@ import (
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
+func TestMiddlemanCallbackTTLFallbackCoversAcceptedSignatureLifetime(t *testing.T) {
+	want := defaultTrackingSignatureTTL + maxTrackingSignatureFutureSkew
+	if got := (*Controller)(nil).middlemanCallbackTTL(); got != want {
+		t.Fatalf("nil-controller callback TTL = %s, want %s", got, want)
+	}
+	if got := (&Controller{C: &Config{}}).middlemanCallbackTTL(); got != want {
+		t.Fatalf("zero-config callback TTL = %s, want %s", got, want)
+	}
+}
+
+func TestServeMiddlemanLookupClassifiesDependencyAndMissingState(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		path       string
+		lookupFail string
+	}{
+		{name: "status", path: "/mid/win", lookupFail: "callback"},
+		{name: "click", path: "/mid/click", lookupFail: "click"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			base := newMemoryMiddlemanCallbackStore()
+			store := &failingMiddlemanLookupStore{memoryMiddlemanCallbackStore: base}
+			controller := &Controller{
+				C:              &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+				middlemanStore: store,
+			}
+			var target string
+			if test.lookupFail == "callback" {
+				store.callbackErr = errors.New("callback Redis unavailable")
+				target = signedMiddlemanTestURL(t, controller, test.path, "tok", "1.000")
+			} else {
+				store.clickErr = errors.New("click Redis unavailable")
+				var err error
+				target, err = controller.middlemanClickProxyURL("rtok", "imp")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			rr := httptest.NewRecorder()
+			controller.ServeMiddlemanCallback(rr, httptest.NewRequest(http.MethodGet, target, nil))
+			if rr.Code != http.StatusServiceUnavailable {
+				t.Fatalf("dependency status = %d body=%s, want 503", rr.Code, rr.Body.String())
+			}
+
+			store.callbackErr = nil
+			store.clickErr = nil
+			rr = httptest.NewRecorder()
+			controller.ServeMiddlemanCallback(rr, httptest.NewRequest(http.MethodGet, target, nil))
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("missing-state status = %d body=%s, want 400", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestMiddlemanReconciledPricesUseServerOwnedPrice(t *testing.T) {
 	value := middlemanCallbackContext{
 		DownstreamBidPrice: 1.0,
@@ -40,7 +95,7 @@ func TestRedisMiddlemanStoreSeparatesForwardAndPublishState(t *testing.T) {
 	defer client.Close()
 	store := redisMiddlemanCallbackStore{redis: client}
 	ctx := context.Background()
-	first, err := store.SetNotifyOnce(ctx, "tok", "win", time.Minute)
+	first, err := store.SetNotifyOnce(ctx, "tok", "win", "notify-owner", time.Minute)
 	if err != nil || !first {
 		t.Fatalf("initial forward claim = %v, %v", first, err)
 	}
@@ -49,10 +104,10 @@ func TestRedisMiddlemanStoreSeparatesForwardAndPublishState(t *testing.T) {
 		t.Fatalf("processing state = %+v, %v", state, err)
 	}
 	completed := middlemanForwardState{Status: "ok", HTTPStatus: http.StatusNoContent}
-	if err := store.CompleteNotify(ctx, "tok", "win", completed, time.Hour); err != nil {
+	if err := store.CompleteNotify(ctx, "tok", "win", "notify-owner", completed, time.Hour); err != nil {
 		t.Fatal(err)
 	}
-	first, err = store.SetNotifyOnce(ctx, "tok", "win", time.Minute)
+	first, err = store.SetNotifyOnce(ctx, "tok", "win", "other-notify-owner", time.Minute)
 	if err != nil || first {
 		t.Fatalf("completed forward claim = %v, %v; want duplicate", first, err)
 	}
@@ -60,20 +115,46 @@ func TestRedisMiddlemanStoreSeparatesForwardAndPublishState(t *testing.T) {
 	if err != nil || state.Processing || state.Status != "ok" || state.HTTPStatus != http.StatusNoContent {
 		t.Fatalf("completed state = %+v, %v", state, err)
 	}
-	publishFirst, err := store.SetPublishOnce(ctx, "tok", "win", time.Hour)
+	publishFirst, err := store.SetPublishOnce(ctx, "tok", "win", "publish-owner", time.Minute)
 	if err != nil || !publishFirst {
 		t.Fatalf("initial publish claim = %v, %v", publishFirst, err)
 	}
-	publishFirst, err = store.SetPublishOnce(ctx, "tok", "win", time.Hour)
+	publishFirst, err = store.SetPublishOnce(ctx, "tok", "win", "other-publish-owner", time.Minute)
 	if err != nil || publishFirst {
 		t.Fatalf("duplicate publish claim = %v, %v", publishFirst, err)
 	}
-	if err := store.ClearPublish(ctx, "tok", "win"); err != nil {
+	if err := store.ClearPublish(ctx, "tok", "win", "publish-owner"); err != nil {
 		t.Fatal(err)
 	}
-	publishFirst, err = store.SetPublishOnce(ctx, "tok", "win", time.Hour)
+	publishFirst, err = store.SetPublishOnce(ctx, "tok", "win", "replacement-owner", time.Minute)
 	if err != nil || !publishFirst {
 		t.Fatalf("released publish claim = %v, %v", publishFirst, err)
+	}
+	if err := store.CompletePublish(ctx, "tok", "win", "replacement-owner", time.Hour); err != nil {
+		t.Fatal(err)
+	}
+
+	publishFirst, err = store.SetPublishOnce(ctx, "crash", "win", "expired-owner", time.Second)
+	if err != nil || !publishFirst {
+		t.Fatalf("crash claim = %v, %v", publishFirst, err)
+	}
+	server.FastForward(2 * time.Second)
+	publishFirst, err = store.SetPublishOnce(ctx, "crash", "win", "new-owner", time.Minute)
+	if err != nil || !publishFirst {
+		t.Fatalf("claim after processing lease expiry = %v, %v", publishFirst, err)
+	}
+	if err := store.ClearPublish(ctx, "crash", "win", "expired-owner"); err == nil {
+		t.Fatal("expired owner cleared a replacement claim")
+	}
+	if err := store.CompletePublish(ctx, "crash", "win", "new-owner", time.Hour); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMiddlemanProcessingLeaseCoversConfiguredForwardTimeout(t *testing.T) {
+	controller := &Controller{C: &Config{MiddlemanCallbackTimeoutMS: 60_000}}
+	if got := controller.middlemanProcessingTTL(); got < 65*time.Second {
+		t.Fatalf("processing lease = %s, want at least callback timeout plus cleanup margin", got)
 	}
 }
 
@@ -193,7 +274,7 @@ func TestServeMiddlemanBillPublishFailureAllowsRetryWithoutRefiringDownstream(t 
 	req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, "/mid/bill", "tok", "1.100"), nil)
 	rr := httptest.NewRecorder()
 	controller.ServeMiddlemanCallback(rr, req)
-	if rr.Code != http.StatusBadRequest {
+	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("first status = %d, want publish failure", rr.Code)
 	}
 	rr = httptest.NewRecorder()
@@ -389,6 +470,9 @@ func TestServeMiddlemanStatusPublishFailureRetriesLocallyWithoutRefiringDownstre
 		{path: "/mid/loss", status: StatusLoss},
 	} {
 		t.Run(test.path, func(t *testing.T) {
+			retryableBefore := expvarMapInt64(metricMiddlemanCallbackOutcomes, "local_publish_retryable")
+			releasesBefore := expvarMapInt64(metricMiddlemanCallbackOutcomes, "claim_released")
+			duplicatesBefore := expvarMapInt64(metricMiddlemanCallbackOutcomes, "publish_duplicate")
 			forwarded := 0
 			downstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				forwarded++
@@ -428,7 +512,7 @@ func TestServeMiddlemanStatusPublishFailureRetriesLocallyWithoutRefiringDownstre
 			req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, test.path, value.Token, "1.000"), nil)
 			first := httptest.NewRecorder()
 			controller.ServeMiddlemanCallback(first, req)
-			if first.Code != http.StatusBadRequest {
+			if first.Code != http.StatusServiceUnavailable {
 				t.Fatalf("first status = %d, want publish failure", first.Code)
 			}
 			for i := 0; i < 2; i++ {
@@ -444,7 +528,27 @@ func TestServeMiddlemanStatusPublishFailureRetriesLocallyWithoutRefiringDownstre
 			if publishAttempts != 2 {
 				t.Fatalf("local publish attempts = %d, want failed attempt plus successful retry", publishAttempts)
 			}
+			if got := expvarMapInt64(metricMiddlemanCallbackOutcomes, "local_publish_retryable") - retryableBefore; got != 1 {
+				t.Fatalf("retryable callback metric delta = %d, want 1", got)
+			}
+			if got := expvarMapInt64(metricMiddlemanCallbackOutcomes, "claim_released") - releasesBefore; got != 1 {
+				t.Fatalf("callback claim-release metric delta = %d, want 1", got)
+			}
+			if got := expvarMapInt64(metricMiddlemanCallbackOutcomes, "publish_duplicate") - duplicatesBefore; got != 1 {
+				t.Fatalf("callback duplicate metric delta = %d, want 1", got)
+			}
 		})
+	}
+}
+
+func TestMiddlemanCallbackOutcomeMetricRejectsDynamicKeys(t *testing.T) {
+	before := expvarMapInt64(metricMiddlemanCallbackOutcomes, "other")
+	recordMiddlemanCallbackOutcome("raw-callback-token")
+	if got := expvarMapInt64(metricMiddlemanCallbackOutcomes, "other") - before; got != 1 {
+		t.Fatalf("other callback metric delta = %d, want 1", got)
+	}
+	if metricMiddlemanCallbackOutcomes.Get("raw-callback-token") != nil {
+		t.Fatal("dynamic callback metric key was published")
 	}
 }
 
@@ -610,11 +714,12 @@ func TestServeMiddlemanWinRetriesOnlyRetryableDownstreamFailure(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		statusCode  int
+		wantStatus  int
 		wantForward int
 	}{
-		{"http400", http.StatusBadRequest, 1},
-		{"http429", http.StatusTooManyRequests, 2},
-		{"http500", http.StatusInternalServerError, 2},
+		{"http400", http.StatusBadRequest, http.StatusNoContent, 1},
+		{"http429", http.StatusTooManyRequests, http.StatusServiceUnavailable, 2},
+		{"http500", http.StatusInternalServerError, http.StatusServiceUnavailable, 2},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var forwarded int
@@ -655,8 +760,8 @@ func TestServeMiddlemanWinRetriesOnlyRetryableDownstreamFailure(t *testing.T) {
 			for i := 0; i < 2; i++ {
 				rr := httptest.NewRecorder()
 				controller.ServeMiddlemanCallback(rr, req)
-				if rr.Code != http.StatusNoContent {
-					t.Fatalf("status = %d body=%s", rr.Code, rr.Body.String())
+				if rr.Code != tt.wantStatus {
+					t.Fatalf("status = %d body=%s, want %d", rr.Code, rr.Body.String(), tt.wantStatus)
 				}
 			}
 			if forwarded != tt.wantForward {
@@ -755,7 +860,7 @@ func TestServeMiddlemanClickPublishFailureAllowsRetry(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, clickURL, nil)
 	first := httptest.NewRecorder()
 	controller.ServeMiddlemanCallback(first, req)
-	if first.Code != http.StatusBadRequest {
+	if first.Code != http.StatusServiceUnavailable {
 		t.Fatalf("first status = %d, want publish failure", first.Code)
 	}
 	retry := httptest.NewRecorder()
@@ -770,12 +875,70 @@ type failCompleteNotifyStore struct {
 	failures int
 }
 
-func (s *failCompleteNotifyStore) CompleteNotify(ctx context.Context, token, source string, state middlemanForwardState, ttl time.Duration) error {
+type failingMiddlemanLookupStore struct {
+	*memoryMiddlemanCallbackStore
+	callbackErr error
+	clickErr    error
+}
+
+func (s *failingMiddlemanLookupStore) GetCallback(ctx context.Context, token string) (middlemanCallbackContext, error) {
+	if s.callbackErr != nil {
+		return middlemanCallbackContext{}, s.callbackErr
+	}
+	return s.memoryMiddlemanCallbackStore.GetCallback(ctx, token)
+}
+
+func (s *failingMiddlemanLookupStore) GetClick(ctx context.Context, requestToken, impID string) (string, error) {
+	if s.clickErr != nil {
+		return "", s.clickErr
+	}
+	return s.memoryMiddlemanCallbackStore.GetClick(ctx, requestToken, impID)
+}
+
+type contextCheckingClearStore struct {
+	*memoryMiddlemanCallbackStore
+	sawCanceledContext bool
+}
+
+func (s *contextCheckingClearStore) ClearPublish(ctx context.Context, token, source, owner string) error {
+	s.sawCanceledContext = ctx.Err() != nil
+	return s.memoryMiddlemanCallbackStore.ClearPublish(ctx, token, source, owner)
+}
+
+func TestMiddlemanPublishFailureCleanupDetachesFromRequestCancellation(t *testing.T) {
+	store := &contextCheckingClearStore{memoryMiddlemanCallbackStore: newMemoryMiddlemanCallbackStore()}
+	ctx, cancel := context.WithCancel(context.Background())
+	publishAttempts := 0
+	controller := &Controller{
+		middlemanStore: store,
+		publishWinLossFunc: func([]byte) error {
+			publishAttempts++
+			cancel()
+			return errors.New("publish failed")
+		},
+	}
+	value := middlemanCallbackContext{Token: "tok", RAdv: match.RAdv{}}
+	if err := controller.publishMiddlemanEventOnce(ctx, StatusTrackClk, value, "click", value.reconciledPrices(), "none", 0); err == nil {
+		t.Fatal("publication failure succeeded")
+	}
+	if store.sawCanceledContext {
+		t.Fatal("claim cleanup inherited request cancellation")
+	}
+	controller.publishWinLossFunc = func([]byte) error { publishAttempts++; return nil }
+	if err := controller.publishMiddlemanEventOnce(context.Background(), StatusTrackClk, value, "click", value.reconciledPrices(), "none", 0); err != nil {
+		t.Fatal(err)
+	}
+	if publishAttempts != 2 {
+		t.Fatalf("publication attempts = %d, want failed attempt plus retry", publishAttempts)
+	}
+}
+
+func (s *failCompleteNotifyStore) CompleteNotify(ctx context.Context, token, source, owner string, state middlemanForwardState, ttl time.Duration) error {
 	if s.failures > 0 {
 		s.failures--
 		return errors.New("notify completion failed")
 	}
-	return s.memoryMiddlemanCallbackStore.CompleteNotify(ctx, token, source, state, ttl)
+	return s.memoryMiddlemanCallbackStore.CompleteNotify(ctx, token, source, owner, state, ttl)
 }
 
 func TestMiddlemanPostForwardStateFailureRetainsAtLeastOnceBoundary(t *testing.T) {
@@ -803,7 +966,7 @@ func TestMiddlemanPostForwardStateFailureRetainsAtLeastOnceBoundary(t *testing.T
 	req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, "/mid/win", value.Token, "1.000"), nil)
 	first := httptest.NewRecorder()
 	controller.ServeMiddlemanCallback(first, req)
-	if first.Code != http.StatusBadRequest || published != 0 {
+	if first.Code != http.StatusServiceUnavailable || published != 0 {
 		t.Fatalf("first callback status=%d published=%d", first.Code, published)
 	}
 	retry := httptest.NewRecorder()

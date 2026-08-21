@@ -192,7 +192,7 @@ func NewConfig(filename string) (*Config, error) {
 		parsed.MiddlemanExchangeDomain = serverURLHost(parsed.ServerURL)
 	}
 	if parsed.MiddlemanCallbackTTLSeconds <= 0 {
-		parsed.MiddlemanCallbackTTLSeconds = 86400
+		parsed.MiddlemanCallbackTTLSeconds = parsed.TrackingSignatureTTLSeconds + int(maxTrackingSignatureFutureSkew/time.Second)
 	}
 	if parsed.MiddlemanCallbackTimeoutMS <= 0 {
 		parsed.MiddlemanCallbackTimeoutMS = 1000
@@ -292,8 +292,19 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	if self.MiddlemanCallbackTTLSeconds <= 0 {
 		return fmt.Errorf("middleman_callback_ttl_seconds must be positive")
 	}
-	if self.MiddlemanCallbackTimeoutMS <= 0 {
-		return fmt.Errorf("middleman_callback_timeout_ms must be positive")
+	if self.MiddlemanCallbackTimeoutMS <= 0 || self.MiddlemanCallbackTimeoutMS > 60_000 {
+		return fmt.Errorf("middleman_callback_timeout_ms must be between 1 and 60000")
+	}
+	minimumMiddlemanCallbackTTL := self.TrackingSignatureTTLSeconds + int(maxTrackingSignatureFutureSkew/time.Second)
+	processingTTLSeconds := (self.MiddlemanCallbackTimeoutMS+999)/1000 + 5
+	if processingTTLSeconds < int(defaultTrackingProcessingTTL/time.Second) {
+		processingTTLSeconds = int(defaultTrackingProcessingTTL / time.Second)
+	}
+	if processingTTLSeconds > minimumMiddlemanCallbackTTL {
+		minimumMiddlemanCallbackTTL = processingTTLSeconds
+	}
+	if self.MiddlemanCallbackTTLSeconds < minimumMiddlemanCallbackTTL {
+		return fmt.Errorf("middleman_callback_ttl_seconds must cover the accepted tracking signature lifetime and callback processing lease (%d seconds)", minimumMiddlemanCallbackTTL)
 	}
 	if self.MiddlemanRouteCacheTTLMS <= 0 {
 		return fmt.Errorf("middleman_route_cache_ttl_ms must be positive")

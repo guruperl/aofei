@@ -130,16 +130,16 @@ placement and direct `go install` invocations in
 
 ## Capability And Activation Status
 
-The original D/P/R/I/S/A/O baseline is implemented through A02. A new review
-remediation horizon is planned in the order D04, P03, S05, O03, R03, and A03;
-I02 remains separately demand-gated. Implementation does not imply production
-activation:
+The original D/P/R/I/S/A/O baseline is implemented through A02, and D04 is now
+complete. The remaining review-remediation horizon is P03, S05, O03, R03, and
+A03; I02 remains separately demand-gated. Implementation does not imply
+production activation:
 
 | Area | Current state |
 |---|---|
 | D01 delivery, D02 auction/creative safety | Implemented and part of the core runtime contract. |
 | D03 external DSP / AdX middleman | Implemented; checked-in disclosure and traffic gates remain off until a named partner passes staged activation. |
-| D04 delivery/tracking integrity | Planned; owns confirmed ACL, callback, cap-time, and tracking semantic corrections. |
+| D04 delivery/tracking integrity | Implemented; confirmed ACL, callback, cap-time, bounded-input, and tracking semantic corrections are complete. |
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
 | P03 direct SSP authenticity | Planned; will separate browser-token integrity from authenticated SDK/server traffic. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |

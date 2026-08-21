@@ -27,6 +27,7 @@ type trackingClaimOutcome uint8
 const (
 	trackingClaimOwner trackingClaimOutcome = iota
 	trackingClaimDuplicate
+	trackingClaimCompleted
 	trackingClaimUnkeyed
 	trackingClaimRedisFailOpen
 )
@@ -42,7 +43,11 @@ func (c trackingEventClaim) owned() bool {
 }
 
 func (c trackingEventClaim) records() bool {
-	return c.outcome != trackingClaimDuplicate
+	return c.outcome != trackingClaimDuplicate && c.outcome != trackingClaimCompleted
+}
+
+func (c trackingEventClaim) completed() bool {
+	return c.outcome == trackingClaimCompleted
 }
 
 func (c trackingEventClaim) keyed() bool {

@@ -108,7 +108,7 @@ SUMMER=/etc/aofei/summer.json
 - `middleman_always_enabled`：`Always` 路由独立开关，默认关闭；
 - `middleman_exchange_domain`、`middleman_timeout_ms`、`middleman_max_bidders_per_imp`：转发身份与预算；
 - `middleman_route_cache_ttl_ms`：HTTP 进程内路由快照/错误缓存时间，默认 5 秒；
-- `middleman_callback_base_url`、回调 TTL 和回调超时：代理回调的公网地址和生命周期；
+- `middleman_callback_base_url`、回调 TTL 和回调超时：代理回调的公网地址和生命周期；回调 TTL 必须覆盖跟踪签名有效期、5 分钟未来时钟偏差和 processing 租约，24 小时签名的默认值为 86700 秒；回调超时范围为 1..60000 毫秒；
 - `trusted_proxy_cidrs`：仅列出真正受控的反向代理；否则客户端可伪造 IP；
 - `privacy_tcf_vendor_id`：W8M 的 TCF Vendor ID；默认 `0` 表示禁用个性化处理，不能凭空填写；
 - `privacy_tcf_min_policy_version` 与 `privacy_tcf_purpose_ids`：经法务/政策评审确认的最低 TCF 政策版本和所需目的；
@@ -340,6 +340,12 @@ delivery:budget:daily:<UTC日期>:<balance_id>
 删除。这样本地发布失败后的重试不会再次发送已经成功的下游回调。若下游已接收
 回调、但完成状态写入失败，重试可能再次发送；这是明确保留的 at-least-once
 边界，接入方必须按竞价和广告位身份实现幂等。
+notify、publish 与 bill 首先写入带随机 owner 的短期 processing claim，成功后
+才按 owner 原子转成完整 callback TTL 的完成标记。失败清理使用脱离 HTTP 取消的
+有界上下文；进程退出只会留下短租约，旧 owner 不能删除后续请求取得的新 claim。
+`/mid/*` 的 Redis/本地发布依赖失败，以及无法写入持久重试队列的可重试下游失败，
+返回 `503` 让交易平台重试；签名错误、过期/缺失/损坏的回调上下文返回 `400`。
+已成功写入持久队列的下游失败仍返回正常 `204`，队列任务只重试下游转发。
 
 `bothcap` 更新保证至少保留配置 TTL，并且不会缩短更长 TTL。version 2
 频控值保留旧进程可读的 12 字节前缀，并以 UTC epoch-minute 扩展记录权威开始和
@@ -347,6 +353,9 @@ delivery:budget:daily:<UTC日期>:<balance_id>
 `bothcap:*`，被回调更新的旧值会自动升级；回滚时也保留现有值。展示/点击重复
 标记的过期时间对应签名的确切有效截止点，最长可能是配置 TTL 再加接收端允许的
 5 分钟未来时钟偏差。
+本地计量发布完成后，完成标记先于幂等的展示确认、点击计数或 loss 释放写入；
+完成标记上的重试不重复发布计量，只重试该投放副作用。带预留 token 的 processing
+重复请求返回 `503`，直到 owner 完成或短租约到期，不能清理这些键来绕过重试。
 `upload:<adv_id>:<marker>` 在写入成员的同一个 Redis 脚本中设置上传人群 TTL；持久键或较短 TTL 会提升到配置值，较长 TTL 不会被缩短。删除必须按已核验的广告主、marker 和标识符精确执行，不能导出或扫描相邻广告主的数据。
 
 ### spread/local 模式
@@ -677,6 +686,9 @@ AOFEI=/etc/aofei/aofei.json \
 | `aofei_tracking_replay_unkeyed_total` | 事件缺少完整重复键；会发布但跳过非幂等频控写入。 |
 | `aofei_tracking_cap_update_fail_open_total` | 合法展示/点击已发布，但频控更新失败。 |
 | `aofei_tracking_replay_fail_open_total` | 重复控制不可用时接受的事件；注意至少一次计量风险。 |
+| `aofei_tracking_retryable_publish_errors_total`、`aofei_tracking_claim_releases_total`、`aofei_tracking_claim_release_errors_total` | 本地计量发布失败后的可重试事实，以及 owner claim 已确认释放或释放失败；与重复抑制指标一起判断重试链路。 |
+| `aofei_bothcap_formats_total` | 仅含 `legacy`、`utc_v2`、`malformed` 三种固定键；观察滚动升级进度，`malformed` 增长时停止扩大发布但不得扫描删除用户频控键。 |
+| `aofei_middleman_callback_outcomes_total` | 仅含固定的转发/发布重复、可重试、入队和 claim 释放结果；不含 callback token、竞价、用户、合作方端点或广告位标识。 |
 | `aofei_action_requests_total`、`aofei_action_accepted_total`、`aofei_action_duplicates_total` | 行为回传总量、新事实和幂等重试；重复突增时检查广告主重试实现。 |
 | `aofei_action_rejections_total`、`aofei_action_attributions_total` | 固定原因的拒绝与点击/浏览/未归因结果；签名、过期或未归因比例突变需要调查。 |
 | `aofei_action_touches_total`、`aofei_action_touch_errors_total` | MySQL 归因触点写入及失败；失败不影响跟踪响应，但需修复依赖并运行 action reconcile。 |

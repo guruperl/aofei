@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"expvar"
 	"testing"
 	"time"
 
@@ -119,6 +120,50 @@ func TestFcapUTCFormatCoversNinetyDaysWithoutMinuteWrap(t *testing.T) {
 	if roundTrip.Imp.Last != ^uint16(0) {
 		t.Fatalf("legacy last view = %d, want saturated diagnostic value", roundTrip.Imp.Last)
 	}
+}
+
+func TestBothCapFormatMetricsUseFixedKeys(t *testing.T) {
+	legacyBefore := expvarMapValue(metricBothCapFormats, "legacy")
+	v2Before := expvarMapValue(metricBothCapFormats, "utc_v2")
+	malformedBefore := expvarMapValue(metricBothCapFormats, "malformed")
+
+	legacy := new(bytes.Buffer)
+	if err := binary.Write(legacy, binary.LittleEndian, legacyBothCapWire{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnpackBothCap(legacy.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	packed, err := NewBothCap(time.Now()).Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnpackBothCap(packed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnpackBothCap([]byte("dynamic-format-id")); err == nil {
+		t.Fatal("malformed cap payload succeeded")
+	}
+	if got := expvarMapValue(metricBothCapFormats, "legacy") - legacyBefore; got != 1 {
+		t.Fatalf("legacy format metric delta = %d, want 1", got)
+	}
+	if got := expvarMapValue(metricBothCapFormats, "utc_v2") - v2Before; got != 1 {
+		t.Fatalf("v2 format metric delta = %d, want 1", got)
+	}
+	if got := expvarMapValue(metricBothCapFormats, "malformed") - malformedBefore; got != 1 {
+		t.Fatalf("malformed format metric delta = %d, want 1", got)
+	}
+	if metricBothCapFormats.Get("dynamic-format-id") != nil {
+		t.Fatal("dynamic cap-format metric key was published")
+	}
+}
+
+func expvarMapValue(metric *expvar.Map, key string) int64 {
+	value, _ := metric.Get(key).(*expvar.Int)
+	if value == nil {
+		return 0
+	}
+	return value.Value()
 }
 
 func TestFcapFutureAndOutOfOrderTimesClampSafely(t *testing.T) {
@@ -242,6 +287,28 @@ func TestMustRefreshBothCapConcurrent(t *testing.T) {
 	}
 	if ttl <= 0 {
 		t.Fatalf("TTL = %d, want positive", ttl)
+	}
+}
+
+func TestMustRefreshBothCapEventMarkerUsesAbsoluteDeadline(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	eventTTL := 5 * time.Second
+	applied, err := MustRefreshBothCapOnceWithTTL(ctx, client, time.Now(), "absolute-event-expiry", 1, Cap{CapThrottle: 1}, time.Hour, "event:absolute", eventTTL, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !applied {
+		t.Fatal("cap update was not applied")
+	}
+	if ttl := server.TTL("event:absolute"); ttl <= 0 || ttl > eventTTL {
+		t.Fatalf("event marker TTL = %s, want positive and no later than %s", ttl, eventTTL)
 	}
 }
 

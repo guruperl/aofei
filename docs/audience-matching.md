@@ -45,7 +45,9 @@ are different: when upload targeting is configured, every configured identifier
 type must be present in the bid and present in the advertiser upload set.
 The combined matcher rejects a nil request attribute, and an ACL subaudience
 rejects a missing request ACL rather than dereferencing it. Empty, nonnil
-audiences remain wildcards for valid attributes.
+audiences remain wildcards for valid attributes. Missing request demographics
+are treated as unknown: they match an empty demographic audience, but fail any
+configured gender, age, or language constraint.
 
 Middleman bidder fallback reuses this same ACL and channel eligibility surface
 through each bidder's synthetic item. Admin approval creates or validates that

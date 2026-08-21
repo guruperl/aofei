@@ -154,6 +154,17 @@ workers read the saturated legacy prefix of version 2. Touched legacy entries
 upgrade in place, so do not scan or delete `bothcap:*`. During rollback, retain
 the version-2 values; the previous worker uses their prefix and a later upgraded
 worker recovers the authoritative UTC trailer.
+Use `aofei_bothcap_formats_total` to observe legacy, `utc_v2`, and malformed
+reads during the rollout. A growing malformed count blocks rollout; it does not
+authorize deleting user cap hashes.
+Roll the middleman `/mid/*` callback tier consistently when introducing or
+removing split `middleman:notify:*` and `middleman:publish:*` ownership. Preserve
+notify, publish, bill, callback, and retry state in both directions; deleting
+those keys can replay a downstream side effect. Monitor the fixed-key
+`aofei_middleman_callback_outcomes_total` for retry, duplicate, and claim-release
+changes before widening traffic. Treat `/mid/*` `503` responses as retryable
+Redis, local-publication, or unavailable durable-forward dependencies; missing,
+expired, malformed, or corrupt callback state remains `400`.
 Set `delivery_cache_max_age_seconds` (default 900) as the hard maximum age for
 compiled budget/schedule policy, schedule full cache publication at least every
 one-third of it, and keep `delivery_reservation_ttl_seconds` long enough for the
@@ -177,6 +188,11 @@ published while their cap update could not be completed. Replay, cap-event, and
 win/loss markers expire at the signed timestamp's validity deadline, which may
 be up to the configured TTL plus the accepted five-minute future skew from the
 receiving worker's current time.
+For budgeted local callbacks, a `503` can also mean that publication completed
+but idempotent delivery state is still pending or its completion marker is
+uncertain. Preserve the replay and reservation keys: completed retries do not
+republish, and processing retries remain retryable until the short lease
+resolves.
 
 Public advertiser and publisher registration/password-retrieval actions require
 a complete Summer `Blks._gmail` configuration. Removing that block is the
@@ -239,7 +255,10 @@ fanout is ignored unless `middleman_always_enabled` is also true. Middleman
 callback proxying also requires `tracking_secret`, Redis, and a public
 `middleman_callback_base_url` that points back to the `cmd/unify` HTTP service; set
 `middleman_callback_ttl_seconds` and `middleman_callback_timeout_ms` according
-to exchange callback latency expectations. Downstream callback URLs are rejected
+to exchange callback latency expectations. Callback TTL must cover the tracking
+signature TTL plus the accepted five-minute future skew and the processing
+lease; the 24-hour signature default therefore uses an 86,700-second callback
+TTL. Callback timeout must be within 1..60,000 ms. Downstream callback URLs are rejected
 when they resolve to loopback, private, link-local, unspecified, multicast, or
 rebinding targets. Each active bidder
 `credential_ref` names an environment variable visible to `cmd/unify`; its

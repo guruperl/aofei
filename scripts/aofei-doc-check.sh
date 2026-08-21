@@ -146,7 +146,11 @@ if ! grep -Fq '| I02 Android/iOS publisher SDKs | Planned; demand-gated |' docs/
 	fail "docs/README.md must identify I02 as planned and demand-gated."
 fi
 
-for planned_lane in D04 P03 S05 O03 R03 A03; do
+if ! grep -Eq '^\| D04 .* \| Completed \|' docs/README.md; then
+	fail "docs/README.md must identify D04 as completed remediation."
+fi
+
+for planned_lane in P03 S05 O03 R03 A03; do
 	if ! grep -Eq "^\\| ${planned_lane} .* \\| Planned \\|" docs/README.md; then
 		fail "docs/README.md must identify ${planned_lane} as planned remediation."
 	fi

@@ -53,6 +53,15 @@ func TestControllerOptionsCanDisableNATSAndMaxMindIndependently(t *testing.T) {
 	}
 }
 
+func TestRAdvsNeedCapsIncludesStandaloneThrottle(t *testing.T) {
+	if !radvsNeedCaps(match.RAdvs{{Cap: match.Cap{CapThrottle: 10}}}) {
+		t.Fatal("standalone impression throttle did not require Redis cap state")
+	}
+	if radvsNeedCaps(match.RAdvs{{}}) {
+		t.Fatal("uncapped demand unexpectedly required Redis cap state")
+	}
+}
+
 func TestServeStatusRejectsInvalidTrackingAuctionPrice(t *testing.T) {
 	err := (&Controller{}).serveStatus(context.TODO(), StatusTrackImp, time.Now(), url.Values{
 		"auction_price": []string{"bad-price"},
@@ -103,6 +112,38 @@ func TestServeStatusRejectsInvalidCapBeforeRedisAndPublication(t *testing.T) {
 	}
 	if published != 0 {
 		t.Fatalf("invalid cap published %d events", published)
+	}
+}
+
+func TestServeStatusRejectsInvalidCapBidIdentityBeforeRedisAndPublication(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	redis := &interceptRedisClient{Client: client}
+	defer redis.Close()
+	capValue, err := (match.Cap{CapThrottle: 10}).PackString()
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := trackingTestArgs("invalid-bid-identity", true)
+	args.Set("auction_bid_id", "short")
+	args.Set("cap", capValue)
+	addTrackingSignature("test-secret", "/imp", args)
+	published := 0
+	controller := &Controller{
+		C: &Config{TrackingSecret: "test-secret"}, Redis: redis,
+		publishWinLossFunc: func([]byte) error { published++; return nil },
+	}
+	if err := controller.serveStatus(context.Background(), StatusTrackImp, time.Now(), args); err == nil {
+		t.Fatal("invalid capped bid identity succeeded")
+	}
+	if calls := redis.calls.Load(); calls != 0 {
+		t.Fatalf("invalid capped bid identity performed %d Redis calls, want zero", calls)
+	}
+	if published != 0 {
+		t.Fatalf("invalid capped bid identity published %d events", published)
 	}
 }
 
@@ -281,6 +322,9 @@ func TestServeStatusSuppressesDuplicateImpAndClickEvents(t *testing.T) {
 }
 
 func TestServeStatusRetriesPublishWithoutRepeatingCapMutation(t *testing.T) {
+	retryableBefore := metricTrackingRetryablePublishErrors.Value()
+	releasesBefore := metricTrackingClaimReleases.Value()
+	duplicatesBefore := metricTrackingReplaySuppressed.Value()
 	server := miniredis.RunT(t)
 	ctx := context.Background()
 	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
@@ -349,6 +393,15 @@ func TestServeStatusRetriesPublishWithoutRepeatingCapMutation(t *testing.T) {
 	}
 	if bothcap.Imp.Total != 1 {
 		t.Fatalf("impression cap total = %d, want 1 across publish retry", bothcap.Imp.Total)
+	}
+	if got := metricTrackingRetryablePublishErrors.Value() - retryableBefore; got != 1 {
+		t.Fatalf("retryable publication metric delta = %d, want 1", got)
+	}
+	if got := metricTrackingClaimReleases.Value() - releasesBefore; got != 1 {
+		t.Fatalf("claim release metric delta = %d, want 1", got)
+	}
+	if got := metricTrackingReplaySuppressed.Value() - duplicatesBefore; got != 1 {
+		t.Fatalf("duplicate metric delta = %d, want 1", got)
 	}
 }
 
@@ -757,6 +810,62 @@ func TestServeClickPublishesNormallyWhenClaimRedisFails(t *testing.T) {
 				t.Fatalf("published = %d, want 1", published)
 			}
 		})
+	}
+}
+
+func TestServeClickRedirectRejectsMalformedSignedPayload(t *testing.T) {
+	args := trackingTestArgs("redirect-invalid-cap", true)
+	demand, _ := (match.Demand{AdvID: 1}).PackString()
+	supply, _ := (match.RPub{PubID: 1}).PackString()
+	args.Set("demand", demand)
+	args.Set("supply", supply)
+	args.Set("redirect", "https://advertiser.example/landing")
+	args.Set("cap", base64.RawURLEncoding.EncodeToString([]byte{1, 0, 0, 0, 0, 0, 0, 0}))
+	addTrackingSignature("test-secret", "/clk", args)
+	controller := &Controller{
+		C:                  &Config{TrackingSecret: "test-secret", TrackingSignatureTTLSeconds: 3600},
+		publishWinLossFunc: func([]byte) error { t.Fatal("malformed click was published"); return nil },
+	}
+	rr := httptest.NewRecorder()
+	controller.ServeWinLoss(rr, httptest.NewRequest(http.MethodGet, "/clk?"+args.Encode(), nil))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s, want bad request", rr.Code, rr.Body.String())
+	}
+	if location := rr.Header().Get("Location"); location != "" {
+		t.Fatalf("malformed click redirected to %q", location)
+	}
+}
+
+func TestServeClickRedirectSurvivesRetryablePublicationFailure(t *testing.T) {
+	args := trackingTestArgs("redirect-publish-failure", true)
+	demand, _ := (match.Demand{AdvID: 1}).PackString()
+	supply, _ := (match.RPub{PubID: 1}).PackString()
+	args.Set("demand", demand)
+	args.Set("supply", supply)
+	args.Set("redirect", "https://advertiser.example/landing")
+	addTrackingSignature("test-secret", "/clk", args)
+	controller := &Controller{
+		C:                  &Config{TrackingSecret: "test-secret", TrackingSignatureTTLSeconds: 3600},
+		publishWinLossFunc: func([]byte) error { return errors.New("publication unavailable") },
+	}
+	rr := httptest.NewRecorder()
+	controller.ServeWinLoss(rr, httptest.NewRequest(http.MethodGet, "/clk?"+args.Encode(), nil))
+	if rr.Code != http.StatusFound || rr.Header().Get("Location") != "https://advertiser.example/landing" {
+		t.Fatalf("status/location = %d/%q, want redirect", rr.Code, rr.Header().Get("Location"))
+	}
+}
+
+func TestServeTrackingPublicationFailureReturnsRetryableStatus(t *testing.T) {
+	args := trackingTestArgs("plain-publish-failure", true)
+	addTrackingSignature("test-secret", "/imp", args)
+	controller := &Controller{
+		C:                  &Config{TrackingSecret: "test-secret", TrackingSignatureTTLSeconds: 3600},
+		publishWinLossFunc: func([]byte) error { return errors.New("publication unavailable") },
+	}
+	rr := httptest.NewRecorder()
+	controller.ServeWinLoss(rr, httptest.NewRequest(http.MethodGet, "/imp?"+args.Encode(), nil))
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d body=%s, want service unavailable", rr.Code, rr.Body.String())
 	}
 }
 

@@ -232,7 +232,7 @@ cat > "$DRILL_CONFIG" <<JSON
   "delivery_cache_max_age_seconds": 900,
   "delivery_reservation_ttl_seconds": 86700,
   "delivery_state_ttl_seconds": 172800,
-  "middleman_callback_ttl_seconds": 86400,
+  "middleman_callback_ttl_seconds": 86700,
   "middleman_callback_timeout_ms": 1000,
   "middleman_route_cache_ttl_ms": 5000,
   "middleman_enabled": true,

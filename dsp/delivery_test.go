@@ -425,6 +425,143 @@ func TestLossPublishFailureReleasesClaimAndKeepsReservationRetryable(t *testing.
 	}
 }
 
+func TestTrackingDeliverySideEffectFailureRetriesWithoutRepublishing(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		status Status
+		path   string
+	}{
+		{name: "impression", status: StatusTrackImp, path: "/imp"},
+		{name: "click", status: StatusTrackClk, path: "/clk"},
+		{name: "loss", status: StatusLoss, path: "/loss"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			controller, server := newDeliveryTestController(t)
+			controller.C.TrackingSecret = "test-secret"
+			controller.C.TrackingSignatureTTLSeconds = int(defaultTrackingSignatureTTL.Seconds())
+			now := time.Now()
+			block := deliveryTestRAdv(now)
+			block.Delivery.ItemTotal = match.DeliveryBalance{ID: 40, LimitImp: 1, LimitClick: 1}
+			token, err := controller.reserveDelivery(context.Background(), block, now, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.status == StatusTrackClk {
+				if err := controller.finalizeDeliveryReservation(context.Background(), token, now.Add(time.Hour)); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			args := signedDeliveryTrackingArgs("side-effect-retry-"+test.name, test.path, token)
+			published := 0
+			controller.publishWinLossFunc = func([]byte) error {
+				published++
+				return nil
+			}
+			controller.Redis = &interceptRedisClient{
+				Client: controller.Redis,
+				failAt: map[int32]error{3: errors.New("delivery state unavailable")},
+			}
+
+			err = controller.serveStatus(context.Background(), test.status, now, args)
+			var retryableErr *retryableCallbackError
+			if !errors.As(err, &retryableErr) {
+				t.Fatalf("first callback error = %v, want retryable dependency error", err)
+			}
+			if published != 1 {
+				t.Fatalf("publications after failed delivery side effect = %d, want 1", published)
+			}
+			markerKey := trackingNotifyKey(test.status, args.Get("auction_bid_id"))
+			if test.status != StatusLoss {
+				markerKey, _ = trackingEventKey(test.status, args)
+			}
+			if marker, markerErr := server.Get(markerKey); markerErr != nil || marker != "done" {
+				t.Fatalf("completed publication marker = %q, %v; want done", marker, markerErr)
+			}
+			switch test.status {
+			case StatusTrackImp, StatusLoss:
+				if got := server.HGet(deliveryReservationKey(token), "status"); got != "active" {
+					t.Fatalf("reservation status before side-effect retry = %q, want active", got)
+				}
+			case StatusTrackClk:
+				if got := server.HGet(deliveryTotalKey(40), "used_click"); got != "0" {
+					t.Fatalf("click count before side-effect retry = %q, want 0", got)
+				}
+			}
+
+			if err := controller.serveStatus(context.Background(), test.status, now, args); err != nil {
+				t.Fatalf("side-effect retry: %v", err)
+			}
+			if published != 1 {
+				t.Fatalf("publications after side-effect retry = %d, want 1", published)
+			}
+			switch test.status {
+			case StatusTrackImp:
+				if got := server.HGet(deliveryReservationKey(token), "status"); got != "final" {
+					t.Fatalf("reservation status after impression retry = %q, want final", got)
+				}
+			case StatusTrackClk:
+				if got := server.HGet(deliveryTotalKey(40), "used_click"); got != "1" {
+					t.Fatalf("click count after retry = %q, want 1", got)
+				}
+			case StatusLoss:
+				if server.Exists(deliveryReservationKey(token)) {
+					t.Fatal("loss retry did not release delivery reservation")
+				}
+			}
+		})
+	}
+}
+
+func TestTrackingClaimCompletionFailureKeepsDeliveryRetryable(t *testing.T) {
+	controller, server := newDeliveryTestController(t)
+	controller.C.TrackingSecret = "test-secret"
+	controller.C.TrackingSignatureTTLSeconds = int(defaultTrackingSignatureTTL.Seconds())
+	now := time.Now()
+	block := deliveryTestRAdv(now)
+	block.Delivery.ItemTotal = match.DeliveryBalance{ID: 41, LimitImp: 1}
+	token, err := controller.reserveDelivery(context.Background(), block, now, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := signedDeliveryTrackingArgs("claim-completion-retry", "/loss", token)
+	published := 0
+	controller.publishWinLossFunc = func([]byte) error {
+		published++
+		return nil
+	}
+	controller.Redis = &interceptRedisClient{
+		Client: controller.Redis,
+		failAt: map[int32]error{2: errors.New("claim completion unavailable")},
+	}
+
+	err = controller.serveStatus(context.Background(), StatusLoss, now, args)
+	var retryableErr *retryableCallbackError
+	if !errors.As(err, &retryableErr) {
+		t.Fatalf("first callback error = %v, want retryable completion error", err)
+	}
+	if server.Exists(deliveryReservationKey(token)) {
+		t.Fatal("claim completion failure skipped the idempotent loss release")
+	}
+	if published != 1 {
+		t.Fatalf("publications after completion failure = %d, want 1", published)
+	}
+	if err := controller.serveStatus(context.Background(), StatusLoss, now, args); !errors.As(err, &retryableErr) {
+		t.Fatalf("in-flight retry error = %v, want retryable processing response", err)
+	}
+	if published != 1 {
+		t.Fatalf("in-flight retry publications = %d, want 1", published)
+	}
+
+	server.FastForward(defaultTrackingProcessingTTL + time.Second)
+	if err := controller.serveStatus(context.Background(), StatusLoss, now, args); err != nil {
+		t.Fatalf("retry after processing lease: %v", err)
+	}
+	if published != 2 {
+		t.Fatalf("publications after uncertain completion lease expired = %d, want at-least-once retry", published)
+	}
+}
+
 func signedDeliveryTrackingArgs(id, path, token string) url.Values {
 	args := trackingTestArgs(id, true)
 	args.Set("delivery_reservation", token)

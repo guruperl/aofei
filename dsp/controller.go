@@ -439,8 +439,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if err = validateBidRequest(bid); err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		logger.Debug("invalid bid request rejected",
-			zap.String("request_id", bid.ID),
-			zap.Error(err),
+			zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+			zap.String("reason", "request_validation"),
 		)
 		return
 	}
@@ -449,8 +449,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if err = self.applyPrivacyPolicy(bid, privacy); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		logger.Debug("bid request privacy sanitation failed",
-			zap.String("request_id", bid.ID),
-			zap.Error(err),
+			zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+			zap.String("reason", "privacy_policy"),
 		)
 		return
 	}
@@ -464,8 +464,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		logger.Debug("bid request publisher rejected",
-			zap.String("request_id", bid.ID),
-			zap.Error(err),
+			zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+			zap.String("reason", "publisher_policy"),
 		)
 		return
 	}
@@ -500,8 +500,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 		self.releaseMaterializedDeliveries(ctx, materialized)
 		w.WriteHeader(http.StatusNoContent)
 		logger.Error("bid response marshal failed",
-			zap.String("request_id", bid.ID),
-			zap.Error(err),
+			zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+			zap.String("reason", "response_marshal"),
 		)
 		return
 	}
@@ -509,13 +509,10 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if written, writeErr := w.Write(rspnStr); writeErr != nil || written != len(rspnStr) {
-		if writeErr == nil {
-			writeErr = io.ErrShortWrite
-		}
 		self.releaseMaterializedDeliveries(ctx, materialized)
 		logger.Warn("bid response write failed",
-			zap.String("request_id", bid.ID),
-			zap.Error(writeErr),
+			zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+			zap.String("reason", "response_write"),
 		)
 		return
 	}
@@ -530,8 +527,8 @@ func (self *Controller) ServeBid(w http.ResponseWriter, r *http.Request) {
 	if self.Nc != nil {
 		if err = self.publishBidAudits(privacyMiddlemanRequest, rspnStr, audits); err != nil {
 			logger.Warn("bid audit publish failed",
-				zap.String("request_id", bid.ID),
-				zap.Error(err),
+				zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+				zap.String("reason", "audit_dependency"),
 			)
 		}
 	}
@@ -566,9 +563,9 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 		if err != nil {
 			if logger != nil && !isLocalNoBid(err) {
 				logger.Warn("bid impression evaluation failed",
-					zap.String("request_id", bid.ID),
+					zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
 					zap.Int("imp_index", impIndex),
-					zap.Error(err),
+					zap.String("reason", "evaluation_error"),
 				)
 			}
 			if audit.Attr != nil && isLocalNoBid(err) {
@@ -586,9 +583,9 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 			_ = self.releaseDeliveryReservation(ctx, dspBid.deliveryReservation)
 			if logger != nil {
 				logger.Warn("bid impression materialization failed",
-					zap.String("request_id", bid.ID),
+					zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
 					zap.Int("imp_index", impIndex),
-					zap.Error(err),
+					zap.String("reason", "materialization_error"),
 				)
 			}
 			continue
@@ -622,8 +619,8 @@ func (self *Controller) auctionBidWinners(ctx context.Context, bid *openrtb2.Bid
 		if err != nil {
 			if logger != nil {
 				logger.Warn("middleman fallback failed",
-					zap.String("request_id", bid.ID),
-					zap.Error(err),
+					zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
+					zap.String("reason", middlemanSafeFailureReason(err)),
 				)
 			}
 		}
@@ -689,10 +686,10 @@ func (self *Controller) materializeBidWinners(ctx context.Context, bid *openrtb2
 				metricMiddlemanCallbackSetupFailures.Add(1)
 				if logger != nil {
 					logger.Warn("middleman callback setup failed",
-						zap.String("request_id", bid.ID),
+						zap.String("request_id_hash", safeOpenRTBRequestIDHash(bid.ID)),
 						zap.Int("imp_index", impIndex),
 						zap.Uint32("bidder_id", middlemanBid.Entry.BidderID),
-						zap.Error(err),
+						zap.String("reason", "callback_setup"),
 					)
 				}
 				local, ok := localWinners[impIndex]
@@ -931,7 +928,7 @@ func recordDeliveryEligibilityRejection(reason string) {
 
 func radvsNeedCaps(radvs match.RAdvs) bool {
 	for _, radv := range radvs {
-		if radv.CapNumber != 0 || radv.ClickNumber != 0 {
+		if radv.CapNumber != 0 || radv.CapThrottle != 0 || radv.ClickNumber != 0 {
 			return true
 		}
 	}
@@ -1256,8 +1253,13 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 			return
 		} else if ok {
 			if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
+				var retryableErr *retryableCallbackError
+				if !errors.As(err, &retryableErr) {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
 				if self.Logger != nil {
-					self.Logger.Debug("click tracking skipped before redirect", zap.Error(err))
+					self.Logger.Debug("click tracking dependency failed before redirect", zap.String("reason", "tracking_dependency"))
 				}
 			}
 			http.Redirect(w, r, target, http.StatusFound)
@@ -1266,11 +1268,34 @@ func (self *Controller) ServeWinLoss(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := self.serveStatus(ctx, status, current, r.URL.Query()); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		responseStatus := http.StatusBadRequest
+		var retryableErr *retryableCallbackError
+		if errors.As(err, &retryableErr) {
+			responseStatus = http.StatusServiceUnavailable
+		}
+		http.Error(w, err.Error(), responseStatus)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type retryableCallbackError struct {
+	err error
+}
+
+func (e *retryableCallbackError) Error() string { return e.err.Error() }
+func (e *retryableCallbackError) Unwrap() error { return e.err }
+
+func retryableCallback(err error) error {
+	if err == nil {
+		return nil
+	}
+	var retryableErr *retryableCallbackError
+	if errors.As(err, &retryableErr) {
+		return err
+	}
+	return &retryableCallbackError{err: err}
 }
 
 func (self *Controller) clickRedirectTarget(args url.Values) (string, bool, error) {
@@ -1332,6 +1357,9 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		}
 		if err := self.releaseTrackingEventClaim(replayClaim); err != nil {
 			metricTrackingReplayRedisErrors.Add(1)
+			metricTrackingClaimReleaseErrors.Add(1)
+		} else {
+			metricTrackingClaimReleases.Add(1)
 		}
 	}()
 	wl := &WinLoss{
@@ -1374,36 +1402,41 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	switch status {
 	case StatusTrackClk, StatusTrackImp:
 		u := args.Get("cap")
+		var bid bidID
 		if u != "" {
 			if wl.RAdv.Cap, err = match.UnpackCapString(u); err != nil {
+				return err
+			}
+			if bid, err = UnpackBidID(wl.AuctionBidID); err != nil {
 				return err
 			}
 		}
 		replayClaim = self.claimTrackingEvent(ctx, status, args, signatureValidUntil)
 		if !replayClaim.records() {
+			if replayClaim.completed() {
+				if err := self.applyTrackingDeliverySideEffect(ctx, status, wl, signatureValidUntil); err != nil {
+					return retryableCallback(err)
+				}
+			} else if wl.DeliveryReservation != "" {
+				return retryableCallback(fmt.Errorf("tracking callback delivery is still processing"))
+			}
 			return nil
 		}
 		releaseReplayClaim = replayClaim.owned()
 		if u == "" {
 			break
 		}
-		var bid bidID
-		if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
-			if bid.UserID != "" {
-				if !replayClaim.keyed() {
+		if bid.UserID != "" {
+			if !replayClaim.keyed() {
+				capUpdateFailOpen = true
+			} else {
+				redisCtx, cancel := trackingRedisOperationContext(ctx)
+				_, capErr := match.MustRefreshBothCapOnceWithTTL(redisCtx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, self.capStateTTL(), replayClaim.capMarkerKey(), time.Until(signatureValidUntil), status == StatusTrackImp, status == StatusTrackClk)
+				cancel()
+				if capErr != nil {
 					capUpdateFailOpen = true
-				} else {
-					redisCtx, cancel := trackingRedisOperationContext(ctx)
-					_, capErr := match.MustRefreshBothCapOnceWithTTL(redisCtx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, self.capStateTTL(), replayClaim.capMarkerKey(), time.Until(signatureValidUntil), status == StatusTrackImp, status == StatusTrackClk)
-					cancel()
-					if capErr != nil {
-						capUpdateFailOpen = true
-					}
 				}
 			}
-		}
-		if err != nil {
-			return err
 		}
 	default:
 	}
@@ -1411,6 +1444,13 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	if status == StatusWin || status == StatusLoss {
 		replayClaim = self.claimTrackingNotify(ctx, status, wl.AuctionBidID, signatureValidUntil)
 		if !replayClaim.records() {
+			if replayClaim.completed() {
+				if err := self.applyTrackingDeliverySideEffect(ctx, status, wl, signatureValidUntil); err != nil {
+					return retryableCallback(err)
+				}
+			} else if wl.DeliveryReservation != "" {
+				return retryableCallback(fmt.Errorf("tracking callback delivery is still processing"))
+			}
 			return nil
 		}
 		releaseReplayClaim = replayClaim.owned()
@@ -1421,32 +1461,42 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		return err
 	}
 	if err := self.publishWinLoss(bs); err != nil {
-		return err
+		if replayClaim.owned() {
+			metricTrackingRetryablePublishErrors.Add(1)
+		}
+		return retryableCallback(err)
 	}
 	measurementPublished = true
 	self.recordAttributionTouch(wl)
-	switch status {
-	case StatusTrackImp:
-		if deliveryErr := self.finalizeDeliveryReservation(ctx, wl.DeliveryReservation, signatureValidUntil); deliveryErr != nil && self.Logger != nil {
-			self.Logger.Warn("delivery reservation finalization failed", zap.Error(deliveryErr))
-		}
-	case StatusTrackClk:
-		if deliveryErr := self.recordDeliveryClick(ctx, wl.DeliveryReservation); deliveryErr != nil && self.Logger != nil {
-			self.Logger.Warn("delivery click update failed", zap.Error(deliveryErr))
-		}
-	case StatusLoss:
-		if deliveryErr := self.releaseDeliveryReservation(ctx, wl.DeliveryReservation); deliveryErr != nil && self.Logger != nil {
-			self.Logger.Warn("delivery reservation release failed", zap.Error(deliveryErr))
-		}
-	}
+	var completionErr error
 	if replayClaim.owned() {
 		releaseReplayClaim = false
-		if err := self.completeTrackingEventClaim(replayClaim, signatureValidUntil); err != nil {
+		if completionErr = self.completeTrackingEventClaim(replayClaim, signatureValidUntil); completionErr != nil {
 			metricTrackingReplayRedisErrors.Add(1)
 			metricTrackingReplayFailOpen.Add(1)
 		}
 	}
+	deliveryErr := self.applyTrackingDeliverySideEffect(ctx, status, wl, signatureValidUntil)
+	if completionErr != nil || deliveryErr != nil {
+		return retryableCallback(errors.Join(completionErr, deliveryErr))
+	}
 	return nil
+}
+
+func (self *Controller) applyTrackingDeliverySideEffect(ctx context.Context, status Status, wl *WinLoss, validUntil time.Time) error {
+	if wl == nil {
+		return nil
+	}
+	switch status {
+	case StatusTrackImp:
+		return self.finalizeDeliveryReservation(ctx, wl.DeliveryReservation, validUntil)
+	case StatusTrackClk:
+		return self.recordDeliveryClick(ctx, wl.DeliveryReservation)
+	case StatusLoss:
+		return self.releaseDeliveryReservation(ctx, wl.DeliveryReservation)
+	default:
+		return nil
+	}
 }
 
 func reportingDimensionsFromTracking(args url.Values) (*ReportingDimensions, error) {
@@ -1586,6 +1636,16 @@ func trackingNotifyKey(status Status, auctionBidID string) string {
 }
 
 var (
+	claimTrackingEventScript = radix.NewEvalScript(`
+local current = redis.call("GET", KEYS[1])
+if current then
+  if current == "done" then
+    return 2
+  end
+  return 0
+end
+redis.call("SET", KEYS[1], ARGV[1], "PXAT", ARGV[2])
+return 1`)
 	completeTrackingEventClaimScript = radix.NewEvalScript(`
 if redis.call("GET", KEYS[1]) == ARGV[1] then
   redis.call("SET", KEYS[1], "done", "EXAT", ARGV[2])
@@ -1648,15 +1708,18 @@ func (self *Controller) claimTrackingKey(ctx context.Context, key string, validU
 	}
 	redisCtx, cancel := trackingRedisOperationContext(ctx)
 	defer cancel()
-	var result string
-	err = self.Redis.Do(redisCtx, radix.Cmd(&result, "SET", key, token, "PXAT", strconv.FormatInt(processingDeadline.UnixMilli(), 10), "NX"))
+	var result int
+	err = self.Redis.Do(redisCtx, claimTrackingEventScript.Cmd(&result, []string{key}, token, strconv.FormatInt(processingDeadline.UnixMilli(), 10)))
 	if err != nil {
 		metricTrackingReplayRedisErrors.Add(1)
 		metricTrackingReplayFailOpen.Add(1)
 		return trackingEventClaim{key: key, outcome: trackingClaimRedisFailOpen}
 	}
-	if result != "OK" {
+	if result != 1 {
 		metricTrackingReplaySuppressed.Add(1)
+		if result == 2 {
+			return trackingEventClaim{key: key, outcome: trackingClaimCompleted}
+		}
 		return trackingEventClaim{key: key, outcome: trackingClaimDuplicate}
 	}
 	return trackingEventClaim{key: key, token: token, outcome: trackingClaimOwner}
@@ -1688,7 +1751,13 @@ func (self *Controller) releaseTrackingEventClaim(claim trackingEventClaim) erro
 	ctx, cancel := trackingRedisOperationContext(context.Background())
 	defer cancel()
 	var released int
-	return self.Redis.Do(ctx, releaseTrackingEventClaimScript.Cmd(&released, []string{claim.key}, claim.token))
+	if err := self.Redis.Do(ctx, releaseTrackingEventClaimScript.Cmd(&released, []string{claim.key}, claim.token)); err != nil {
+		return err
+	}
+	if released != 1 {
+		return fmt.Errorf("tracking event claim ownership lost before release")
+	}
+	return nil
 }
 
 func trackingRedisOperationContext(parent context.Context) (context.Context, context.CancelFunc) {

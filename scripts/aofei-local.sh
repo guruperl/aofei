@@ -320,7 +320,7 @@ generate_configs() {
   "middleman_timeout_ms": 100,
   "middleman_max_bidders_per_imp": 5,
   "middleman_exchange_domain": "localhost",
-  "middleman_callback_ttl_seconds": 86400,
+  "middleman_callback_ttl_seconds": 86700,
   "middleman_callback_timeout_ms": 1000,
   "middleman_callback_base_url": "http://localhost:8080",
   "openrtb_debug_enabled": false,

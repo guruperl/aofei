@@ -33,7 +33,17 @@ var (
 	metricBothCapRefreshRetries   = expvar.NewInt("aofei_bothcap_refresh_retries_total")
 	metricBothCapRefreshConflicts = expvar.NewInt("aofei_bothcap_refresh_conflicts_total")
 	metricBothCapRefreshLastMS    = expvar.NewInt("aofei_bothcap_refresh_last_ms")
+	metricBothCapFormats          = expvar.NewMap("aofei_bothcap_formats_total")
 )
+
+func recordBothCapFormat(format string) {
+	switch format {
+	case "legacy", "utc_v2", "malformed":
+	default:
+		format = "malformed"
+	}
+	metricBothCapFormats.Add(format, 1)
+}
 
 // Fcap is frequency-cap state. The exported calendar fields retain the legacy
 // diagnostic view. New state uses unexported UTC epoch-minute fields so the
@@ -208,10 +218,12 @@ func (self BothCap) PackString() (string, error) {
 func UnpackBothCap(data []byte) (BothCap, error) {
 	legacySize := binary.Size(legacyBothCapWire{})
 	if len(data) < legacySize {
+		recordBothCapFormat("malformed")
 		return BothCap{}, fmt.Errorf("unsupported bothcap payload format")
 	}
 	var legacy legacyBothCapWire
 	if err := binary.Read(bytes.NewReader(data[:legacySize]), binary.LittleEndian, &legacy); err != nil {
+		recordBothCapFormat("malformed")
 		return BothCap{}, err
 	}
 	legacyState := BothCap{
@@ -219,9 +231,11 @@ func UnpackBothCap(data []byte) (BothCap, error) {
 		Cli: Fcap{Total: legacy.Cli.Total, StartYM: legacy.Cli.StartYM, StartDHM: legacy.Cli.StartDHM, Last: legacy.Cli.Last},
 	}
 	if len(data) == legacySize {
+		recordBothCapFormat("legacy")
 		return legacyState, nil
 	}
 	if len(data) != legacySize+3+2*(8+8) || string(data[legacySize:legacySize+2]) != bothCapFormatMagic || data[legacySize+2] != bothCapFormatUTC {
+		recordBothCapFormat("malformed")
 		return BothCap{}, fmt.Errorf("unsupported bothcap payload format")
 	}
 	buf := bytes.NewReader(data[legacySize+3:])
@@ -247,12 +261,15 @@ func UnpackBothCap(data []byte) (BothCap, error) {
 	}
 	imp, err := decode(legacy.Imp.Total)
 	if err != nil {
+		recordBothCapFormat("malformed")
 		return BothCap{}, err
 	}
 	cli, err := decode(legacy.Cli.Total)
 	if err != nil {
+		recordBothCapFormat("malformed")
 		return BothCap{}, err
 	}
+	recordBothCapFormat("utc_v2")
 	return BothCap{Imp: imp, Cli: cli}, nil
 }
 
@@ -335,7 +352,7 @@ func mustRefreshBothCapWithTTL(ctx context.Context, conn radix.Client, when time
 	key := HashNameBothCap(pid)
 	itemIDStr := fmt.Sprintf("%d", itemID)
 	ttlSeconds := int64((ttl + time.Second - 1) / time.Second)
-	eventTTLSeconds := int64((eventTTL + time.Second - 1) / time.Second)
+	eventExpireUnix := time.Now().Add(eventTTL).Unix()
 	for attempt := 0; attempt < bothCapRefreshRetries; attempt++ {
 		var retry bool
 		var applied bool
@@ -412,7 +429,7 @@ func mustRefreshBothCapWithTTL(ctx context.Context, conn radix.Client, when time
 				if err = redisConn.Do(ctx, radix.Cmd(nil, "SETNX", eventKey, "1")); err != nil {
 					return err
 				}
-				if err = redisConn.Do(ctx, radix.Cmd(nil, "EXPIRE", eventKey, strconv.FormatInt(eventTTLSeconds, 10))); err != nil {
+				if err = redisConn.Do(ctx, radix.Cmd(nil, "EXPIREAT", eventKey, strconv.FormatInt(eventExpireUnix, 10))); err != nil {
 					return err
 				}
 			}

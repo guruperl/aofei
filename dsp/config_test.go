@@ -70,8 +70,8 @@ func TestConfig(t *testing.T) {
 	if c.MiddlemanExchangeDomain != "localhost" {
 		t.Errorf("MiddlemanExchangeDomain = %q, want localhost", c.MiddlemanExchangeDomain)
 	}
-	if c.MiddlemanCallbackTTLSeconds != 86400 {
-		t.Errorf("MiddlemanCallbackTTLSeconds = %d, want 86400", c.MiddlemanCallbackTTLSeconds)
+	if c.MiddlemanCallbackTTLSeconds != 86700 {
+		t.Errorf("MiddlemanCallbackTTLSeconds = %d, want 86700", c.MiddlemanCallbackTTLSeconds)
 	}
 	if c.MiddlemanCallbackTimeoutMS != 1000 {
 		t.Errorf("MiddlemanCallbackTimeoutMS = %d, want 1000", c.MiddlemanCallbackTimeoutMS)
@@ -112,7 +112,7 @@ func TestActionConfigRequiresRetentionForFullLifecycle(t *testing.T) {
 	c := &Config{
 		ConnectArray: []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"}, Redis: &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		TrackingSignatureTTLSeconds: 86400, CapStateTTLSeconds: 7776000, DeliveryCacheMaxAgeSeconds: 900, DeliveryReservationSeconds: 86700, DeliveryStateTTLSeconds: 172800,
-		MiddlemanCallbackTTLSeconds: 86400, MiddlemanCallbackTimeoutMS: 1000, MiddlemanRouteCacheTTLMS: 5000,
+		MiddlemanCallbackTTLSeconds: 86700, MiddlemanCallbackTimeoutMS: 1000, MiddlemanRouteCacheTTLMS: 5000,
 		ActionClickWindowHours: 720, ActionViewWindowHours: 168, ActionMaxAgeHours: 2160, ActionTokenTTLSeconds: 2592000, ActionRequestSkewSeconds: 300, ActionRetentionHours: 2160,
 	}
 	if err := c.Validate(); err != nil {
@@ -232,7 +232,7 @@ func TestGetRedisDBClosesDBWhenRedisPoolCreationFails(t *testing.T) {
 		DeliveryCacheMaxAgeSeconds:  900,
 		DeliveryReservationSeconds:  86700,
 		DeliveryStateTTLSeconds:     172800,
-		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanCallbackBaseURL:    "http://localhost",
@@ -305,7 +305,7 @@ func TestConfigRejectsInvalidTrustedProxyCIDR(t *testing.T) {
 		DeliveryStateTTLSeconds:     172800,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
-		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
 		TrustedProxyCIDRs:           []string{"not-a-cidr"},
@@ -328,7 +328,7 @@ func TestConfigValidateModes(t *testing.T) {
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		NatsURL:                     "nats://127.0.0.1:4222",
 		Spread:                      "/tmp/spread",
-		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
 		MiddlemanCallbackBaseURL:    "http://localhost",
@@ -370,6 +370,18 @@ func TestConfigValidateModes(t *testing.T) {
 	if err := shortReservation.Validate(); err == nil {
 		t.Fatal("expected reservation TTL shorter than accepted callback lifetime to fail")
 	}
+
+	shortMiddlemanCallback := *c
+	shortMiddlemanCallback.MiddlemanCallbackTTLSeconds = shortMiddlemanCallback.TrackingSignatureTTLSeconds
+	if err := shortMiddlemanCallback.Validate(); err == nil {
+		t.Fatal("expected middleman callback TTL shorter than accepted signature lifetime to fail")
+	}
+
+	longMiddlemanCallback := *c
+	longMiddlemanCallback.MiddlemanCallbackTimeoutMS = 60_001
+	if err := longMiddlemanCallback.Validate(); err == nil {
+		t.Fatal("expected excessive middleman callback timeout to fail")
+	}
 }
 
 func TestConfigRejectsInvalidPrivacyPolicy(t *testing.T) {
@@ -381,7 +393,7 @@ func TestConfigRejectsInvalidPrivacyPolicy(t *testing.T) {
 		DeliveryStateTTLSeconds:     172800,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
-		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
 	}
@@ -418,7 +430,7 @@ func TestConfigRejectsInvalidEnabledTrafficQuality(t *testing.T) {
 		DeliveryStateTTLSeconds:     172800,
 		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
-		MiddlemanCallbackTTLSeconds: 86400,
+		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
 	}

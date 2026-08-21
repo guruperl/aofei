@@ -1,7 +1,9 @@
 package dsp
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/guruperl/aofei/match"
@@ -28,6 +30,33 @@ func TestServeBidMalformedRequestLogsStructuredError(t *testing.T) {
 	}
 	if _, ok := entries[0].ContextMap()["error"]; !ok {
 		t.Fatalf("malformed request log has no structured error field: %+v", entries[0].ContextMap())
+	}
+}
+
+func TestServeBidValidationLogHashesRequestID(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	core, logs := observer.New(zap.DebugLevel)
+	controller.Logger = zap.New(core)
+	request := localBidRequest("USD", "USD")
+	request.Imp[0].ID = ""
+	body, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsp := serveSmokeBid(t, controller, "pub.example", body)
+	if rsp.Code != http.StatusNoContent {
+		t.Fatalf("ServeBid status = %d, want %d", rsp.Code, http.StatusNoContent)
+	}
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("validation log count = %d, want 1", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	if fields["request_id_hash"] == "" || fields["request_id"] != nil {
+		t.Fatalf("request identifier fields = %#v", fields)
+	}
+	if encoded, err := json.Marshal(fields); err != nil || strings.Contains(string(encoded), request.ID) {
+		t.Fatalf("validation log exposed raw request id: %s, err=%v", encoded, err)
 	}
 }
 

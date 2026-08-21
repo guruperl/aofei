@@ -7,8 +7,8 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order are complete. The planned review-remediation order is D04, P03, S05, O03,
-R03, then A03. I02 remains separately demand-gated until P03/S05 are complete
+order and D04 are complete. The remaining review-remediation order is P03, S05,
+O03, R03, then A03. I02 remains separately demand-gated until P03/S05 are complete
 and a named Android or iOS integration defines supported platforms and lifecycle
 requirements. The active MySQL baseline remains 94 tables, 0 views, 6 routines,
 and 55 triggers; planned milestones do not imply schema or runtime activation.
@@ -40,7 +40,7 @@ and 55 triggers; planned milestones do not imply schema or runtime activation.
 | D01 delivery guardrails | Completed | [status-D01.md](../memory-bank/status-D01.md) | [Campaign delivery guardrails](delivery-guardrails.md) |
 | D02 auction, pricing, creatives | Completed | [status-D02.md](../memory-bank/status-D02.md) | [Auction, pricing, and creative contract](auction-pricing-creatives.md) |
 | D03 external DSP / AdX middleman | Completed; activation-gated | [status-D03.md](../memory-bank/status-D03.md) | [Middleman activation](middleman-activation.md) and [runtime contract](middleman-adx.md) |
-| D04 delivery/tracking integrity | Planned | [status-D04.md](../memory-bank/status-D04.md) | Existing [delivery](delivery-guardrails.md), [auction](auction-pricing-creatives.md), and [measurement](openrtb-measurement.md) contracts |
+| D04 delivery/tracking integrity | Completed | [status-D04.md](../memory-bank/status-D04.md) | Existing [delivery](delivery-guardrails.md), [auction](auction-pricing-creatives.md), and [measurement](openrtb-measurement.md) contracts |
 | P01 direct SSP readiness | Completed; publisher activation-gated | [status-P01.md](../memory-bank/status-P01.md) | [Publisher activation](publisher-activation.md) and [`/pz` contract](ssp-direct-traffic.md) |
 | P02 supply and seller transparency | Completed | [status-P02.md](../memory-bank/status-P02.md) | [Supply taxonomy ADR](adr/0001-richer-supply-taxonomy.md) and [ownership ADR](adr/0002-ssp-account-schema-boundary.md) |
 | P03 direct SSP authenticity | Planned | [status-P03.md](../memory-bank/status-P03.md) | Existing [`/pz` contract](ssp-direct-traffic.md), [publisher activation](publisher-activation.md), and [identity boundary](identity-access-security.md) |
