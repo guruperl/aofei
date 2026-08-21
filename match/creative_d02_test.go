@@ -157,6 +157,19 @@ func TestNativeCreativeHonorsRequestedImageMIME(t *testing.T) {
 	}
 }
 
+func TestNativeCreativeWithoutExactImageExtensionFailsClosed(t *testing.T) {
+	creative := &NativeCreativeV1{
+		Version: "1", Title: "Title", MainImageURL: "https://cdn.example/image?id=main",
+	}
+	format := &NativeFormat{Ver: "1.2", Assets: []*AssetFormat{{
+		AssetFormat: adcom1.AssetFormat{ID: 1, Img: &adcom1.ImageAssetFormat{Type: adcom1.ImageAssetMain, MIME: []string{"image/jpeg"}}},
+		Required:    1,
+	}}}
+	if _, err := NativeFromCreativeV1(format, creative, "creative", 300, 250); err == nil || !strings.Contains(err.Error(), "MIME") {
+		t.Fatalf("extensionless required native image error = %v", err)
+	}
+}
+
 func TestCreativeLegacyCacheFieldsFailClosed(t *testing.T) {
 	creative := &Creative{CreativeName: "legacy", CreativeContent: "https://cdn.example/banner.html", SizeID: SizeID2To1(300, 250), Landing: "https://advertiser.example"}
 	if err := creative.ValidateConfiguration(false); err == nil || !strings.Contains(err.Error(), "media type") {

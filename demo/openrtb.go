@@ -19,15 +19,18 @@ func NewOpenRTBDemo(bidRequest *openrtb2.BidRequest) *Demo {
 
 // getLangs returns the WLangs object from the bid request and device.
 func getLangs(bidRequest *openrtb2.BidRequest) []string {
+	if bidRequest == nil {
+		return nil
+	}
 	var langs []string
 	if bidRequest.WLang != nil {
 		langs = bidRequest.WLang
-	} else if bidRequest.Device != nil && bidRequest.Device.Language != "" || bidRequest.Device.LangB != "" {
-		if bidRequest.Device.Language != "" {
-			langs = append(langs, bidRequest.Device.Language)
+	} else if device := bidRequest.Device; device != nil && (device.Language != "" || device.LangB != "") {
+		if device.Language != "" {
+			langs = append(langs, device.Language)
 		}
-		if bidRequest.Device.LangB != "" {
-			langs = append(langs, bidRequest.Device.LangB)
+		if device.LangB != "" {
+			langs = append(langs, device.LangB)
 		}
 	}
 

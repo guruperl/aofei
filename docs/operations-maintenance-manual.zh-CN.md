@@ -720,6 +720,7 @@ AOFEI=/etc/aofei/aofei.json \
 - 外部需求方竞价依赖 Redis 路由和回调上下文，即使本地静态缓存可用也会受影响；
 - Redis 恢复或 failover 后重新发布静态缓存，且不要清除仍需保留的频控/上传/回调键族。
 - `delivery:budget:total:*` 是防止账务滞后重新开放预算的持久状态。恢复、迁移或人工清理前必须先完成账务对账并确认对应 `adv_balance`；不得用通配符直接删除。
+- 预留 token 过期不会自动退回总预算。怀疑因此欠投时，先暂停对应广告组，保留 Redis 与请求/响应/计量证据，运行正常账务任务，再逐项比较 `adv_balance.current_*` 与准确的 `delivery:budget:total:<balance_id>` 键；只有在账务负责人确认差异并批准事故操作后才能修改该准确键，不能仅凭 token 过期推断退款。
 
 ### 12.4 NATS 或日志故障
 

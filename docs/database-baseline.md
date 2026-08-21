@@ -158,6 +158,13 @@ cache-first rollout in
 [auction-pricing-creatives.md](auction-pricing-creatives.md); replaying this
 baseline or changing the enum default alone does not migrate stored demand.
 
+Publisher `pub_id` values are database identities, not credentials or secrets.
+The legacy helper that creates a publisher plus default inventory uses a
+cryptographically generated nonzero 32-bit value and retries a detected primary
+key collision; another unique-key violation remains an error. Authorization
+must continue to use the authenticated role/account context rather than relying
+on an unguessable numeric ID.
+
 A01 adds the singleton `acct_contract` row with
 `usd-cpm-impression-v2`, plus empty `acct_statement`, `acct_adjustment`, and
 `acct_audit` tables. Adjustment and audit triggers reject update/delete. The

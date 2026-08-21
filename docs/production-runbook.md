@@ -160,6 +160,14 @@ one-third of it, and keep `delivery_reservation_ttl_seconds` long enough for the
 tracking TTL plus five-minute skew (default 86700). The default
 `delivery_state_ttl_seconds` is 172800; total delivery counters are persistent,
 while this value provides the daily-state reconciliation grace period.
+An expired reservation token never refunds its persistent total-budget counter.
+If missing callbacks cause suspected conservative underdelivery, pause the
+affected demand, preserve the Redis value and request/response/measurement
+evidence, run the normal ledger jobs, and compare the reconciled
+`adv_balance.current_*` floors with the exact `delivery:budget:total:<balance_id>`
+keys. Change or delete an exact key only under an approved incident procedure
+after accounting owns the discrepancy; never scan-delete the family or infer a
+refund solely from reservation expiry.
 Alert on increases in `aofei_tracking_replay_redis_errors_total` and
 `aofei_tracking_replay_unkeyed_total`; those events are accepted fail-open and
 can therefore retain at-least-once measurement behavior until Redis or event

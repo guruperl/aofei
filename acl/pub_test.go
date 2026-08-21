@@ -4,7 +4,58 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-sql-driver/mysql"
 )
+
+func TestInsertPublisherRetriesPrimaryKeyCollision(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	insert := `INSERT INTO pub \(pub_id, domain, email, passwd, address_id, active, created\)`
+	mock.ExpectExec(insert).WithArgs(uint32(7), "pub.example", "pub.example").
+		WillReturnError(&mysql.MySQLError{Number: 1062, Message: "duplicate PRIMARY"})
+	mock.ExpectQuery(`SELECT email FROM pub WHERE pub_id=\? LIMIT 1`).WithArgs(uint32(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"email"}).AddRow("collision.example"))
+	mock.ExpectExec(insert).WithArgs(uint32(8), "pub.example", "pub.example").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	ids := []uint32{7, 8}
+	got, err := insertPublisher(db, "pub.example", func() (uint32, error) {
+		id := ids[0]
+		ids = ids[1:]
+		return id, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 8 {
+		t.Fatalf("publisher id = %d, want 8", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInsertPublisherDoesNotRetryDuplicateEmail(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectExec(`INSERT INTO pub \(pub_id, domain, email, passwd, address_id, active, created\)`).
+		WithArgs(uint32(7), "pub.example", "pub.example").
+		WillReturnError(&mysql.MySQLError{Number: 1062, Message: "duplicate email"})
+	mock.ExpectQuery(`SELECT email FROM pub WHERE pub_id=\? LIMIT 1`).WithArgs(uint32(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"email"}))
+	_, err = insertPublisher(db, "pub.example", func() (uint32, error) { return 7, nil })
+	if err == nil {
+		t.Fatal("duplicate publisher email succeeded")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestDBGetPubSetsDefaultAppAndWebSlots(t *testing.T) {
 	db, mock, err := sqlmock.New()

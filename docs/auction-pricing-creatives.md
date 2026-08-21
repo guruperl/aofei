@@ -61,13 +61,20 @@ tracker URLs.
 |---|---|---|
 | Banner | One absolute HTTP(S) image or HTML-document URL. Raw markup is not accepted. | `image/*` or `text/html`; returned in the existing delivery iframe contract. |
 | Video | One absolute HTTP(S) media URL. Raw `<video>` or VAST markup is not accepted as local source. | `video/*` or supported HLS MIME; materialized as VAST 3.0. |
-| Native | Version-1 structured JSON containing title and optional description, CTA, icon URL, and main-image URL. | Requested required native assets must be satisfiable; image URLs must resolve to an image MIME from their path. |
+| Native | Version-1 structured JSON containing title and optional description, CTA, icon URL, and main-image URL. | Requested required native assets must be satisfiable; image URLs must resolve to an image MIME from their exact path extension. |
 
 The management UI writes this source contract directly. Upload is available
 only for Banner images and Video media; it persists the resulting URL and
 detected MIME, not executable markup. Native fields are authored separately and
 serialized into the versioned JSON source. Management and review pages display
 escaped source only and never fetch or execute it.
+
+Native image validation intentionally does not fetch remote content or trust a
+query-string format hint. When the request supplies an image MIME allow-list,
+an icon or main-image URL without a recognized exact path extension is rejected
+(or omitted when the asset is optional). Operators should use an explicit
+`.jpg`, `.jpeg`, `.png`, `.gif`, or other platform-recognized image path rather
+than an extensionless transformation URL.
 
 At bid time the creative must exactly match the impression's media type and
 packed dimensions. A request MIME allow-list must contain the creative MIME.

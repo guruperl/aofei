@@ -3,15 +3,18 @@ package acl
 import (
 	"bytes"
 	"context"
+	cryptorand "crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
@@ -350,11 +353,51 @@ VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, si
 	return siteID, nil
 }
 
-func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
-	pubID := rand.Uint32()
-	_, err := db.Exec(`
+const publisherIDAllocationAttempts = 16
+
+func randomPublisherID() (uint32, error) {
+	for {
+		var data [4]byte
+		if _, err := io.ReadFull(cryptorand.Reader, data[:]); err != nil {
+			return 0, fmt.Errorf("generate publisher id: %w", err)
+		}
+		if id := binary.LittleEndian.Uint32(data[:]); id != 0 {
+			return id, nil
+		}
+	}
+}
+
+func insertPublisher(db *sql.DB, pubStr string, generateID func() (uint32, error)) (uint32, error) {
+	for attempt := 0; attempt < publisherIDAllocationAttempts; attempt++ {
+		pubID, err := generateID()
+		if err != nil {
+			return 0, err
+		}
+		_, err = db.Exec(`
 INSERT INTO pub (pub_id, domain, email, passwd, address_id, active, created)
 VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
+		if err == nil {
+			return pubID, nil
+		}
+		var mysqlErr *mysql.MySQLError
+		if !errors.As(err, &mysqlErr) || mysqlErr.Number != 1062 {
+			return 0, err
+		}
+		var existingEmail string
+		lookupErr := db.QueryRow(`SELECT email FROM pub WHERE pub_id=? LIMIT 1`, pubID).Scan(&existingEmail)
+		if lookupErr == nil {
+			continue
+		}
+		if !errors.Is(lookupErr, sql.ErrNoRows) {
+			return 0, lookupErr
+		}
+		return 0, err
+	}
+	return 0, fmt.Errorf("could not allocate a unique publisher id after %d attempts", publisherIDAllocationAttempts)
+}
+
+func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
+	pubID, err := insertPublisher(db, pubStr, randomPublisherID)
 	if err != nil {
 		return nil, err
 	}
