@@ -128,8 +128,10 @@ for lane_id in "${lane_ids[@]}"; do
 
 	case "$lane_id" in
 	I02|D04|P03|R03|S05|A03|O03)
-		if ! grep -Fq 'State: `[ ]` Planned' "$status_file"; then
-			fail "$status_file must record the current planned state."
+		if ! grep -Fq 'State: `[ ]` Planned' "$status_file" &&
+			! grep -Fq 'State: `[~]` In progress' "$status_file" &&
+			! grep -Fq 'State: `[+]` Completed' "$status_file"; then
+			fail "$status_file must record a valid remediation lifecycle state."
 		fi
 		;;
 	*)
