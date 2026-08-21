@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -675,11 +676,29 @@ func replaceMacroValue(value string, macroStandard, macroCustom map[string]strin
 	if replacement, ok := macroCustom[value]; ok {
 		return replacement
 	}
-	for macro, replacement := range macroStandard {
-		value = strings.ReplaceAll(value, macro, replacement)
+	type replacement struct {
+		macro string
+		value string
 	}
-	for macro, replacement := range macroCustom {
-		value = strings.ReplaceAll(value, macro, replacement)
+	replacements := make([]replacement, 0, len(macroStandard)+len(macroCustom))
+	seen := make(map[string]struct{}, len(macroStandard)+len(macroCustom))
+	for _, macros := range []map[string]string{macroStandard, macroCustom} {
+		for macro, replacementValue := range macros {
+			if _, ok := seen[macro]; ok {
+				continue
+			}
+			seen[macro] = struct{}{}
+			replacements = append(replacements, replacement{macro: macro, value: replacementValue})
+		}
+	}
+	sort.Slice(replacements, func(i, j int) bool {
+		if len(replacements[i].macro) != len(replacements[j].macro) {
+			return len(replacements[i].macro) > len(replacements[j].macro)
+		}
+		return replacements[i].macro < replacements[j].macro
+	})
+	for _, current := range replacements {
+		value = strings.ReplaceAll(value, current.macro, current.value)
 	}
 	return value
 }

@@ -228,7 +228,7 @@ func reportingDimensionsFromAttribute(attribute *match.Attribute) *ReportingDime
 func (self *DSP) billableRAdv() match.RAdv {
 	one := self.one
 	one.Cost = self.bidPrice
-	one.CostType = 2
+	one.CostType = match.CostTypeCPM
 	return one
 }
 

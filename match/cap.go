@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"time"
 )
 
@@ -16,8 +17,23 @@ type Cap struct {
 	ClickPeriod uint16 `json:"click_period,omitempty"`
 }
 
+// Validate rejects numbered caps without a nonzero window. Throttling is an
+// independent minimum-interval control and remains valid without CapNumber.
+func (self Cap) Validate() error {
+	if self.CapNumber > 0 && self.CapPeriod == 0 {
+		return fmt.Errorf("impression cap number requires a positive period")
+	}
+	if self.ClickNumber > 0 && self.ClickPeriod == 0 {
+		return fmt.Errorf("click cap number requires a positive period")
+	}
+	return nil
+}
+
 // Pack packs the Cap to bytes
 func (self Cap) Pack() ([]byte, error) {
+	if err := self.Validate(); err != nil {
+		return nil, err
+	}
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.LittleEndian, self)
 	return buf.Bytes(), err
@@ -36,8 +52,16 @@ func (self Cap) PackString() (string, error) {
 func UnpackCap(data []byte) (Cap, error) {
 	buf := bytes.NewReader(data)
 	cap := Cap{}
-	err := binary.Read(buf, binary.LittleEndian, &cap)
-	return cap, err
+	if err := binary.Read(buf, binary.LittleEndian, &cap); err != nil {
+		return Cap{}, err
+	}
+	if buf.Len() != 0 {
+		return Cap{}, fmt.Errorf("cap payload has trailing data")
+	}
+	if err := cap.Validate(); err != nil {
+		return Cap{}, err
+	}
+	return cap, nil
 }
 
 // UnpackCapString unpacks the Cap from RawURL string
@@ -78,6 +102,9 @@ func (self Cap) canServeCli(when time.Time, fcap Fcap) bool {
 	return true
 }
 func (self Cap) CanServe(when time.Time, object BothCap) bool {
+	if self.Validate() != nil {
+		return false
+	}
 	if !self.canServeImp(when, object.Imp) {
 		return false
 	}

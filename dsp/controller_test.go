@@ -2,6 +2,8 @@ package dsp
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -57,6 +59,50 @@ func TestServeStatusRejectsInvalidTrackingAuctionPrice(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected invalid auction_price to return an error")
+	}
+}
+
+func TestServeStatusUsesSharedCPMCostType(t *testing.T) {
+	args := trackingTestArgs("cost-type", false)
+	addTrackingSignature("test-secret", "/imp", args)
+	var published WinLoss
+	controller := &Controller{
+		C:                  &Config{TrackingSecret: "test-secret"},
+		publishWinLossFunc: func(data []byte) error { return json.Unmarshal(data, &published) },
+	}
+	if err := controller.serveStatus(context.Background(), StatusTrackImp, time.Now(), args); err != nil {
+		t.Fatal(err)
+	}
+	if published.RAdv.CostType != match.CostTypeCPM {
+		t.Fatalf("cost type = %d, want CPM %d", published.RAdv.CostType, match.CostTypeCPM)
+	}
+}
+
+func TestServeStatusRejectsInvalidCapBeforeRedisAndPublication(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	redis := &interceptRedisClient{Client: client}
+	defer redis.Close()
+	args := trackingTestArgs("invalid-cap", true)
+	// Legacy Cap wire: CapNumber=1 followed by zero period/throttle/click fields.
+	args.Set("cap", base64.RawURLEncoding.EncodeToString([]byte{1, 0, 0, 0, 0, 0, 0, 0}))
+	addTrackingSignature("test-secret", "/imp", args)
+	published := 0
+	controller := &Controller{
+		C: &Config{TrackingSecret: "test-secret"}, Redis: redis,
+		publishWinLossFunc: func([]byte) error { published++; return nil },
+	}
+	if err := controller.serveStatus(context.Background(), StatusTrackImp, time.Now(), args); err == nil {
+		t.Fatal("invalid cap callback succeeded")
+	}
+	if calls := redis.calls.Load(); calls != 0 {
+		t.Fatalf("invalid cap performed %d Redis calls, want zero", calls)
+	}
+	if published != 0 {
+		t.Fatalf("invalid cap published %d events", published)
 	}
 }
 

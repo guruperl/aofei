@@ -62,6 +62,14 @@ reservation and ledger convert one accepted impression to USD spend as
 `CPM / 1000`; spend therefore follows the served bid price rather than the raw
 item cost field.
 
+The exchange-resolved auction ID, bid ID, impression ID, price, and currency
+fields on `/win` and `/loss` cannot be signed at bid creation. The signature
+therefore covers the immutable packed demand/supply identity and timestamp,
+while replay ownership binds the resolved bid identity after callback receipt.
+These win/loss facts are analytics notifications, not spend authority. USD
+prices accepted from all local and middleman callbacks are labeled with the
+shared `match.CostTypeCPM` value used by accounting.
+
 For a budget-limited local winner, all generated win/loss/impression/click URLs
 also carry a signed opaque `delivery_reservation` token. Response construction
 has already converted the selected CPM to one-impression USD spend and reserved
@@ -84,6 +92,10 @@ Click redirects, win/loss notifications, and Redis cap mutations require a
 valid non-expired signature. Every `/imp` and `/clk` request is validated even
 when the served item has no cap or the `cap` query value is missing; unsigned,
 expired, or modified URLs return `400`.
+When a cap payload is present, a positive impression or click count must have a
+positive corresponding period. Invalid, truncated, or trailing cap data is
+rejected before replay claims, cap mutation, or publication. A positive
+impression throttle remains valid by itself.
 Duplicate `/win` and `/loss` notifications for the same auction bid are
 short-circuited until the signed timestamp's exact validity deadline when Redis
 is available. Signed `/imp` and `/clk` events are also deduplicated independently

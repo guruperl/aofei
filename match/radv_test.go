@@ -1,9 +1,37 @@
 package match
 
 import (
+	"database/sql"
 	"math"
 	"testing"
 )
+
+func TestRAdvUpdateRowRejectsCapTruncationAndMissingPeriod(t *testing.T) {
+	base := RAdv{Demand: Demand{ItemID: 7}}
+	null := sql.NullInt64{}
+	validCost := sql.NullFloat64{Float64: 1, Valid: true}
+	cpm := sql.NullString{String: "CPM", Valid: true}
+	for _, test := range []struct {
+		name                             string
+		capNumber, clickNumber           sql.NullInt64
+		capPeriod, clickPeriod, throttle sql.NullInt64
+	}{
+		{name: "number without period", capNumber: sql.NullInt64{Int64: 1, Valid: true}},
+		{name: "number overflow", capNumber: sql.NullInt64{Int64: 256, Valid: true}},
+		{name: "period overflow", capPeriod: sql.NullInt64{Int64: 65536, Valid: true}},
+		{name: "negative throttle", throttle: sql.NullInt64{Int64: -1, Valid: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := base.updateRow(validCost, test.capNumber, test.clickNumber, test.capPeriod, test.clickPeriod, test.throttle, cpm)
+			if err == nil {
+				t.Fatal("invalid database cap compiled")
+			}
+		})
+	}
+	if _, err := base.updateRow(validCost, sql.NullInt64{Int64: 1, Valid: true}, null, sql.NullInt64{Int64: 60, Valid: true}, null, null, cpm); err != nil {
+		t.Fatalf("valid database cap rejected: %v", err)
+	}
+}
 
 // TestDemandPack tests the Pack and Unpack functions of Demand.
 func TestDemandPack(t *testing.T) {

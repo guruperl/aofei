@@ -92,6 +92,11 @@ Frequency caps are then checked by reading `bothcap:<user_id>` for capped item
 ids. Expired cap entries are deleted from Redis. This mutable cap state remains
 Redis-backed in both Redis and local/spread bid modes.
 
+A numbered impression or click cap requires a positive corresponding period.
+The cache compiler rejects missing, negative, or out-of-wire-range cap values;
+runtime matching also fails closed if invalid cap data is supplied by an older
+cache. A standalone positive impression throttle remains supported.
+
 Audiences are loaded for remaining candidates. The path then:
 
 1. tries uploaded-audience direct matches,
@@ -161,7 +166,9 @@ measurement must include `{CLICK_URL}` in the creative content URL/template.
 `{LANDING_URL}` remains available as the direct advertiser destination.
 Creative URL macro expansion preserves existing query parameters, repeated
 query values, empty values, and non-macro values while replacing supported
-macros per query value.
+macros per query value. Overlapping names are resolved longest first and then
+lexically, with standard macros taking precedence over duplicate custom names,
+so output does not depend on Go map iteration order.
 
 Middleman winners pass a parallel downstream-response gate for positive finite
 USD price, floor, exact size, media type, callbacks, secure inventory, and

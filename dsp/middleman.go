@@ -593,7 +593,7 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 							ItemID:     entry.SyntheticItemID,
 							CreativeID: entry.SyntheticCreativeID,
 						},
-						CostType: 2,
+						CostType: match.CostTypeCPM,
 						Cost:     float32(markedPrice),
 					},
 				},

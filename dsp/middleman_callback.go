@@ -615,7 +615,7 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 		},
 	}
 	wl.RAdv.Cost = float32(prices.ChargePrice)
-	wl.RAdv.CostType = 2
+	wl.RAdv.CostType = match.CostTypeCPM
 	data, err := json.Marshal(wl)
 	if err != nil {
 		return err

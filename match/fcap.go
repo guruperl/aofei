@@ -266,6 +266,9 @@ func UnpackBothCapString(text string) (BothCap, error) {
 }
 
 func (self *BothCap) Refresh(when time.Time, block RAdv, isImp bool, isCli bool) {
+	if self == nil || block.Cap.Validate() != nil {
+		return
+	}
 	imp := self.Imp
 	cli := self.Cli
 	if isImp {
@@ -317,6 +320,9 @@ func mustRefreshBothCapWithTTL(ctx context.Context, conn radix.Client, when time
 	}
 	if ttl <= 0 {
 		return false, fmt.Errorf("bothcap TTL must be positive")
+	}
+	if err := cap.Validate(); err != nil {
+		return false, err
 	}
 	started := time.Now()
 	defer func() {

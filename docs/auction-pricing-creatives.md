@@ -39,6 +39,12 @@ chosen creative fails validation, that creative is removed and the auction is
 re-evaluated. If live D01 reservation rejects an exhausted demand unit, all of
 that unit's sibling creatives are removed before reselection.
 
+Frequency-cap configuration is also a cache-compilation boundary. A positive
+impression or click count requires a positive corresponding period; negative
+or out-of-wire-range values are rejected rather than truncated. A standalone
+positive impression throttle remains valid without a numbered cap. Runtime
+matching fails closed if an invalid cap enters through an older cache.
+
 Creative compatibility is checked before a delivery reservation is acquired.
 A successfully materialized local winner keeps its reservation until a signed
 impression, loss, displacement by a higher middleman bid, or response failure

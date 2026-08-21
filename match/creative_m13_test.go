@@ -124,3 +124,22 @@ func TestApplyMacroPreservesRepeatedQueryValues(t *testing.T) {
 		t.Fatal("empty query value was not preserved")
 	}
 }
+
+func TestReplaceMacroValueUsesDeterministicLongestKeyFirst(t *testing.T) {
+	standard := map[string]string{
+		"{MACRO}":         "standard-short",
+		"{MACRO}{SUFFIX}": "standard-long",
+	}
+	custom := map[string]string{
+		"{MACRO}":  "custom-duplicate",
+		"{SUFFIX}": "custom-suffix",
+	}
+	for i := 0; i < 100; i++ {
+		if got := replaceMacroValue("pre-{MACRO}{SUFFIX}-post", standard, custom); got != "pre-standard-long-post" {
+			t.Fatalf("replacement %d = %q, want longest standard macro", i, got)
+		}
+		if got := replaceMacroValue("{MACRO}", standard, custom); got != "standard-short" {
+			t.Fatalf("duplicate-key precedence = %q, want standard", got)
+		}
+	}
+}

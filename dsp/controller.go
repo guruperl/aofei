@@ -1365,7 +1365,7 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	if err == nil {
 		wl.RAdv.Cost = float32(price)
 		if v := args.Get("auction_currency"); v == "USD" {
-			wl.RAdv.CostType = 1
+			wl.RAdv.CostType = match.CostTypeCPM
 		}
 	} else if status == StatusTrackClk || status == StatusTrackImp {
 		return err
@@ -1373,28 +1373,31 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 
 	switch status {
 	case StatusTrackClk, StatusTrackImp:
+		u := args.Get("cap")
+		if u != "" {
+			if wl.RAdv.Cap, err = match.UnpackCapString(u); err != nil {
+				return err
+			}
+		}
 		replayClaim = self.claimTrackingEvent(ctx, status, args, signatureValidUntil)
 		if !replayClaim.records() {
 			return nil
 		}
 		releaseReplayClaim = replayClaim.owned()
-		u := args.Get("cap")
 		if u == "" {
 			break
 		}
-		if wl.RAdv.Cap, err = match.UnpackCapString(u); err == nil {
-			var bid bidID
-			if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
-				if bid.UserID != "" {
-					if !replayClaim.keyed() {
+		var bid bidID
+		if bid, err = UnpackBidID(wl.AuctionBidID); err == nil {
+			if bid.UserID != "" {
+				if !replayClaim.keyed() {
+					capUpdateFailOpen = true
+				} else {
+					redisCtx, cancel := trackingRedisOperationContext(ctx)
+					_, capErr := match.MustRefreshBothCapOnceWithTTL(redisCtx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, self.capStateTTL(), replayClaim.capMarkerKey(), time.Until(signatureValidUntil), status == StatusTrackImp, status == StatusTrackClk)
+					cancel()
+					if capErr != nil {
 						capUpdateFailOpen = true
-					} else {
-						redisCtx, cancel := trackingRedisOperationContext(ctx)
-						_, capErr := match.MustRefreshBothCapOnceWithTTL(redisCtx, self.Redis, current, bid.UserID, wl.RAdv.ItemID, wl.RAdv.Cap, self.capStateTTL(), replayClaim.capMarkerKey(), time.Until(signatureValidUntil), status == StatusTrackImp, status == StatusTrackClk)
-						cancel()
-						if capErr != nil {
-							capUpdateFailOpen = true
-						}
 					}
 				}
 			}

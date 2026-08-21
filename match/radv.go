@@ -90,23 +90,38 @@ type legacyRAdv struct {
 func (self RAdv) updateRow(
 	cost sql.NullFloat64,
 	capNumber, clickNumber, capPeriod, clickPeriod, capThrottle sql.NullInt64,
-	costType sql.NullString) RAdv {
+	costType sql.NullString) (RAdv, error) {
 	if cost.Valid {
 		self.Cost = float32(cost.Float64)
 	}
 	if capNumber.Valid {
+		if capNumber.Int64 < 0 || capNumber.Int64 > int64(^uint8(0)) {
+			return self, fmt.Errorf("impression cap number %d is outside uint8 range", capNumber.Int64)
+		}
 		self.CapNumber = uint8(capNumber.Int64)
 	}
 	if clickNumber.Valid {
+		if clickNumber.Int64 < 0 || clickNumber.Int64 > int64(^uint8(0)) {
+			return self, fmt.Errorf("click cap number %d is outside uint8 range", clickNumber.Int64)
+		}
 		self.ClickNumber = uint8(clickNumber.Int64)
 	}
 	if capPeriod.Valid {
+		if capPeriod.Int64 < 0 || capPeriod.Int64 > int64(^uint16(0)) {
+			return self, fmt.Errorf("impression cap period %d is outside uint16 range", capPeriod.Int64)
+		}
 		self.CapPeriod = uint16(capPeriod.Int64)
 	}
 	if clickPeriod.Valid {
+		if clickPeriod.Int64 < 0 || clickPeriod.Int64 > int64(^uint16(0)) {
+			return self, fmt.Errorf("click cap period %d is outside uint16 range", clickPeriod.Int64)
+		}
 		self.ClickPeriod = uint16(clickPeriod.Int64)
 	}
 	if capThrottle.Valid {
+		if capThrottle.Int64 < 0 || capThrottle.Int64 > int64(^uint16(0)) {
+			return self, fmt.Errorf("impression cap throttle %d is outside uint16 range", capThrottle.Int64)
+		}
 		self.CapThrottle = uint16(capThrottle.Int64)
 	}
 	if costType.Valid {
@@ -122,7 +137,10 @@ func (self RAdv) updateRow(
 		default:
 		}
 	}
-	return self
+	if err := self.Cap.Validate(); err != nil {
+		return self, err
+	}
+	return self, nil
 }
 
 type RAdvs []RAdv
@@ -390,7 +408,11 @@ func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint3
 			rows.Close()
 			return nil, err
 		}
-		w = w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType)
+		w, err = w.updateRow(cost, capNumber, clickNumber, capPeriod, clickPeriod, capThrottle, costType)
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("item %d has invalid frequency-cap configuration: %w", w.ItemID, err)
+		}
 		if _, ok := w.ECPM(); !ok {
 			rows.Close()
 			return nil, fmt.Errorf("item %d uses unsupported commercial cost type %q or invalid price %v; migrate it to a reviewed positive USD CPM price", w.ItemID, costType.String, cost)
@@ -744,6 +766,11 @@ func (self RAdvs) capItemIDs() []string {
 }
 
 func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time.Time, pid string) (RAdvs, map[uint32]BothCap, error) {
+	for _, block := range self {
+		if err := block.Cap.Validate(); err != nil {
+			return nil, nil, fmt.Errorf("item %d has invalid frequency-cap configuration: %w", block.ItemID, err)
+		}
+	}
 	itemIDs := self.capItemIDs()
 	bothcaps, err := BothCapsFromRedis(ctx, conn, pid, itemIDs)
 	if err != nil {

@@ -49,3 +49,27 @@ func TestTrackingSignatureReturnsSignedTimestampDeadline(t *testing.T) {
 		t.Fatalf("valid until = %s, want %s", validUntil, want)
 	}
 }
+
+func TestWinLossSignatureAllowsOnlyExchangeResolvedMacroChanges(t *testing.T) {
+	args := url.Values{
+		"auction_id":       []string{"${AUCTION_ID}"},
+		"auction_bid_id":   []string{"${AUCTION_BID_ID}"},
+		"auction_imp_id":   []string{"${AUCTION_IMP_ID}"},
+		"auction_price":    []string{"${AUCTION_PRICE}"},
+		"auction_currency": []string{"${AUCTION_CURRENCY}"},
+		"demand":           []string{"signed-demand"},
+	}
+	addTrackingSignature("secret", "/win", args)
+	args.Set("auction_id", "auction")
+	args.Set("auction_bid_id", "bid")
+	args.Set("auction_imp_id", "imp")
+	args.Set("auction_price", "1.250")
+	args.Set("auction_currency", "USD")
+	if _, err := validateTrackingSignature("secret", "/win", args, time.Hour); err != nil {
+		t.Fatalf("exchange macro resolution invalidated signature: %v", err)
+	}
+	args.Set("demand", "tampered-demand")
+	if _, err := validateTrackingSignature("secret", "/win", args, time.Hour); err == nil {
+		t.Fatal("signed immutable demand accepted after tampering")
+	}
+}
