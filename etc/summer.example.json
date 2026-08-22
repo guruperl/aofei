@@ -49,11 +49,8 @@
     },
     "Blks": {
         "_gmail": {
-            "Address": "smtp.example.test:465",
-            "Username": "smtp_user",
-            "Password": "replace-smtp-password",
-            "From": "service@example.test",
-            "Reply_To": "reply@example.test"
+            "Transport": "gmail-api",
+            "Reply-To": "reply@example.test"
         }
     },
     "Errors": {

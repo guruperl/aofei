@@ -74,9 +74,24 @@ Environment variables:
 AOFEI="$PWD/etc/aofei.local.json"
 SUMMER="$PWD/etc/summer.local.json"
 TRACKING_SECRET="..."
+# Public account email, when deliberately enabled:
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+GOOGLE_REFRESH_TOKEN="..."
 ```
 
 These files are local artifacts and are ignored by git.
+Public advertiser/publisher registration and recovery use Gmail API
+`users.messages.send` when the Summer `_gmail` block sets
+`Transport=gmail-api`. The block contains only non-secret optional `From` and
+`Reply-To` metadata; Google OAuth client and refresh credentials are injected
+through the deployment environment. The credential preflight runs before
+account mutation and requires a Gmail send-capable scope, normally
+`https://www.googleapis.com/auth/gmail.send`. Secret values must remain in an
+owner-only environment or secret manager, and removing `_gmail` disables
+account mail before database mutation. Genelet retains its historical
+implicit-TLS SMTP transport for legacy deployments, but it is not the W8M
+production path.
 `tracking_secret` in the DSP config signs generated `/imp`, `/clk`, `/win`,
 `/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
 the fallback. `tracking_signature_ttl_seconds` bounds signed URL replay and

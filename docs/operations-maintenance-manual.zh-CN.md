@@ -655,7 +655,7 @@ AOFEI=/etc/aofei/aofei.json \
   -reason='<单行原因>'`。管理员 ID 仅用于审计归属，不能替代 S02 认证、近期 MFA
   和变更审批。命令清理失败会丢弃无法确认状态的数据库连接；不得直接删除证据、
   判断、案件、计数或审计行；
-- 缺少完整 `Blks._gmail` 时，广告主和流量方注册、找回密码会在写库前返回“邮件服务暂时停用”；登录及已认证工作台不受影响。SMTP 凭据一旦泄漏，应先删除该配置并重启服务，再在供应商侧吊销凭据；
+- 广告主和流量方注册、找回密码使用 Gmail API `users.messages.send`。`Blks._gmail` 设置 `Transport=gmail-api`，JSON 只保存非敏感的可选 `From` 和 `Reply-To`（W8M 使用 `support@w8m.com`）；`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` 与 `GOOGLE_REFRESH_TOKEN` 必须由权限为 `0600`、仅部署账户可读的环境文件注入。服务会在写库前验证 Google 刷新令牌；缺少 `_gmail`、认证信息不完整或 Google 拒绝令牌时，注册和找回密码返回“邮件服务暂时停用”，登录及已认证工作台不受影响。OAuth 凭据一旦泄漏，应先删除 `_gmail` 并重启服务，再在 Google 端吊销凭据；
 - 提交前运行 `./scripts/aofei-public-data-check.sh` 与 `gitleaks git --redact .`，客户 DOCX、数据库/流量快照、运行日志、上传媒体和真实标识符不得进入 Git；
 - 管理 UI CORS 只允许 `ServerURL` 和明确列出的精确来源；
 - `/pz` 的预检虽然是无凭据宽松 CORS，但实际 `POST` 会在竞价前验证打包令牌和精确站点来源；

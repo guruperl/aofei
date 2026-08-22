@@ -42,5 +42,7 @@ State: `[+]` Completed
 - Existing Git author/committer names and emails remain as intentional OSS
   attribution. Future commits use the GitHub noreply address.
 - No schema migration or production data rewrite is part of M45.
-- Email remains intentionally unavailable until operators provision unrelated
-  replacement SMTP credentials.
+- At M45 closeout, email remained intentionally unavailable pending unrelated
+  replacement credentials. On 2026-08-22, operators provisioned a new
+  Gmail API OAuth grant with `gmail.send` scope; the follow-up transport keeps
+  credentials outside Git and preserves M45's pre-mutation fail-closed gate.

@@ -195,12 +195,54 @@ republish, and processing retries remain retryable until the short lease
 resolves.
 
 Public advertiser and publisher registration/password-retrieval actions require
-a complete Summer `Blks._gmail` configuration. Removing that block is the
-supported emergency email-disable control: those submissions fail before
-account mutation with a maintenance error, while login and authenticated
-portals remain available. Revoke exposed SMTP credentials before considering a
-replacement; never preserve the old block in a rollback file beside the active
-configuration.
+a complete Summer `Blks._gmail` configuration. W8M uses Gmail API
+`users.messages.send`: set `Transport` to `gmail-api`, keep only non-secret
+optional `From` and `Reply-To` metadata in JSON, and inject
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REFRESH_TOKEN` through
+an owner-only deployment environment. The service verifies that Google accepts
+the refresh token before account mutation. Removing `_gmail` is the supported
+emergency email-disable control: those submissions fail before account mutation
+with a maintenance error, while login and authenticated portals remain
+available. Revoke exposed OAuth credentials before considering a replacement;
+never preserve the old values beside the active configuration or in Git.
+
+For a user service, place the OAuth assignments in an owner-only file such as
+`%h/.config/aofei/gmail.env`, add
+`EnvironmentFile=%h/.config/aofei/gmail.env` to the service, and keep the file
+at mode `0600`. A production mail block can then contain only:
+
+```json
+"_gmail": {
+  "Transport": "gmail-api",
+  "Reply-To": "support@w8m.com"
+}
+```
+
+Before enabling the block, exchange the refresh token against Google's token
+endpoint and require a successful bearer token response containing
+`https://www.googleapis.com/auth/gmail.send` (or a broader Gmail compose/modify
+scope). The sibling `~/Workspace/udon` checkout can renew it without printing
+the token or writing it to source files:
+
+```bash
+install -d -m 0700 "$HOME/.config/aofei"
+cd ~/Workspace/udon
+GOWORK=off go run ./cmd/udon oauth google login \
+  --client-id "$GOOGLE_CLIENT_ID" \
+  --scope https://www.googleapis.com/auth/gmail.send \
+  --listen 127.0.0.1:8765 \
+  --output "$HOME/.config/aofei/google-oauth.hcl"
+```
+
+The command uses the loopback callback
+`http://127.0.0.1:8765/oauth2/callback` with a Google Desktop OAuth client,
+prints only the consent URL, and creates the requested private HCL file with
+mode `0600`; it does not print token values. Forward local port `8765` to the
+remote loopback address before opening the URL. Move the returned refresh token
+directly from that private file into the owner-only service environment, then
+securely remove the intermediate file. Do not retain the token in shell
+history, command transcripts, JSON, or Git. A missing, wrong-scope, or rejected
+credential must leave `_gmail` disabled so registration stays fail-closed.
 
 Summer identity hardening is opt-in. Before setting `Identity.Enabled=true`,
 apply the six-table/two-trigger S02 migration, provision the same base64- or
