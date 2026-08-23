@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strconv"
 
@@ -45,23 +44,18 @@ func (self *Audience) Has(attr *Attribute) bool {
 	a := attr.ACL
 
 	if self.GeoAudience != nil && !self.GeoAudience.Has(g) {
-		log.Printf("geo audience not match")
 		return false
 	}
 	if self.DemoAudience != nil && !self.DemoAudience.Has(d) {
-		log.Printf("demo audience not match")
 		return false
 	}
 	if self.UaAudience != nil && !self.UaAudience.Has(u) {
-		log.Printf("ua audience not match")
 		return false
 	}
 	if self.DHAudience != nil && !self.DHAudience.Has(dh) {
-		log.Printf("dh audience not match")
 		return false
 	}
 	if self.ACLAudience != nil && !self.ACLAudience.Has(a) {
-		log.Printf("acl audience not match")
 		return false
 	}
 
