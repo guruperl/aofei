@@ -1,6 +1,6 @@
 # Status D05 - Post-D04 Auction Compatibility And Hot-Path Remediation
 
-State: `[ ]` Planned
+State: `[+]` Completed
 
 ## Goal
 
@@ -71,8 +71,34 @@ durable disposition; implementation must not depend on retaining that file.
 - `GOWORK=off go test ./...`, `GOWORK=off go vet ./...`, pinned staticcheck,
   the documented Aofei race suite, DSP/cache/documentation guards, and
   `git diff --check`.
-- After implementation and automated verification, run the bounded complete
-  D05 review-fix gate. Iteration 1 has not started.
+
+## Review-Fix Gate
+
+- Iteration 1 (2026-08-23): one P3 defensive-input refinement. `nativeImageSize`
+  accepted a complete preferred pair without range-checking `wmin/hmin`, so a
+  negative or oversized minimum on the same asset could bypass validation.
+  Always range-check the minimum before the preferred-pair return, then review
+  the full milestone again.
+- Iteration 2 (2026-08-23): clean. The complete D05 diff was reviewed for
+  correctness, failure semantics, compatibility, operations, tests, and
+  documentation after the iteration-1 refinement. No P1, P2, or higher-severity
+  finding remains; all acceptance criteria and the full closeout matrix below
+  pass.
+
+## Closeout Evidence (2026-08-23)
+
+- Focused D05 tests pass: legacy local-time migration and fixed-zone conversion,
+  invalid-cap candidate isolation, tracker-materialization rejection, Native
+  video/image/Banner dimension compatibility, audience hot-path silence, and
+  deterministic multi-value macro expansion.
+- `GOWORK=off go test ./...` (33 packages), `go vet ./...`, pinned staticcheck
+  v0.5.1, and the complete scoped `-race` suite from `AGENTS.md` pass.
+- `BenchmarkApplyMacroMultiValue` records ~4.5 us/op and 26 allocs/op on 8 CPUs.
+- `./scripts/aofei-doc-check.sh` and `./scripts/aofei-public-data-check.sh`
+  pass; `git diff --check` is clean.
+- Public OpenRTB response fields, signed callback query shapes, Redis key/wire
+  formats, and WinLoss URL method signatures are unchanged. No schema,
+  deployment, production traffic, or external system was mutated.
 
 ## Exclusions
 

@@ -28,11 +28,12 @@ its status file exists. Cancelled work keeps its file and is marked cancelled.
 
 The W8M marketplace roadmap prioritizes commercial correctness, privacy,
 accounting safety, and production controls before expanding automation or
-scale. D01 through A02 in the original sequence below and D04 are complete. A
-2026-08-23 follow-up review opened D05 for post-D04 auction compatibility and
-hot-path remediation and reopened S06 repository hardening before its still
-blocked Cloudflare/deployment proof. The remaining deep-review horizon then
-resumes with P03, S05, O03, R03, and A03. I02 remains demand-gated and
+scale. D01 through A02 in the original sequence below, D04, and D05 are
+complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
+compatibility and hot-path remediation; D05 repository work is now complete.
+S06 repository hardening was reopened and remains ahead of its still-blocked
+Cloudflare/deployment proof. The remaining deep-review horizon then resumes
+with P03, S05, O03, R03, and A03. I02 remains demand-gated and
 must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
@@ -46,7 +47,7 @@ Delivery sequence:
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
 5. Follow-up review remediation: D04 callback/runtime history remains complete;
-   complete repository-only D05 auction/cap/hot-path fixes, then finish the
+   repository-only D05 auction/cap/hot-path fixes are complete; finish the
    reopened S06 repository findings and Cloudflare/deployment activation before
    P03 direct-SSP authenticity, S05 trust boundaries, O03 job/cache/filesystem
    reliability, R03 experiment/report integrity, then A03 exact monetary
@@ -74,7 +75,7 @@ acceptance criteria recorded in the corresponding status files.
 | D02 | Completed | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
 | D03 | Completed; activation-gated | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
 | D04 | Completed | [status-D04.md](status-D04.md) | Delivery, tracking, and auction integrity. |
-| D05 | Planned | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
+| D05 | Completed | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
 | P03 | Planned | [status-P03.md](status-P03.md) | Direct SSP request authenticity. |
@@ -1523,7 +1524,7 @@ and bounded matching defects while preserving D01/A01 reconciliation and the
 documented deterministic auction policy. Detailed tasks and verification are in
 [status-D04.md](status-D04.md).
 
-## D05 - Post-D04 Auction Compatibility And Hot-Path Remediation `[ ]`
+## D05 - Post-D04 Auction Compatibility And Hot-Path Remediation `[+]`
 
 Correct legacy cap-time interpretation, isolate invalid capped demand without
 weakening cache publication, restore compatible optional OpenRTB dimension
