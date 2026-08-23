@@ -183,7 +183,7 @@ func TestFcapFutureAndOutOfOrderTimesClampSafely(t *testing.T) {
 	}
 }
 
-func TestLegacyBothCapReadsAreUTCAndUpgradeOnWrite(t *testing.T) {
+func TestLegacyBothCapReadsUseLocalWallClockAndUpgradeToUTC(t *testing.T) {
 	type legacyFcap struct {
 		Total    uint8
 		StartYM  uint8
@@ -194,10 +194,16 @@ func TestLegacyBothCapReadsAreUTCAndUpgradeOnWrite(t *testing.T) {
 		Imp legacyFcap
 		Cli legacyFcap
 	}
-	start := time.Date(2026, time.March, 8, 1, 30, 0, 0, time.UTC)
+	// Legacy fields carry wall-clock components only; the pre-D04 reader
+	// interpreted them in time.Local. Use one fixed wall-clock and verify each
+	// deployment zone observes the same local instant, then that the write
+	// upgrade preserves the absolute instant.
+	wall := time.Date(2026, time.March, 8, 1, 30, 0, 0, time.UTC)
 	legacy := legacyFcap{
-		Total: 3, StartYM: uint8((start.Year()-FCAPStartYear)<<4 + int(start.Month())),
-		StartDHM: uint16(start.Day()<<11 + start.Hour()<<6 + start.Minute()), Last: 45,
+		Total:    3,
+		StartYM:  uint8((wall.Year()-FCAPStartYear)<<4 + int(wall.Month())),
+		StartDHM: uint16(wall.Day()<<11 + wall.Hour()<<6 + wall.Minute()),
+		Last:     45,
 	}
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, legacyBothCap{Imp: legacy, Cli: legacy}); err != nil {
@@ -215,8 +221,10 @@ func TestLegacyBothCapReadsAreUTCAndUpgradeOnWrite(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !state.Imp.GetStart().Equal(start) || !state.Imp.GetLast().Equal(start.Add(45*time.Minute)) {
-			t.Fatalf("legacy state under %s = %s/%s", name, state.Imp.GetStart(), state.Imp.GetLast())
+		wantStart := time.Date(2026, time.March, 8, 1, 30, 0, 0, location)
+		wantLast := wantStart.Add(45 * time.Minute)
+		if !state.Imp.GetStart().Equal(wantStart) || !state.Imp.GetLast().Equal(wantLast) {
+			t.Fatalf("legacy state under %s = %s/%s, want %s/%s", name, state.Imp.GetStart(), state.Imp.GetLast(), wantStart, wantLast)
 		}
 		upgraded, err := state.Pack()
 		if err != nil {
@@ -226,6 +234,39 @@ func TestLegacyBothCapReadsAreUTCAndUpgradeOnWrite(t *testing.T) {
 		if len(upgraded) == len(buf.Bytes()) || string(upgraded[legacySize:legacySize+2]) != bothCapFormatMagic || upgraded[legacySize+2] != bothCapFormatUTC {
 			t.Fatalf("upgraded wire under %s = %x", name, upgraded)
 		}
+		roundTrip, err := UnpackBothCap(upgraded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !roundTrip.Imp.GetStart().Equal(wantStart.UTC().Truncate(time.Minute)) {
+			t.Fatalf("upgraded start under %s = %s, want %s", name, roundTrip.Imp.GetStart(), wantStart.UTC())
+		}
+	}
+}
+
+func TestLegacyStartInIsLocationAwareWithoutGlobalTimezone(t *testing.T) {
+	// Exercises the location-parameterized reader directly so the conversion
+	// is verified without mutating time.Local.
+	wall := time.Date(2026, time.March, 8, 1, 30, 0, 0, time.UTC)
+	fcap := Fcap{
+		StartYM:  uint8((wall.Year()-FCAPStartYear)<<4 + int(wall.Month())),
+		StartDHM: uint16(wall.Day()<<11 + wall.Hour()<<6 + wall.Minute()),
+	}
+	la := time.FixedZone("UTC-8", -8*3600)
+	shanghai := time.FixedZone("UTC+8", 8*3600)
+	wantLA := time.Date(2026, time.March, 8, 1, 30, 0, 0, la)
+	wantShanghai := time.Date(2026, time.March, 8, 1, 30, 0, 0, shanghai)
+	if got := fcap.legacyStartIn(la); !got.Equal(wantLA) {
+		t.Fatalf("legacy start in UTC-8 = %s, want %s", got, wantLA)
+	}
+	if got := fcap.legacyStartIn(shanghai); !got.Equal(wantShanghai) {
+		t.Fatalf("legacy start in UTC+8 = %s, want %s", got, wantShanghai)
+	}
+	if got := wantLA.UTC(); !got.Equal(time.Date(2026, time.March, 8, 9, 30, 0, 0, time.UTC)) {
+		t.Fatalf("UTC-8 instant in UTC = %s, want 2026-03-08T09:30Z", got)
+	}
+	if got := wantShanghai.UTC(); !got.Equal(time.Date(2026, time.March, 7, 17, 30, 0, 0, time.UTC)) {
+		t.Fatalf("UTC+8 instant in UTC = %s, want 2026-03-07T17:30Z", got)
 	}
 }
 

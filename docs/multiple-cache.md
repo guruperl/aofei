@@ -117,7 +117,13 @@ static lookups from memory.
   readers accept either legacy-only or version-2 values, while old readers can
   consume the prefix during a bounded mixed-version rollout. Once every writer
   is upgraded, touched legacy values are naturally rewritten as version 2; no
-  key-space scan is required.
+  key-space scan is required. A legacy-only value is interpreted in the
+  worker's `time.Local` (the same wall-clock location the pre-versioning reader
+  used) before its instant is frozen into UTC epoch minutes. Until a legacy
+  value is touched and rewritten as version 2, a mixed-version fleet must
+  therefore keep every worker on the same host timezone; otherwise the same
+  legacy bytes decode to different absolute instants on nodes with different
+  local offsets.
   Bulk compatibility writes use one Redis script to commit hash fields and add
   expiry only for new, persistent, or shorter-lived keys, so they preserve a
   longer TTL without exposing written data without its required expiry.

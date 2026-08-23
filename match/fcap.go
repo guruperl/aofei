@@ -104,7 +104,7 @@ func (self Fcap) GetStart() time.Time {
 	if self.format == fcapFormatUTC {
 		return time.Unix(self.startUTCMinute*60, 0).UTC()
 	}
-	return self.legacyStartUTC()
+	return self.legacyStartLocal()
 }
 
 // GetLast gets last access time in time
@@ -112,7 +112,7 @@ func (self Fcap) GetLast() time.Time {
 	if self.format == fcapFormatUTC {
 		return time.Unix(self.lastUTCMinute*60, 0).UTC()
 	}
-	return self.legacyStartUTC().Add(time.Duration(self.Last) * time.Minute)
+	return self.legacyStartLocal().Add(time.Duration(self.Last) * time.Minute)
 }
 
 // SinceStart reports minutes passed since the start
@@ -125,15 +125,25 @@ func (self Fcap) SinceLast(when time.Time) uint16 {
 	return saturatedMinutes(elapsedMinutes(self.GetLast(), when))
 }
 
-func (self Fcap) legacyStartUTC() time.Time {
-	return time.Date(FCAPStartYear+int(self.StartYM>>4), time.Month(15&self.StartYM), int(self.StartDHM>>11), int(31&(self.StartDHM>>6)), int(63&self.StartDHM), 0, 0, time.UTC)
+// legacyStartIn interprets the legacy wall-clock calendar fields in the given
+// location. The pre-D04 reader wrote and read these fields with time.Local, so
+// the migration instant is the same wall-clock value in the worker's local
+// zone rather than in UTC.
+func (self Fcap) legacyStartIn(loc *time.Location) time.Time {
+	return time.Date(FCAPStartYear+int(self.StartYM>>4), time.Month(15&self.StartYM), int(self.StartDHM>>11), int(31&(self.StartDHM>>6)), int(63&self.StartDHM), 0, 0, loc)
+}
+
+// legacyStartLocal matches the pre-D04 reader's time.Local interpretation of
+// the legacy calendar fields.
+func (self Fcap) legacyStartLocal() time.Time {
+	return self.legacyStartIn(time.Local)
 }
 
 func (self *Fcap) ensureUTC() {
 	if self.format == fcapFormatUTC {
 		return
 	}
-	start := self.legacyStartUTC()
+	start := self.legacyStartLocal()
 	last := start.Add(time.Duration(self.Last) * time.Minute)
 	self.format = fcapFormatUTC
 	self.startUTCMinute = start.Unix() / 60
