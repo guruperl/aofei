@@ -240,8 +240,23 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 	if err != nil {
 		return openrtb2.Bid{}, err
 	}
-
-	adm, err := self.creative.AdM(self.attribute, winloss.ImpURL(), winloss.ClkRedirectURL(landing), macroStandard, macroCustom)
+	impURL, err := winloss.trackerURLWithError("/imp", true, "")
+	if err != nil {
+		return openrtb2.Bid{}, err
+	}
+	clkRedirect, err := winloss.clkRedirectURLWithError(landing)
+	if err != nil {
+		return openrtb2.Bid{}, err
+	}
+	adm, err := self.creative.AdM(self.attribute, impURL, clkRedirect, macroStandard, macroCustom)
+	if err != nil {
+		return openrtb2.Bid{}, err
+	}
+	nurl, err := winloss.trackerURLWithError("/win", false, "")
+	if err != nil {
+		return openrtb2.Bid{}, err
+	}
+	lurl, err := winloss.trackerURLWithError("/loss", false, "")
 	if err != nil {
 		return openrtb2.Bid{}, err
 	}
@@ -257,8 +272,8 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 		ID:    self.rspndBidID(),
 		ImpID: self.impID(),
 		Price: float64(self.bidPrice),
-		NURL:  winloss.NURL(),
-		LURL:  winloss.LURL(),
+		NURL:  nurl,
+		LURL:  lurl,
 		AdM:   adm,
 		AdID:  self.adID(),
 		//ADomain: []string{self.audience.AdvDomain},

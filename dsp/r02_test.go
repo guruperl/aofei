@@ -26,7 +26,10 @@ func TestReportingDimensionsUseOnlyCoarseNumericClassifications(t *testing.T) {
 	if dimensions.CountryID != 44 || dimensions.StateID != 55 || dimensions.DeviceOS != 3 || dimensions.DeviceType != 2 {
 		t.Fatalf("reporting dimensions = %#v", dimensions)
 	}
-	values := (&WinLoss{Reporting: dimensions}).packURLValues(true)
+	values, err := (&WinLoss{Reporting: dimensions}).packURLValues(true)
+	if err != nil {
+		t.Fatalf("pack tracking values: %v", err)
+	}
 	for key, want := range map[string]string{
 		"report_country_id": "44", "report_state_id": "55",
 		"report_device_os": "3", "report_device_type": "2",

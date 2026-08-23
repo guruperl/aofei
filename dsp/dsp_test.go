@@ -189,6 +189,31 @@ func TestWinLossClickRedirectURL(t *testing.T) {
 	}
 }
 
+func TestWinLossTrackerRejectsInvalidCap(t *testing.T) {
+	winloss := NewWinLoss(
+		StatusBid,
+		time.Now(),
+		match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
+		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cap: match.Cap{CapNumber: 1}},
+		nil,
+		"5",
+		"auction",
+		"bid",
+		"imp",
+		"7",
+		"https://dsp.example",
+	)
+	if got := winloss.ImpURL(); got != "" {
+		t.Fatalf("invalid cap produced tracker %q, want empty", got)
+	}
+	if got := winloss.PackURLString(true); got != "" {
+		t.Fatalf("invalid cap produced query %q, want empty", got)
+	}
+	if _, err := winloss.trackerURLWithError("/imp", true, ""); err == nil {
+		t.Fatal("invalid cap tracker construction succeeded")
+	}
+}
+
 func TestServeWinLossClickRedirectsAfterTracking(t *testing.T) {
 	winloss := NewWinLoss(
 		StatusBid,

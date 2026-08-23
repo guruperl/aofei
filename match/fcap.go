@@ -34,6 +34,7 @@ var (
 	metricBothCapRefreshConflicts = expvar.NewInt("aofei_bothcap_refresh_conflicts_total")
 	metricBothCapRefreshLastMS    = expvar.NewInt("aofei_bothcap_refresh_last_ms")
 	metricBothCapFormats          = expvar.NewMap("aofei_bothcap_formats_total")
+	metricInvalidCapCandidates    = expvar.NewInt("aofei_invalid_cap_candidates_total")
 )
 
 func recordBothCapFormat(format string) {

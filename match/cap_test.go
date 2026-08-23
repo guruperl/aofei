@@ -24,9 +24,31 @@ func TestCapRejectsNumberWithoutPeriod(t *testing.T) {
 		if cap.CanServe(time.Now(), BothCap{}) {
 			t.Fatalf("invalid cap %+v served", cap)
 		}
-		if _, _, err := (RAdvs{{Demand: Demand{ItemID: 9}, Cap: cap}}).FilterByCaps(context.Background(), nil, time.Now(), "user"); err == nil {
-			t.Fatalf("invalid cached cap %+v passed runtime filtering", cap)
+		filtered, loaded, err := (RAdvs{{Demand: Demand{ItemID: 9}, Cap: cap}}).FilterByCaps(context.Background(), nil, time.Now(), "user")
+		if err != nil {
+			t.Fatalf("invalid cached cap %+v failed valid candidates: %v", cap, err)
 		}
+		if len(filtered) != 0 || loaded != nil {
+			t.Fatalf("invalid cached cap %+v was not isolated: filtered=%v loaded=%v", cap, filtered, loaded)
+		}
+	}
+}
+
+func TestInvalidCapIsolatedFromValidCandidates(t *testing.T) {
+	before := metricInvalidCapCandidates.Value()
+	radvs := RAdvs{
+		{Demand: Demand{ItemID: 9}, Cap: Cap{CapNumber: 1}},
+		{Demand: Demand{ItemID: 10}},
+	}
+	filtered, _, err := radvs.FilterByCaps(context.Background(), nil, time.Now(), "user")
+	if err != nil {
+		t.Fatalf("FilterByCaps = %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].ItemID != 10 {
+		t.Fatalf("filtered demand = %+v, want only the valid uncapped item 10", filtered)
+	}
+	if got := metricInvalidCapCandidates.Value() - before; got != 1 {
+		t.Fatalf("invalid cap candidate metric delta = %d, want 1", got)
 	}
 }
 

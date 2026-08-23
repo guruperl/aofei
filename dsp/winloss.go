@@ -170,32 +170,52 @@ func (self *WinLoss) ClkURL() string {
 // ClkRedirectURL returns a click URL that records the click and then redirects
 // to the already-rendered advertiser landing URL.
 func (self *WinLoss) ClkRedirectURL(landing string) string {
+	url, _ := self.clkRedirectURLWithError(landing)
+	return url
+}
+
+func (self *WinLoss) clkRedirectURLWithError(landing string) (string, error) {
 	if landing == "" {
-		return self.ClkURL()
+		return self.trackerURLWithError("/clk", true, "")
 	}
 	if self.actionToken == "" {
 		self.actionToken, _ = newActionToken(self.trackingSecret, self, self.actionTokenTTL, self.Current)
 	}
 	landing = appendActionToken(landing, self.actionToken)
-	return self.trackerURL("/clk", true, landing)
+	return self.trackerURLWithError("/clk", true, landing)
 }
 
 func (self *WinLoss) trackerURL(path string, tracking bool, redirect string) string {
-	args := self.packURLValues(tracking)
+	url, _ := self.trackerURLWithError(path, tracking, redirect)
+	return url
+}
+
+// trackerURLWithError builds a signed tracker URL. Invalid packed tracking
+// state (an invalid frequency-cap configuration) yields no URL and an error so
+// materialization can abort instead of emitting an unsigned or cap-less tracker.
+func (self *WinLoss) trackerURLWithError(path string, tracking bool, redirect string) (string, error) {
+	args, err := self.packURLValues(tracking)
+	if err != nil {
+		return "", err
+	}
 	if redirect != "" {
 		args.Set("redirect", redirect)
 	}
 	addTrackingSignature(self.trackingSecret, path, args)
-	return self.serverURL + path + "?" + encodeOpenRTBMacroQuery(args)
+	return self.serverURL + path + "?" + encodeOpenRTBMacroQuery(args), nil
 }
 
 // PackURLString returns the URL query string of the win/loss notification.
 func (self *WinLoss) PackURLString(tracking ...bool) string {
 	useTracking := len(tracking) > 0 && tracking[0]
-	return encodeOpenRTBMacroQuery(self.packURLValues(useTracking))
+	args, err := self.packURLValues(useTracking)
+	if err != nil {
+		return ""
+	}
+	return encodeOpenRTBMacroQuery(args)
 }
 
-func (self *WinLoss) packURLValues(tracking bool) url.Values {
+func (self *WinLoss) packURLValues(tracking bool) (url.Values, error) {
 	status := self.Status
 	args := url.Values{}
 	// seatid and adid are not used in the URL
@@ -206,7 +226,10 @@ func (self *WinLoss) packURLValues(tracking bool) url.Values {
 		args.Set("auction_price", fmt.Sprintf("%f", self.Cost))
 		args.Set("auction_currency", "USD")
 		if self.RAdv.Cap.CapNumber > 0 || self.RAdv.Cap.CapThrottle > 0 || self.RAdv.Cap.ClickNumber > 0 {
-			cap, _ := self.RAdv.Cap.PackString()
+			cap, err := self.RAdv.Cap.PackString()
+			if err != nil {
+				return nil, fmt.Errorf("pack frequency cap for tracking: %w", err)
+			}
 			args.Set("cap", cap)
 		}
 	} else {
@@ -216,9 +239,15 @@ func (self *WinLoss) packURLValues(tracking bool) url.Values {
 		args.Set("auction_price", `${AUCTION_PRICE}`)
 		args.Set("auction_currency", `${AUCTION_CURRENCY}`)
 	}
-	demand, _ := self.RAdv.Demand.PackString()
+	demand, err := self.RAdv.Demand.PackString()
+	if err != nil {
+		return nil, fmt.Errorf("pack demand for tracking: %w", err)
+	}
 	args.Set("demand", demand)
-	supply, _ := self.RPub.PackString()
+	supply, err := self.RPub.PackString()
+	if err != nil {
+		return nil, fmt.Errorf("pack supply for tracking: %w", err)
+	}
 	args.Set("supply", supply)
 	if self.DeliveryReservation != "" {
 		args.Set("delivery_reservation", self.DeliveryReservation)
@@ -243,7 +272,7 @@ func (self *WinLoss) packURLValues(tracking bool) url.Values {
 		args.Set("report_seller_id", self.Reporting.SellerID)
 	}
 
-	return args
+	return args, nil
 }
 
 // UnpackURLString returns the WinLoss instance from the URL query string.

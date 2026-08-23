@@ -766,23 +766,31 @@ func (self RAdvs) capItemIDs() []string {
 }
 
 func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time.Time, pid string) (RAdvs, map[uint32]BothCap, error) {
+	// Partition candidates up front: an invalid cap configuration is excluded
+	// (and counted) without failing the valid candidates in the same slot or
+	// reading their cap state from Redis.
+	valid := make(RAdvs, 0, len(self))
 	for _, block := range self {
 		if err := block.Cap.Validate(); err != nil {
-			return nil, nil, fmt.Errorf("item %d has invalid frequency-cap configuration: %w", block.ItemID, err)
+			metricInvalidCapCandidates.Add(1)
+			continue
 		}
+		valid = append(valid, block)
 	}
-	itemIDs := self.capItemIDs()
+	if len(valid) == 0 {
+		return nil, nil, nil
+	}
+	itemIDs := valid.capItemIDs()
 	bothcaps, err := BothCapsFromRedis(ctx, conn, pid, itemIDs)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(bothcaps) == 0 {
-		return self, nil, nil
+		return valid, nil, nil
 	}
 
 	var blocks []RAdv
-	//var denied []uint32
-	for _, block := range self {
+	for _, block := range valid {
 		bothcap, ok := bothcaps[block.ItemID]
 		if !ok {
 			blocks = append(blocks, block)
@@ -796,7 +804,7 @@ func (self RAdvs) FilterByCaps(ctx context.Context, conn radix.Client, when time
 	if len(blocks) == 0 {
 		return blocks, nil, nil
 	}
-	return blocks, bothcaps, err
+	return blocks, bothcaps, nil
 }
 
 // FilterByAudiences filters RAdvs by audiences from Redis.
