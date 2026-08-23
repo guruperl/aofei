@@ -45,6 +45,9 @@ func getSizeIDNativeForImp(imp *openrtb2.Imp) (uint32, *NativeFormat, error) {
 	}
 	if video := imp.Video; video != nil {
 		if video.W != nil && video.H != nil {
+			if *video.W == 0 && *video.H == 0 {
+				return 0, nil, nil
+			}
 			w, h, err := validatedSizePair("video", *video.W, *video.H)
 			if err != nil {
 				return 0, nil, err
@@ -54,6 +57,12 @@ func getSizeIDNativeForImp(imp *openrtb2.Imp) (uint32, *NativeFormat, error) {
 	}
 	if banner := imp.Banner; banner != nil {
 		if banner.W != nil && banner.H != nil {
+			if *banner.W == 0 && *banner.H == 0 {
+				if w, h, ok := firstExactBannerFormat(banner.Format); ok {
+					return SizeID2To1(w, h), nil, nil
+				}
+				return 0, nil, nil
+			}
 			w, h, err := validatedSizePair("banner", *banner.W, *banner.H)
 			if err != nil {
 				return 0, nil, err
@@ -62,6 +71,18 @@ func getSizeIDNativeForImp(imp *openrtb2.Imp) (uint32, *NativeFormat, error) {
 		}
 	}
 	return 0, nil, nil
+}
+
+// firstExactBannerFormat returns the first banner format entry with an exact,
+// representable width and height. Ratio-only or oversized entries are skipped.
+func firstExactBannerFormat(formats []openrtb2.Format) (uint16, uint16, bool) {
+	for _, format := range formats {
+		if format.W <= 0 || format.H <= 0 || format.W > maxSizeDimension || format.H > maxSizeDimension {
+			continue
+		}
+		return uint16(format.W), uint16(format.H), true
+	}
+	return 0, 0, false
 }
 
 func validatedSizePair(kind string, width, height int64) (uint16, uint16, error) {

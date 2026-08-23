@@ -42,38 +42,55 @@ func (self *NativeFormat) validatedSizes() (uint16, uint16, error) {
 			return 0, 0, fmt.Errorf("native asset %d is nil", index)
 		}
 		if img := asset.Img; img != nil {
-			var width, height, minWidth, minHeight uint16
-			var err error
-			if img.W != 0 || img.H != 0 {
-				width, height, err = validatedSizePair("native image", img.W, img.H)
-				if err != nil {
-					return 0, 0, err
-				}
-			}
-			if img.WMin != 0 || img.HMin != 0 {
-				minWidth, minHeight, err = validatedSizePair("native image minimum", img.WMin, img.HMin)
-			}
+			width, height, err := nativeImageSize(img)
 			if err != nil {
 				return 0, 0, err
-			}
-			if width == 0 {
-				width, height = minWidth, minHeight
 			}
 			if selectedWidth == 0 && width != 0 {
 				selectedWidth, selectedHeight = width, height
 			}
 		}
-		if asset.Video != nil {
-			width, height, err := validatedSizePair("native video", asset.Video.W, asset.Video.H)
-			if err != nil {
-				return 0, 0, err
-			}
-			if selectedWidth == 0 {
-				selectedWidth, selectedHeight = width, height
+		if video := asset.Video; video != nil {
+			// Native video dimensions are optional: 0x0 means omitted. A
+			// partial or out-of-range explicit pair remains malformed.
+			if video.W != 0 || video.H != 0 {
+				width, height, err := validatedSizePair("native video", video.W, video.H)
+				if err != nil {
+					return 0, 0, err
+				}
+				if selectedWidth == 0 {
+					selectedWidth, selectedHeight = width, height
+				}
 			}
 		}
 	}
 	return selectedWidth, selectedHeight, nil
+}
+
+// nativeImageSize derives the representative native image size. A complete
+// preferred pair is authoritative; an incomplete or absent preferred pair
+// falls back to a complete minimum pair. Negative or oversized values and
+// incomplete minimum pairs are rejected.
+func nativeImageSize(img *adcom1.ImageAssetFormat) (uint16, uint16, error) {
+	if img == nil {
+		return 0, 0, nil
+	}
+	if img.W < 0 || img.H < 0 || img.W > maxSizeDimension || img.H > maxSizeDimension {
+		return 0, 0, fmt.Errorf("native image dimensions %dx%d are outside the supported range 0..%d", img.W, img.H, maxSizeDimension)
+	}
+	if img.W != 0 && img.H != 0 {
+		return uint16(img.W), uint16(img.H), nil
+	}
+	if img.WMin < 0 || img.HMin < 0 || img.WMin > maxSizeDimension || img.HMin > maxSizeDimension {
+		return 0, 0, fmt.Errorf("native image minimum dimensions %dx%d are outside the supported range 0..%d", img.WMin, img.HMin, maxSizeDimension)
+	}
+	if img.WMin == 0 && img.HMin == 0 {
+		return 0, 0, nil
+	}
+	if img.WMin == 0 || img.HMin == 0 {
+		return 0, 0, fmt.Errorf("native image minimum dimensions %dx%d are incomplete", img.WMin, img.HMin)
+	}
+	return uint16(img.WMin), uint16(img.HMin), nil
 }
 
 func requestStringToNativeFormat(bs []byte) (*NativeFormat, error) {
