@@ -1,8 +1,8 @@
 # Status S06 - Public Account Abuse Protection
 
-State: `[~]` In progress; review2 repository remediation and production
-activation are pending. Live activation also requires a valid Cloudflare
-management credential.
+State: `[~]` In progress; repository remediation (iteration 4) is complete.
+Cloudflare activation and production live-proof remain blocked on a valid
+Cloudflare management credential and external-mutation authority.
 
 ## Goal
 
@@ -24,12 +24,12 @@ raw email/IP identities in Redis.
 
 | Item | State | Notes |
 |---|---:|---|
-| Human-verification boundary | `[~]` | Managed/interaction-only Turnstile widgets and Siteverify are implemented, but review2 found that a client-supplied publisher `_gadmin=1` can bypass the public gate. Reserve `_gadmin` in Genelet, derive it only from an authenticated configured admin role, and make the publisher protection calls use immutable `RoleValue`. Prove both the hostile public form and trusted admin paths. |
-| Application quotas | `[~]` | The atomic fixed-window IP, normalized-email, and global limits retain expiring HMAC-pseudonymous keys and fail closed on Redis errors. Close the same publisher `_gadmin` bypass and replace per-request raw `EVAL` assembly with a package-level `radix.NewEvalScript` while preserving atomic denial, TTL, privacy, and metrics behavior. |
+| Human-verification boundary | `[+]` | Genelet reserves `_gadmin` (strips any client value before role resolution) and sets it only for an authenticated configured admin role; the publisher filter derives `who` from the immutable resolved `RoleValue` instead of the client-controlled marker. Proved by `TestControllerScrubsCallerSuppliedAdminMarker` (Genelet `8c22274`) and `TestPublisherProtectionIgnoresClientSuppliedAdminMarker` (pzdesign `ea7be6e`). |
+| Application quotas | `[+]` | The same `_gadmin` bypass is closed and the per-request raw `EVAL` assembly is replaced with a package-level `radix.NewEvalScript` (EVALSHA with NOSCRIPT fallback), preserving atomic denial, TTL, privacy, and metrics (pzdesign `5814f64`). |
 | Trusted client address | `[+]` | Direct peers cannot supply forwarding identity. Only explicitly configured proxy CIDRs are removed from the right side of `X-Forwarded-For`; malformed trusted-proxy chains fail closed, and the derived address is used for Siteverify, quotas, and new-account IP storage. |
-| Runtime and UI integration | `[~]` | `cmd/unify` startup validation, request-scoped filter dependencies, and all eight widget forms remain implemented. Add an explicit Genelet client-safe error type/constructor: reviewed localized errors retain their status/message, while ordinary `Gerror` values and unexpected internal errors render generic HTML/JSON responses without internal strings. Preserve `303` redirects. |
-| Gmail MIME construction | `[ ]` | Canonicalize header names case-insensitively, reject canonical duplicates, and supply `MIME-Version`, `Content-Type`, and `Content-Transfer-Encoding` defaults only when absent. Preserve reviewed caller-selected HTML/plain content types and prove each header occurs exactly once. |
-| Gmail token concurrency | `[ ]` | Keep cache locks around state only, coalesce OAuth refreshes per credential key, allow different keys to refresh concurrently, and use per-key generations so `401` invalidation cannot restore a stale in-flight token. Cover cached, concurrent, timeout, and invalidation paths under the race detector. |
+| Runtime and UI integration | `[+]` | Added `genelet.ClientSafeError`/`ClientSafeErr`: reviewed localized errors retain status/message while ordinary `Gerror` (<1000) and unexpected internal errors render generic status text; `303` redirects preserved. Public-account errors converted to `ClientSafeErr`. Proved by `TestControllerPreservesLocalizedHTTPError` and `TestControllerScrubsInternalHTTPErrorDetail` (Genelet `2698ac9`; pzdesign `1e5a9ae`). |
+| Gmail MIME construction | `[+]` | `gmailRawMessage` canonicalizes header names case-insensitively, rejects canonical duplicates, and supplies `MIME-Version`/`Content-Type`/`Content-Transfer-Encoding` defaults only when absent, preserving caller-selected content types (Genelet `27b9d57`). |
+| Gmail token concurrency | `[+]` | `accessToken` holds the cache lock only around state, coalesces refreshes per credential key (different keys refresh in parallel), and uses per-key generations so `401` invalidation cannot restore a stale in-flight token. Proved under `-race` by `TestGmailTokenCacheCoalescesConcurrentRefreshes` and `TestGmailTokenInvalidationPreventsStaleInFlightToken` (Genelet `6a0fa64`). |
 | Metrics and operator contract | `[+]` | Fixed-cardinality expvar counters cover submissions/admissions, Turnstile rejection, quota rejection, and dependency failure. `docs/public-account-abuse-protection.md`, production/Chinese runbooks, README, architecture, and tech-stack memory define activation, rotation, rollback, alerts, and secret handling. |
 | Cloudflare activation | `[!]` | The owner environment contains a Cloudflare token variable, but Cloudflare reports that token invalid. Create/reuse the exact W8M widget and zone rate-limit rule only after a replacement token has Turnstile Sites Write, Zone Read, and Zone WAF/Rulesets Write scope. Never put either token or the returned widget secret in Git or command output. |
 | Production deployment and live proof | `[~]` | The activation-ready `unify` binary is installed, the user service restarted healthy, and all four Chinese production start pages were checked. Protection remains intentionally default-off, so they render without a widget until Cloudflare activation. After activation, write the returned keys and reviewed host/proxy settings to an owner-only `0600` environment file, add it to the user service, restart, then prove widget rendering, missing/invalid-token rejection with zero account/mail side effects, successful advertiser/publisher submissions, quota `429`, metrics, and rollback. |
@@ -96,6 +96,14 @@ raw email/IP identities in Redis.
    serialization. Raw quota `EVAL` was accepted as a P3 reuse/efficiency
    finding. These findings remain pending; after their fixes and focused
    verification, review the complete S06 repository diff again as iteration 4.
+4. Iteration 4 (2026-08-23): clean. The complete S06 repository diff was
+   reviewed again for correctness, failure semantics, security/privacy,
+   compatibility, operations, tests, and documentation after fixing the
+   `_gadmin` boundary, quota EvalScript reuse, client-safe error rendering,
+   Gmail MIME construction, and Gmail token concurrency. No P1, P2, or
+   higher-severity finding remains. Cloudflare activation and production
+   live-proof are the only open tasks and remain blocked on a valid Cloudflare
+   credential and external-mutation authority, not waived.
 
 ## Exclusions
 

@@ -31,9 +31,9 @@ accounting safety, and production controls before expanding automation or
 scale. D01 through A02 in the original sequence below, D04, and D05 are
 complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 repository work is now complete.
-S06 repository hardening was reopened and remains ahead of its still-blocked
-Cloudflare/deployment proof. The remaining deep-review horizon then resumes
-with P03, S05, O03, R03, and A03. I02 remains demand-gated and
+S06 repository hardening is complete (iteration 4 clean) and remains ahead of
+its still-blocked Cloudflare/deployment proof. The remaining deep-review
+horizon then resumes with P03, S05, O03, R03, and A03. I02 remains demand-gated and
 must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
@@ -47,11 +47,11 @@ Delivery sequence:
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
 5. Follow-up review remediation: D04 callback/runtime history remains complete;
-   repository-only D05 auction/cap/hot-path fixes are complete; finish the
-   reopened S06 repository findings and Cloudflare/deployment activation before
-   P03 direct-SSP authenticity, S05 trust boundaries, O03 job/cache/filesystem
-   reliability, R03 experiment/report integrity, then A03 exact monetary
-   sources.
+   repository-only D05 auction/cap/hot-path fixes and reopened S06 repository
+   findings are complete; Cloudflare/deployment activation for S06 remains
+   before P03 direct-SSP authenticity, S05 trust boundaries, O03
+   job/cache/filesystem reliability, R03 experiment/report integrity, then A03
+   exact monetary sources.
 6. Demand-gated mobile delivery: I02 after P03/S05 and a named mobile
    integration requires supported native SDKs.
 
@@ -90,7 +90,7 @@ acceptance criteria recorded in the corresponding status files.
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
 | S05 | Planned | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
-| S06 | In progress; repository remediation and Cloudflare activation pending | [status-S06.md](status-S06.md) | Public account abuse protection. |
+| S06 | In progress; repository remediation complete, Cloudflare activation blocked | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
