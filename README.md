@@ -131,10 +131,10 @@ placement and direct `go install` invocations in
 ## Capability And Activation Status
 
 The original D/P/R/I/S/A/O baseline is implemented through A02, and D04 is now
-complete. S06 public-account abuse protection has repository implementation but
-still needs a valid Cloudflare credential and live activation proof. The
-remaining review-remediation horizon then resumes with P03, S05, O03, R03, and
-A03; I02 remains separately demand-gated. Implementation does not imply
+complete. D05 post-D04 remediation is planned, and review2 reopened S06
+repository hardening before its still-required valid Cloudflare credential and
+live activation proof. The remaining review-remediation horizon then resumes
+with P03, S05, O03, R03, and A03; I02 remains separately demand-gated. Implementation does not imply
 production activation:
 
 | Area | Current state |
@@ -142,6 +142,7 @@ production activation:
 | D01 delivery, D02 auction/creative safety | Implemented and part of the core runtime contract. |
 | D03 external DSP / AdX middleman | Implemented; checked-in disclosure and traffic gates remain off until a named partner passes staged activation. |
 | D04 delivery/tracking integrity | Implemented; confirmed ACL, callback, cap-time, bounded-input, and tracking semantic corrections are complete. |
+| D05 post-D04 auction remediation | Planned; owns legacy cap migration compatibility, invalid-cap isolation, optional OpenRTB dimensions, and bid hot-path cleanup. |
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
 | P03 direct SSP authenticity | Planned; will separate browser-token integrity from authenticated SDK/server traffic. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
@@ -152,7 +153,7 @@ production activation:
 | S01 privacy, S04 rendering safety | Implemented core boundaries. |
 | S02 identity/RBAC, S03 traffic quality | Implemented but independently disabled by default pending migration, keys, permissions, and rollout evidence. |
 | S05 runtime trust boundaries | Planned; owns outbound-network, creative-consumer, principal, and quality-version hardening. |
-| S06 public account abuse protection | Implemented in the repositories; Cloudflare widget/rate-rule creation and W8M deployment remain open. |
+| S06 public account abuse protection | Review2 repository remediation plus Cloudflare widget/rate-rule creation and W8M deployment remain open. |
 | A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
 | A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |

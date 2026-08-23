@@ -14,9 +14,10 @@ traffic origin.
 - P01 commercial inventory validation and P02 server-owned seller metadata.
 - S01 privacy/consent, S02 credential lifecycle, O01 traffic controls, and O02
   rotation/recovery requirements.
-- D04 callback integrity is complete. P03 is now the next actionable milestone;
-  authenticated traffic still cannot be used for revenue acceptance until this
-  milestone's own contract and gates are complete.
+- D04 callback integrity is complete. D05 follow-up remediation and reopened
+  S06 repository/activation work now precede P03; authenticated traffic still
+  cannot be used for revenue acceptance until this milestone's own contract
+  and gates are complete.
 
 ## Tasks
 

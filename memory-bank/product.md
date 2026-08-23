@@ -144,9 +144,10 @@ D/P/R/I/S/A/O lanes form the implemented W8M advertiser-publisher marketplace
 baseline. A 2026-08-21 deep review opened D04, P03, S05, O03, R03, and A03 for
 confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
-is complete. S06 public-account abuse protection is an urgent insertion with
-repository work complete and production activation still open; P03 resumes the
-remaining review order after S06 closes.
+is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
+hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
+and quota-script work. S06 production activation also remains open; P03 resumes
+the remaining review order after D05 and S06 close.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in

@@ -28,11 +28,11 @@ its status file exists. Cancelled work keeps its file and is marked cancelled.
 
 The W8M marketplace roadmap prioritizes commercial correctness, privacy,
 accounting safety, and production controls before expanding automation or
-scale. D01 through A02 in the original sequence below and D04 are complete. S06
-public-account abuse protection is the active production-security insertion;
-its repository implementation is complete, but Cloudflare/deployment proof is
-still open. The 2026-08-21 deep-review horizon then resumes with P03, S05, O03,
-R03, and A03. I02 remains demand-gated and
+scale. D01 through A02 in the original sequence below and D04 are complete. A
+2026-08-23 follow-up review opened D05 for post-D04 auction compatibility and
+hot-path remediation and reopened S06 repository hardening before its still
+blocked Cloudflare/deployment proof. The remaining deep-review horizon then
+resumes with P03, S05, O03, R03, and A03. I02 remains demand-gated and
 must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
@@ -45,8 +45,9 @@ Delivery sequence:
 2. Foundation completion: A01 after D01, then P01 after D01/S01/A01/O01.
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
-5. Public-account protection and review remediation: D04 callback/runtime
-   correctness is complete; finish S06 Cloudflare/deployment activation before
+5. Follow-up review remediation: D04 callback/runtime history remains complete;
+   complete repository-only D05 auction/cap/hot-path fixes, then finish the
+   reopened S06 repository findings and Cloudflare/deployment activation before
    P03 direct-SSP authenticity, S05 trust boundaries, O03 job/cache/filesystem
    reliability, R03 experiment/report integrity, then A03 exact monetary
    sources.
@@ -59,7 +60,7 @@ The strict serial order is:
 D01 -> S01 -> S04 -> O01 -> A01 -> P01
 -> D02 -> I01 -> R01 -> O02 -> D03
 -> R02 -> P02 -> S02 -> I03 -> S03 -> A02
--> D04 -> S06 -> P03 -> S05 -> O03 -> R03 -> A03
+-> D04 -> D05 -> S06 -> P03 -> S05 -> O03 -> R03 -> A03
 -> I02 (only after P03/S05 and a named mobile integration)
 ```
 
@@ -73,6 +74,7 @@ acceptance criteria recorded in the corresponding status files.
 | D02 | Completed | [status-D02.md](status-D02.md) | Auction, pricing, and creative correctness. |
 | D03 | Completed; activation-gated | [status-D03.md](status-D03.md) | External DSP / AdX middleman activation. |
 | D04 | Completed | [status-D04.md](status-D04.md) | Delivery, tracking, and auction integrity. |
+| D05 | Planned | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
 | P03 | Planned | [status-P03.md](status-P03.md) | Direct SSP request authenticity. |
@@ -87,7 +89,7 @@ acceptance criteria recorded in the corresponding status files.
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
 | S05 | Planned | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
-| S06 | In progress; Cloudflare activation blocked | [status-S06.md](status-S06.md) | Public account abuse protection. |
+| S06 | In progress; repository remediation and Cloudflare activation pending | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -1521,6 +1523,15 @@ and bounded matching defects while preserving D01/A01 reconciliation and the
 documented deterministic auction policy. Detailed tasks and verification are in
 [status-D04.md](status-D04.md).
 
+## D05 - Post-D04 Auction Compatibility And Hot-Path Remediation `[ ]`
+
+Correct legacy cap-time interpretation, isolate invalid capped demand without
+weakening cache publication, restore compatible optional OpenRTB dimension
+handling, and remove avoidable audience logging and macro-plan rebuilds from
+the bid path. Preserve D04 callback, redirect, cap-lifecycle, and wire-format
+contracts. Detailed tasks and verification are in
+[status-D05.md](status-D05.md).
+
 ## P01 - Direct SSP Commercial Readiness And Activation `[+]`
 
 Make configured publisher slot floors authoritative and prove the existing
@@ -1616,9 +1627,10 @@ state transitions. Detailed tasks are in [status-S05.md](status-S05.md).
 Require scoped Turnstile verification before registration/recovery work, apply
 atomic pseudonymous Redis quotas, derive client identity only through reviewed
 trusted proxies, and layer a Cloudflare edge rate limit over public account
-POSTs. Repository implementation is complete; the live widget, edge rule, and
-W8M deployment evidence remain pending because the current Cloudflare API token
-is invalid. Detailed tasks and verification are in
+POSTs. Review2 reopened the trusted admin marker, anonymous error rendering,
+Gmail MIME/concurrency, and quota-script tasks. The live widget, edge rule, and
+W8M deployment evidence also remain pending because the current Cloudflare API
+token is invalid. Detailed tasks and verification are in
 [status-S06.md](status-S06.md).
 
 ## A01 - Billing And Manual Settlement Safety `[+]`
