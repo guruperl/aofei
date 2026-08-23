@@ -78,11 +78,11 @@ func nativeImageSize(img *adcom1.ImageAssetFormat) (uint16, uint16, error) {
 	if img.W < 0 || img.H < 0 || img.W > maxSizeDimension || img.H > maxSizeDimension {
 		return 0, 0, fmt.Errorf("native image dimensions %dx%d are outside the supported range 0..%d", img.W, img.H, maxSizeDimension)
 	}
-	if img.W != 0 && img.H != 0 {
-		return uint16(img.W), uint16(img.H), nil
-	}
 	if img.WMin < 0 || img.HMin < 0 || img.WMin > maxSizeDimension || img.HMin > maxSizeDimension {
 		return 0, 0, fmt.Errorf("native image minimum dimensions %dx%d are outside the supported range 0..%d", img.WMin, img.HMin, maxSizeDimension)
+	}
+	if img.W != 0 && img.H != 0 {
+		return uint16(img.W), uint16(img.H), nil
 	}
 	if img.WMin == 0 && img.HMin == 0 {
 		return 0, 0, nil
