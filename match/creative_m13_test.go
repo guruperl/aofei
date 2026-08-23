@@ -134,12 +134,34 @@ func TestReplaceMacroValueUsesDeterministicLongestKeyFirst(t *testing.T) {
 		"{MACRO}":  "custom-duplicate",
 		"{SUFFIX}": "custom-suffix",
 	}
+	replacements := buildMacroReplacements(standard, custom)
 	for i := 0; i < 100; i++ {
-		if got := replaceMacroValue("pre-{MACRO}{SUFFIX}-post", standard, custom); got != "pre-standard-long-post" {
+		if got := replaceMacroValue("pre-{MACRO}{SUFFIX}-post", standard, custom, replacements); got != "pre-standard-long-post" {
 			t.Fatalf("replacement %d = %q, want longest standard macro", i, got)
 		}
-		if got := replaceMacroValue("{MACRO}", standard, custom); got != "standard-short" {
+		if got := replaceMacroValue("{MACRO}", standard, custom, replacements); got != "standard-short" {
 			t.Fatalf("duplicate-key precedence = %q, want standard", got)
+		}
+	}
+}
+
+func BenchmarkApplyMacroMultiValue(b *testing.B) {
+	standard := map[string]string{
+		`${AUCTION_ID}`:       "auction-1",
+		`${AUCTION_BID_ID}`:   "bid-1",
+		`${AUCTION_IMP_ID}`:   "imp-1",
+		`${AUCTION_PRICE}`:    "1.250",
+		`${AUCTION_CURRENCY}`: "USD",
+	}
+	custom := map[string]string{
+		`{DSP_CREATIVE_ID}`: "77",
+		`{CLICK_URL}`:       "https://dsp.example/clk?r=1",
+	}
+	const tracker = "https://tracker.example/pixel?event=${AUCTION_ID}&event=static&name=pre-{DSP_CREATIVE_ID}&keep=1&price=${AUCTION_PRICE}&click={CLICK_URL}"
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := applyMacro(tracker, standard, custom); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

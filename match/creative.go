@@ -657,11 +657,12 @@ func applyMacro(str string, macroStandard, macroCustom map[string]string) (strin
 	if err != nil {
 		return "", err
 	}
+	replacements := buildMacroReplacements(macroStandard, macroCustom)
 	args := url.Values{}
 	for k, values := range u.Query() {
 		replaced := make([]string, len(values))
 		for i, v := range values {
-			replaced[i] = replaceMacroValue(v, macroStandard, macroCustom)
+			replaced[i] = replaceMacroValue(v, macroStandard, macroCustom, replacements)
 		}
 		args[k] = replaced
 	}
@@ -669,18 +670,16 @@ func applyMacro(str string, macroStandard, macroCustom map[string]string) (strin
 	return u.String(), nil
 }
 
-func replaceMacroValue(value string, macroStandard, macroCustom map[string]string) string {
-	if replacement, ok := macroStandard[value]; ok {
-		return replacement
-	}
-	if replacement, ok := macroCustom[value]; ok {
-		return replacement
-	}
-	type replacement struct {
-		macro string
-		value string
-	}
-	replacements := make([]replacement, 0, len(macroStandard)+len(macroCustom))
+type macroReplacement struct {
+	macro string
+	value string
+}
+
+// buildMacroReplacements builds the deduplicated, longest-key-first macro
+// replacement table once per applyMacro invocation. Standard macros take
+// precedence over custom macros with the same key.
+func buildMacroReplacements(macroStandard, macroCustom map[string]string) []macroReplacement {
+	replacements := make([]macroReplacement, 0, len(macroStandard)+len(macroCustom))
 	seen := make(map[string]struct{}, len(macroStandard)+len(macroCustom))
 	for _, macros := range []map[string]string{macroStandard, macroCustom} {
 		for macro, replacementValue := range macros {
@@ -688,7 +687,7 @@ func replaceMacroValue(value string, macroStandard, macroCustom map[string]strin
 				continue
 			}
 			seen[macro] = struct{}{}
-			replacements = append(replacements, replacement{macro: macro, value: replacementValue})
+			replacements = append(replacements, macroReplacement{macro: macro, value: replacementValue})
 		}
 	}
 	sort.Slice(replacements, func(i, j int) bool {
@@ -697,6 +696,16 @@ func replaceMacroValue(value string, macroStandard, macroCustom map[string]strin
 		}
 		return replacements[i].macro < replacements[j].macro
 	})
+	return replacements
+}
+
+func replaceMacroValue(value string, macroStandard, macroCustom map[string]string, replacements []macroReplacement) string {
+	if replacement, ok := macroStandard[value]; ok {
+		return replacement
+	}
+	if replacement, ok := macroCustom[value]; ok {
+		return replacement
+	}
 	for _, current := range replacements {
 		value = strings.ReplaceAll(value, current.macro, current.value)
 	}
