@@ -49,6 +49,13 @@ responsible for semantic validation of external bidder, callback, and creative
 landing endpoints; displaying an endpoint does not authorize the browser or
 server to fetch it.
 
+S06 introduces one narrow vendor-required asset exception on public account
+forms: the exact Cloudflare Turnstile bootstrap at
+`https://challenges.cloudflare.com/turnstile/v0/api.js` with only `async` and
+`defer`. The pzdesign source guard rejects every modified host/path/query/tag
+form. Widget attributes contain only the public site key and one fixed action;
+the secret and response token are server-side values and never template data.
+
 ## Change Checklist
 
 When an Aofei change adds a value to a page, mail, report, chart, generated tag,

@@ -130,6 +130,12 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   escaping. Creative review is source-only; executable creative materialization
   is confined to the auction delivery contract and remains subject to D02
   validation.
+- Public advertiser/publisher registration and password-recovery mail requests
+  have a default-off S06 abuse boundary. When production-enabled, scoped
+  Turnstile validation precedes expensive or mutating work, atomic Redis quotas
+  use expiring HMAC-pseudonymous email/IP keys, and only reviewed trusted
+  proxies can supply client identity. Cloudflare widget/rate-rule creation and
+  live W8M proof are activation gates, not repository claims.
 
 ## Current Product Direction
 
@@ -138,7 +144,9 @@ D/P/R/I/S/A/O lanes form the implemented W8M advertiser-publisher marketplace
 baseline. A 2026-08-21 deep review opened D04, P03, S05, O03, R03, and A03 for
 confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
-is complete; P03 is the next milestone in the remaining strict order.
+is complete. S06 public-account abuse protection is an urgent insertion with
+repository work complete and production activation still open; P03 resumes the
+remaining review order after S06 closes.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in

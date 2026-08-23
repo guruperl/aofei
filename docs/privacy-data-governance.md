@@ -68,6 +68,7 @@ fixtures, not a legal conclusion for a particular deployment.
 | Traffic-quality evidence and decisions | Trusted bounded aggregate worker plus reviewed rule version | Explainable invalid-traffic review, appeal, and scoped serving/billing recommendation | Raw internal event/partner keys exist in memory only; MySQL stores keyed HMAC-SHA-256 digests, fixed signals/actions, numeric scope, bounded safe summary, immutable decisions/history, and aggregate counters; no IP, cookie, device id, auction id, token, URL, or credential | Rule evidence 1–720 hours and hidden immediately after expiry; aggregate outcome 365–2555 days; bounded dedicated-connection prune leaves decisions, case history, counters, and audit intact |
 | Middleman callback context | Selected external bid | Proxy downstream callbacks and reconcile charge/pay facts | Redis token context; contains transaction and price metadata, not raw user identity | `middleman_callback_ttl_seconds`, default 24 hours plus the accepted five-minute future-clock-skew window (86,700 seconds) |
 | Request/response/attribute/winloss files | Privacy-scrubbed NATS subjects | Operations, ledger input, aggregate diagnostics | Owner/group-restricted files; request/user identity and precise derived identity are removed before NATS, including the user suffix embedded in local auction bid IDs | `privacy_log_retention_hours`, default 168 hours; pruned at consumer startup and rotation |
+| Public account human-verification data | Registration/recovery browser, direct peer, and Turnstile response | Prevent automated account creation and account-email abuse | Cloudflare's widget receives its security telemetry under the operator's Cloudflare contract; W8M sends the one-time token, derived client IP, and fixed action to Siteverify, retains no token, and stores only expiring deployment-keyed HMAC email/IP quota keys in Redis | Token and raw client address are request-memory only in W8M; quota windows are at most 24 hours; Cloudflare retention is an external processor-contract/notice gate before enablement |
 | Account email, billing, and settlement records | Authenticated advertiser/publisher/operator workflows | Account service and accounting | MySQL and hosted-provider contracts, outside the bid identity path | Product/account policy and statutory accounting schedule |
 | Hosted funding/payout state | S02-authorized A01 workflow and signed Stripe events | Advertiser funding, publisher payout, refund/dispute handling, and reconciliation | Exact USD amounts, account/statement ids, opaque provider object ids, two-letter publisher onboarding country, payload hashes, bounded non-credential states/reasons, and redacted audit; full card/bank data, identity documents, API/webhook secrets, signatures, raw bodies, and hosted URLs are excluded | Provider events default 400 days when unreferenced; immutable operations, object mappings, reconciliation evidence, and audit follow the approved financial/statutory schedule |
 | TOTP, recovery, and authenticated session state | Enrolled commercial/operator accounts | Strong authentication, recovery, revocation, and reauthentication | AES-256-GCM TOTP ciphertext plus keyed recovery/session digests in MySQL; plaintext setup/recovery material is shown only to the account and excluded from logs/audits | Pending/enabled account lifecycle; sessions use absolute/idle limits; used/revoked operational state 30 days |
@@ -125,6 +126,14 @@ and belongs only in the secret environment. It must not reuse the tracking or
 identity key, and it never belongs in JSON, metrics, review pages, or command
 output. Rotation changes future digests; retain the old key only in approved
 offline evidence handling until the corresponding bounded evidence expires.
+
+S06 public account quotas derive email/IP pseudonyms from the existing Summer
+deployment secret under distinct HMAC namespaces. Raw values and Turnstile
+tokens are not retained. Before enabling the widget, the operator must approve
+Cloudflare as the security processor for the intended markets, update the
+public account/privacy notice and vendor records as required, restrict widget
+hostnames, and document Cloudflare-side retention/deletion and incident terms.
+Turning on the code or edge rule is not a substitute for that review.
 
 Backups may outlive online TTLs. The backup policy must either exclude transient
 Redis/log data or expire backup generations on an approved schedule. Deletion

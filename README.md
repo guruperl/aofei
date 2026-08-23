@@ -131,7 +131,9 @@ placement and direct `go install` invocations in
 ## Capability And Activation Status
 
 The original D/P/R/I/S/A/O baseline is implemented through A02, and D04 is now
-complete. The remaining review-remediation horizon is P03, S05, O03, R03, and
+complete. S06 public-account abuse protection has repository implementation but
+still needs a valid Cloudflare credential and live activation proof. The
+remaining review-remediation horizon then resumes with P03, S05, O03, R03, and
 A03; I02 remains separately demand-gated. Implementation does not imply
 production activation:
 
@@ -150,6 +152,7 @@ production activation:
 | S01 privacy, S04 rendering safety | Implemented core boundaries. |
 | S02 identity/RBAC, S03 traffic quality | Implemented but independently disabled by default pending migration, keys, permissions, and rollout evidence. |
 | S05 runtime trust boundaries | Planned; owns outbound-network, creative-consumer, principal, and quality-version hardening. |
+| S06 public account abuse protection | Implemented in the repositories; Cloudflare widget/rate-rule creation and W8M deployment remain open. |
 | A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
 | A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |

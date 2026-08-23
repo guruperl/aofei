@@ -244,6 +244,19 @@ securely remove the intermediate file. Do not retain the token in shell
 history, command transcripts, JSON, or Git. A missing, wrong-scope, or rejected
 credential must leave `_gmail` disabled so registration stays fail-closed.
 
+Production registration and password-recovery mail must also enable S06 public
+account abuse protection. Configure one managed Cloudflare Turnstile widget for
+`w8m.com` and `www.w8m.com`, inject its site/secret keys plus exact hostname and
+trusted-proxy lists through a separate owner-only `0600` service environment,
+and set `PUBLIC_ACCOUNT_PROTECTION_ENABLED=true`. `cmd/unify` then fails startup
+on partial configuration. Siteverify runs before password hashing, Redis,
+Google, database, or mail; one atomic Redis operation applies pseudonymous IP,
+email, and global quotas before Gmail/model work. Add and canary the matching
+Cloudflare zone rate-limit rule, inspect it after creation, and alert on the
+four `aofei_public_account_*` metric families. Complete activation, validation,
+rotation, proxy-list maintenance, and safe mail-first rollback steps are in
+[public-account-abuse-protection.md](public-account-abuse-protection.md).
+
 Summer identity hardening is opt-in. Before setting `Identity.Enabled=true`,
 apply the six-table/two-trigger S02 migration, provision the same base64- or
 hex-encoded 32-byte key named by `Identity.KeyEnv` on every `unify` node, review

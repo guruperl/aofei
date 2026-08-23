@@ -493,6 +493,20 @@ restricted identity maintenance host. The HTTP database principal has no
 update/delete grant on the audit table; the bounded retention CLI uses a
 separate maintenance principal and configuration in addition to the trigger's
 connection-local deletion gate.
+S06 adds a separate default-off public-account boundary inside the Summer
+advertiser/publisher filters. Genelet copies controller runtime storage into the
+request filter base, allowing the immutable protector to run Siteverify before
+password hashing and all shared-state/provider/model work. Only a private
+request-context marker can connect successful verification to the later quota
+stage; a posted form field cannot forge it. After normal form validation, one
+Redis script checks and increments the IP, normalized-email, and global windows
+atomically under expiring deployment-keyed HMAC identities. Redis and
+Turnstile failure are fail-closed before Gmail/database work. The client address
+comes from the direct peer unless that peer belongs to the explicit trusted
+proxy set; trusted `X-Forwarded-For` chains are reduced from right to left. The
+HTML template receives only the public site key and one of four fixed actions.
+The Turnstile secret, Cloudflare management token, response token, raw email,
+and raw IP never enter templates, Redis keys, metrics, or source configuration.
 I03 adds an isolated management-plane handler before the Genelet catch-all in
 `cmd/unify`. It authenticates `w8m_v1` bearer tokens by public lookup plus a
 constant-time comparison of a deployment-keyed digest, derives one advertiser

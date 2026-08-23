@@ -7,11 +7,13 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order and D04 are complete. The remaining review-remediation order is P03, S05,
-O03, R03, then A03. I02 remains separately demand-gated until P03/S05 are complete
-and a named Android or iOS integration defines supported platforms and lifecycle
-requirements. The active MySQL baseline remains 94 tables, 0 views, 6 routines,
-and 55 triggers; planned milestones do not imply schema or runtime activation.
+order and D04 are complete. S06 repository implementation is complete but its
+Cloudflare and W8M activation proof remains open. The remaining review order
+then resumes with P03, S05, O03, R03, and A03. I02 remains separately
+demand-gated until P03/S05 are complete and a named Android or iOS integration
+defines supported platforms and lifecycle requirements. The active MySQL
+baseline remains 94 tables, 0 views, 6 routines, and 55 triggers; planned
+milestones do not imply schema or runtime activation.
 
 ## Start By Audience
 
@@ -55,6 +57,7 @@ and 55 triggers; planned milestones do not imply schema or runtime activation.
 | S03 traffic quality | Completed; disabled by default | [status-S03.md](../memory-bank/status-S03.md) | [Traffic quality and anti-fraud](traffic-quality-anti-fraud.md) |
 | S04 template/XSS safety | Completed | [status-S04.md](../memory-bank/status-S04.md) | [Template rendering security](template-rendering-security.md) and [pzdesign rendering inventory](../../pzdesign/docs/rendering-security.md) |
 | S05 runtime trust boundaries | Planned | [status-S05.md](../memory-bank/status-S05.md) | Existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
+| S06 public account abuse protection | Repository complete; production activation pending | [status-S06.md](../memory-bank/status-S06.md) | [Public account abuse protection](public-account-abuse-protection.md) |
 | A01 accounting and settlement | Completed | [status-A01.md](../memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |
 | A03 exact monetary sources | Planned | [status-A03.md](../memory-bank/status-A03.md) | Existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |

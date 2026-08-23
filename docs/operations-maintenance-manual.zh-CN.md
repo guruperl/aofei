@@ -656,6 +656,7 @@ AOFEI=/etc/aofei/aofei.json \
   和变更审批。命令清理失败会丢弃无法确认状态的数据库连接；不得直接删除证据、
   判断、案件、计数或审计行；
 - 广告主和流量方注册、找回密码使用 Gmail API `users.messages.send`。`Blks._gmail` 设置 `Transport=gmail-api`，JSON 只保存非敏感的可选 `From` 和 `Reply-To`（W8M 使用 `support@w8m.com`）；`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` 与 `GOOGLE_REFRESH_TOKEN` 必须由权限为 `0600`、仅部署账户可读的环境文件注入。服务会在写库前验证 Google 刷新令牌；缺少 `_gmail`、认证信息不完整或 Google 拒绝令牌时，注册和找回密码返回“邮件服务暂时停用”，登录及已认证工作台不受影响。OAuth 凭据一旦泄漏，应先删除 `_gmail` 并重启服务，再在 Google 端吊销凭据；
+- 生产注册和找回密码还必须启用 S06 防滥用边界：Cloudflare Turnstile 仅允许 `w8m.com` 与 `www.w8m.com`，服务端严格核对广告主/流量方注册与找回密码四种固定动作，并在密码散列、Redis、Google、数据库和发信前完成验证；验证通过后再由一条 Redis 原子脚本执行 IP、规范化邮箱和全局限额。Redis 键只保存部署密钥派生的 HMAC 摘要并设置过期时间，转发 IP 只接受 `PUBLIC_ACCOUNT_TRUSTED_PROXY_CIDRS` 明确信任的代理链。Turnstile 密钥、Cloudflare 管理令牌和完整代理列表放入独立 `0600` 环境文件，不得写入 JSON、Git、日志或工单。部署、Cloudflare 边缘限速、监控、轮换及“先停邮件、再停验证”的回滚步骤见 [公开账户防滥用操作契约](public-account-abuse-protection.md)；
 - 提交前运行 `./scripts/aofei-public-data-check.sh` 与 `gitleaks git --redact .`，客户 DOCX、数据库/流量快照、运行日志、上传媒体和真实标识符不得进入 Git；
 - 管理 UI CORS 只允许 `ServerURL` 和明确列出的精确来源；
 - `/pz` 的预检虽然是无凭据宽松 CORS，但实际 `POST` 会在竞价前验证打包令牌和精确站点来源；
@@ -682,6 +683,7 @@ AOFEI=/etc/aofei/aofei.json \
 | `aofei_privacy_middleman_blocked_total` | 有外部竞价候选但隐私披露开关或决策禁止扇出；确认这是预期保护还是配置遗漏。 |
 | `aofei_quality_decisions_total`、`aofei_quality_matched_total`、`aofei_quality_action_*_total` | 固定分类的规则判断、命中和 Observe/Flag/Throttle/Reject/Quarantine 动作；指标不含规则、账户、合作方或事件 ID。 |
 | `aofei_quality_dependency_error_total`、`aofei_quality_rollback_total`、执行快照 refresh/error/evaluation 与拦截计数 | 依赖或快照错误属于可用性事故，不得认定为无效流量；使用受限 `traffic-quality -action=health -since-hours=24` 查看逐规则误判上限，超过上限立即停止灰度并回滚。 |
+| `aofei_public_account_submissions_total`、`aofei_public_account_turnstile_rejections_total`、`aofei_public_account_rate_limited_total`、`aofei_public_account_dependency_errors_total` | 公开注册/找回密码的固定动作提交、验证拒绝、限速和 Turnstile/Redis/配置错误；持续依赖错误或比例突变应告警，指标不得包含邮箱、IP、账户、主机名或令牌。 |
 | `aofei_tracking_replay_redis_errors_total` | 跟踪重复抑制 Redis 失败；合法事件仍 fail-open。 |
 | `aofei_tracking_replay_unkeyed_total` | 事件缺少完整重复键；会发布但跳过非幂等频控写入。 |
 | `aofei_tracking_cap_update_fail_open_total` | 合法展示/点击已发布，但频控更新失败。 |

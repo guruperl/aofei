@@ -116,6 +116,13 @@ All map keys below are fixed source/outcome/reason categories:
   counters. Rule, account, partner, event, and evidence ids never appear as
   metric labels; inspect per-rule false-positive health through the protected
   database/command surface.
+- S06 public-account fixed maps:
+  `aofei_public_account_submissions_total`,
+  `aofei_public_account_turnstile_rejections_total`,
+  `aofei_public_account_rate_limited_total`, and
+  `aofei_public_account_dependency_errors_total`. Only four fixed actions,
+  fixed quota scopes, and fixed dependency names are used; hostname, email, IP,
+  account, provider error, and token values never become keys.
 - A02 hosted-payment fixed counters cover provider requests/errors and webhook
   requests, invalid signatures, duplicates, applied/unresolved/ignored
   dispositions, plus newly recorded unresolved reconciliations. Provider,

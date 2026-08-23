@@ -78,6 +78,12 @@ TRACKING_SECRET="..."
 GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
 GOOGLE_REFRESH_TOKEN="..."
+# Public account abuse protection, when deliberately enabled:
+PUBLIC_ACCOUNT_PROTECTION_ENABLED=true
+TURNSTILE_SITE_KEY="..."
+TURNSTILE_SECRET_KEY="..."
+TURNSTILE_HOSTNAMES="w8m.com,www.w8m.com"
+PUBLIC_ACCOUNT_TRUSTED_PROXY_CIDRS="127.0.0.0/8,::1/128,..."
 ```
 
 These files are local artifacts and are ignored by git.
@@ -92,6 +98,19 @@ owner-only environment or secret manager, and removing `_gmail` disables
 account mail before database mutation. Genelet retains its historical
 implicit-TLS SMTP transport for legacy deployments, but it is not the W8M
 production path.
+S06 public-account protection is independently default-off. When enabled,
+`../pzdesign/cmd/unify` requires a complete Turnstile site/secret pair, exact
+hostname allowlist, explicit trusted-proxy CIDRs, and Redis at startup. The
+public site key is rendered with one of `register_adv`, `recover_adv`,
+`register_pub`, or `recover_pub`; Siteverify accepts only the matching hostname
+and action. The application defaults to 10/10-minute and 50/day IP limits,
+5/hour and 20/day normalized-email limits, and 200/hour and 1000/day global
+limits, all overrideable by the reviewed integer environment settings in
+[the S06 operator contract](../docs/public-account-abuse-protection.md).
+Turnstile and Cloudflare management credentials remain owner-only deployment
+state; Cloudflare API mutation requires explicit activation authority and
+post-write widget/ruleset readback. The ApiTools cached Cloudflare OpenAPI
+description includes the account Turnstile widget and zone rulesets operations.
 `tracking_secret` in the DSP config signs generated `/imp`, `/clk`, `/win`,
 `/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
 the fallback. `tracking_signature_ttl_seconds` bounds signed URL replay and
@@ -516,8 +535,9 @@ git diff --check
 
 The documentation guard requires `docs/README.md` to index every active
 Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
-completed original lane set, the planned D04/P03/S05/O03/R03/A03 remediation
-horizon, demand-gated I02, and the bounded `GOAL.md` review-fix contract; checks
+completed original lane set, active S06 production activation, the remaining
+P03/S05/O03/R03/A03 remediation horizon, demand-gated I02, and the bounded
+`GOAL.md` review-fix contract; checks
 the 94/0/6/55 schema inventory; and rejects attempts to test the removed
 `./genelet` package path from inside pzdesign. Historical status and
 legacy-operation evidence may retain commands and counts that were accurate at
