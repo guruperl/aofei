@@ -76,6 +76,23 @@ The profile is not equivalent to a POST-only 10-request/10-minute rule. Do not
 claim that Cloudflare enforces the application's sustained quota while the zone
 uses the Free plan.
 
+## Active Production State
+
+The Free-plan profile was activated and independently read back on 2026-08-24.
+The managed widget is named `w8m-public-account` and allows only `w8m.com` and
+`www.w8m.com`. The zone `http_ratelimit` entry point is version 1 with ruleset
+ID `0710c013f0c540d18a75421ce35d3990`; it contains exactly one enabled rule,
+`7b97765482bf4fd79a8487fc19749bda`, with the expression and limits documented
+above. These identifiers are operational metadata, not credentials.
+
+The live burst proof returned `200` for the first ten rapid account-page
+requests and `429` for requests eleven and twelve. During that mitigation,
+an intentionally invalid `POST /pz` reached the origin and returned its normal
+application `400`, rather than an edge `429`; the account page returned `200`
+again after the 10-second mitigation expired. This confirms the active rule's
+UI-only path boundary without treating an invalid bid request as a successful
+ad-serving transaction.
+
 ## Layered Enforcement
 
 The production boundary remains layered:

@@ -134,8 +134,9 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   have a default-off S06 abuse boundary. When production-enabled, scoped
   Turnstile validation precedes expensive or mutating work, atomic Redis quotas
   use expiring HMAC-pseudonymous email/IP keys, and only reviewed trusted
-  proxies can supply client identity. Cloudflare widget/rate-rule creation and
-  live W8M proof are activation gates, not repository claims.
+  proxies can supply client identity. The owner-selected Cloudflare Free
+  exact-path burst rule and the complete boundary are active on W8M; other
+  deployments remain default-off and must retain their own activation proof.
 
 ## Current Product Direction
 
@@ -146,8 +147,8 @@ confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
-and quota-script work. S06 production activation also remains open; P03 resumes
-the remaining review order after D05 and S06 close.
+and quota-script work. D05 and S06 are now complete; P03 is the next remaining
+review milestone.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in

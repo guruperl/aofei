@@ -111,6 +111,10 @@ Turnstile and Cloudflare management credentials remain owner-only deployment
 state; Cloudflare API mutation requires explicit activation authority and
 post-write widget/ruleset readback. The ApiTools cached Cloudflare OpenAPI
 description includes the account Turnstile widget and zone rulesets operations.
+W8M production attaches the owner-only protection environment through a user
+systemd drop-in and uses the exact-path Free-plan profile documented in
+[cloudflare-w8m.md](../docs/cloudflare-w8m.md); repository/local operation stays
+default-off.
 `tracking_secret` in the DSP config signs generated `/imp`, `/clk`, `/win`,
 `/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
 the fallback. `tracking_signature_ttl_seconds` bounds signed URL replay and
@@ -535,7 +539,7 @@ git diff --check
 
 The documentation guard requires `docs/README.md` to index every active
 Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
-completed original lane set, active S06 production activation, the remaining
+completed original lane set and S06, the remaining
 P03/S05/O03/R03/A03 remediation horizon, demand-gated I02, and the bounded
 `GOAL.md` review-fix contract; checks
 the 94/0/6/55 schema inventory; and rejects attempts to test the removed

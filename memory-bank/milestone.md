@@ -30,12 +30,11 @@ The W8M marketplace roadmap prioritizes commercial correctness, privacy,
 accounting safety, and production controls before expanding automation or
 scale. D01 through A02 in the original sequence below, D04, and D05 are
 complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
-compatibility and hot-path remediation; D05 repository work is now complete.
-S06 repository hardening is complete (iteration 4 clean), its managed
-Cloudflare widget exists, and its constrained Free-plan edge rule and
-deployment proof remain pending. The remaining deep-review
-horizon then resumes with P03, S05, O03, R03, and A03. I02 remains demand-gated and
-must not start until P03/S05
+compatibility and hot-path remediation; D05 is now complete. S06 repository
+hardening, managed Cloudflare widget, constrained Free-plan edge rule,
+production deployment, and live proof are also complete. The remaining
+deep-review horizon resumes with P03, S05, O03, R03, and A03. I02 remains
+demand-gated and must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
 authoritative completion record; completed M-lane files retain earlier runtime
@@ -47,10 +46,10 @@ Delivery sequence:
 2. Foundation completion: A01 after D01, then P01 after D01/S01/A01/O01.
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
-5. Follow-up review remediation: D04 callback/runtime history remains complete;
-   repository-only D05 auction/cap/hot-path fixes and reopened S06 repository
-   findings are complete; Cloudflare/deployment activation for S06 remains
-   before P03 direct-SSP authenticity, S05 trust boundaries, O03
+5. Follow-up review remediation: D04 callback/runtime history, D05
+   auction/cap/hot-path fixes, and S06 repository plus production activation
+   are complete; the remaining sequence starts with P03 direct-SSP
+   authenticity, then S05 trust boundaries, O03
    job/cache/filesystem reliability, R03 experiment/report integrity, then A03
    exact monetary sources.
 6. Demand-gated mobile delivery: I02 after P03/S05 and a named mobile
@@ -91,7 +90,7 @@ acceptance criteria recorded in the corresponding status files.
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
 | S05 | Planned | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
-| S06 | In progress; repository remediation complete, Free-plan edge activation pending | [status-S06.md](status-S06.md) | Public account abuse protection. |
+| S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -1624,17 +1623,17 @@ principal provenance, quality-rule version selection, and protected database
 columns without stripping legitimate sandboxed ad scripts or blocking valid
 state transitions. Detailed tasks are in [status-S05.md](status-S05.md).
 
-## S06 - Public Account Abuse Protection `[~]`
+## S06 - Public Account Abuse Protection `[+]`
 
 Require scoped Turnstile verification before registration/recovery work, apply
 atomic pseudonymous Redis quotas, derive client identity only through reviewed
 trusted proxies, and layer a Cloudflare edge rate limit over public account
 POSTs. Review2 reopened the trusted admin marker, anonymous error rendering,
-Gmail MIME/concurrency, and quota-script tasks. The live widget, edge rule, and
-W8M deployment evidence were also pending; the managed widget now exists, while
-the owner-selected Free plan limits the pending exact-path edge rule to a
-10-second burst profile that cannot distinguish GET from POST. Detailed tasks
-and verification are in
+Gmail MIME/concurrency, and quota-script tasks; all were remediated. The managed
+widget, owner-selected Free-plan exact-path 10-second burst rule, production
+service configuration, live provider/dependency proof, and rollback/restore
+evidence are complete. The Free rule still cannot distinguish GET from POST.
+Detailed tasks and verification are in
 [status-S06.md](status-S06.md).
 
 ## A01 - Billing And Manual Settlement Safety `[+]`

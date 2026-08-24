@@ -150,6 +150,12 @@ quota is invalid, Redis is absent, or hostname/proxy lists are empty. Merely
 setting the Turnstile keys without the enable gate also fails startup, avoiding
 a silent operator mistake.
 
+W8M's canonical Summer `ServerURL` is `https://www.w8m.com`, while the managed
+widget also supports bare `https://w8m.com`. Keep that exact bare origin in
+Summer `CORSOrigins` unless Cloudflare redirects it to the canonical hostname;
+otherwise browsers can render the bare-host form but its `POST` is rejected
+before CSRF and Turnstile handling. Do not use a wildcard origin.
+
 ## Verification And Monitoring
 
 Before production enablement, prove all of the following:
@@ -177,6 +183,48 @@ surface:
 Alert on sustained dependency errors or a sharp change in rejection/limit
 ratios. No action, scope, hostname, account, email, IP, or token supplied by a
 request becomes a metric key.
+
+### Production Activation Evidence
+
+S06 was activated on W8M on 2026-08-24. The owner-only protection environment
+is attached to `aofei-unify.service`; all eight Chinese/English advertiser and
+publisher registration/recovery start pages render exactly one managed widget
+with the expected fixed action and no secret. The active Summer origin allowlist
+also admits exact bare `https://w8m.com` alongside canonical
+`https://www.w8m.com`; browser-style missing-token posts on both hosts reached
+the expected S06 `400`. Missing and invalid responses on
+the real production verifier returned `400` before Redis or account mutation:
+database and quota-key counts stayed unchanged, while only the fixed
+`recover_adv` submission and Turnstile-rejection counters advanced.
+
+Cloudflare documents that Playwright and similar automation is detected as bot
+traffic and provides test credentials for automated suites. Those credentials
+return a fixed test hostname and no action, so they cannot satisfy W8M's stricter
+hostname-and-action checks. The success-path proof therefore used an isolated
+localhost `unify` clone and a short-lived controlled Siteverify simulator that
+returned only the expected hostname/action; production remained on its real
+widget and secret throughout. Both advertiser and publisher registration and
+recovery completed through the deployed MySQL, Redis, Google OAuth, and Gmail
+API dependencies. Gmail API accepted each send. The two inactive registration
+fixtures and their orphan addresses were then removed; quota keys were left to
+their normal TTL rather than scan-deleted. See Cloudflare's
+[automated-testing guidance](https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
+
+With an isolated email-hour limit of two, the next valid recovery was admitted
+and the following one returned `429`. The aggregate Redis value remained 30
+across the denial, all keys retained positive TTLs, and neither the raw email
+nor `127.0.0.1` appeared in a key. Fixed-cardinality metrics recorded one
+`email_hour` denial and no dependency error. Direct-origin checks also proved
+that a malformed forwarded chain from trusted loopback fails closed, while the
+same spoof from an untrusted direct peer is ignored.
+
+The documented rollback was exercised in order: Gmail credentials were first
+removed from the service environment, then the protection environment was
+removed and the service restarted healthy with no widget. Both owner-only
+drop-ins were restored, the service restarted healthy again, and the real site
+key/widget returned while the secret remained absent from HTML. Final
+Cloudflare readback and the live `10 x 200, 2 x 429` burst proof are retained in
+[cloudflare-w8m.md](cloudflare-w8m.md).
 
 ## Rotation And Rollback
 
