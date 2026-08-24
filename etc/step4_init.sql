@@ -496,10 +496,10 @@ DROP TABLE IF EXISTS `adv_balance`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `adv_balance` (
   `balance_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `limit_spend` float DEFAULT NULL,
+  `limit_spend` decimal(20,9) DEFAULT NULL,
   `limit_imp` int unsigned DEFAULT NULL,
   `limit_cli` int unsigned DEFAULT NULL,
-  `current_spend` float DEFAULT '0',
+  `current_spend` decimal(20,9) DEFAULT '0.000000000',
   `current_imp` int unsigned DEFAULT '0',
   `current_cli` int unsigned DEFAULT '0',
   `current_day` date DEFAULT NULL,
@@ -750,7 +750,7 @@ CREATE TABLE `adv_item` (
   `imp_url` text,
   `click_url` text,
   `cost_type` enum('ROI','CPM','CPC','CPA') DEFAULT 'CPM',
-  `cost` double DEFAULT NULL,
+  `cost` decimal(12,6) DEFAULT NULL,
   `total_balance_id` int unsigned DEFAULT NULL,
   `daily_balance_id` int unsigned DEFAULT NULL,
   `startx` datetime DEFAULT NULL,
@@ -1137,7 +1137,7 @@ CREATE TABLE `daily_adv` (
   `item_id` int unsigned NOT NULL,
   `campaign_id` int unsigned NOT NULL,
   `adv_id` int unsigned NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   PRIMARY KEY (`la_id`),
@@ -1165,7 +1165,7 @@ DROP TABLE IF EXISTS `daily_log`;
 CREATE TABLE `daily_log` (
   `log_id` int unsigned NOT NULL AUTO_INCREMENT,
   `daily` date NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   `created` datetime NOT NULL,
@@ -1196,7 +1196,7 @@ CREATE TABLE `daily_pub` (
   `slot_id` int unsigned NOT NULL,
   `site_id` int unsigned NOT NULL,
   `pub_id` int unsigned NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   PRIMARY KEY (`lp_id`),
@@ -1225,7 +1225,7 @@ CREATE TABLE `daily_pub_adv` (
   `lpa_id` int unsigned NOT NULL AUTO_INCREMENT,
   `lp_id` int unsigned NOT NULL,
   `la_id` int unsigned NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   PRIMARY KEY (`lpa_id`),
@@ -1270,9 +1270,9 @@ CREATE TABLE `daily_mid` (
   `losses` int unsigned DEFAULT '0',
   `imps` int unsigned DEFAULT '0',
   `clis` int unsigned DEFAULT '0',
-  `charge_spend` float DEFAULT '0',
-  `pay_spend` float DEFAULT '0',
-  `margin_spend` float DEFAULT '0',
+  `charge_spend` decimal(20,9) DEFAULT '0.000000000',
+  `pay_spend` decimal(20,9) DEFAULT '0.000000000',
+  `margin_spend` decimal(20,9) DEFAULT '0.000000000',
   `forward_ok` int unsigned DEFAULT '0',
   `forward_duplicate` int unsigned DEFAULT '0',
   `forward_missing` int unsigned DEFAULT '0',
@@ -1589,9 +1589,9 @@ DROP TABLE IF EXISTS `his_balance`;
 CREATE TABLE `his_balance` (
   `his_balance_id` int unsigned NOT NULL AUTO_INCREMENT,
   `balance_id` int unsigned NOT NULL,
-  `budget_old` float NOT NULL,
-  `budget_add` float NOT NULL,
-  `budget_new` float NOT NULL,
+  `budget_old` decimal(20,9) NOT NULL,
+  `budget_add` decimal(20,9) NOT NULL,
+  `budget_new` decimal(20,9) NOT NULL,
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`his_balance_id`),
   KEY `balance_id` (`balance_id`),
@@ -1607,6 +1607,29 @@ LOCK TABLES `his_balance` WRITE;
 /*!40000 ALTER TABLE `his_balance` DISABLE KEYS */;
 /*!40000 ALTER TABLE `his_balance` ENABLE KEYS */;
 UNLOCK TABLES;
+
+-- A03 preserves the database-observable rendering of every legacy monetary
+-- row before conversion. legacy_value is evidence, never an exact-money
+-- source; converted_value is the reviewed v3 candidate or NULL when the row
+-- was quarantined.
+DROP TABLE IF EXISTS `money_migration_evidence`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `money_migration_evidence` (
+  `evidence_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `contract_version` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `source_table` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `source_pk` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `source_column` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `legacy_value` varchar(255) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `converted_value` decimal(20,9) DEFAULT NULL,
+  `conversion_rule` enum('LegacyRenderedHalfAway','AlreadyExact','Quarantined') NOT NULL,
+  `discrepancy` decimal(20,9) DEFAULT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`evidence_id`),
+  UNIQUE KEY `money_migration_source` (`contract_version`,`source_table`,`source_pk`,`source_column`),
+  KEY `money_migration_disposition` (`conversion_rule`,`source_table`),
+  CONSTRAINT `money_migration_discrepancy_chk` CHECK (((`conversion_rule` = _utf8mb4'Quarantined') AND (`converted_value` IS NULL)) OR (`conversion_rule` <> _utf8mb4'Quarantined'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Table structure for table `his_payment`
@@ -1650,7 +1673,7 @@ CREATE TABLE `ledger_adv` (
   `item_id` int unsigned NOT NULL,
   `campaign_id` int unsigned NOT NULL,
   `adv_id` int unsigned NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   PRIMARY KEY (`la_id`),
@@ -1678,7 +1701,7 @@ DROP TABLE IF EXISTS `ledger_log`;
 CREATE TABLE `ledger_log` (
   `log_id` int unsigned NOT NULL AUTO_INCREMENT,
   `timely` datetime NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   `created` datetime NOT NULL,
@@ -1709,7 +1732,7 @@ CREATE TABLE `ledger_pub` (
   `slot_id` int unsigned NOT NULL,
   `site_id` int unsigned NOT NULL,
   `pub_id` int unsigned NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   PRIMARY KEY (`lp_id`),
@@ -1738,7 +1761,7 @@ CREATE TABLE `ledger_pub_adv` (
   `lpa_id` int unsigned NOT NULL AUTO_INCREMENT,
   `lp_id` int unsigned NOT NULL,
   `la_id` int unsigned NOT NULL,
-  `spend` float DEFAULT NULL,
+  `spend` decimal(20,9) DEFAULT NULL,
   `imps` int unsigned DEFAULT NULL,
   `clis` int unsigned DEFAULT NULL,
   PRIMARY KEY (`lpa_id`),
@@ -1783,9 +1806,9 @@ CREATE TABLE `ledger_mid` (
   `losses` int unsigned DEFAULT '0',
   `imps` int unsigned DEFAULT '0',
   `clis` int unsigned DEFAULT '0',
-  `charge_spend` float DEFAULT '0',
-  `pay_spend` float DEFAULT '0',
-  `margin_spend` float DEFAULT '0',
+  `charge_spend` decimal(20,9) DEFAULT '0.000000000',
+  `pay_spend` decimal(20,9) DEFAULT '0.000000000',
+  `margin_spend` decimal(20,9) DEFAULT '0.000000000',
   `forward_ok` int unsigned DEFAULT '0',
   `forward_duplicate` int unsigned DEFAULT '0',
   `forward_missing` int unsigned DEFAULT '0',
@@ -1870,7 +1893,7 @@ CREATE TABLE `mid_route_group` (
   `trigger_mode` enum('Fallback','Always') NOT NULL DEFAULT 'Fallback',
   `total_timeout_ms` smallint unsigned NOT NULL DEFAULT '100',
   `margin_pct` decimal(7,4) NOT NULL DEFAULT '0.0000',
-  `min_margin_cpm` decimal(10,4) NOT NULL DEFAULT '0.0000',
+  `min_margin_cpm` decimal(12,6) NOT NULL DEFAULT '0.000000',
   `active` enum('Yes','No') NOT NULL DEFAULT 'Yes',
   `created` datetime DEFAULT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1902,7 +1925,7 @@ CREATE TABLE `mid_route_bidder` (
   `priority` smallint unsigned NOT NULL DEFAULT '100',
   `timeout_ms` smallint unsigned DEFAULT NULL,
   `margin_pct` decimal(7,4) DEFAULT NULL,
-  `min_margin_cpm` decimal(10,4) DEFAULT NULL,
+  `min_margin_cpm` decimal(12,6) DEFAULT NULL,
   `active` enum('Yes','No') NOT NULL DEFAULT 'Yes',
   `created` datetime DEFAULT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -3321,7 +3344,7 @@ CREATE TABLE `pub_slot` (
   `slot_id` int unsigned NOT NULL AUTO_INCREMENT,
   `site_id` int unsigned DEFAULT '0',
   `slot_name` varchar(255) NOT NULL,
-  `bidfloor` float DEFAULT '0',
+  `bidfloor` decimal(12,6) DEFAULT '0.000000',
   `size_id` int unsigned NOT NULL DEFAULT '4194368',
   `qa_slot` int unsigned DEFAULT '0',
   `fl_item` int unsigned DEFAULT '0',

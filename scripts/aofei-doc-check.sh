@@ -183,7 +183,7 @@ for indexed_doc in "${indexed_docs[@]}"; do
 done
 
 for inventory_line in \
-	'| Base tables | 95 |' \
+	'| Base tables | 96 |' \
 	'| Views | 0 |' \
 	'| Stored routines | 6 |' \
 	'| Triggers | 61 |'

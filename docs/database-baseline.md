@@ -89,7 +89,7 @@ After `reset && load`, the expected inventory is:
 
 | Object/data | Count |
 |---|---:|
-| Base tables | 95 |
+| Base tables | 96 |
 | Views | 0 |
 | Stored routines | 6 |
 | Triggers | 61 |
@@ -206,7 +206,7 @@ R03 adds `report_experiment.assignment_algorithm_version`. Its compatibility
 default is v1 for pre-R03 rows; trusted new creates always store v2 and generate
 their own salt. Four triggers freeze the complete experiment-version contract,
 enforce forward state transitions, and prevent variant changes after Draft, so
-the active baseline is 95 tables, 6 routines, and 61 triggers.
+the active baseline is 96 tables, 6 routines, and 61 triggers.
 
 O02 makes `ledger_log.timely` and `daily_log.daily` unique. The operational
 Redis lease is renewable but cannot prove exclusive ownership during every
