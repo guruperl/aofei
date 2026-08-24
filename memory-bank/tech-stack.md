@@ -656,11 +656,13 @@ Pzdesign/template gates. `../pzdesign/cmd/identity-admin` is the restricted
 operator CLI for analyst creation, exact grant/revoke, TOTP reset, and bounded
 security-audit retention. It reads `SUMMER`, the environment key named by
 `Identity.KeyEnv`, the effective-UID mapping in `Identity.MaintenanceActors`,
-and new passwords only from `IDENTITY_NEW_PASSWORD`. Genelet-reserved
-`_gprincipal_source`, `_gmfa_verified`, and `_grecent_mfa` fields carry only
-authorized server session state into Summer. The traffic-quality and hosted-
-payment maintenance binaries use `os.Geteuid` directly and expose no actor-id
-flag.
+and new passwords only from `IDENTITY_NEW_PASSWORD`. Genelet carries authorized
+role/account, exact component/action/permission/resource, MFA state, and the
+reauthentication deadline in a typed request-context principal whose provenance
+marker and context keys are private to Genelet. Summer treats `_g*` values only
+as compatibility dispatch data and requires the typed principal. The traffic-
+quality and hosted-payment maintenance binaries use `os.Geteuid` directly and
+expose no actor-id flag.
 Disposable MySQL verification restores the current clean baseline, expects 95
 tables, 6 routines, and 57 triggers, proves `auth_security_audit` update/delete fails,
 and exercises analyst creation/grant without touching the configured local

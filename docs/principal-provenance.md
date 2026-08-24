@@ -11,25 +11,31 @@ routing. Its signed role cookie identifies the account candidate, and the
 paired opaque database session must validate for that exact role and account.
 Genelet then resolves the configured action permission and resource scope,
 checks required TOTP and recent reauthentication, performs database-grant
-authorization, and only then exposes reserved application fields.
+authorization, and only then binds a verified principal to the request context.
 
-The application-visible fields are server-owned:
+The application-visible boundary is server-owned:
 
-- `_grole`, the account-id field, `_gpermission`, and resource fields are
-  derived from the verified route, cookie/session, component configuration,
-  and Genelet authorization.
-- `_gprincipal_source=genelet-session` exists only after authorization.
-- `_gmfa_verified=1` records session MFA; `_grecent_mfa=1` additionally
-  requires a still-future server session reauthentication deadline.
-- Genelet deletes caller-supplied copies of every reserved field before it
-  derives them. JSON responses also remove internal `_g*` fields.
+- Genelet deletes every caller-supplied `_g*` form value before routing and
+  repeats the scrub for direct `Controller.Handle` callers. JSON responses also
+  remove internal `_g*` fields.
+- `_grole`, the account-id field, and `_gpermission` are compatibility dispatch
+  values derived from the verified route, session, and component configuration;
+  they are not authentication evidence.
+- The `genelet.VerifiedPrincipal` request capability records the authorized
+  role, account, component, action, permission, resource role/id, MFA state,
+  and server reauthentication deadline. Its provenance bit and request-context
+  keys are private to Genelet, so callers cannot construct or attach a verified
+  value through headers, form data, or a direct Summer filter call.
 
 Summer's management-API credential, publisher credential, traffic-quality,
-hosted-payment, and account-security filters fail closed when the verified
-session marker is absent. They copy recent-MFA state from `_grecent_mfa`; an
-action name cannot manufacture it. Advertiser and publisher scopes remain
-locked to their verified account id, while administrator/delegated resources
-remain subject to Genelet's server configuration and grant check.
+hosted-payment, and account-security filters fail closed unless that exact
+component/action capability is present and still matches the compatibility
+dispatch fields. They read recent MFA only from its typed session state and
+future deadline; action names and caller values cannot manufacture it.
+Credential and traffic-quality filters also compare the selected resource to
+the authorized resource. Advertiser and publisher scopes remain locked to
+their verified account id, while administrator/delegated resources remain
+subject to Genelet's server configuration and database-grant check.
 
 ## Offline Commands
 
@@ -78,9 +84,10 @@ mapping changes.
 
 ## Verification
 
-Repository tests cover inbound reserved-field scrubbing, Genelet-derived
-session/MFA markers, missing-marker denials, action-name MFA spoof resistance,
-UID mapping, launcher audit attribution, exact offline permissions, and denial
-of money/quality mutations to maintenance principals. Run the three repository
+Repository tests cover inbound reserved-field scrubbing, request-context
+principal binding, exact action/resource authorization, direct-Handle and
+direct-filter spoof denial, action/header MFA spoof resistance, UID mapping,
+launcher audit attribution, exact offline permissions, and denial of
+money/quality mutations to maintenance principals. Run the three repository
 test/vet/staticcheck/race suites and documentation/public-data guards before
 changing this boundary.

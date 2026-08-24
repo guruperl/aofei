@@ -628,10 +628,12 @@ reads to agent/analyst roles, and recent-MFA administrator mutation. Billing
 holds can affect only Draft/Confirmed A01 statements through separate
 recommend/approve actors and immutable accounting audit.
 S05 makes the S02 handoff explicit. Genelet scrubs caller-provided reserved
-identity fields and emits `genelet-session` plus MFA/recent-MFA markers only
-after opaque-session and permission/resource authorization. Summer's security,
-credential, traffic-quality, and hosted-payment actors require that marker and
-never infer MFA from an action name. Offline traffic-quality/payment commands
+identity fields and binds a typed request-local principal only after opaque-
+session and exact component/action/permission/resource authorization; the
+provenance marker and context keys remain private to Genelet. Summer's security,
+credential, traffic-quality, and hosted-payment actors require that capability,
+verify it still matches dispatch/resource scope, and never infer MFA from an
+action name. Offline traffic-quality/payment commands
 derive `unix-uid:<effective-uid>` and their services accept that principal only
 for exact health/retention operations. The identity-admin command maps the
 effective UID to an existing numeric admin through the restricted
