@@ -193,6 +193,14 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   identity, browser provenance, media/size/floor, privacy, admission, and
 	   server-owned seller-chain policy. Generic pre-auction responses avoid an
 	   account/host oracle; unavailable publisher cache is retryable `503`.
+	   Fixed `aofei_ssp_inventory_token_outcomes_total` and
+	   `aofei_ssp_publisher_auth_outcomes_total` maps expose only bounded
+	   migration/auth categories. Browser and App traffic share O01's reserved
+	   `ssp` admission limiter before authentication; untrusted credential values
+	   cannot create limiters or metric labels. Cache-first rollout deploys the
+	   dual reader and current publisher generation before any v2 emitter, keeps
+	   legacy reads as rollback until measured withdrawal, and withdraws App
+	   inventory before an authentication-gate rollback.
 	   Unauthenticated SDK compatibility traffic cannot promote body claims into
 	   personalized matching. Authenticated SDK identity and publisher-asserted
 	   IP/coarse geo still require the independent S01 grant and lose exact

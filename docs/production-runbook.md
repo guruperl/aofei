@@ -151,9 +151,12 @@ win/loss, middleman callback, and cap-mutation tracker payloads. Set
 86400 seconds. Set `cap_state_ttl_seconds` to bound idle Redis frequency-cap
 state; the default is 7776000 seconds (90 days), and refreshes never shorten a
 longer existing key TTL.
-When the later P03 tag-integration and rollout work authorizes enabling
-`direct_ssp_tokens`, provision each `key_env` as an owner-only deployment
-secret containing a base64 or hexadecimal encoding of an exact 32-byte key.
+P03 repository integration is complete, but production activation still
+requires the named cache-first canary in
+[publisher-activation.md](publisher-activation.md). When that approval
+authorizes `direct_ssp_tokens`, provision each `key_env` as an owner-only
+deployment secret containing a base64 or hexadecimal encoding of an exact
+32-byte key.
 Keep current and previous keys distinct, consistent across accepting nodes, and
 out of config, logs, cache payloads, database rows, tags, and publisher-visible
 output. The current default-off codec does not by itself authorize production
@@ -170,8 +173,10 @@ issuance returns the Ed25519 private seed once to the authorized publisher,
 while MySQL retains only the public verifier. The caller must keep that private
 value in an approved secret manager and generate a new nonce per request; never
 place it in configuration samples, logs, Redis, backups, browser tags, or
-mobile source. Do not enable this gate until the remaining P03 client-claim,
-sample/cache integration, and canary/rollback rows are complete.
+mobile source. Do not enable this gate until P03 is closed and the named
+publisher canary, support window, and rollback ownership are approved. An auth
+incident does not authorize a silent credentialless fallback: withdraw the App
+through a complete cache generation before disabling the gate.
 Frequency-cap payload version 2 is rolling-compatible: upgrade readers/writers
 normally, monitor cap decode/refresh errors, and keep the rollout bounded to the
 callback TTL. New workers read legacy-only values and version-2 values; old

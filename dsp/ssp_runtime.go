@@ -65,16 +65,24 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var requestProof *publisherauth.RequestProof
+	publisherAuthOutcome := ""
+	if sspPlatformIsSDK(sspReq.Platform) {
+		publisherAuthOutcome = "compatibility"
+		defer func() { recordSSPPublisherAuthOutcome(publisherAuthOutcome) }()
+	}
 	if sspPlatformIsSDK(sspReq.Platform) && self.directSSPAuthRequired() {
+		publisherAuthOutcome = "dependency_error"
 		if self.publisherAuth == nil {
 			writeSSPPublisherAuthError(w, publisherauth.ErrUnavailable)
 			return
 		}
 		requestProof, err = self.publisherAuth.VerifyRequest(r, rawRequest)
 		if err != nil {
+			publisherAuthOutcome = sspPublisherAuthErrorOutcome(err)
 			writeSSPPublisherAuthError(w, err)
 			return
 		}
+		publisherAuthOutcome = "inventory_rejected"
 	}
 
 	pub, units, tokenVersion, err := self.validateSSPSupplyWithVersion(ctx, sspReq)
@@ -89,11 +97,13 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if requestProof != nil {
+		publisherAuthOutcome = "scope_rejected"
 		unit := units[0].RPub
 		if err := requestProof.AuthorizeScope(uint64(unit.PubID), uint64(unit.SiteID)); err != nil {
 			writeSSPPublisherAuthError(w, err)
 			return
 		}
+		publisherAuthOutcome = "policy_rejected"
 	}
 	if err := validateSSPRequestPolicy(r, sspReq, units); err != nil {
 		metricSSPPolicyRejections.Add(1)
@@ -102,9 +112,11 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	}
 	if requestProof != nil {
 		if err := self.publisherAuth.ClaimReplay(ctx, requestProof); err != nil {
+			publisherAuthOutcome = sspPublisherAuthErrorOutcome(err)
 			writeSSPPublisherAuthError(w, err)
 			return
 		}
+		publisherAuthOutcome = "accepted"
 	}
 	privacy := self.privacyDecision(r, sspReq.Regs, sspReq.User, sspReq.Device)
 	privacy = sspClientClaimPrivacy(sspReq.Platform, requestProof != nil, privacy)
@@ -200,6 +212,23 @@ func writeSSPPublisherAuthError(w http.ResponseWriter, err error) {
 		status = http.StatusServiceUnavailable
 	}
 	writeSSPError(w, status)
+}
+
+func sspPublisherAuthErrorOutcome(err error) string {
+	switch {
+	case errors.Is(err, publisherauth.ErrRequired):
+		return "required_rejected"
+	case errors.Is(err, publisherauth.ErrStale):
+		return "stale_rejected"
+	case errors.Is(err, publisherauth.ErrScope):
+		return "scope_rejected"
+	case errors.Is(err, publisherauth.ErrReplay):
+		return "replay_rejected"
+	case errors.Is(err, publisherauth.ErrUnavailable):
+		return "dependency_error"
+	default:
+		return "invalid_rejected"
+	}
 }
 
 // writeSSPError keeps the public pre-auction rejection surface stable without

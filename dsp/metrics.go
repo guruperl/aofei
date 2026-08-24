@@ -54,6 +54,7 @@ var (
 	metricSSPFilledAdUnits               = expvar.NewInt("aofei_ssp_filled_ad_units_total")
 	metricSSPNoFillAdUnits               = expvar.NewInt("aofei_ssp_no_fill_ad_units_total")
 	metricSSPInventoryTokenOutcomes      = expvar.NewMap("aofei_ssp_inventory_token_outcomes_total")
+	metricSSPPublisherAuthOutcomes       = expvar.NewMap("aofei_ssp_publisher_auth_outcomes_total")
 	metricSSPPublisherAuthRefreshes      = expvar.NewInt("aofei_ssp_publisher_auth_snapshot_refreshes_total")
 	metricSSPPublisherAuthRefreshErrors  = expvar.NewInt("aofei_ssp_publisher_auth_snapshot_refresh_errors_total")
 	metricSSPPublisherAuthLoadedAt       = expvar.NewInt("aofei_ssp_publisher_auth_snapshot_loaded_at_unix")
@@ -115,6 +116,16 @@ func recordSSPInventoryTokenOutcome(outcome string) {
 		outcome = "unknown_rejected"
 	}
 	metricSSPInventoryTokenOutcomes.Add(outcome, 1)
+}
+
+func recordSSPPublisherAuthOutcome(outcome string) {
+	switch outcome {
+	case "compatibility", "accepted", "required_rejected", "invalid_rejected", "stale_rejected",
+		"inventory_rejected", "scope_rejected", "policy_rejected", "replay_rejected", "dependency_error":
+	default:
+		outcome = "invalid_rejected"
+	}
+	metricSSPPublisherAuthOutcomes.Add(outcome, 1)
 }
 
 func recordMiddlemanCallbackOutcome(outcome string) {

@@ -221,6 +221,16 @@ uses unbounded stale verification state. The rollout task must define the
 maximum propagation/overlap interval, health evidence, rollback owner, and the
 condition that ends compatibility.
 
+The repository abuse proof is `./scripts/aofei-p03-proof.sh`. It exercises the
+legacy/v2/tamper/mixed matrix, fixed authentication outcomes, bounded lifecycle
+rotation/revocation, O01 SSP admission, and 32 concurrent claims of one signed
+nonce with exactly one accepted claim and 31 replays. Replay Redis keys contain
+only a domain-separated digest and expire at the end of the accepted timestamp
+window (at most twice the configured skew for a future-edge timestamp); normal
+rollout and rollback never scan-delete them. The production cache-first canary,
+key-ring order, App-withdrawal rollback, and evidence ownership are specified in
+[publisher-activation.md](publisher-activation.md).
+
 ## Enforcement And Side-Effect Order
 
 The implemented SDK authentication and cross-path enforcement retain this

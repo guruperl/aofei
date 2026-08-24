@@ -150,8 +150,9 @@ hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
 and quota-script work. D05 and S06 are now complete. P03 is in progress: its
 threat contract, default-off versioned locator codec/runtime dual reader,
 default-off SDK/server authentication, independent browser/App enforcement,
-client-claim disposition, and portal/cache integration are complete, while
-rollout and abuse evidence remain pending.
+client-claim disposition, portal/cache integration, and repository rollout/
+abuse evidence are complete. Production gates remain default-off and require a
+separately authorized named publisher canary.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in

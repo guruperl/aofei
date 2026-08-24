@@ -108,6 +108,14 @@ All map keys below are fixed source/outcome/reason categories:
 - existing audit queue/drop/error, local-cache age/stale/reload, route-cache,
   tracking/cap, delivery reservation, SSP outcome, middleman callback, and S01
   privacy decision/invalid/blocked counters.
+- P03 direct-SSP authenticity uses
+  `aofei_ssp_inventory_token_outcomes_total` with fixed legacy/v2 accepted,
+  disabled, invalid, mixed, and unknown categories, plus
+  `aofei_ssp_publisher_auth_outcomes_total` with only `compatibility`,
+  `accepted`, required/invalid/stale/inventory/scope/policy/replay rejection,
+  and dependency-error categories. Credential, publisher, App, key, nonce,
+  signature, domain, and token values never become labels. Snapshot
+  refresh/error/loaded-at metrics bound credential propagation independently.
 - S03 traffic-quality fixed counters:
   `aofei_quality_decisions_total`, `aofei_quality_matched_total`, the five
   `aofei_quality_action_*_total` outcomes,
@@ -137,6 +145,13 @@ input rejection (4xx/fixed rejection counters), no demand (204/no-fill),
 dependency failure (5xx plus dependency/error counters), invalid middleman
 responses, timeouts, configuration errors, fixed partner-response reasons, and
 successful fill.
+
+The reserved `traffic_partners.ssp` limiter applies to browser and SDK `/pz`
+traffic before authentication and auction work. Do not key rate limits or
+metrics by an unverified credential/header value: invalid and unauthenticated
+clients must remain in the same bounded `ssp` pool. Cloudflare's Free-plan S06
+rule is UI-only and must not be broadened to `/pz`; origin admission remains
+authoritative for ad-serving traffic.
 
 Sampled partner diagnostics are disabled by default. Set
 `openrtb_debug_enabled=true` and `openrtb_debug_sample_rate` in `(0,1]` only for

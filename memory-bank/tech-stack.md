@@ -605,9 +605,11 @@ Admin compatibility verification:
 ```
 
 P03 publisher-auth verification adds `go test ./publisherauth ./dsp ./etc` and
-the opt-in disposable MySQL lifecycle gate:
+the repository-only migration/auth/replay/admission proof plus the opt-in
+disposable MySQL lifecycle gate:
 
 ```bash
+./scripts/aofei-p03-proof.sh
 PUBLISHER_AUTH_INTEGRATION_DSN='<disposable-mysql-dsn>' \
   GOWORK=off go test ./publisherauth -run TestMySQLPublisherCredentialLifecycle
 ```

@@ -326,12 +326,16 @@ func TestServeSSPPolicyAllowsSDKWithoutBrowserHeaders(t *testing.T) {
 		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
 	})
 
+	before := expvarMapInt64(metricSSPPublisherAuthOutcomes, "compatibility")
 	rr := serveSSPWithHeaders(t, controller, body, nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
 		t.Fatalf("cookies = %#v, want none for sdk traffic", cookies)
+	}
+	if got := expvarMapInt64(metricSSPPublisherAuthOutcomes, "compatibility") - before; got != 1 {
+		t.Fatalf("compatibility auth outcomes = %d, want 1", got)
 	}
 }
 
@@ -346,6 +350,8 @@ func TestServeSSPAuthenticatedSDKRequiresFreshOneUseBodyProof(t *testing.T) {
 	})
 	headers := signedPublisherAuthHeaders(t, privateCredential, now, 0x61, body)
 
+	acceptedBefore := expvarMapInt64(metricSSPPublisherAuthOutcomes, "accepted")
+	replayBefore := expvarMapInt64(metricSSPPublisherAuthOutcomes, "replay_rejected")
 	first := serveSSPWithHeaders(t, controller, body, headers)
 	if first.Code != http.StatusOK {
 		t.Fatalf("authenticated SDK status = %d: %s", first.Code, first.Body.String())
@@ -356,6 +362,12 @@ func TestServeSSPAuthenticatedSDKRequiresFreshOneUseBodyProof(t *testing.T) {
 	second := serveSSPWithHeaders(t, controller, body, headers)
 	if second.Code != http.StatusUnauthorized || strings.Contains(second.Body.String(), "replay") {
 		t.Fatalf("replay response = %d %q", second.Code, second.Body.String())
+	}
+	if got := expvarMapInt64(metricSSPPublisherAuthOutcomes, "accepted") - acceptedBefore; got != 1 {
+		t.Fatalf("accepted auth outcomes = %d, want 1", got)
+	}
+	if got := expvarMapInt64(metricSSPPublisherAuthOutcomes, "replay_rejected") - replayBefore; got != 1 {
+		t.Fatalf("replay auth outcomes = %d, want 1", got)
 	}
 }
 
@@ -370,20 +382,21 @@ func TestServeSSPAuthenticationFailuresPrecedeAuctionSideEffects(t *testing.T) {
 		mutateBody     bool
 		closeRedis     bool
 		wantStatus     int
+		wantOutcome    string
 	}{
-		{name: "missing proof", credentialSite: 11, wantStatus: http.StatusUnauthorized},
+		{name: "missing proof", credentialSite: 11, wantStatus: http.StatusUnauthorized, wantOutcome: "required_rejected"},
 		{name: "stale proof", credentialSite: 11, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
 			return signedPublisherAuthHeaders(t, credential, now.Add(-301*time.Second), 0x62, body)
-		}, wantStatus: http.StatusUnauthorized},
+		}, wantStatus: http.StatusUnauthorized, wantOutcome: "stale_rejected"},
 		{name: "body mismatch", credentialSite: 11, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
 			return signedPublisherAuthHeaders(t, credential, now, 0x63, body)
-		}, mutateBody: true, wantStatus: http.StatusUnauthorized},
+		}, mutateBody: true, wantStatus: http.StatusUnauthorized, wantOutcome: "invalid_rejected"},
 		{name: "cross App scope", credentialSite: 12, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
 			return signedPublisherAuthHeaders(t, credential, now, 0x64, body)
-		}, wantStatus: http.StatusUnauthorized},
+		}, wantStatus: http.StatusUnauthorized, wantOutcome: "scope_rejected"},
 		{name: "replay store unavailable", credentialSite: 11, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
 			return signedPublisherAuthHeaders(t, credential, now, 0x65, body)
-		}, closeRedis: true, wantStatus: http.StatusServiceUnavailable},
+		}, closeRedis: true, wantStatus: http.StatusServiceUnavailable, wantOutcome: "dependency_error"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -405,6 +418,7 @@ func TestServeSSPAuthenticationFailuresPrecedeAuctionSideEffects(t *testing.T) {
 			if test.closeRedis {
 				closeRedis()
 			}
+			before := expvarMapInt64(metricSSPPublisherAuthOutcomes, test.wantOutcome)
 			rr := serveSSPWithHeaders(t, controller, requestBody, headers)
 			if !test.closeRedis {
 				closeRedis()
@@ -418,6 +432,9 @@ func TestServeSSPAuthenticationFailuresPrecedeAuctionSideEffects(t *testing.T) {
 			if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
 				t.Fatalf("audit messages = %#v", messages)
 			}
+			if got := expvarMapInt64(metricSSPPublisherAuthOutcomes, test.wantOutcome) - before; got != 1 {
+				t.Fatalf("%s auth outcomes = %d, want 1", test.wantOutcome, got)
+			}
 		})
 	}
 }
@@ -428,6 +445,7 @@ func TestServeSSPAuthenticatedSDKCannotOverrideIndependentEnforcement(t *testing
 		mutateBody func(*testing.T, []byte) []byte
 		headers    map[string]string
 		wantStatus int
+		wantAuth   string
 	}{
 		{
 			name: "App identity",
@@ -437,6 +455,7 @@ func TestServeSSPAuthenticatedSDKCannotOverrideIndependentEnforcement(t *testing
 				})
 			},
 			wantStatus: http.StatusBadRequest,
+			wantAuth:   "accepted",
 		},
 		{
 			name: "active inventory",
@@ -458,11 +477,13 @@ func TestServeSSPAuthenticatedSDKCannotOverrideIndependentEnforcement(t *testing
 				return out
 			},
 			wantStatus: http.StatusBadRequest,
+			wantAuth:   "inventory_rejected",
 		},
 		{
 			name:       "browser provenance headers",
 			headers:    map[string]string{"Origin": "https://attacker.example"},
 			wantStatus: http.StatusForbidden,
+			wantAuth:   "policy_rejected",
 		},
 	}
 
@@ -488,6 +509,7 @@ func TestServeSSPAuthenticatedSDKCannotOverrideIndependentEnforcement(t *testing
 				headers[name] = value
 			}
 
+			before := expvarMapInt64(metricSSPPublisherAuthOutcomes, test.wantAuth)
 			rr := serveSSPWithHeaders(t, controller, body, headers)
 			if rr.Code != test.wantStatus || rr.Body.String() != http.StatusText(test.wantStatus)+"\n" {
 				t.Fatalf("rejection = %d %q, want generic %d", rr.Code, rr.Body.String(), test.wantStatus)
@@ -500,6 +522,9 @@ func TestServeSSPAuthenticatedSDKCannotOverrideIndependentEnforcement(t *testing
 			}
 			if cookies := rr.Result().Cookies(); len(cookies) != 0 {
 				t.Fatalf("cookies = %#v", cookies)
+			}
+			if got := expvarMapInt64(metricSSPPublisherAuthOutcomes, test.wantAuth) - before; got != 1 {
+				t.Fatalf("%s auth outcomes = %d, want 1", test.wantAuth, got)
 			}
 		})
 	}

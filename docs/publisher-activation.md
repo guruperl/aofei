@@ -118,6 +118,47 @@ or finish rolling all P01 HTTP workers back before restoring a pre-P01 cache.
 Never run a P01 HTTP worker against deliberately restored pre-P01 publisher
 payloads; direct SSP will correctly fail closed.
 
+### P03 cache-first authenticity migration
+
+P03 activation is a cache-first, reversible migration; it is not implied by a
+binary deployment. Before changing either default-off gate:
+
+1. Name the publisher, site/App, slot, publisher contact, operator, privacy
+   approval, support window, and rollback owner. Confirm the O01 `ssp` QPS,
+   burst, concurrency, timeout, compressed-body, and decompressed-body profile
+   from a measured capacity baseline. Cloudflare's S06 UI-only rule must remain
+   exact-path scoped and must not include `/pz`.
+2. Deploy the dual-reader binary and one complete publisher cache generation to
+   every accepting node while v2 remains disabled. Prove the manifest, cache
+   timestamp/age, and current v1 request path before provisioning a key.
+3. Provision a new owner-only 32-byte key on every accepting node. Set
+   `direct_ssp_tokens.enabled:true`, keep `legacy_read_mode:"allow"`, and use
+   one current key id/epoch everywhere. Restart/read back every node before
+   distributing any v2 tag. The manifest must now say `token_version=v2` and
+   its emitted tuple must succeed on every canary node; tampered, mixed-version,
+   and inactive-cache tuples must fail before side effects.
+4. Regenerate only the named publisher's Web tag and observe a bounded support
+   window. `aofei_ssp_inventory_token_outcomes_total` must show expected v2
+   acceptance without rising v2/mixed/unknown rejection; legacy acceptance
+   remains the rollback path. Do not deny legacy reads until all named tags are
+   replaced and legacy traffic is zero for the approved compatibility window.
+5. For an App canary, enable `direct_ssp_auth` consistently on every accepting
+   node before issuing its credential. Complete the section 4 matrix and watch
+   `aofei_ssp_publisher_auth_outcomes_total`, snapshot age/errors, O01
+   admission, Redis, cache freshness, and audit backlog. A compatibility count
+   after the gate is expected to be zero.
+
+For a browser-locator rotation, deploy the old key as `previous` and the new
+key/epoch as `current` on all readers before emitting the new value. Remove the
+old selector only after replacement and the approved overlap. To roll back,
+stop tag distribution and restore the last known-good current/previous issuer
+configuration while legacy remains allowed; do not delete cache data. For an
+SDK-auth incident, do not make an authenticated App silently credentialless:
+first deactivate that App inventory, publish and verify a complete cache
+generation, then roll back the auth configuration/binary if necessary. Redis
+replay keys expire naturally within the bounded request-proof window and must
+not be scan-deleted.
+
 ## 3. Web browser acceptance
 
 Use only a `Web` site. Its slot page produces a browser tag and does not produce
@@ -247,3 +288,14 @@ Attach the following to the activation record:
 
 Never attach raw consent strings, full request bodies, credentials, or full
 payment details.
+
+The repository-only abuse proof is repeatable without production services:
+
+```bash
+./scripts/aofei-p03-proof.sh
+```
+
+It covers legacy/v2/tamper/mixed outcomes, fixed authentication outcomes,
+32-way concurrent nonce replay with exactly one winner, body/freshness/scope
+failures, bounded credential rotation/revocation, and the O01 `ssp` rate and
+concurrency gates. It does not replace the named live canary above.

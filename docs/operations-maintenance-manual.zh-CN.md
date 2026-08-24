@@ -709,6 +709,8 @@ AOFEI=/etc/aofei/aofei.json \
 | 外部需求方回调转发结果与 retry `due` | 检查下游端点、网络、429/5xx 和任务吞吐。 |
 | `aofei_local_cache_loaded_at_unix`、`aofei_local_cache_age_seconds`、`aofei_local_cache_stale` | 本地静态缓存年龄；stale 时重载或重启。 |
 | `aofei_ssp_policy_rejections_total` | `/pz` 来源策略拒绝；结合 403 访问日志检查站点主机和代理。 |
+| `aofei_ssp_inventory_token_outcomes_total` | P03 固定分类的 v1/v2 接受、旧版禁用、非法、混用和未知版本结果；不得把 key、站点或令牌值作为标签。 |
+| `aofei_ssp_publisher_auth_outcomes_total` | P03 固定分类的兼容、认证成功、缺失/非法/过期/库存/范围/策略/重放拒绝和依赖错误；不得把凭据、发布商、App、nonce 或签名作为标签。 |
 | `aofei_ssp_publisher_auth_snapshot_refreshes_total`、`aofei_ssp_publisher_auth_snapshot_refresh_errors_total`、`aofei_ssp_publisher_auth_snapshot_loaded_at_unix` | P03 SDK 公钥快照刷新和年龄；启用后刷新失败或超过最大年龄会让 SDK 请求以 `503` 关闭。 |
 
 基础设施还应监控 MySQL 连接/慢查询/磁盘、Redis 内存/淘汰/错误/客户端、NATS 可用性/订阅/丢消息、日志磁盘容量、systemd 重启次数、HTTP 延迟和错误率、证书有效期及节点时钟偏差。
