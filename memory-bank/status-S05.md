@@ -80,6 +80,12 @@ container and legitimate third-party advertising behavior.
   excluding dependency/build trees, and expands the reviewed WebView/bridge
   marker set. Focused test, vet, staticcheck, template, and public-data gates
   pass.
+- Iteration 3 (2026-08-24): clean — re-reviewed the complete S05 implementation
+  across Aofei, Genelet, and pzdesign, including every iteration-1/2 fix, for
+  network and redirect bypass, principal forgery, resource/MFA scope, creative
+  compatibility and consumer discovery, quality-rule precedence, database
+  transitions, maintenance authority, tests, and operator documentation. No
+  P1, P2, higher-severity, or carry-forward finding remains.
 
 ## Acceptance Criteria
 
