@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -375,13 +376,12 @@ SELECT rule_id, rule_key, rule_version, signal_type, rule_action, rollout_mode, 
 FROM quality_rule
 WHERE signal_type=? AND rollout_mode IN ('Observe','Canary','Active')
  AND ((scope_type='Global' AND scope_id=0) OR (scope_type=? AND scope_id=?))
-ORDER BY rule_key, rule_version DESC`, observation.Signal, observation.Scope.Type, observation.Scope.ID)
+ORDER BY rule_key, rollout_mode, rule_version DESC, rule_id`, observation.Signal, observation.Scope.Type, observation.Scope.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	seen := make(map[string]bool)
-	var rules []Rule
+	selected := make(map[runtimeRuleGroup]Rule)
 	for rows.Next() {
 		var rule Rule
 		var threshold string
@@ -392,16 +392,76 @@ ORDER BY rule_key, rule_version DESC`, observation.Signal, observation.Scope.Typ
 			&rule.FalsePositiveLimitBPS, &rule.CreatedBy, &rule.CreatedAt); err != nil {
 			return nil, err
 		}
-		if seen[rule.Key] {
-			continue
-		}
-		seen[rule.Key] = true
 		if _, err := fmt.Sscan(threshold, &rule.Threshold); err != nil {
 			return nil, err
 		}
+		selectRuntimeRule(selected, rule)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return orderedRuntimeRules(selected), nil
+}
+
+type runtimeRuleGroup struct {
+	key  string
+	mode RuleMode
+}
+
+// selectRuntimeRules keeps the highest eligible immutable version in each
+// rollout lane. Active is evaluated before Canary and Observe for the same key
+// so a newer lower-authority rollout can never hide established enforcement.
+func selectRuntimeRules(candidates []Rule) []Rule {
+	selected := make(map[runtimeRuleGroup]Rule)
+	for _, rule := range candidates {
+		selectRuntimeRule(selected, rule)
+	}
+	return orderedRuntimeRules(selected)
+}
+
+func selectRuntimeRule(selected map[runtimeRuleGroup]Rule, rule Rule) {
+	if rule.Mode != ModeActive && rule.Mode != ModeCanary && rule.Mode != ModeObserve {
+		return
+	}
+	group := runtimeRuleGroup{key: rule.Key, mode: rule.Mode}
+	prior, exists := selected[group]
+	if !exists || rule.Version > prior.Version || rule.Version == prior.Version && rule.ID < prior.ID {
+		selected[group] = rule
+	}
+}
+
+func orderedRuntimeRules(selected map[runtimeRuleGroup]Rule) []Rule {
+	rules := make([]Rule, 0, len(selected))
+	for _, rule := range selected {
 		rules = append(rules, rule)
 	}
-	return rules, rows.Err()
+	sort.Slice(rules, func(i, j int) bool {
+		if rules[i].Key != rules[j].Key {
+			return rules[i].Key < rules[j].Key
+		}
+		left, right := runtimeRuleModePriority(rules[i].Mode), runtimeRuleModePriority(rules[j].Mode)
+		if left != right {
+			return left > right
+		}
+		if rules[i].Version != rules[j].Version {
+			return rules[i].Version > rules[j].Version
+		}
+		return rules[i].ID < rules[j].ID
+	})
+	return rules
+}
+
+func runtimeRuleModePriority(mode RuleMode) int {
+	switch mode {
+	case ModeActive:
+		return 3
+	case ModeCanary:
+		return 2
+	case ModeObserve:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (s *Service) storeDecision(ctx context.Context, decision Decision, summary string) (Decision, error) {

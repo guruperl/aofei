@@ -94,11 +94,14 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    create immutable decisions, bounded evidence, scoped cases/history,
    aggregate counters, reviewed enforcement, and separate billing
    recommendations. Missing/partial evidence always reduces action and billing
-   to Observe. `cmd/unify` loads a detached immutable enforcement snapshot at
-   startup and refreshes it independently; publisher checks precede candidate
-   lookup, advertiser checks filter local candidates, and partner checks filter
-   middleman assignments. Refresh errors retain the last valid snapshot only
-   through its maximum age, then serving fails open.
+   to Observe. Runtime assessment keeps the highest version independently for
+   each `(rule_key, rollout_mode)` and evaluates coexisting modes in Active,
+   Canary, then Observe order, so a newer rollout candidate cannot hide an
+   older Active rule. `cmd/unify` loads a detached immutable enforcement
+   snapshot at startup and refreshes it independently; publisher checks
+   precede candidate lookup, advertiser checks filter local candidates, and
+   partner checks filter middleman assignments. Refresh errors retain the last
+   valid snapshot only through its maximum age, then serving fails open.
    Direct publisher SSP traffic is a separate `POST /pz` entrypoint. The
    browser contract uses `site` packed as `(pub_id, site_id)` and
    `adUnits[].slot` packed as `(slot_id, size_id)`; the browser DOM `code` is

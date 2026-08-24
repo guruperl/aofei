@@ -53,6 +53,23 @@ Draft/Observe/Canary/Active -> Disabled
 Disabled -> Observe
 ```
 
+During a version rollout, more than one mode for the same stable `rule_key` may
+legitimately coexist: an older `Active` version protects current traffic while
+a newer version advances through `Observe` and `Canary`. Runtime assessment
+selects the highest version independently for each `(rule_key, rollout_mode)`
+pair and evaluates them in deterministic `Active`, `Canary`, then `Observe`
+order. Older versions in the same mode are ignored. Each selected mode creates
+its own immutable decision, so canary/observe evidence remains reviewable but
+cannot hide established Active behavior. When the newer version reaches
+`Active`, it becomes the highest Active version; operators may then disable the
+superseded row under the ordinary rollout workflow.
+
+This selection never weakens the evidence gate. `Partial` or `Missing` evidence
+forces every selected Active, Canary, and Observe decision to applied action
+`Observe` and billing disposition `Observe`. Returned decision ordering is a
+stable inspection contract, not permission for one lower rollout mode to
+overwrite another decision.
+
 Moving a blocking rule (`Throttle`, `Reject`, or `Quarantine`) from `Canary` to
 `Active` requires selected canary decisions, completed human review, and a
 false-positive rate no greater than the rule's configured limit. Enforcement
