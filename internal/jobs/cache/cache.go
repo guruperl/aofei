@@ -766,7 +766,10 @@ func (s spreadMessageSink) append(subject string, data []byte) {
 // BuildSpreadGeneration compiles one complete static spread snapshot from
 // MySQL without publishing it.
 func BuildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) ([]spreadcache.Message, error) {
-	messages, err := buildSpreadPublisherMessages(pubmap)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	messages, err := buildSpreadPublisherMessages(ctx, pubmap)
 	if err != nil {
 		return nil, err
 	}
@@ -782,13 +785,19 @@ func BuildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, s
 	if err := match.DBGetCreativesToRedisSpread(ctx, sink, db); err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	sort.Slice(messages, func(i, j int) bool { return messages[i].Subject < messages[j].Subject })
 	return messages, nil
 }
 
-func buildSpreadPublisherMessages(pubmap acl.PubMap) ([]spreadcache.Message, error) {
+func buildSpreadPublisherMessages(ctx context.Context, pubmap acl.PubMap) ([]spreadcache.Message, error) {
 	messages := make([]spreadcache.Message, 0, len(pubmap))
 	for domain, pub := range pubmap {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if pub == nil {
 			return nil, fmt.Errorf("publisher %q is nil", domain)
 		}

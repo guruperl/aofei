@@ -181,14 +181,13 @@ atomic generation publication with partial live writes.
     Compatibility wrappers retain the old APIs, while focused canceled-context
     tests prove no audience SQL is issued after ownership cancellation.
 
-- Iteration 9 (2026-08-24): two P2 findings remain open.
-  - P2: context-aware publisher discovery still performs compound publisher,
-    default-site, and slot creation as independent committed statements. Lease
-    cancellation or an intermediate SQL failure can therefore strand partial
-    inventory; a publisher row without its defaults also blocks later retry on
-    the unique email. Make every compound discovery mutation transactional and
-    update in-memory inventory only after commit.
-  - P2: the memory-only spread-generation sink lets publisher, RAdv, and
-    creative packing loops continue after the lease context is canceled. Carry
-    cancellation checks through every generation-building loop so ownership
-    loss bounds compilation work as well as SQL and external writes.
+- Iteration 9 (2026-08-24): two P2 findings were found.
+  - P2 resolved: new publishers plus their default sites/slots and new
+    site/slot pairs are now transactional. In-memory publisher inventory is
+    updated only after commit, and a single-slot insertion records its map entry
+    only after success. Focused failure tests prove rollback leaves neither a
+    partial durable sequence nor phantom in-memory inventory.
+  - P2 resolved: spread publisher packing, RAdv packing, and creative compile/
+    sink loops now check the lease context. Focused cancellation tests prove
+    those memory-only generation paths stop without packing later entries after
+    ownership cancellation.

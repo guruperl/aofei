@@ -9,6 +9,41 @@ import (
 	"github.com/mediocregopher/radix/v4"
 )
 
+type cancelAfterResetSink struct {
+	cancel context.CancelFunc
+	puts   int
+}
+
+func (s *cancelAfterResetSink) ResetRAdvs(context.Context, uint32) error {
+	s.cancel()
+	return nil
+}
+func (s *cancelAfterResetSink) PutRAdvs(context.Context, uint32, uint32, []byte, bool) error {
+	s.puts++
+	return nil
+}
+func (*cancelAfterResetSink) CleanupRAdvs(context.Context, uint32) error { return nil }
+func (*cancelAfterResetSink) PutAudience(context.Context, uint32, []byte) error {
+	return nil
+}
+func (*cancelAfterResetSink) PutCreative(context.Context, uint32, []byte) error {
+	return nil
+}
+
+func TestRAdvGenerationPackingStopsAfterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	sink := &cancelAfterResetSink{cancel: cancel}
+	err := radvHashToCacheSinkBySizeID(ctx, sink, map[uint32]RAdvs{
+		7: {{Demand: Demand{CreativeID: 11}}},
+	}, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("radvHashToCacheSinkBySizeID error = %v, want context canceled", err)
+	}
+	if sink.puts != 0 {
+		t.Fatalf("RAdv writes after cancellation = %d, want 0", sink.puts)
+	}
+}
+
 func TestRedisCacheSinkRejectsLiveFamilyReset(t *testing.T) {
 	server := miniredis.RunT(t)
 	ctx := context.Background()

@@ -111,6 +111,9 @@ func DBGetCreativesToRedisSpread(ctx context.Context, conn interface{}, db *sql.
 		return err
 	}
 	for _, creative := range compiled {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := sink.PutCreative(ctx, creative.id, creative.data); err != nil {
 			return err
 		}
@@ -163,6 +166,9 @@ INNER JOIN adv a USING (adv_id)`
 
 	var compiled []compiledCreative
 	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		var creativeID uint32
 		var weight sql.NullFloat64
 		var iurl, landing, content, impTracker, clickTracker sql.NullString

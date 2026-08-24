@@ -3,6 +3,7 @@ package match
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,19 @@ func TestCreativeMapFromIOKeysByCreativeID(t *testing.T) {
 type recordingCreativeSink struct {
 	creativeIDs []uint32
 	creatives   []*Creative
+}
+
+type cancelingCreativeSink struct {
+	recordingCreativeSink
+	cancel context.CancelFunc
+}
+
+func (s *cancelingCreativeSink) PutCreative(ctx context.Context, creativeID uint32, data []byte) error {
+	if err := s.recordingCreativeSink.PutCreative(ctx, creativeID, data); err != nil {
+		return err
+	}
+	s.cancel()
+	return nil
 }
 
 func (recordingCreativeSink) ResetRAdvs(context.Context, uint32) error { return nil }
@@ -174,6 +188,35 @@ func TestDBGetCreativesValidatesWholeSelectionBeforePublishing(t *testing.T) {
 	}
 	if len(sink.creativeIDs) != 0 {
 		t.Fatalf("partially published creative IDs = %#v", sink.creativeIDs)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDBGetCreativesStopsPackingAfterCancellation(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	columns := []string{
+		"creative_id", "size_id", "weight", "iurl", "item_click", "imp_url", "click_url",
+		"creative_name", "content", "media_type", "mime",
+	}
+	rows := sqlmock.NewRows(columns).
+		AddRow(100, SizeID2To1(300, 250), 1, nil, "https://advertiser.example/landing", nil, nil, "first", "https://cdn.example/first.html", "Banner", "text/html").
+		AddRow(101, SizeID2To1(300, 250), 1, nil, "https://advertiser.example/landing", nil, nil, "second", "https://cdn.example/second.html", "Banner", "text/html")
+	mock.ExpectQuery(`(?s)WHERE a\.active="Yes".*r\.active="Yes"$`).WillReturnRows(rows)
+	ctx, cancel := context.WithCancel(context.Background())
+	sink := &cancelingCreativeSink{cancel: cancel}
+
+	err = DBGetCreativesToRedisSpread(ctx, sink, db)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("DBGetCreativesToRedisSpread error = %v, want context canceled", err)
+	}
+	if len(sink.creativeIDs) != 1 || sink.creativeIDs[0] != 100 {
+		t.Fatalf("creative IDs after cancellation = %#v, want [100]", sink.creativeIDs)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

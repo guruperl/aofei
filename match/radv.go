@@ -602,6 +602,9 @@ func radvHashToCacheSinkBySizeID(ctx context.Context, sink CacheSink, hash map[u
 	}
 	i := 0
 	for slotID, radvs := range hash {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if len(radvs) == 0 {
 			continue
 		}

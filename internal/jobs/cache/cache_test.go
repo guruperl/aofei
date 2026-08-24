@@ -121,12 +121,23 @@ func TestBuildSpreadPublisherMessagesOmitsUnpublishableInventory(t *testing.T) {
 		"inactive.example": {PubID: 2},
 		"capped.example":   {PubID: 3, Active: true, LimitImps: 10, CurrentImps: 10},
 	}
-	messages, err := buildSpreadPublisherMessages(pubmap)
+	messages, err := buildSpreadPublisherMessages(context.Background(), pubmap)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(messages) != 1 || messages[0].Subject != acl.HashNamePubmap+":active.example" {
 		t.Fatalf("publisher messages = %#v, want active inventory only", messages)
+	}
+}
+
+func TestBuildSpreadPublisherMessagesHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := buildSpreadPublisherMessages(ctx, acl.PubMap{
+		"active.example": {PubID: 1, Active: true},
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("buildSpreadPublisherMessages error = %v, want context canceled", err)
 	}
 }
 
