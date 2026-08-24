@@ -15,9 +15,10 @@ authorization, and only then binds a verified principal to the request context.
 
 The application-visible boundary is server-owned:
 
-- Genelet deletes every caller-supplied `_g*` form value before routing and
-  repeats the scrub for direct `Controller.Handle` callers. JSON responses also
-  remove internal `_g*` fields.
+- Genelet deletes every caller-supplied `_g*` value from `Form`, `PostForm`, and
+  multipart value views before routing, and repeats the scrub for direct
+  `Controller.Handle` callers. JSON responses also remove internal `_g*`
+  fields.
 - `_grole`, the account-id field, and `_gpermission` are compatibility dispatch
   values derived from the verified route, session, and component configuration;
   they are not authentication evidence.

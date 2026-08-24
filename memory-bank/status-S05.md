@@ -60,12 +60,12 @@ container and legitimate third-party advertising behavior.
   plus strips against that immutable history both before and after the hook.
   Adversarial history-rewrite/body/credential tests and focused test, vet,
   staticcheck, and race gates pass.
-- Iteration 2 (2026-08-24): P2, open — Genelet removes reserved `_g*` values
-  from `Request.Form`, but an ordinary URL-encoded POST retains the same public
-  values in `Request.PostForm` (and a pre-parsed multipart request can retain
-  them in `MultipartForm.Value`). Current Summer consumers use `Form`, but the
-  framework contract still exposes forgeable security-looking values to a
-  request filter through the alternate standard views.
+- Iteration 2 (2026-08-24): P2, resolved — Genelet removed reserved `_g*`
+  values from `Request.Form`, while URL-encoded and pre-parsed multipart
+  requests could retain the same public values in alternate standard views.
+  Genelet `bbeef88` now scrubs `Form`, `PostForm`, and `MultipartForm.Value` at
+  both public and direct-Handle boundaries while preserving ordinary fields;
+  full tests, vet, documented staticcheck, race, and diff hygiene pass.
 - Iteration 2 (2026-08-24): P2, open — contained-markup `srcset` validation
   uses `strings.Split` on every comma. A valid HTTPS image URL may contain an
   internal comma, so the parser rejects legitimate advertising markup despite
