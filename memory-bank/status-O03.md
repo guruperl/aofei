@@ -144,9 +144,10 @@ atomic generation publication with partial live writes.
     capped publishers, matching Redis publication and legacy deletion
     semantics. A focused generation-builder test proves only publishable
     inventory is serialized.
-  - P2 open: republishing the currently selected MaxMind content keeps only
-    that digest and prunes the prior rollback generation despite no new
-    generation having been selected.
+  - P2 resolved: same-content MaxMind republishing now revalidates and retains
+    the newest distinct rollback asset in addition to the selected digest;
+    failed staging directories are ineligible. A focused repeated-publication
+    test proves the prior valid asset remains available.
   - P2 open: attribute-log inventory discovery runs context-free `DBAddNew`
     mutations, so cache work can continue changing MySQL after its lease-owned
     context has been canceled.

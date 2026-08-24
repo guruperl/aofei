@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -200,7 +201,15 @@ func publishIPSearchGenerationLocked(filename string, ipSearch *maxmind.IPSearch
 	}
 
 	prior := selectedCityGeneration(filename, assetRoot)
-	if err := pruneCityGenerations(assetRoot, digest, prior); err != nil {
+	kept := []string{digest, prior}
+	if prior == digest {
+		rollback, err := newestValidCityGeneration(assetRoot, digest, validate)
+		if err != nil {
+			return fmt.Errorf("select prior City generation: %w", err)
+		}
+		kept = append(kept, rollback)
+	}
+	if err := pruneCityGenerations(assetRoot, kept...); err != nil {
 		return fmt.Errorf("prune City generations: %w", err)
 	}
 	relativeAsset, err := filepath.Rel(filepath.Dir(filename), assetPath)
@@ -213,6 +222,41 @@ func publishIPSearchGenerationLocked(filename string, ipSearch *maxmind.IPSearch
 	published := *ipSearch
 	published.CityFile = relativeAsset
 	return writeIPSearchAtomic(filename, &published)
+}
+
+func newestValidCityGeneration(assetRoot, exclude string, validate func(string) error) (string, error) {
+	type candidate struct {
+		name    string
+		modTime int64
+	}
+	entries, err := os.ReadDir(assetRoot)
+	if err != nil {
+		return "", err
+	}
+	candidates := make([]candidate, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == exclude || !validGenerationDigest(entry.Name()) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return "", err
+		}
+		candidates = append(candidates, candidate{name: entry.Name(), modTime: info.ModTime().UnixNano()})
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].modTime != candidates[j].modTime {
+			return candidates[i].modTime > candidates[j].modTime
+		}
+		return candidates[i].name > candidates[j].name
+	})
+	for _, candidate := range candidates {
+		asset := filepath.Join(assetRoot, candidate.name, "GeoLite2-City.mmdb")
+		if validate(asset) == nil {
+			return candidate.name, nil
+		}
+	}
+	return "", nil
 }
 
 func withCityPublicationLock(configPath string, publish func() error) (err error) {

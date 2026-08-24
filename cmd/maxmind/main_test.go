@@ -123,6 +123,10 @@ func TestPublishIPSearchGenerationPreservesCurrentAndPrior(t *testing.T) {
 	if second.CityFile == first.CityFile {
 		t.Fatal("second generation did not change City asset")
 	}
+	secondAsset, err := maxmind.ResolveCityFilePath(configPath, second.CityFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertGenerationCount(t, cityAssetRoot(configPath), 2)
 	if _, err := os.Stat(firstAsset); err != nil {
 		t.Fatalf("prior asset after second publish: %v", err)
@@ -134,6 +138,14 @@ func TestPublishIPSearchGenerationPreservesCurrentAndPrior(t *testing.T) {
 	assertGenerationCount(t, cityAssetRoot(configPath), 2)
 	if _, err := os.Stat(firstAsset); !os.IsNotExist(err) {
 		t.Fatalf("oldest generation still present, stat error = %v", err)
+	}
+
+	if err := publish("third.mmdb", "third"); err != nil {
+		t.Fatal(err)
+	}
+	assertGenerationCount(t, cityAssetRoot(configPath), 2)
+	if _, err := os.Stat(secondAsset); err != nil {
+		t.Fatalf("prior asset after same-content republish: %v", err)
 	}
 }
 
