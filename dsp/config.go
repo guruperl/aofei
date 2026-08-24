@@ -35,6 +35,7 @@ type Config struct {
 	NatsURL                     string                   `json:"nats_url,omitempty"`
 	TrackingSecret              string                   `json:"tracking_secret,omitempty"`
 	TrackingSignatureTTLSeconds int                      `json:"tracking_signature_ttl_seconds,omitempty"`
+	DirectSSPTokens             DirectSSPTokenConfig     `json:"direct_ssp_tokens,omitempty"`
 	CapStateTTLSeconds          int                      `json:"cap_state_ttl_seconds,omitempty"`
 	ConnectArray                []string                 `json:"connect_array,omitempty"`
 	Spread                      string                   `json:"spread,omitempty"`
@@ -246,6 +247,7 @@ func NewConfig(filename string) (*Config, error) {
 	parsed.ManagementAPI = parsed.ManagementAPI.WithDefaults(parsed.DeliveryCacheMaxAgeSeconds)
 	parsed.TrafficQuality = parsed.TrafficQuality.WithDefaults()
 	parsed.HostedPayments = parsed.HostedPayments.WithDefaults()
+	parsed.DirectSSPTokens = parsed.DirectSSPTokens.withDefaults()
 
 	if err := parsed.Validate(); err != nil {
 		return nil, err
@@ -398,6 +400,9 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 		return err
 	}
 	if err := self.HostedPayments.Validate(); err != nil {
+		return err
+	}
+	if err := self.DirectSSPTokens.withDefaults().validate(); err != nil {
 		return err
 	}
 

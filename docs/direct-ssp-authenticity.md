@@ -5,18 +5,21 @@ It separates public browser inventory locators from publisher/App request
 authentication and defines the invariants that the remaining P03 work must
 preserve.
 
-This first P03 task changes documentation and milestone state only. The
-versioned token format, SDK/server credentials, enforcement, portal/cache
-integration, and production rollout remain unimplemented. The current runtime
-behavior remains the v1 contract in [ssp-direct-traffic.md](ssp-direct-traffic.md).
+The threat contract and versioned browser-token codec/runtime reader are now
+implemented. SDK/server credentials, final enforcement, portal/cache
+integration, and production rollout remain pending. Current publisher pages
+still emit the v1 values documented in
+[ssp-direct-traffic.md](ssp-direct-traffic.md), so the checked-in v2 block stays
+disabled and legacy reads stay allowed.
 
 ## Current Boundary And Non-Claims
 
-The current browser `site` token packs `(pub_id, site_id)` and each `slot`
-token packs `(slot_id, size_id)` as unkeyed base32. Anyone who observes or
-guesses the numeric ids can encode another candidate tuple. Acceptance still
-requires the tuple to exist in the active direct-publisher cache, but the token
-itself provides neither integrity nor authentication.
+The currently generated browser `site` token packs `(pub_id, site_id)` and
+each `slot` token packs `(slot_id, size_id)` as unkeyed base32. Anyone who
+observes or guesses the numeric ids can encode another candidate tuple.
+Acceptance still requires the tuple to exist in the active direct-publisher
+cache, but the historical token itself provides neither integrity nor
+authentication.
 
 Current browser requests also require an exact cached-site-host match for all
 present `Origin` and `Referer` values, with at least one required. This is a
@@ -67,32 +70,64 @@ S03, not P03, owns general fraud detection, automation classification,
 viewability, and billing recommendations. P03 does not claim device attestation
 or proof that an authorized publisher behaved honestly.
 
-## Browser Locator Target
+## Versioned Browser Locator Implementation
 
-The later versioned-token task must define one unambiguous server-issued
-format with an explicit version and key/rotation selector. The versioned
-`site` value must bind `pub_id` and `site_id`; each versioned `slot` value,
-validated with that site value, must bind the complete `pub_id`, `site_id`,
-`slot_id`, and `size_id` identity. Valid pieces cannot be moved between sites,
-and no field may be taken from an unsigned client claim or inferred through a
-downgrade heuristic. The signing key stays deployment-owned and never appears
-in the tag, cache payload, schema, repository, or publisher UI.
+The implemented token is an ASCII value with this fixed shape:
 
-The exact encoding, validity/epoch representation, and key-ring limits belong
-to the next P03 row. Whatever format is selected must preserve these rules:
+```text
+pz2.<site|slot>.<key_id>.<epoch>.<payload>.<mac>
+```
 
-- only the current version is emitted after rollout begins;
-- legacy v1 reads are separately measured and allowed only behind an explicit
-  compatibility gate;
-- unknown or malformed versions never fall back to the legacy decoder;
-- disabling the legacy reader is an explicit, observable, reversible rollout
-  action rather than an inferred date;
-- a valid v2 locator set is still public and replayable; and
-- active-cache validation of the complete tuple remains authoritative on every
-  request.
+`payload` uses unpadded URL-safe base64 over fixed-width big-endian integers.
+A `site` payload contains `pub_id` and `site_id`. A `slot` payload contains the
+complete `pub_id`, `site_id`, `slot_id`, and `size_id` tuple, so a valid slot
+cannot be moved beneath another site. `mac` is the complete HMAC-SHA-256 output
+over a domain-separated canonical token prefix. Non-canonical epochs/base64,
+wrong token kinds, unknown versions, unknown key selectors, modified payloads,
+modified signatures, and mixed v1/v2 site-slot requests fail before auction
+side effects.
 
-The migration may temporarily read v1 and v2 tags, but it must not change the
-meaning of `/pz`, create a second inventory owner, or present v1 traffic as v2.
+Each configured key has a URL-safe `key_id`, a positive rotation `epoch`, and
+an environment reference containing a base64 or hexadecimal encoding of an
+exact 32-byte key. The immutable runtime codec emits only with `current` and
+verifies at most `current` plus one distinct `previous` key. The epoch is the
+explicit validity boundary: removing a selector from that bounded key ring
+withdraws every token from that epoch. There is deliberately no per-token
+expiry timestamp.
+
+The key stays deployment-owned and never appears in the tag, cache payload,
+schema, repository, or publisher UI. A disabled example is checked in:
+
+```json
+"direct_ssp_tokens": {
+  "enabled": false,
+  "legacy_read_mode": "allow",
+  "current": {
+    "key_id": "primary",
+    "epoch": 1,
+    "key_env": "DIRECT_SSP_TOKEN_KEY"
+  }
+}
+```
+
+When enabled, `legacy_read_mode:"allow"` accepts both complete v1 requests and
+complete v2 requests. `"deny"` is the explicit legacy-disable gate and is
+valid only while v2 is enabled. Unknown versions never enter the historical
+base32 decoder, and a request cannot combine a v1 site with a v2 slot or the
+reverse. The fixed-cardinality
+`aofei_ssp_inventory_token_outcomes_total` map distinguishes accepted v1/v2,
+legacy-gate denial, invalid v1/v2, mixed-version, and unknown-version outcomes.
+
+Every successfully verified v2 tuple still resolves against the active loaded
+publisher cache. Integrity cannot reactivate inactive, incomplete, stale, or
+mismatched inventory. V2 locators also remain public and replayable; their
+acceptance is never recorded as publisher authentication.
+
+Publisher tag/API generation and the cache readiness manifest intentionally
+remain v1 until the later portal/API/cache-integration row. Do not enable v2 or
+deny legacy reads in production merely because the codec exists. The migration
+must first generate v2 samples, measure both read paths, name rollback
+ownership, and retain a reversible compatibility interval.
 
 ## SDK And Server Authentication Target
 
@@ -186,6 +221,6 @@ approved migration says otherwise:
 
 See [publisher-activation.md](publisher-activation.md) for the current rollout
 gate. Production authenticity is not established until the later P03 tasks
-implement and verify versioned locators, SDK/server authentication, portal and
-cache integration, enforcement, observability, rotation, rollback, and a named
+implement and verify SDK/server authentication, portal and cache integration,
+final enforcement, observability, rotation/rollback operations, and a named
 publisher canary.

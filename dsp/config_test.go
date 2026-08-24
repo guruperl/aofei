@@ -49,6 +49,9 @@ func TestConfig(t *testing.T) {
 	if c.TrackingSecret != "env-secret" {
 		t.Errorf("TrackingSecret = %q, want env fallback", c.TrackingSecret)
 	}
+	if c.DirectSSPTokens.Enabled || c.DirectSSPTokens.LegacyReadMode != directSSPLegacyAllow {
+		t.Errorf("DirectSSPTokens defaults = enabled:%t legacy:%q", c.DirectSSPTokens.Enabled, c.DirectSSPTokens.LegacyReadMode)
+	}
 	if c.CapStateTTLSeconds != 90*24*60*60 {
 		t.Errorf("CapStateTTLSeconds = %d, want 90 days", c.CapStateTTLSeconds)
 	}

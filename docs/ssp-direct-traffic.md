@@ -31,11 +31,13 @@ profile in [middleman-adx.md](middleman-adx.md).
 
 P03 is now in progress. Its accepted
 [authenticity contract](direct-ssp-authenticity.md) records that the current
-packed browser values are enumerable, that even future HMAC-protected browser
-locators remain public and replayable, and that the current credentialless SDK
-path is not publisher/App authentication. This document describes the current
-v1 runtime; the P03 contract governs the target security boundary and rollout
-invariants until later P03 rows implement it.
+packed browser values are enumerable and that HMAC-protected browser locators
+remain public and replayable. The v2 codec, bounded current/previous key ring,
+runtime dual reader, fixed-cardinality migration counter, and explicit legacy
+gate are implemented but disabled by default. Publisher pages and the cache
+readiness manifest still emit v1 until the later integration row, and the SDK
+path remains unauthenticated. This document therefore describes the currently
+generated v1 contract; the P03 contract governs the staged security boundary.
 
 ## V1 Browser Contract
 

@@ -157,6 +157,64 @@ func TestServeSSPRejectsCommercialInventoryMismatchBeforeSideEffects(t *testing.
 	}
 }
 
+func TestServeSSPVersionedInventoryTokenMigration(t *testing.T) {
+	allowCodec := directTokenV2TestCodec(t, true)
+	denyCodec := directTokenV2TestCodec(t, false)
+	v2Body := sspRequestBodyWithV2Tokens(t, allowCodec, 1, 10, []sspAdUnitSpec{{
+		Code: "v2-unit", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1,
+	}})
+	legacyBody := sspRequestBody(t, 1, 10, []sspAdUnitSpec{{
+		Code: "legacy-unit", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1,
+	}})
+
+	tests := []struct {
+		name         string
+		codec        *acl.DirectTokenCodec
+		body         []byte
+		wantStatus   int
+		wantOutcome  string
+		missingCodec bool
+	}{
+		{name: "v2 accepted", codec: allowCodec, body: v2Body, wantStatus: http.StatusOK, wantOutcome: "v2_accepted"},
+		{name: "legacy accepted during overlap", codec: allowCodec, body: legacyBody, wantStatus: http.StatusOK, wantOutcome: "legacy_accepted"},
+		{name: "legacy explicitly disabled", codec: denyCodec, body: legacyBody, wantStatus: http.StatusBadRequest, wantOutcome: "legacy_disabled"},
+		{name: "enabled policy without codec fails closed", body: legacyBody, wantStatus: http.StatusBadRequest, wantOutcome: "legacy_disabled", missingCodec: true},
+		{name: "tampered v2 rejected", codec: allowCodec, body: tamperSSPSlotToken(t, v2Body), wantStatus: http.StatusBadRequest, wantOutcome: "v2_rejected"},
+		{name: "mixed versions rejected", codec: allowCodec, body: replaceSSPSlotWithLegacy(t, v2Body, 100, match.SizeID2To1(300, 250)), wantStatus: http.StatusBadRequest, wantOutcome: "mixed_rejected"},
+		{name: "active cache still authoritative", codec: allowCodec, body: sspRequestBodyWithV2Tokens(t, allowCodec, 1, 10, []sspAdUnitSpec{{Code: "inactive", SlotID: 999, SizeID: match.SizeID2To1(300, 250), Banner: true}}), wantStatus: http.StatusBadRequest, wantOutcome: "v2_rejected"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			controller.directTokens = test.codec
+			if test.missingCodec {
+				controller.C.DirectSSPTokens.Enabled = true
+			}
+			runtime := &recordingMiddlemanRuntime{}
+			enableSSPMiddleman(controller, true, runtime)
+			if test.wantStatus != http.StatusOK {
+				controller.audit = newAuditPublisher(nil, 10)
+			}
+			before := expvarMapInt64(metricSSPInventoryTokenOutcomes, test.wantOutcome)
+			rr := serveSSP(t, controller, test.body)
+			if rr.Code != test.wantStatus {
+				t.Fatalf("ServeSSP status = %d, want %d: %s", rr.Code, test.wantStatus, rr.Body.String())
+			}
+			if got := expvarMapInt64(metricSSPInventoryTokenOutcomes, test.wantOutcome) - before; got != 1 {
+				t.Fatalf("%s metric delta = %d, want 1", test.wantOutcome, got)
+			}
+			if test.wantStatus != http.StatusOK {
+				if runtime.calls != 0 {
+					t.Fatalf("middleman calls = %d, want 0", runtime.calls)
+				}
+				if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+					t.Fatalf("audit messages = %#v, want none", messages)
+				}
+			}
+		})
+	}
+}
+
 func TestServeSSPReturnsHTMLArrayInRequestOrder(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
@@ -1145,6 +1203,82 @@ func sspRequestBodyWithPlatform(t testing.TB, platform string, pubID, siteID uin
 	if platform != "" {
 		payload["platform"] = platform
 	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func sspRequestBodyWithV2Tokens(t testing.TB, codec *acl.DirectTokenCodec, pubID, siteID uint32, specs []sspAdUnitSpec) []byte {
+	t.Helper()
+	site, err := codec.PackSite(pubID, siteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	units := make([]map[string]any, 0, len(specs))
+	for _, spec := range specs {
+		slot, err := codec.PackSlot(pubID, siteID, spec.SlotID, spec.SizeID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w, h := match.SizeID1To2(spec.SizeID)
+		units = append(units, map[string]any{
+			"code": spec.Code, "slot": slot, "floor": spec.Floor,
+			"mediaTypes": map[string]any{"banner": map[string]any{"size": []uint16{w, h}}},
+		})
+	}
+	payload := map[string]any{"id": "ssp-v2-test", "platform": "browser", "site": site, "adUnits": units}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func directTokenV2TestCodec(t testing.TB, allowLegacy bool) *acl.DirectTokenCodec {
+	t.Helper()
+	codec, err := acl.NewDirectTokenCodec(acl.DirectTokenKey{
+		ID: "test", Epoch: 3, Secret: bytes.Repeat([]byte{0x5a}, 32),
+	}, nil, allowLegacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return codec
+}
+
+func tamperSSPSlotToken(t testing.TB, body []byte) []byte {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	units := payload["adUnits"].([]any)
+	unit := units[0].(map[string]any)
+	token := unit["slot"].(string)
+	if token[len(token)-1] == 'A' {
+		unit["slot"] = token[:len(token)-1] + "B"
+	} else {
+		unit["slot"] = token[:len(token)-1] + "A"
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func replaceSSPSlotWithLegacy(t testing.TB, body []byte, slotID, sizeID uint32) []byte {
+	t.Helper()
+	legacy, err := acl.PackDirectToken(slotID, sizeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["adUnits"].([]any)[0].(map[string]any)["slot"] = legacy
 	data, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)

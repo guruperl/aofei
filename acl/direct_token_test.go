@@ -2,6 +2,8 @@ package acl
 
 import (
 	"encoding/base32"
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -61,6 +63,163 @@ func TestUnpackDirectTokenRejectsMalformedLengths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDirectTokenV2BindsCompleteInventoryTuple(t *testing.T) {
+	codec, err := NewDirectTokenCodec(DirectTokenKey{ID: "primary", Epoch: 7, Secret: directTokenTestKey(1)}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, err := codec.PackSite(42, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slot, err := codec.PackSlot(42, 9, 100, 19661050)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(site, "pz2.site.primary.7.") || !strings.HasPrefix(slot, "pz2.slot.primary.7.") {
+		t.Fatalf("unexpected v2 tokens: site=%q slot=%q", site, slot)
+	}
+	pubID, siteID, version, err := codec.UnpackSite(site)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pubID != 42 || siteID != 9 || version != DirectTokenV2 {
+		t.Fatalf("site = %d/%d/%s, want 42/9/v2", pubID, siteID, version)
+	}
+	slotID, sizeID, version, err := codec.UnpackSlot(slot, pubID, siteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slotID != 100 || sizeID != 19661050 || version != DirectTokenV2 {
+		t.Fatalf("slot = %d/%d/%s, want 100/19661050/v2", slotID, sizeID, version)
+	}
+	if _, _, _, err := codec.UnpackSlot(slot, pubID, siteID+1); !errors.Is(err, ErrInvalidDirectToken) {
+		t.Fatalf("cross-site slot error = %v, want invalid token", err)
+	}
+	if _, err := codec.PackSite(0, siteID); err == nil {
+		t.Fatal("zero publisher site locator was emitted")
+	}
+	if _, err := codec.PackSlot(pubID, siteID, 0, sizeID); err == nil {
+		t.Fatal("zero slot locator was emitted")
+	}
+}
+
+func TestDirectTokenV2RejectsTamperAndUnknownVersions(t *testing.T) {
+	codec, err := NewDirectTokenCodec(DirectTokenKey{ID: "primary", Epoch: 7, Secret: directTokenTestKey(1)}, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, err := codec.PackSite(42, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(site, ".")
+	for _, test := range []struct {
+		name  string
+		token string
+	}{
+		{name: "payload", token: strings.Join(append(append([]string(nil), parts[:4]...), mutateTokenText(parts[4]), parts[5]), ".")},
+		{name: "signature", token: strings.Join(append(append([]string(nil), parts[:5]...), mutateTokenText(parts[5])), ".")},
+		{name: "epoch", token: strings.Replace(site, ".7.", ".8.", 1)},
+		{name: "key id", token: strings.Replace(site, ".primary.", ".unknown.", 1)},
+		{name: "unknown version", token: strings.Replace(site, "pz2.", "pz3.", 1)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, _, _, err := codec.UnpackSite(test.token); !errors.Is(err, ErrInvalidDirectToken) {
+				t.Fatalf("UnpackSite(%q) error = %v, want invalid token", test.token, err)
+			}
+		})
+	}
+}
+
+func TestDirectTokenV2RotationAndLegacyGate(t *testing.T) {
+	oldKey := DirectTokenKey{ID: "inventory", Epoch: 10, Secret: directTokenTestKey(1)}
+	oldCodec, err := NewDirectTokenCodec(oldKey, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldSite, err := oldCodec.PackSite(42, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldSlot, err := oldCodec.PackSlot(42, 9, 100, 19661050)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newKey := DirectTokenKey{ID: "inventory", Epoch: 11, Secret: directTokenTestKey(2)}
+	rotating, err := NewDirectTokenCodec(newKey, &oldKey, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := rotating.UnpackSite(oldSite); err != nil {
+		t.Fatalf("previous site during overlap: %v", err)
+	}
+	if _, _, _, err := rotating.UnpackSlot(oldSlot, 42, 9); err != nil {
+		t.Fatalf("previous slot during overlap: %v", err)
+	}
+	newSite, err := rotating.PackSite(42, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(newSite, ".inventory.11.") {
+		t.Fatalf("new token did not use current epoch: %q", newSite)
+	}
+
+	withdrawn, err := NewDirectTokenCodec(newKey, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := withdrawn.UnpackSite(oldSite); !errors.Is(err, ErrInvalidDirectToken) {
+		t.Fatalf("withdrawn epoch error = %v, want invalid token", err)
+	}
+	legacy, err := PackDirectToken(42, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, version, err := withdrawn.UnpackSite(legacy); version != DirectTokenLegacy || !errors.Is(err, ErrLegacyDirectTokenDisabled) {
+		t.Fatalf("legacy gate = version %s error %v", version, err)
+	}
+	if _, _, version, err := rotating.UnpackSite(legacy); err != nil || version != DirectTokenLegacy {
+		t.Fatalf("legacy overlap = version %s error %v", version, err)
+	}
+}
+
+func TestDirectTokenCodecRejectsUnsafeKeyRings(t *testing.T) {
+	valid := DirectTokenKey{ID: "primary", Epoch: 1, Secret: directTokenTestKey(1)}
+	tests := []struct {
+		name     string
+		current  DirectTokenKey
+		previous *DirectTokenKey
+	}{
+		{name: "partial current", current: DirectTokenKey{ID: "primary"}},
+		{name: "bad key id", current: DirectTokenKey{ID: "bad.id", Epoch: 1, Secret: directTokenTestKey(1)}},
+		{name: "zero epoch", current: DirectTokenKey{ID: "primary", Secret: directTokenTestKey(1)}},
+		{name: "short secret", current: DirectTokenKey{ID: "primary", Epoch: 1, Secret: []byte("short")}},
+		{name: "previous without current", previous: &valid},
+		{name: "duplicate selector", current: valid, previous: &DirectTokenKey{ID: "primary", Epoch: 1, Secret: directTokenTestKey(2)}},
+		{name: "reused secret", current: valid, previous: &DirectTokenKey{ID: "primary", Epoch: 2, Secret: directTokenTestKey(1)}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := NewDirectTokenCodec(test.current, test.previous, true); err == nil {
+				t.Fatal("unsafe key ring was accepted")
+			}
+		})
+	}
+}
+
+func directTokenTestKey(fill byte) []byte {
+	return []byte(strings.Repeat(string([]byte{fill}), 32))
+}
+
+func mutateTokenText(text string) string {
+	if text[0] == 'A' {
+		return "B" + text[1:]
+	}
+	return "A" + text[1:]
 }
 
 func TestDirectPubMapValidatesAndReconstructsSupplyStrings(t *testing.T) {

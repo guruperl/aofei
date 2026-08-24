@@ -74,6 +74,8 @@ Environment variables:
 AOFEI="$PWD/etc/aofei.local.json"
 SUMMER="$PWD/etc/summer.local.json"
 TRACKING_SECRET="..."
+# Default-off P03 browser-locator integrity:
+DIRECT_SSP_TOKEN_KEY="..."
 # Public account email, when deliberately enabled:
 GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
@@ -410,7 +412,7 @@ an opaque-origin sandboxed `srcdoc` iframe; the target records deterministic
 personalization grant. Missing, denied, opt-out, invalid, COPPA, and currently
 unmapped GPP signals do not read or set the cookie and do not use IP+UA as an
 identity fallback. `platform:"sdk"` requests are always cookie-free.
-After packed token and cache validation, `POST /pz` enforces browser
+After legacy/v2 token and cache validation, `POST /pz` enforces browser
 origin/referrer policy. Browser requests, including missing or empty `platform`,
 must include a valid `Origin` or `Referer` whose host exactly matches the cached
 site host, and any present `Origin` or `Referer` must match. `platform:"sdk"`
@@ -427,6 +429,17 @@ request attributes but are never joined as a fallback identity. Body identity is
 for local matching only when the privacy decision is personalized; otherwise
 it is removed. Accepted identity is HMAC-pseudonymized before cap keys and
 tracking payloads.
+`direct_ssp_tokens` is a separate default-off P03 boundary. Each configured
+`current` or optional `previous` selector contains only a URL-safe key id,
+positive rotation epoch, and environment-variable name. The referenced value
+must decode from base64 or hexadecimal to exactly 32 bytes. The runtime emits
+v2 only with `current`, verifies at most current plus previous, and uses
+`legacy_read_mode:"allow"` for the measured v1/v2 overlap or `"deny"` as the
+explicit withdrawal gate. V2 tokens bind site `(pub_id,site_id)` and every
+slot `(pub_id,site_id,slot_id,size_id)` under domain-separated HMAC-SHA-256;
+they remain public and replayable. The publisher UI/readiness manifest still
+emit v1, so the checked-in block remains disabled until later P03 integration
+and rollout work.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX keeps its OpenRTB envelope shape, but both sources are
 privacy-scrubbed before NATS. Attribute logs remove identity and precise

@@ -25,6 +25,8 @@ const (
 	sspUserCookieName = "aofei_pz_uid"
 )
 
+var legacyDirectSSPTokenCodec = acl.NewLegacyDirectTokenCodec()
+
 // ServeSSP handles the direct publisher JSON contract on /pz.
 func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	metricSSPRequests.Add(1)
@@ -60,7 +62,8 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pub, units, err := self.validateSSPSupply(ctx, sspReq)
+	pub, units, tokenVersion, err := self.validateSSPSupplyWithVersion(ctx, sspReq)
+	recordSSPInventoryTokenOutcome(sspInventoryTokenOutcome(tokenVersion, err))
 	if err != nil {
 		metricSSPValidationErrors.Add(1)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -156,22 +159,57 @@ func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req
 }
 
 func (self *Controller) validateSSPSupply(ctx context.Context, req *SSPRequest) (*acl.DirectPub, []SSPValidatedUnit, error) {
+	pub, units, _, err := self.validateSSPSupplyWithVersion(ctx, req)
+	return pub, units, err
+}
+
+func (self *Controller) validateSSPSupplyWithVersion(ctx context.Context, req *SSPRequest) (*acl.DirectPub, []SSPValidatedUnit, acl.DirectTokenVersion, error) {
 	if req == nil {
-		return nil, nil, fmt.Errorf("ssp request is nil")
+		return nil, nil, acl.DirectTokenUnknown, fmt.Errorf("ssp request is nil")
 	}
-	pubID, _, err := acl.UnpackDirectToken(string(req.Site))
+	if req.Site == "" {
+		return nil, nil, acl.DirectTokenUnknown, fmt.Errorf("ssp request missing site")
+	}
+	codec := self.directSSPInventoryTokenCodec()
+	pubID, siteID, version, err := codec.UnpackSite(string(req.Site))
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid site token: %w", err)
+		return nil, nil, version, fmt.Errorf("invalid site token: %w", err)
 	}
 	pub, err := self.sspPubByID(ctx, pubID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, version, err
 	}
-	units, err := req.ValidateSupply(pub)
+	units, validatedVersion, err := req.validateSupplyWithTokens(pub, codec, pubID, siteID, version)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, validatedVersion, err
 	}
-	return pub, units, nil
+	return pub, units, validatedVersion, nil
+}
+
+func (self *Controller) directSSPInventoryTokenCodec() *acl.DirectTokenCodec {
+	if self != nil && self.directTokens != nil {
+		return self.directTokens
+	}
+	// A manually embedded controller must not silently bypass an enabled v2
+	// policy when its codec was never initialized. A nil codec rejects both v2
+	// and legacy tokens; ordinary zero-config test embeddings retain v1.
+	if self != nil && self.C != nil && self.C.DirectSSPTokens.Enabled {
+		return nil
+	}
+	return legacyDirectSSPTokenCodec
+}
+
+func sspInventoryTokenOutcome(version acl.DirectTokenVersion, err error) string {
+	if err == nil {
+		return version.String() + "_accepted"
+	}
+	if errors.Is(err, acl.ErrLegacyDirectTokenDisabled) {
+		return "legacy_disabled"
+	}
+	if errors.Is(err, errSSPMixedDirectTokenVersions) {
+		return "mixed_rejected"
+	}
+	return version.String() + "_rejected"
 }
 
 func (self *Controller) openRTBFromValidatedSSP(r *http.Request, req *SSPRequest, pub *acl.DirectPub, units []SSPValidatedUnit, cookieUserID string) (*openrtb2.BidRequest, error) {

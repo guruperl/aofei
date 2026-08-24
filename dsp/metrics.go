@@ -53,6 +53,7 @@ var (
 	metricSSPPolicyRejections            = expvar.NewInt("aofei_ssp_policy_rejections_total")
 	metricSSPFilledAdUnits               = expvar.NewInt("aofei_ssp_filled_ad_units_total")
 	metricSSPNoFillAdUnits               = expvar.NewInt("aofei_ssp_no_fill_ad_units_total")
+	metricSSPInventoryTokenOutcomes      = expvar.NewMap("aofei_ssp_inventory_token_outcomes_total")
 	metricPrivacyDecisions               = expvar.NewMap("aofei_privacy_decisions_total")
 	metricPrivacyInvalidSignals          = expvar.NewInt("aofei_privacy_invalid_signals_total")
 	metricPrivacyMiddlemanBlocked        = expvar.NewInt("aofei_privacy_middleman_blocked_total")
@@ -103,6 +104,15 @@ var (
 	metricDependencyCheckErrors          = expvar.NewMap("aofei_dependency_check_errors_total")
 	metricDBPool                         = expvar.NewMap("aofei_db_pool")
 )
+
+func recordSSPInventoryTokenOutcome(outcome string) {
+	switch outcome {
+	case "legacy_accepted", "v2_accepted", "legacy_disabled", "legacy_rejected", "v2_rejected", "mixed_rejected", "unknown_rejected":
+	default:
+		outcome = "unknown_rejected"
+	}
+	metricSSPInventoryTokenOutcomes.Add(outcome, 1)
+}
 
 func recordMiddlemanCallbackOutcome(outcome string) {
 	switch outcome {

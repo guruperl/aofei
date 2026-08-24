@@ -2,6 +2,7 @@ package dsp
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -11,6 +12,8 @@ import (
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
+
+var errSSPMixedDirectTokenVersions = errors.New("site and slot direct token versions do not match")
 
 type SSPSiteToken string
 
@@ -281,56 +284,67 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 	if self.Site == "" {
 		return nil, fmt.Errorf("ssp request missing site")
 	}
-	if len(self.AdUnits) == 0 {
-		return nil, fmt.Errorf("ssp request has no adUnits")
-	}
-	platform, err := self.NormalizedPlatform()
-	if err != nil {
-		return nil, err
-	}
-
-	pubID, siteID, err := acl.UnpackDirectToken(string(self.Site))
+	codec := legacyDirectSSPTokenCodec
+	pubID, siteID, version, err := codec.UnpackSite(string(self.Site))
 	if err != nil {
 		return nil, fmt.Errorf("invalid site token: %w", err)
 	}
+	units, _, err := self.validateSupplyWithTokens(pub, codec, pubID, siteID, version)
+	return units, err
+}
+
+func (self *SSPRequest) validateSupplyWithTokens(pub *acl.DirectPub, codec *acl.DirectTokenCodec, pubID, siteID uint32, version acl.DirectTokenVersion) ([]SSPValidatedUnit, acl.DirectTokenVersion, error) {
+	if self == nil {
+		return nil, version, fmt.Errorf("ssp request is nil")
+	}
+	if len(self.AdUnits) == 0 {
+		return nil, version, fmt.Errorf("ssp request has no adUnits")
+	}
+	platform, err := self.NormalizedPlatform()
+	if err != nil {
+		return nil, version, err
+	}
 	if pub == nil || pub.Pub == nil {
-		return nil, fmt.Errorf("publisher %d not found", pubID)
+		return nil, version, fmt.Errorf("publisher %d not found", pubID)
 	}
 	if pub.Pub.PubID != pubID {
-		return nil, fmt.Errorf("site token pub_id %d does not match cached pub_id %d", pubID, pub.Pub.PubID)
+		return nil, version, fmt.Errorf("site token pub_id %d does not match cached pub_id %d", pubID, pub.Pub.PubID)
 	}
 	seenCodes := make(map[string]int, len(self.AdUnits))
 
 	units := make([]SSPValidatedUnit, 0, len(self.AdUnits))
 	for i, adUnit := range self.AdUnits {
 		if err := adUnit.validateStatic(); err != nil {
-			return nil, fmt.Errorf("adUnits[%d] %w", i, err)
+			return nil, version, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
 		if first, ok := seenCodes[adUnit.Code]; ok {
-			return nil, fmt.Errorf("adUnits[%d] duplicate code %q already used by adUnits[%d]", i, adUnit.Code, first)
+			return nil, version, fmt.Errorf("adUnits[%d] duplicate code %q already used by adUnits[%d]", i, adUnit.Code, first)
 		}
 		seenCodes[adUnit.Code] = i
 		slotToken := adUnit.Slot
 		if slotToken == "" {
-			return nil, fmt.Errorf("adUnits[%d] missing slot", i)
+			return nil, version, fmt.Errorf("adUnits[%d] missing slot", i)
 		}
-		slotID, sizeID, err := acl.UnpackDirectToken(slotToken)
+		slotID, sizeID, slotVersion, err := codec.UnpackSlot(slotToken, pubID, siteID)
 		if err != nil {
-			return nil, fmt.Errorf("adUnits[%d] invalid slot token: %w", i, err)
+			return nil, slotVersion, fmt.Errorf("adUnits[%d] invalid slot token: %w", i, err)
+		}
+		if slotVersion != version {
+			return nil, acl.DirectTokenUnknown, fmt.Errorf("adUnits[%d] %w", i, errSSPMixedDirectTokenVersions)
 		}
 		siteStr, slotStr, siteType, configuredFloor, ok := pub.CommercialSlot(siteID, slotID, sizeID)
 		if !ok {
-			return nil, fmt.Errorf("adUnits[%d] inventory is inactive, unapproved, stale, or does not match site/slot/size: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
+			return nil, version, fmt.Errorf("adUnits[%d] inventory is inactive, unapproved, stale, or does not match site/slot/size: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
 		}
 		if (platform == "browser" && siteType != acl.SiteTypeWeb) || (platform == "sdk" && siteType != acl.SiteTypeAPP) {
-			return nil, fmt.Errorf("adUnits[%d] platform %q does not match configured site type", i, platform)
+			return nil, version, fmt.Errorf("adUnits[%d] platform %q does not match configured site type", i, platform)
 		}
 		w, h := match.SizeID1To2(sizeID)
 		if w == 0 || h == 0 {
-			return nil, fmt.Errorf("adUnits[%d] configured slot has empty size", i)
+			return nil, version, fmt.Errorf("adUnits[%d] configured slot has empty size", i)
 		}
 		if err := adUnit.EffectiveMediaTypes().ValidateForSize(w, h); err != nil {
-			return nil, fmt.Errorf("adUnits[%d] %w", i, err)
+			return nil, version, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
 		units = append(units, SSPValidatedUnit{
 			Code:            adUnit.Code,
@@ -348,5 +362,5 @@ func (self *SSPRequest) ValidateSupply(pub *acl.DirectPub) ([]SSPValidatedUnit, 
 			},
 		})
 	}
-	return units, nil
+	return units, version, nil
 }

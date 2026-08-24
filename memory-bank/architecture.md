@@ -159,9 +159,16 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   from approved cache state. Middleman sanitation retains only a valid
 	   bounded standard chain and strips `source.pchain` and node extensions.
 	   P03's accepted authenticity contract keeps the public browser and
-	   non-browser trust paths distinct. Versioned browser locators must bind the
-	   complete publisher/site/slot/size tuple under a server-only integrity key,
-	   but remain observable/replayable and do not authenticate the caller.
+	   non-browser trust paths distinct. The default-off `acl.DirectTokenCodec`
+	   emits `pz2` site and slot locators under a deployment-only HMAC-SHA-256
+	   key. Site payloads bind publisher/site; slot payloads bind the complete
+	   publisher/site/slot/size tuple. An explicit key id and positive epoch
+	   select a bounded current/previous key ring, unknown versions cannot
+	   downgrade, mixed v1/v2 requests fail, and `legacy_read_mode` is the
+	   reversible withdrawal gate. Successful v1/v2 and rejected migration
+	   outcomes have fixed labels. Locators remain observable/replayable and do
+	   not authenticate the caller; the active publisher cache remains
+	   authoritative after verification.
 	   Browser Origin/Referer checks and active-cache validation remain
 	   independent. SDK/server traffic instead requires a publisher/App-scoped
 	   credential with exact-body binding, bounded freshness, and shared replay

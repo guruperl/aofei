@@ -6,6 +6,15 @@
 	"nats_url": "nats://127.0.0.1:4222",
 	"tracking_secret": "local-dev-tracking-secret",
 	"tracking_signature_ttl_seconds": 86400,
+	"direct_ssp_tokens": {
+		"enabled": false,
+		"legacy_read_mode": "allow",
+		"current": {
+			"key_id": "primary",
+			"epoch": 1,
+			"key_env": "DIRECT_SSP_TOKEN_KEY"
+		}
+	},
 	"cap_state_ttl_seconds": 7776000,
 	"delivery_cache_max_age_seconds": 900,
 	"delivery_reservation_ttl_seconds": 86700,

@@ -8,13 +8,15 @@ approved privacy and support owner.
 
 P03 is in progress. Its
 [direct SSP authenticity contract](direct-ssp-authenticity.md) is accepted,
-but the versioned browser locators and SDK/server request credentials are not
-implemented yet. The current packed browser tokens are public enumerable
-locators, and the current `platform:"sdk"` path is credentialless. Therefore
-the checks below establish current P01/P02 compatibility, inventory ownership,
-and commercial correctness; they do not establish P03 request authenticity.
-Do not approve a new App integration as authenticated production traffic until
-all later P03 rows and their named canary/rollback evidence are complete.
+and the default-off v2 token codec/runtime dual reader is implemented. The
+publisher UI and readiness manifest still emit public enumerable v1 locators;
+no production tag migration or legacy withdrawal has occurred, and the current
+`platform:"sdk"` path remains credentialless. Therefore the checks below
+establish current P01/P02 compatibility, inventory ownership, and commercial
+correctness; they do not establish P03 request authenticity. Do not enable v2,
+deny legacy reads, or approve a new App integration as authenticated production
+traffic until all later P03 rows and their named canary/rollback evidence are
+complete.
 
 ## 1. Inventory readiness
 

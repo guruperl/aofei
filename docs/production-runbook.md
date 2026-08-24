@@ -7,10 +7,11 @@ Local Docker development remains documented separately in
 The current lane baseline is summarized in the
 [documentation and milestone index](README.md). The original D/P/R/I/S/A/O
 sequence through A02 plus D04, D05, and S06 is implemented. P03 is in progress
-with its contract-only first row complete; S05, O03, R03, and A03 remain
-planned, and I02 remains demand-gated. D03 remains partner activation-gated;
-I03, S02, S03, and A02 remain independently disabled by default. Operators
-must assess open remediation against any activation scope.
+with its threat contract and default-off v2 locator codec/runtime dual reader
+complete; S05, O03, R03, and A03 remain planned, and I02 remains demand-gated.
+D03 remains partner activation-gated; I03, S02, S03, and A02 remain
+independently disabled by default. Operators must assess open remediation
+against any activation scope.
 O02 defines an unclaimed objective, not evidence that production has already
 achieved 99.9% or provider-backed RPO/RTO.
 
@@ -148,6 +149,13 @@ win/loss, middleman callback, and cap-mutation tracker payloads. Set
 86400 seconds. Set `cap_state_ttl_seconds` to bound idle Redis frequency-cap
 state; the default is 7776000 seconds (90 days), and refreshes never shorten a
 longer existing key TTL.
+When the later P03 tag-integration and rollout work authorizes enabling
+`direct_ssp_tokens`, provision each `key_env` as an owner-only deployment
+secret containing a base64 or hexadecimal encoding of an exact 32-byte key.
+Keep current and previous keys distinct, consistent across accepting nodes, and
+out of config, logs, cache payloads, database rows, tags, and publisher-visible
+output. The current default-off codec does not by itself authorize production
+activation.
 Frequency-cap payload version 2 is rolling-compatible: upgrade readers/writers
 normally, monitor cap decode/refresh errors, and keep the rollout bounded to the
 callback TTL. New workers read legacy-only values and version-2 values; old

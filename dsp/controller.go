@@ -74,6 +74,7 @@ type Controller struct {
 	qualityReloadMu        sync.Mutex
 	qualityReloadCancel    context.CancelFunc
 	qualityReloadDone      chan struct{}
+	directTokens           *acl.DirectTokenCodec
 	ownRedis               bool
 	ownDB                  bool
 	ownNATS                bool
@@ -252,6 +253,10 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 	if err := c.Validate(ConfigModeBid); err != nil {
 		return nil, err
 	}
+	directTokens, err := newDirectSSPTokenCodec(c.DirectSSPTokens)
+	if err != nil {
+		return nil, err
+	}
 	options := applyControllerOptions(opts...)
 	redis := options.redis
 	db := options.db
@@ -286,6 +291,7 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		},
 		Logger:         options.logger,
 		middlemanStore: options.callbackStore,
+		directTokens:   directTokens,
 		ownRedis:       ownRedis,
 		ownDB:          ownDB,
 	}
