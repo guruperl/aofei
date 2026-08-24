@@ -119,5 +119,6 @@ atomic generation publication with partial live writes.
   - P2 resolved: `Release` now selects the maintainer channel against the
     caller-provided context and returns a fixed lease error when that wait
     expires; a deliberately stuck-maintainer test proves the bound.
-  - P2: failed Redis-generation shadow cleanup uses `context.Background()` and
-    can delay command exit and lease release indefinitely during a partition.
+  - P2 resolved: failed Redis-generation shadow cleanup now uses a five-second
+    independent timeout, and a context-blocking client test proves cleanup
+    returns at its bound so the command can proceed to lease release.

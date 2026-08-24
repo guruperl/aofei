@@ -27,6 +27,7 @@ import (
 const (
 	redisShadowSuffix        = ":next"
 	maxAttributeLogLineBytes = 8 * 1024 * 1024
+	redisShadowCleanupLimit  = 5 * time.Second
 )
 
 const (
@@ -528,7 +529,7 @@ func PublishRedisGeneration(ctx context.Context, redis radix.Client, db *sql.DB,
 	committed := false
 	defer func() {
 		if !committed {
-			_ = cleanupRedisShadowCaches(context.Background(), redis)
+			_ = cleanupRedisShadowCachesWithTimeout(redis, redisShadowCleanupLimit)
 		}
 	}()
 
@@ -577,6 +578,12 @@ func cleanupRedisShadowCaches(ctx context.Context, redis radix.Client) error {
 		return err
 	}
 	return DeleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*"+redisShadowSuffix)
+}
+
+func cleanupRedisShadowCachesWithTimeout(redis radix.Client, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return cleanupRedisShadowCaches(ctx, redis)
 }
 
 func swapRedisStaticCaches(ctx context.Context, redis radix.Client, sizeIDs []uint32) error {

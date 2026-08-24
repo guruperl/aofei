@@ -18,6 +18,15 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+type contextBlockingRedisClient struct {
+	radix.Client
+}
+
+func (contextBlockingRedisClient) Do(ctx context.Context, _ radix.Action) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 func TestValidateMode(t *testing.T) {
 	for _, mode := range []string{ModeRedis, ModeSpread, ModeAll, ModeRoutes} {
 		if err := ValidateMode(mode); err != nil {
@@ -429,6 +438,17 @@ func TestPublishRedisGenerationBuildFailureLeavesLiveGeneration(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRedisShadowFailureCleanupIsBounded(t *testing.T) {
+	started := time.Now()
+	err := cleanupRedisShadowCachesWithTimeout(contextBlockingRedisClient{}, 20*time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("cleanup error = %v, want deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("cleanup took %s, want bounded exit", elapsed)
 	}
 }
 
