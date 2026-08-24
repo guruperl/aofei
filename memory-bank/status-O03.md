@@ -105,3 +105,8 @@ atomic generation publication with partial live writes.
     a directory. A missing directory preserves its numeric sequence as the
     monotonic floor but remains unselected so bootstrap or a newer subscribed
     generation can repair it; a focused repair test passes.
+
+- Iteration 3 (2026-08-24): one P2 finding remains open.
+  - P2: after an acquire or renewal response arrives near its conservative
+    deadline, the maintainer waits the full normal interval before rechecking;
+    that wait can extend past the last confirmed ownership window.
