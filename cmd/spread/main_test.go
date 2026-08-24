@@ -285,6 +285,46 @@ func TestSpreadGenerationReconnectGapPreservesCommittedSnapshot(t *testing.T) {
 	assertSpreadFile(t, filepath.Join(root, "audience", "8"), "audience")
 }
 
+func TestSpreadFailedHigherBeginPreservesActiveStaging(t *testing.T) {
+	top := t.TempDir()
+	receiver, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeMessages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("active")}}
+	activeManifest, err := spreadcache.NewManifest(1, activeMessages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := receiver.begin(activeManifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := receiver.put(1, activeMessages[0].Subject, activeMessages[0].Data); err != nil {
+		t.Fatal(err)
+	}
+	receiver.prepare = func(string) error { return errors.New("prepare failed") }
+	higherManifest, err := spreadcache.NewManifest(2, []spreadcache.Message{{Subject: "creative:8", Data: []byte("higher")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := receiver.begin(higherManifest); err == nil || !strings.Contains(err.Error(), "prepare failed") {
+		t.Fatalf("higher begin error = %v", err)
+	}
+	if receiver.active != 1 {
+		t.Fatalf("active generation = %d, want 1", receiver.active)
+	}
+	assertSpreadFile(t, filepath.Join(spreadcache.GenerationRoot(top, 1), "creative", "7"), "active")
+	receiver.prepare = nil
+	if err := receiver.commit(1); err != nil {
+		t.Fatal(err)
+	}
+	root, err := spreadcache.Resolve(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "active")
+}
+
 func TestSpreadGenerationDuplicateMessagesAreIdempotent(t *testing.T) {
 	top := t.TempDir()
 	receiver, err := newSpreadGenerationReceiver(top)

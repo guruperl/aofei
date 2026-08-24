@@ -158,10 +158,10 @@ atomic generation publication with partial live writes.
     traversal rejection.
 
 - Iteration 7 (2026-08-24): three P2 findings remain open.
-  - P2 open: `begin` removes the prior active staging directory before the
-    higher generation is prepared. If preparation fails, the old manifest and
-    `seen` map remain active and a later commit can select a missing or partial
-    directory.
+  - P2 resolved: `begin` now prepares the higher generation completely before
+    removing the prior active staging directory, and cleanup failure discards
+    only the new root. An injected preparation-failure test proves the old
+    manifest, files, and later commit remain consistent.
   - P2 open: fresh-node bootstrap snapshots Redis after only a pre-bootstrap
     committed-state check. A spread-only publisher can complete while bootstrap
     waits for the shared lease, after which older Redis content is assigned a

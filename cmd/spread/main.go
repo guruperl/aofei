@@ -141,6 +141,7 @@ type spreadGenerationReceiver struct {
 	selected  bool
 	expected  spreadcache.Manifest
 	seen      map[string]string
+	prepare   func(string) error
 }
 
 func newSpreadGenerationReceiver(top string) (*spreadGenerationReceiver, error) {
@@ -262,19 +263,18 @@ func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
 		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
-	if r.active != 0 {
-		if err := os.RemoveAll(spreadcache.GenerationRoot(r.top, r.active)); err != nil {
-			opsmetrics.RecordSpread("generation_rejected")
-			return err
-		}
-	}
 	root := spreadcache.GenerationRoot(r.top, manifest.Sequence)
-	if err := os.RemoveAll(root); err != nil {
+	prepare := r.prepare
+	if prepare == nil {
+		prepare = prepareSpreadGenerationRoot
+	}
+	if err := prepare(root); err != nil {
 		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
-	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
-		if err := atomicfile.EnsureDir(filepath.Join(root, family), 0750); err != nil {
+	if r.active != 0 {
+		if err := os.RemoveAll(spreadcache.GenerationRoot(r.top, r.active)); err != nil {
+			_ = os.RemoveAll(root)
 			opsmetrics.RecordSpread("generation_rejected")
 			return err
 		}
@@ -283,6 +283,18 @@ func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
 	r.expected = manifest
 	r.seen = make(map[string]string)
 	opsmetrics.RecordSpread("generation_started")
+	return nil
+}
+
+func prepareSpreadGenerationRoot(root string) error {
+	if err := os.RemoveAll(root); err != nil {
+		return err
+	}
+	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
+		if err := atomicfile.EnsureDir(filepath.Join(root, family), 0750); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
