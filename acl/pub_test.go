@@ -31,6 +31,93 @@ func TestDBAddNewContextRejectsCanceledInventoryMutation(t *testing.T) {
 	}
 }
 
+func TestDBAddNewContextRollsBackCompoundSiteCreation(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	pub := &Pub{PubID: 7, Sites: make(map[string]uint32)}
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO pub_site`).
+		WithArgs(uint32(7), "site.example", "site.example", "site.example", "Web").
+		WillReturnResult(sqlmock.NewResult(11, 1))
+	mock.ExpectExec(`INSERT INTO pub_slot`).
+		WithArgs(uint32(11), "slot.example").
+		WillReturnError(errors.New("slot insert failed"))
+	mock.ExpectRollback()
+
+	_, err = (PubMap{"pub.example": pub}).DBAddNewContext(
+		context.Background(), db, "pub.example", "site.example", "Web", "slot.example",
+	)
+	if err == nil {
+		t.Fatal("DBAddNewContext error = nil, want slot failure")
+	}
+	if _, ok := pub.Sites["site.example"]; ok {
+		t.Fatal("rolled-back site was installed in the in-memory publisher")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDBAddNewContextCommitsSiteAndSlotTogether(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	pub := &Pub{PubID: 7, Sites: make(map[string]uint32)}
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO pub_site`).
+		WithArgs(uint32(7), "site.example", "site.example", "site.example", "Web").
+		WillReturnResult(sqlmock.NewResult(11, 1))
+	mock.ExpectExec(`INSERT INTO pub_slot`).
+		WithArgs(uint32(11), "slot.example").
+		WillReturnResult(sqlmock.NewResult(13, 1))
+	mock.ExpectCommit()
+
+	got, err := (PubMap{"pub.example": pub}).DBAddNewContext(
+		context.Background(), db, "pub.example", "site.example", "Web", "slot.example",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != pub || pub.Sites["site.example"] != 11 || pub.Slots[11]["slot.example"] != 13 {
+		t.Fatalf("committed inventory = %+v", pub)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAddPubContextRollsBackIncompleteDefaults(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO pub \(pub_id, domain, email, passwd, address_id, active, created\)`).
+		WithArgs(sqlmock.AnyArg(), "pub.example", "pub.example").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO pub_site`).
+		WithArgs(sqlmock.AnyArg(), SITEDefaultApp, SITEDefaultApp, SITEDefaultApp, "App").
+		WillReturnResult(sqlmock.NewResult(11, 1))
+	mock.ExpectExec(`INSERT INTO pub_site`).
+		WithArgs(sqlmock.AnyArg(), SITEDefaultWeb, SITEDefaultWeb, SITEDefaultWeb, "Web").
+		WillReturnError(errors.New("web default insert failed"))
+	mock.ExpectRollback()
+
+	pub, err := AddPubContext(context.Background(), db, "pub.example")
+	if err == nil || pub != nil {
+		t.Fatalf("AddPubContext pub=%+v error=%v, want rolled-back failure", pub, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInsertPublisherRetriesPrimaryKeyCollision(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

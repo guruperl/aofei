@@ -40,6 +40,11 @@ type Pub struct {
 	SlotSupply       map[uint32]map[uint32]SlotSupplyMetadata
 }
 
+type publisherMutationDB interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 // Pack encodes a Pub object into a byte slice.
 func (self *Pub) Pack() ([]byte, error) {
 	var buf bytes.Buffer
@@ -306,7 +311,19 @@ func (self *Pub) addSlot(db *sql.DB, siteID uint32, slotStr string) (uint32, err
 	return self.addSlotContext(context.Background(), db, siteID, slotStr)
 }
 
-func (self *Pub) addSlotContext(ctx context.Context, db *sql.DB, siteID uint32, slotStr string) (uint32, error) {
+func (self *Pub) addSlotContext(ctx context.Context, db publisherMutationDB, siteID uint32, slotStr string) (uint32, error) {
+	slotID, err := insertSlotContext(ctx, db, siteID, slotStr)
+	if err != nil {
+		return 0, err
+	}
+	self.rememberSlot(siteID, slotID, slotStr)
+	return slotID, nil
+}
+
+func insertSlotContext(ctx context.Context, db publisherMutationDB, siteID uint32, slotStr string) (uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	row, err := db.ExecContext(ctx, `
 INSERT INTO pub_slot (site_id, slot_name, active, created)
 VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
@@ -318,6 +335,10 @@ VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 		return 0, err
 	}
 	slotID := uint32(id)
+	return slotID, nil
+}
+
+func (self *Pub) rememberSlot(siteID, slotID uint32, slotStr string) {
 	if self.Slots == nil {
 		self.Slots = make(map[uint32]map[string]uint32)
 	}
@@ -339,17 +360,28 @@ VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 		self.SlotFloors[siteID] = make(map[uint32]float64)
 	}
 	self.SlotFloors[siteID][slotID] = 0
-	return slotID, nil
 }
 
 func (self *Pub) addSite(db *sql.DB, siteStr string, siteType string) (uint32, error) {
 	return self.addSiteContext(context.Background(), db, siteStr, siteType)
 }
 
-func (self *Pub) addSiteContext(ctx context.Context, db *sql.DB, siteStr string, siteType string) (uint32, error) {
+func (self *Pub) addSiteContext(ctx context.Context, db publisherMutationDB, siteStr string, siteType string) (uint32, error) {
+	siteID, err := insertSiteContext(ctx, db, self.PubID, siteStr, siteType)
+	if err != nil {
+		return 0, err
+	}
+	self.rememberSite(siteID, siteStr, siteType)
+	return siteID, nil
+}
+
+func insertSiteContext(ctx context.Context, db publisherMutationDB, pubID uint32, siteStr, siteType string) (uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	row, err := db.ExecContext(ctx, `
 INSERT INTO pub_site (pub_id, site_name, foreign_id, site_url, site_type, active, created)
-VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, siteType)
+VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, pubID, siteStr, siteStr, siteStr, siteType)
 	if err != nil {
 		return 0, err
 	}
@@ -358,6 +390,10 @@ VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, si
 		return 0, err
 	}
 	siteID := uint32(id)
+	return siteID, nil
+}
+
+func (self *Pub) rememberSite(siteID uint32, siteStr, siteType string) {
 	if self.Sites == nil {
 		self.Sites = make(map[string]uint32)
 	}
@@ -366,7 +402,32 @@ VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, si
 		self.SiteTypes = make(map[uint32]SiteType)
 	}
 	self.SiteTypes[siteID] = ParseSiteType(siteType)
-	return siteID, nil
+}
+
+func (self *Pub) addSiteAndSlotContext(ctx context.Context, db *sql.DB, siteStr, siteType, slotStr string) (uint32, uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
+	siteID, err := insertSiteContext(ctx, tx, self.PubID, siteStr, siteType)
+	if err != nil {
+		return 0, 0, err
+	}
+	slotID, err := insertSlotContext(ctx, tx, siteID, slotStr)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	self.rememberSite(siteID, siteStr, siteType)
+	self.rememberSlot(siteID, slotID, slotStr)
+	return siteID, slotID, nil
 }
 
 const publisherIDAllocationAttempts = 16
@@ -387,7 +448,7 @@ func insertPublisher(db *sql.DB, pubStr string, generateID func() (uint32, error
 	return insertPublisherContext(context.Background(), db, pubStr, generateID)
 }
 
-func insertPublisherContext(ctx context.Context, db *sql.DB, pubStr string, generateID func() (uint32, error)) (uint32, error) {
+func insertPublisherContext(ctx context.Context, db publisherMutationDB, pubStr string, generateID func() (uint32, error)) (uint32, error) {
 	for attempt := 0; attempt < publisherIDAllocationAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -424,7 +485,19 @@ func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
 }
 
 func AddPubContext(ctx context.Context, db *sql.DB, pubStr string) (*Pub, error) {
-	pubID, err := insertPublisherContext(ctx, db, pubStr, randomPublisherID)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if db == nil {
+		return nil, errors.New("publisher database is nil")
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	pubID, err := insertPublisherContext(ctx, tx, pubStr, randomPublisherID)
 	if err != nil {
 		return nil, err
 	}
@@ -435,13 +508,18 @@ func AddPubContext(ctx context.Context, db *sql.DB, pubStr string) (*Pub, error)
 		SlotSizes: make(map[uint32]map[uint32]uint32),
 	}
 
-	if pub.DefaultAppSiteID, err = pub.addSiteContext(ctx, db, SITEDefaultApp, "App"); err == nil {
-		if pub.DefaultWebSiteID, err = pub.addSiteContext(ctx, db, SITEDefaultWeb, "Web"); err == nil {
-			if pub.DefaultAppSlotID, err = pub.addSlotContext(ctx, db, pub.DefaultAppSiteID, SLOTDefault); err == nil {
-				pub.DefaultWebSlotID, err = pub.addSlotContext(ctx, db, pub.DefaultWebSiteID, SLOTDefault)
+	if pub.DefaultAppSiteID, err = pub.addSiteContext(ctx, tx, SITEDefaultApp, "App"); err == nil {
+		if pub.DefaultWebSiteID, err = pub.addSiteContext(ctx, tx, SITEDefaultWeb, "Web"); err == nil {
+			if pub.DefaultAppSlotID, err = pub.addSlotContext(ctx, tx, pub.DefaultAppSiteID, SLOTDefault); err == nil {
+				pub.DefaultWebSlotID, err = pub.addSlotContext(ctx, tx, pub.DefaultWebSiteID, SLOTDefault)
 			}
 		}
 	}
-
-	return pub, err
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return pub, nil
 }
