@@ -17,7 +17,7 @@ func TestValidateMiddlemanBannerContract(t *testing.T) {
 	attr := &match.Attribute{RPub: match.RPub{SizeID: match.SizeID2To1(300, 250)}}
 	valid := openrtb2.Bid{
 		ID: "bid", ImpID: "imp", Price: 2, W: 300, H: 250, MType: openrtb2.MarkupBanner,
-		AdM:  `<script src="https://cdn.example/ad.js"></script><img src="https://cdn.example/pixel">`,
+		AdM:  `<script src="https://cdn.example/ad.js"></script><img src="https://cdn.example/pixel" srcset="https://cdn.example/pixel-1x 1x, https://cdn.example/pixel-2x 2x"><a href="https://advertiser.example" ping="https://tracker.example/ping">open</a>`,
 		NURL: "https://bidder.example/win?price=${AUCTION_PRICE}",
 	}
 	if err := validateMiddlemanDownstreamBid(imp, attr, valid); err != nil {
@@ -36,7 +36,16 @@ func TestValidateMiddlemanBannerContract(t *testing.T) {
 		{name: "container escape", edit: func(b *openrtb2.Bid) { b.AdM = `<script>top.location='https://evil.example'</script>` }, want: "container-escape"},
 		{name: "bracket container escape", edit: func(b *openrtb2.Bid) { b.AdM = `<script>window [ "top" ].location='https://evil.example'</script>` }, want: "container-escape"},
 		{name: "entity encoded unsafe URL", edit: func(b *openrtb2.Bid) { b.AdM = `<a href="java&#x73;cript:alert(1)">open</a>` }, want: "forbidden URL scheme"},
+		{name: "entity encoded event escape", edit: func(b *openrtb2.Bid) {
+			b.AdM = `<img src="https://cdn.example/ad.png" onerror="window&#x2e;top.location='https://evil.example'">`
+		}, want: "container-escape"},
 		{name: "nested srcdoc", edit: func(b *openrtb2.Bid) { b.AdM = `<iframe srcdoc="<p>nested</p>"></iframe>` }, want: "nested markup"},
+		{name: "srcset unsafe URL", edit: func(b *openrtb2.Bid) {
+			b.AdM = `<img src="https://cdn.example/ad.png" srcset="https://cdn.example/ad.png 1x, java&#x73;cript:alert(1) 2x">`
+		}, want: "forbidden URL scheme"},
+		{name: "ping unsafe URL", edit: func(b *openrtb2.Bid) {
+			b.AdM = `<a href="https://advertiser.example" ping="https://tracker.example/ping java&#x73;cript:alert(1)">open</a>`
+		}, want: "forbidden URL scheme"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			candidate := valid

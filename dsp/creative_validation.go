@@ -156,14 +156,64 @@ func validateContainedAdMarkup(adm string, secure bool) error {
 					if strings.EqualFold(value, "refresh") {
 						return fmt.Errorf("middleman adm contains forbidden container-escape content")
 					}
-				case "href", "src", "action", "formaction", "poster", "data", "xlink:href":
+				case "href", "src", "action", "formaction", "poster", "data", "xlink:href", "background":
 					if err := validateContainedMarkupURL(value, secure); err != nil {
 						return err
+					}
+				case "srcset", "imagesrcset":
+					if err := validateContainedMarkupSrcset(value, secure); err != nil {
+						return err
+					}
+				case "ping":
+					for _, target := range strings.Fields(value) {
+						if err := validateContainedMarkupURL(target, secure); err != nil {
+							return err
+						}
+					}
+				default:
+					// The tokenizer decodes character references in attribute
+					// values, closing entity-encoded event-handler variants that a
+					// raw substring check cannot see. Scripts remain supported, but
+					// handlers may not target the containing browsing context.
+					if strings.HasPrefix(name, "on") && containsContainerEscapeScript(value) {
+						return fmt.Errorf("middleman adm contains forbidden container-escape content")
 					}
 				}
 			}
 		}
 	}
+}
+
+func validateContainedMarkupSrcset(raw string, secure bool) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	for _, candidate := range strings.Split(raw, ",") {
+		fields := strings.Fields(candidate)
+		if len(fields) == 0 || len(fields) > 2 {
+			return fmt.Errorf("middleman adm contains an invalid srcset")
+		}
+		if err := validateContainedMarkupURL(fields[0], secure); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func containsContainerEscapeScript(raw string) bool {
+	compact := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "").Replace(strings.ToLower(raw))
+	for _, forbidden := range []string{
+		"window.top", "window.parent", "self.top", "self.parent", "globalthis.top", "globalthis.parent",
+		"top.location", "parent.location", "top.document", "parent.document", "document.domain",
+		"window[\"top\"]", "window['top']", "window[\"parent\"]", "window['parent']",
+		"self[\"top\"]", "self['top']", "self[\"parent\"]", "self['parent']",
+		"top[\"location\"]", "top['location']", "parent[\"location\"]", "parent['location']",
+	} {
+		if strings.Contains(compact, forbidden) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateContainedMarkupURL(raw string, secure bool) error {

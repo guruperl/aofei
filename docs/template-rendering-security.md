@@ -34,7 +34,10 @@ There are two deliberately different surfaces:
    trusted template helper. D02 enforces media type, exact size, MIME, source,
    landing/tracker URL, secure-inventory, structured Native assets, and
    hostile middleman-markup validation before this path. The exact contract is
-   [auction-pricing-creatives.md](auction-pricing-creatives.md).
+   [auction-pricing-creatives.md](auction-pricing-creatives.md). The complete
+   first-party delivery-consumer inventory and future native renderer
+   requirements are in
+   [creative-rendering-boundary.md](creative-rendering-boundary.md).
 
 Never reuse delivery markup as `template.HTML` in a management page. Previewing
 actual advertising behavior, if later required, needs an isolated origin or

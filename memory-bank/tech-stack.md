@@ -226,6 +226,10 @@ Rendering entrypoints, contextual-escaping rules, the single fixed CSRF
 trusted-HTML boundary, local asset policy, and hostile-input checks are
 documented in `../pzdesign/docs/rendering-security.md` and
 [docs/template-rendering-security.md](../docs/template-rendering-security.md).
+The executable/pass-through creative-consumer inventory, pzdesign browser
+sandbox/permissions boundary, and mandatory future Android/iOS renderer policy
+are documented in
+[docs/creative-rendering-boundary.md](../docs/creative-rendering-boundary.md).
 
 ## Schema Baseline Commands
 

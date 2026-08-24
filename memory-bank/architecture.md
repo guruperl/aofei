@@ -116,7 +116,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   browser samples and App sites receive SDK/API samples. `www/js/ads.js`
 	   derives its default `/pz` endpoint from the loaded script origin and can be
 	   overridden per call; it materializes filled markup in an opaque-origin
-	   sandboxed `srcdoc` iframe and records filled/no-fill/error state without
+	   sandboxed `srcdoc` iframe with a no-referrer policy and fixed denial of
+	   camera, microphone, geolocation, payment, device, and clipboard features,
+	   and records filled/no-fill/error state without
 	   assigning server markup to host-page `innerHTML`. `cmd/unify` applies permissive CORS headers only to
 	   `POST/OPTIONS /pz`.
 	   M30 identifies SSP traffic in audits with `source:"ssp"` and

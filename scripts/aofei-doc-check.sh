@@ -154,7 +154,11 @@ if ! grep -Eq '^\| P03 .* \| Completed; disabled by default \|' docs/README.md; 
 	fail "docs/README.md must identify P03 as completed and disabled by default."
 fi
 
-for planned_lane in S05 O03 R03 A03; do
+if ! grep -Eq '^\| S05 .* \| In progress \|' docs/README.md; then
+	fail "docs/README.md must identify S05 as in-progress remediation."
+fi
+
+for planned_lane in O03 R03 A03; do
 	if ! grep -Eq "^\\| ${planned_lane} .* \\| Planned \\|" docs/README.md; then
 		fail "docs/README.md must identify ${planned_lane} as planned remediation."
 	fi
