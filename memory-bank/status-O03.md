@@ -214,3 +214,16 @@ atomic generation publication with partial live writes.
     receiver reconciles its local floor when another process already selected a
     higher generation. Focused monotonic-selection, retention, cancellation,
     and race tests pass.
+
+- Iteration 12 (2026-08-24): two P2 findings remain open.
+  - P2: overlapping `spread` receivers stage the same sequence in the same
+    canonical generation directory. A lagging receiver can remove that
+    directory on `begin` after another receiver counted its entries, allowing
+    the first receiver to select an incomplete on-disk snapshot. Give each
+    receiver a private staging directory and install it under the selection
+    lock before switching the pointer.
+  - P2: spread readers resolve the pointer without retaining the generation.
+    Two rapid later selections can therefore prune the resolved root while a
+    local-cache or diagnostic load is still reading it. Hold a shared selection
+    lock for each complete resolved read, with cleanup and pointer replacement
+    continuing to take the exclusive side of that lock.
