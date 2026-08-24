@@ -100,3 +100,58 @@ func (m Money) Sub(other Money) (Money, error) {
 	}
 	return m - other, nil
 }
+
+func splitFixed(raw string, places int) (whole uint64, fraction uint64, negative bool, err error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, 0, false, fmt.Errorf("value is empty")
+	}
+	negative = strings.HasPrefix(raw, "-")
+	if negative || strings.HasPrefix(raw, "+") {
+		raw = raw[1:]
+	}
+	parts := strings.Split(raw, ".")
+	if len(parts) > 2 || parts[0] == "" {
+		return 0, 0, false, fmt.Errorf("invalid decimal value")
+	}
+	whole, err = strconv.ParseUint(parts[0], 10, 64)
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("invalid decimal value")
+	}
+	fractionRaw := ""
+	if len(parts) == 2 {
+		fractionRaw = parts[1]
+	}
+	if len(fractionRaw) > places {
+		return 0, 0, false, fmt.Errorf("value supports at most %d decimal places", places)
+	}
+	for len(fractionRaw) < places {
+		fractionRaw += "0"
+	}
+	if fractionRaw != "" {
+		fraction, err = strconv.ParseUint(fractionRaw, 10, 64)
+		if err != nil {
+			return 0, 0, false, fmt.Errorf("invalid decimal value")
+		}
+	}
+	return whole, fraction, negative, nil
+}
+
+func formatFixed(value int64, places int) string {
+	negative := value < 0
+	var magnitude uint64
+	if negative {
+		magnitude = uint64(-(value + 1)) + 1
+	} else {
+		magnitude = uint64(value)
+	}
+	scale := uint64(1)
+	for range places {
+		scale *= 10
+	}
+	formatted := fmt.Sprintf("%d.%0*d", magnitude/scale, places, magnitude%scale)
+	if negative {
+		return "-" + formatted
+	}
+	return formatted
+}

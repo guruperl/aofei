@@ -165,8 +165,8 @@ fi
 if ! grep -Eq '^\| R03 .* \| Completed \|' docs/README.md; then
 	fail "docs/README.md must identify R03 as completed remediation."
 fi
-if ! grep -Eq '^\| A03 .* \| Planned \|' docs/README.md; then
-	fail "docs/README.md must identify A03 as planned remediation."
+if ! grep -Eq '^\| A03 .* \| (Planned|In progress) \|' docs/README.md; then
+	fail "docs/README.md must identify A03 as planned or in-progress remediation."
 fi
 
 mapfile -t indexed_docs < <(

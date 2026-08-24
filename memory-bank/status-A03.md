@@ -1,6 +1,6 @@
 # Status A03 - Exact Monetary Source Migration
 
-State: `[ ]` Planned
+State: `[~]` In progress
 
 ## Goal
 
@@ -23,7 +23,7 @@ source while preserving auditable compatibility and hosted-payment safety.
 
 | Item | State | Notes |
 |---|---:|---|
-| Exact-money contract | `[ ]` | Inventory authoritative versus compatibility-only monetary columns and define one versioned USD CPM, per-impression, rounding, overflow, minimum-unit, aggregation, and display contract before schema or API changes. Do not claim that existing floating-point history can be recovered exactly. |
+| Exact-money contract | `[x]` | `usd-cpm-impression-v3` inventories authoritative and compatibility-only sources. CPM is integer micro-USD/1,000 at six-decimal ingress; one impression is the same integer count of nano-USD, aggregates use checked integer arithmetic, and the statement boundary rounds half away from zero once. Historical floats remain labeled evidence and are never promoted as recovered exact input. |
 | Schema and history migration | `[ ]` | Migrate authoritative demand price, balance, interval, daily, middleman, ledger, and other live sources to reviewed DECIMAL/integer representations. Preserve original values and reconciliation evidence, quarantine ambiguous rows, and keep inactive legacy payment metadata outside accounting authority. |
 | Runtime and cache representation | `[ ]` | Remove binary floating-point from monetary mutations and reservations, version affected RAdv/cache/Redis state, and provide cache-first dual-read/dual-write or drain/rebuild sequencing with overflow-safe atomic budget operations. |
 | Management and report interfaces | `[ ]` | Introduce exact decimal-string or integer-minor-unit request/response handling with explicit compatibility and deprecation for existing numeric clients. Validate scale/range before writes and preserve account-scoped reports and CSV formatting. |

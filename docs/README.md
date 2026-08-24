@@ -62,7 +62,7 @@ planned milestones do not imply schema or runtime activation.
 | S06 public account abuse protection | Completed; active on W8M | [status-S06.md](../memory-bank/status-S06.md) | [Public account abuse protection](public-account-abuse-protection.md) |
 | A01 accounting and settlement | Completed | [status-A01.md](../memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |
-| A03 exact monetary sources | Planned | [status-A03.md](../memory-bank/status-A03.md) | Existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |
+| A03 exact monetary sources | In progress | [status-A03.md](../memory-bank/status-A03.md) | [Exact money](exact-money.md), existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |
 | O01 production traffic controls | Completed | [status-O01.md](../memory-bank/status-O01.md) | [Production traffic and observability](production-traffic-observability.md) |
 | O02 single-region availability | Completed; production claims evidence-gated | [status-O02.md](../memory-bank/status-O02.md) | [Availability, recovery, and SLO](single-region-availability.md) |
 | O03 job/cache/filesystem reliability | Completed | [status-O03.md](../memory-bank/status-O03.md) | [Operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
