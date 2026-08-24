@@ -113,11 +113,11 @@ atomic generation publication with partial live writes.
     at, never after, the conservative deadline.
 
 - Iteration 4 (2026-08-24): three P2 findings remain open.
-  - P2: a renewal result is evaluated without rechecking the conservative
-    deadline after the Redis call, so a late successful response can be
-    briefly accepted after the ownership window.
-  - P2: `Release` waits for the maintainer channel without selecting on its
-    caller-provided timeout, making the documented bounded release untrue for a
-    client that fails to honor cancellation.
+  - P2 resolved: renewal responses are now timestamped and rejected at or after
+    the conservative deadline before success can extend the local window. A
+    scripted late-success test proves the work context is canceled as uncertain.
+  - P2 resolved: `Release` now selects the maintainer channel against the
+    caller-provided context and returns a fixed lease error when that wait
+    expires; a deliberately stuck-maintainer test proves the bound.
   - P2: failed Redis-generation shadow cleanup uses `context.Background()` and
     can delay command exit and lease release indefinitely during a partition.

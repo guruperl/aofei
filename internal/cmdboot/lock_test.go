@@ -27,6 +27,19 @@ type delayedLockClient struct {
 	once  sync.Once
 }
 
+type advancingLockClient struct {
+	radix.Client
+	advance func()
+}
+
+func (c *advancingLockClient) Addr() net.Addr { return c.Client.Addr() }
+
+func (c *advancingLockClient) Do(ctx context.Context, action radix.Action) error {
+	err := c.Client.Do(ctx, action)
+	c.advance()
+	return err
+}
+
 func (c *delayedLockClient) Addr() net.Addr { return c.Client.Addr() }
 
 func (c *delayedLockClient) Do(ctx context.Context, action radix.Action) error {
@@ -218,6 +231,56 @@ func TestLockCapsRenewalWaitAtConfirmedDeadline(t *testing.T) {
 	}
 	if !errors.Is(lock.Err(), ErrLeaseUncertain) || ctx.Err() == nil {
 		t.Fatalf("lease error = %v context error = %v, want uncertain cancellation", lock.Err(), ctx.Err())
+	}
+}
+
+func TestLockRejectsRenewalResponseAfterConfirmedDeadline(t *testing.T) {
+	server := miniredis.RunT(t)
+	baseClient := lockTestClient(t, server.Addr())
+	if err := baseClient.Do(context.Background(), radix.Cmd(nil, "SET", "late", "owner", "PX", "60000")); err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now()
+	current := base
+	client := &advancingLockClient{Client: baseClient, advance: func() {
+		current = current.Add(70 * time.Millisecond)
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	waits := 1
+	lock := &Lock{
+		client: client, key: "late", token: "owner", ttl: 90 * time.Millisecond,
+		ctx: ctx, cancel: cancel, done: make(chan struct{}), confirmedAt: base,
+		now: func() time.Time { return current },
+		wait: func(_ context.Context, delay time.Duration) bool {
+			if waits == 0 {
+				return false
+			}
+			waits--
+			current = current.Add(delay)
+			return true
+		},
+	}
+
+	lock.maintain(ctx)
+
+	if !errors.Is(lock.Err(), ErrLeaseUncertain) || ctx.Err() == nil {
+		t.Fatalf("lease error = %v context error = %v, want late-response cancellation", lock.Err(), ctx.Err())
+	}
+}
+
+func TestLockReleaseHonorsTimeoutWhileMaintainerIsStuck(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := lockTestClient(t, server.Addr())
+	done := make(chan struct{})
+	lock := &Lock{client: client, key: "stuck", token: "owner", done: done}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	err := lock.Release(ctx)
+	close(done)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Release error = %v, want deadline exceeded", err)
 	}
 }
 

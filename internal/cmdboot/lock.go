@@ -117,11 +117,19 @@ func (l *Lock) Release(ctx context.Context) error {
 	if l == nil || l.client == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if l.cancel != nil {
 		l.cancel()
 	}
 	if l.done != nil {
-		<-l.done
+		select {
+		case <-l.done:
+		case <-ctx.Done():
+			opsmetrics.RecordLease("release_error")
+			return fmt.Errorf("wait for singleton lease %s maintainer: %w", l.key, ctx.Err())
+		}
 	}
 	script := radix.NewEvalScript(`
 if redis.call("GET", KEYS[1]) == ARGV[1] then
@@ -209,6 +217,16 @@ return 0`)
 		if ctx.Err() != nil {
 			return
 		}
+		finished := now()
+		if !finished.Before(deadline) {
+			opsmetrics.RecordLease("uncertainty_expired")
+			cause := fmt.Errorf("%w after renewal response deadline", ErrLeaseUncertain)
+			if err != nil {
+				cause = fmt.Errorf("%w: %v", cause, err)
+			}
+			l.recordLeaseFailure(cause)
+			return
+		}
 		if err == nil && renewed == 1 {
 			if transientFailures > 0 {
 				opsmetrics.RecordLease("renewed_after_error")
@@ -225,7 +243,7 @@ return 0`)
 		}
 		opsmetrics.RecordLease("renewal_error")
 		transientFailures++
-		remaining = deadline.Sub(now())
+		remaining = deadline.Sub(finished)
 		if remaining <= 0 {
 			opsmetrics.RecordLease("uncertainty_expired")
 			l.recordLeaseFailure(fmt.Errorf("%w after renewal failure: %v", ErrLeaseUncertain, err))
