@@ -11,7 +11,7 @@ file; generated local configs normally use an absolute path to it.
 | `etc/maxmind.json` | checked in | Runtime JSON with the City database path plus country/state ID maps. |
 | `GeoLite2-City.mmdb` (`city_file`) | checked-in reference | Relative value resolved against the runtime JSON directory. |
 | `.<config>.generations/<sha256>/GeoLite2-City.mmdb` | generated/ignored | Validated content-addressed City generation selected by generated JSON. |
-| `.<config>.lock` | generated/ignored | Stable local lock serializing publication and retention. |
+| `.<config>.lock` | generated/ignored | Stable `0640` local lock serializing publication and complete selected-asset reads. |
 | `external/GeoLite2-City.mmdb` | external/local | Optional downloaded City `.mmdb` used by asset-backed tests when present. |
 | `etc/GeoLite2-City.mmdb` | ignored | Optional local test copy for `maxmind` package lookup tests. |
 | `etc/qq-pz.dat` | ignored | Optional legacy local test data for `maxmind/ipsearch`. |
@@ -39,7 +39,12 @@ generated JSON's directory; production may instead supply an explicit absolute
 source path. There is no host-specific default. The source remains an external
 operator-owned asset and is never committed.
 
-Publication is serialized on the stable sibling lock. The command hashes and
+Publication is serialized on the exclusive side of the stable sibling lock;
+runtime JSON/MMDB loads hold its shared side until the selected asset is in
+Go-managed memory. The publisher creates the lock at mode `0640`. A static
+read-only config directory with no generated lock remains loadable; if the
+first publisher creates the lock during that optimistic load, the reader
+discards its result and repeats under the shared lock. The command hashes and
 atomically copies the source at mode `0640`, verifies that it did not change
 during the copy, parses the staged MMDB, retains the selected and immediately
 prior generations, and only then replaces the JSON. Copy/validation/cleanup

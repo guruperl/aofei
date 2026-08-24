@@ -666,10 +666,12 @@ Notes:
 - The `-city` value (or `AOFEI_GEOLITE_CITY_FILE`) identifies the external
   source asset. Relative values resolve against the generated JSON directory;
   use an explicit absolute source value for an asset stored elsewhere.
-- A stable sibling file lock serializes publishers. The source is hashed,
-  copied atomically, checked for change during copy, and parsed as a supported
-  City MMDB before JSON selection. Failure leaves the prior JSON selected; the
-  selected and immediately prior City generations are retained.
+- A stable `0640` sibling file lock serializes publishers and retains an asset
+  across each complete runtime JSON/MMDB load. The source is hashed, copied
+  atomically, checked for change during copy, and parsed as a supported City
+  MMDB before JSON selection. Failure leaves the prior JSON selected; the
+  selected and immediately prior City generations are retained. A static
+  read-only config directory remains loadable before its first publication.
 - The configured `ips` target rejects root/current-directory/parent-traversal
   values. JSON replacement uses mode `0640` and syncs both the file and its
   containing directory before success.

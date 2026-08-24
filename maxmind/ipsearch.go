@@ -70,22 +70,54 @@ func loadCurrentIPData(fn string) (*IPSearch, error) {
 // against both other publishers and readers loading the selected JSON/asset
 // pair.
 func WithCityPublicationLock(configPath string, publish func() error) error {
-	return withCityPublicationFileLock(configPath, syscall.LOCK_EX, publish)
-}
-
-func withCityPublicationReadLock(configPath string, read func() error) error {
-	return withCityPublicationFileLock(configPath, syscall.LOCK_SH, read)
-}
-
-func withCityPublicationFileLock(configPath string, operation int, work func() error) (err error) {
-	if work == nil {
+	if publish == nil {
 		return errors.New("MaxMind publication operation is nil")
 	}
-	lockPath := filepath.Join(filepath.Dir(configPath), "."+filepath.Base(configPath)+".lock")
-	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	lock, err := os.OpenFile(cityPublicationLockPath(configPath), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return err
 	}
+	if err := lock.Chmod(0640); err != nil {
+		_ = lock.Close()
+		return err
+	}
+	return withOpenedCityPublicationLock(lock, syscall.LOCK_EX, publish)
+}
+
+func withCityPublicationReadLock(configPath string, read func() error) error {
+	if read == nil {
+		return errors.New("MaxMind publication operation is nil")
+	}
+	lockPath := cityPublicationLockPath(configPath)
+	lock, err := os.Open(lockPath)
+	if err == nil {
+		return withOpenedCityPublicationLock(lock, syscall.LOCK_SH, read)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// A checked-in or statically deployed JSON may predate the generated lock
+	// and live in a read-only config directory. Load it without mutation, then
+	// check again: the first publisher creates a stable lock before touching any
+	// generation, so appearance of the lock means this optimistic result must be
+	// discarded and rebuilt under its shared side.
+	optimisticErr := read()
+	lock, err = os.Open(lockPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return optimisticErr
+	}
+	if err != nil {
+		return errors.Join(optimisticErr, err)
+	}
+	return withOpenedCityPublicationLock(lock, syscall.LOCK_SH, read)
+}
+
+func cityPublicationLockPath(configPath string) string {
+	return filepath.Join(filepath.Dir(configPath), "."+filepath.Base(configPath)+".lock")
+}
+
+func withOpenedCityPublicationLock(lock *os.File, operation int, work func() error) (err error) {
 	locked := false
 	defer func() {
 		var unlockErr error
@@ -94,9 +126,6 @@ func withCityPublicationFileLock(configPath string, operation int, work func() e
 		}
 		err = errors.Join(err, unlockErr, lock.Close())
 	}()
-	if err := lock.Chmod(0600); err != nil {
-		return err
-	}
 	if err := syscall.Flock(int(lock.Fd()), operation); err != nil {
 		return err
 	}

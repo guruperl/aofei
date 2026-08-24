@@ -578,8 +578,10 @@ directories to `0750` and generated interval files to `0640`; ledger input logs
 should not be world-readable or group/world-writable. `cmd/maxmind` reads MySQL
 country/state tables, stages and validates a content-addressed City MMDB, and
 atomically selects it through the configured MaxMind JSON path, normally
-`etc/maxmind.json`. A stable sibling lock serializes generation retention; the
-current and immediately prior MMDB generations remain available. The shared
+`etc/maxmind.json`. A stable `0640` sibling lock serializes publication and
+holds each complete JSON/MMDB load on its shared side; a static read-only
+config directory remains loadable before first publication. The current and
+immediately prior MMDB generations remain available. The shared
 local-file primitive writes mode `0640`, syncs the temporary file, renames it,
 and syncs the containing directory. Spread
 directories are created or tightened to at most `0750`; its snapshots and

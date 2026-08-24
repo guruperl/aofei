@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -126,6 +127,9 @@ func TestLoadIPDataUsesStrictLegacyDatFallback(t *testing.T) {
 
 func TestCityPublicationWaitsForSelectedAssetReader(t *testing.T) {
 	configFile := filepath.Join(t.TempDir(), "maxmind.json")
+	if err := WithCityPublicationLock(configFile, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
 	readerEntered := make(chan struct{})
 	releaseReader := make(chan struct{})
 	readerDone := make(chan error, 1)
@@ -162,6 +166,57 @@ func TestCityPublicationWaitsForSelectedAssetReader(t *testing.T) {
 	}
 	if err := <-publisherDone; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCityPublicationReadSupportsMissingLockInReadOnlyDirectory(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "maxmind.json")
+	if err := os.Chmod(dir, 0550); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0750) })
+	calls := 0
+	if err := withCityPublicationReadLock(configFile, func() error {
+		calls++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("read calls = %d, want 1", calls)
+	}
+	if _, err := os.Stat(cityPublicationLockPath(configFile)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("read created a lock in read-only config directory: %v", err)
+	}
+}
+
+func TestCityPublicationReadRetriesWhenFirstPublisherCreatesLock(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "maxmind.json")
+	firstRead := make(chan struct{})
+	releaseRead := make(chan struct{})
+	readDone := make(chan error, 1)
+	calls := 0
+	go func() {
+		readDone <- withCityPublicationReadLock(configFile, func() error {
+			calls++
+			if calls == 1 {
+				close(firstRead)
+				<-releaseRead
+			}
+			return nil
+		})
+	}()
+	<-firstRead
+	if err := WithCityPublicationLock(configFile, func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	close(releaseRead)
+	if err := <-readDone; err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("read calls = %d, want optimistic load plus locked retry", calls)
 	}
 }
 
