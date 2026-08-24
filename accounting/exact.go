@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -38,6 +39,9 @@ func ParseCPM(raw string) (CPM, error) {
 	}
 	if value < 0 || CPM(value) > MaxCPM {
 		return 0, fmt.Errorf("USD CPM is outside 0.000000..%s", MaxCPM.String())
+	}
+	if value == 0 && strings.HasPrefix(strings.TrimSpace(raw), "-") {
+		return 0, fmt.Errorf("USD CPM rejects negative zero")
 	}
 	return CPM(value), nil
 }
@@ -77,6 +81,9 @@ func ParseNano(raw string) (Nano, error) {
 	value, err := parseFixed(raw, 9)
 	if err != nil {
 		return 0, fmt.Errorf("invalid nano-USD amount: %w", err)
+	}
+	if value == 0 && strings.HasPrefix(strings.TrimSpace(raw), "-") {
+		return 0, fmt.Errorf("nano-USD rejects negative zero")
 	}
 	return Nano(value), nil
 }

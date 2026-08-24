@@ -60,9 +60,13 @@ Missing and cross-account ids both return the same `404` envelope.
 - Each campaign and item has separate total and UTC-daily spend, impression,
   and click hard-limit scopes. An omitted individual limit is unlimited; zero
   is a hard stop.
-- Prices are finite positive USD CPM. Spend report values are reconciled
-  per-impression USD strings with six-decimal accounting semantics and the
-  `usd-cpm-impression-v2` version.
+- A03 writes prices only as canonical six-decimal USD CPM strings and spend
+  limits only as canonical nine-decimal USD strings. JSON numbers receive the
+  `money_string_required` deprecation error; they are never rounded into a
+  mutation. Item/limit responses use the same exact string forms.
+- Spend report values remain reconciled six-decimal strings. Historical rows
+  retain `usd-cpm-impression-v2`; new exact-source rows carry
+  `usd-cpm-impression-v3`.
 - Limited demand fails closed when the shared Redis reservation boundary or a
   current delivery cache is unavailable. API acceptance never changes this.
 - Campaign/item creation remains in the existing review states (`New` and

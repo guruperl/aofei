@@ -1,6 +1,8 @@
 package managementapi
 
 import (
+	"encoding/json"
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -20,7 +22,7 @@ func TestDeliveryAndTargetingValidation(t *testing.T) {
 	if err := validateCampaignWrite(&campaign); err == nil {
 		t.Fatal("short weekly schedule accepted")
 	}
-	item := itemWrite{Name: "item", LandingURL: "https://example.invalid", PriceCPMUSD: 1, Delivery: DeliveryPolicy{Timezone: "UTC"}}
+	item := itemWrite{Name: "item", LandingURL: "https://example.invalid", PriceCPMUSD: "1.000000", Delivery: DeliveryPolicy{Timezone: "UTC"}}
 	if err := validateItemWrite(&item); err == nil {
 		t.Fatal("item accepted a caller-supplied campaign timezone")
 	}
@@ -53,6 +55,20 @@ func TestDeliveryAndTargetingValidation(t *testing.T) {
 	}
 	if got := strings.Join(targeting.SiteTypes, ","); got != "App,Web" {
 		t.Fatalf("site type normalization = %q", got)
+	}
+}
+
+func TestExactMoneyJSONRejectsLegacyNumbers(t *testing.T) {
+	var item itemWrite
+	err := json.Unmarshal([]byte(`{"name":"item","landing_url":"https://example.invalid","price_cpm_usd":2.5,"delivery":{}}`), &item)
+	if !errors.Is(err, ErrMoneyStringRequired) {
+		t.Fatalf("legacy numeric CPM error = %v", err)
+	}
+	for _, raw := range []string{"0.0000001", "1000000.000000", "NaN", "-0.000000"} {
+		item = itemWrite{Name: "item", LandingURL: "https://example.invalid", PriceCPMUSD: ExactDecimal(raw)}
+		if err := validateItemWrite(&item); err == nil {
+			t.Fatalf("invalid exact CPM %q accepted", raw)
+		}
 	}
 }
 

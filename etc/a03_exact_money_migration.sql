@@ -115,3 +115,4 @@ ALTER TABLE daily_mid
   MODIFY margin_spend DECIMAL(20,9) NULL DEFAULT 0.000000000;
 ALTER TABLE mid_route_group MODIFY min_margin_cpm DECIMAL(12,6) NOT NULL DEFAULT 0.000000;
 ALTER TABLE mid_route_bidder MODIFY min_margin_cpm DECIMAL(12,6) NULL;
+ALTER TABLE report_delivery ALTER accounting_version SET DEFAULT 'usd-cpm-impression-v3';

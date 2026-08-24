@@ -75,7 +75,7 @@ func TestMySQLManagementAPILifecycle(t *testing.T) {
 	}
 
 	handler := service.Handler()
-	spend := 25.0
+	spend := ExactDecimal("25.000000000")
 	imps := uint64(1000)
 	schedule := strings.Repeat("1", 168)
 	campaignInput := CampaignInput{Name: "I03 campaign", ExternalID: "integration-1", TargetType: "Web", Delivery: DeliveryPolicy{Timezone: "Asia/Shanghai", WeeklySchedule: &schedule, Pacing: "Even", TotalLimits: Limits{SpendUSD: &spend, Imps: &imps}, DailyLimits: Limits{Imps: &imps}}}
@@ -120,7 +120,7 @@ func TestMySQLManagementAPILifecycle(t *testing.T) {
 		t.Fatalf("cross-account status=%d body=%s", cross.Code, cross.Body.String())
 	}
 
-	itemInput := ItemInput{Name: "I03 item", LandingURL: "https://example.invalid/landing", PriceCPMUSD: 2.5, Delivery: DeliveryPolicy{Pacing: "Fast", TotalLimits: Limits{}, DailyLimits: Limits{}}}
+	itemInput := ItemInput{Name: "I03 item", LandingURL: "https://example.invalid/landing", PriceCPMUSD: "2.500000", Delivery: DeliveryPolicy{Pacing: "Fast", TotalLimits: Limits{}, DailyLimits: Limits{}}}
 	const goroutines = 6
 	responses := make([]*httptest.ResponseRecorder, goroutines)
 	var wg sync.WaitGroup

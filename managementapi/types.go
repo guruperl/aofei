@@ -1,6 +1,7 @@
 package managementapi
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +33,40 @@ var (
 	ErrConflict            = errors.New("resource version conflict")
 	ErrIdempotencyConflict = errors.New("idempotency key was already used for a different request")
 	ErrIdempotencyPending  = errors.New("idempotent request is still being processed")
+	ErrMoneyStringRequired = errors.New("monetary fields require exact decimal strings")
 )
+
+// ExactDecimal is the JSON string boundary for authoritative money. Numeric
+// JSON is deliberately rejected so old clients cannot silently round a write.
+type ExactDecimal string
+
+func (d *ExactDecimal) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || data[0] != '"' {
+		return ErrMoneyStringRequired
+	}
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*d = ExactDecimal(value)
+	return nil
+}
+
+func (d ExactDecimal) String() string { return string(d) }
+
+func (d *ExactDecimal) Scan(source any) error {
+	switch value := source.(type) {
+	case string:
+		*d = ExactDecimal(value)
+	case []byte:
+		*d = ExactDecimal(string(value))
+	default:
+		return fmt.Errorf("exact decimal scan rejects %T", source)
+	}
+	return nil
+}
+
+func (d ExactDecimal) Value() (driver.Value, error) { return d.String(), nil }
 
 type Actor struct {
 	Role string
@@ -65,9 +99,9 @@ type Credential struct {
 }
 
 type Limits struct {
-	SpendUSD *float64 `json:"spend_usd,omitempty"`
-	Imps     *uint64  `json:"impressions,omitempty"`
-	Clicks   *uint64  `json:"clicks,omitempty"`
+	SpendUSD *ExactDecimal `json:"spend_usd,omitempty"`
+	Imps     *uint64       `json:"impressions,omitempty"`
+	Clicks   *uint64       `json:"clicks,omitempty"`
 }
 
 type DeliveryPolicy struct {
@@ -100,7 +134,7 @@ type Item struct {
 	LandingURL     string         `json:"landing_url"`
 	ImpressionURLs []string       `json:"impression_urls,omitempty"`
 	ClickURLs      []string       `json:"click_urls,omitempty"`
-	PriceCPMUSD    float64        `json:"price_cpm_usd"`
+	PriceCPMUSD    ExactDecimal   `json:"price_cpm_usd"`
 	Status         string         `json:"status"`
 	Version        uint64         `json:"version"`
 	Delivery       DeliveryPolicy `json:"delivery"`
@@ -157,22 +191,22 @@ type Operation struct {
 }
 
 type DeliveryReport struct {
-	ID                   uint64    `json:"id"`
-	IntervalUTC          time.Time `json:"interval_utc"`
-	CampaignID           uint64    `json:"campaign_id"`
-	ItemID               uint64    `json:"item_id"`
-	CreativeID           uint64    `json:"creative_id"`
-	DemandSource         string    `json:"demand_source"`
-	InventoryEnvironment string    `json:"inventory_environment"`
-	IntegrationMode      string    `json:"integration_mode"`
-	MediaIntent          string    `json:"media_intent"`
-	SellerType           string    `json:"seller_type"`
-	SellerID             string    `json:"seller_id,omitempty"`
-	Wins                 uint64    `json:"wins"`
-	Impressions          uint64    `json:"impressions"`
-	Clicks               uint64    `json:"clicks"`
-	SpendUSD             string    `json:"spend_usd"`
-	AccountingVersion    string    `json:"accounting_version"`
+	ID                   uint64       `json:"id"`
+	IntervalUTC          time.Time    `json:"interval_utc"`
+	CampaignID           uint64       `json:"campaign_id"`
+	ItemID               uint64       `json:"item_id"`
+	CreativeID           uint64       `json:"creative_id"`
+	DemandSource         string       `json:"demand_source"`
+	InventoryEnvironment string       `json:"inventory_environment"`
+	IntegrationMode      string       `json:"integration_mode"`
+	MediaIntent          string       `json:"media_intent"`
+	SellerType           string       `json:"seller_type"`
+	SellerID             string       `json:"seller_id,omitempty"`
+	Wins                 uint64       `json:"wins"`
+	Impressions          uint64       `json:"impressions"`
+	Clicks               uint64       `json:"clicks"`
+	SpendUSD             ExactDecimal `json:"spend_usd"`
+	AccountingVersion    string       `json:"accounting_version"`
 }
 
 type MutationResult struct {

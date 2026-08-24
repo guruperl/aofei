@@ -33,6 +33,18 @@ func TestHandlerReturnsStableUnauthenticatedError(t *testing.T) {
 	}
 }
 
+func TestDecodeBodyReturnsMoneyStringDeprecation(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/items", strings.NewReader(`{"price_cpm_usd":2.5}`))
+	request.Header.Set("Content-Type", "application/json")
+	var input itemWrite
+	_, err := decodeBody(recorder, request, 1024, &input)
+	var clientErr clientError
+	if !errors.As(err, &clientErr) || clientErr.code != "money_string_required" {
+		t.Fatalf("numeric money decode error = %#v", err)
+	}
+}
+
 func TestHandlerDerivesAccountScopeFromCredential(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

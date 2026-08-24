@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 )
 
@@ -25,7 +26,7 @@ type itemWrite struct {
 	LandingURL     string         `json:"landing_url"`
 	ImpressionURLs []string       `json:"impression_urls,omitempty"`
 	ClickURLs      []string       `json:"click_urls,omitempty"`
-	PriceCPMUSD    float64        `json:"price_cpm_usd"`
+	PriceCPMUSD    ExactDecimal   `json:"price_cpm_usd"`
 	Delivery       DeliveryPolicy `json:"delivery"`
 }
 
@@ -105,9 +106,11 @@ func validateItemWrite(input *itemWrite) error {
 			set.urls[index] = raw
 		}
 	}
-	if input.PriceCPMUSD <= 0 || math.IsNaN(input.PriceCPMUSD) || math.IsInf(input.PriceCPMUSD, 0) || input.PriceCPMUSD > 1_000_000 {
-		return fmt.Errorf("price_cpm_usd must be a finite positive USD CPM value no greater than 1000000")
+	cpm, err := accounting.ParseCPM(input.PriceCPMUSD.String())
+	if err != nil || cpm <= 0 {
+		return fmt.Errorf("price_cpm_usd must be an exact decimal string from 0.000001 through %s", accounting.MaxCPM)
 	}
+	input.PriceCPMUSD = ExactDecimal(cpm.String())
 	return validateDelivery(&input.Delivery, false)
 }
 
@@ -257,8 +260,13 @@ func validateDelivery(policy *DeliveryPolicy, campaign bool) error {
 		name   string
 		limits Limits
 	}{{"total_limits", policy.TotalLimits}, {"daily_limits", policy.DailyLimits}} {
-		if field.limits.SpendUSD != nil && (*field.limits.SpendUSD < 0 || *field.limits.SpendUSD > math.MaxFloat32 || math.IsNaN(*field.limits.SpendUSD) || math.IsInf(*field.limits.SpendUSD, 0)) {
-			return fmt.Errorf("delivery.%s.spend_usd must be finite, non-negative, and storable", field.name)
+		if field.limits.SpendUSD != nil {
+			amount, err := accounting.ParseNano(field.limits.SpendUSD.String())
+			if err != nil || amount < 0 {
+				return fmt.Errorf("delivery.%s.spend_usd must be a non-negative exact decimal string with at most nine places", field.name)
+			}
+			canonical := ExactDecimal(amount.String())
+			*field.limits.SpendUSD = canonical
 		}
 		if field.limits.Imps != nil && *field.limits.Imps > math.MaxUint32 {
 			return fmt.Errorf("delivery.%s.impressions must fit an unsigned 32-bit limit", field.name)

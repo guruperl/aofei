@@ -114,7 +114,7 @@ func scanCampaign(row rowScanner) (Campaign, error) {
 	var item Campaign
 	var externalID, targetType, description, schedule sql.NullString
 	var start, end, created sql.NullTime
-	var totalSpend, dailySpend sql.NullFloat64
+	var totalSpend, dailySpend sql.NullString
 	var totalImps, totalClicks, dailyImps, dailyClicks sql.NullInt64
 	err := row.Scan(&item.ID, &item.AdvertiserID, &item.Name, &externalID,
 		&start, &end, &targetType, &description, &item.Delivery.Timezone,
@@ -197,7 +197,7 @@ func scanItem(row rowScanner) (Item, error) {
 	var item Item
 	var impURLs, clickURLs, schedule sql.NullString
 	var start, end, created sql.NullTime
-	var totalSpend, dailySpend sql.NullFloat64
+	var totalSpend, dailySpend sql.NullString
 	var totalImps, totalClicks, dailyImps, dailyClicks sql.NullInt64
 	err := row.Scan(&item.ID, &item.CampaignID, &item.Name, &item.LandingURL,
 		&impURLs, &clickURLs, &item.PriceCPMUSD, &start, &end, &schedule,
@@ -708,7 +708,7 @@ func requireUpdated(result sql.Result) error {
 }
 
 func insertBalance(ctx context.Context, tx *sql.Tx, limits Limits, now time.Time) (uint64, error) {
-	result, err := tx.ExecContext(ctx, `INSERT INTO adv_balance (limit_spend, limit_imp, limit_cli, current_spend, current_imp, current_cli, created) VALUES (?, ?, ?, 0, 0, 0, ?)`, floatValue(limits.SpendUSD), uintValue(limits.Imps), uintValue(limits.Clicks), now.UTC())
+	result, err := tx.ExecContext(ctx, `INSERT INTO adv_balance (limit_spend, limit_imp, limit_cli, current_spend, current_imp, current_cli, created) VALUES (?, ?, ?, 0, 0, 0, ?)`, decimalValue(limits.SpendUSD), uintValue(limits.Imps), uintValue(limits.Clicks), now.UTC())
 	if err != nil {
 		return 0, err
 	}
@@ -717,14 +717,14 @@ func insertBalance(ctx context.Context, tx *sql.Tx, limits Limits, now time.Time
 }
 
 func updateBalance(ctx context.Context, tx *sql.Tx, id uint64, limits Limits) error {
-	_, err := tx.ExecContext(ctx, `UPDATE adv_balance SET limit_spend=?, limit_imp=?, limit_cli=? WHERE balance_id=?`, floatValue(limits.SpendUSD), uintValue(limits.Imps), uintValue(limits.Clicks), id)
+	_, err := tx.ExecContext(ctx, `UPDATE adv_balance SET limit_spend=?, limit_imp=?, limit_cli=? WHERE balance_id=?`, decimalValue(limits.SpendUSD), uintValue(limits.Imps), uintValue(limits.Clicks), id)
 	return err
 }
 
-func scanLimits(spend sql.NullFloat64, imps, clicks sql.NullInt64) Limits {
+func scanLimits(spend sql.NullString, imps, clicks sql.NullInt64) Limits {
 	var limits Limits
 	if spend.Valid {
-		value := spend.Float64
+		value := ExactDecimal(spend.String)
 		limits.SpendUSD = &value
 	}
 	if imps.Valid {
@@ -738,11 +738,11 @@ func scanLimits(spend sql.NullFloat64, imps, clicks sql.NullInt64) Limits {
 	return limits
 }
 
-func floatValue(value *float64) any {
+func decimalValue(value *ExactDecimal) any {
 	if value == nil {
 		return nil
 	}
-	return *value
+	return value.String()
 }
 func uintValue(value *uint64) any {
 	if value == nil {

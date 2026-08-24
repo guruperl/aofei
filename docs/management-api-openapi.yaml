@@ -242,7 +242,7 @@ components:
     Limits:
       type: object
       additionalProperties: false
-      properties: {spend_usd: {type: number, minimum: 0, maximum: 3.4028235e+38}, impressions: {type: integer, minimum: 0, maximum: 4294967295}, clicks: {type: integer, minimum: 0, maximum: 4294967295}}
+      properties: {spend_usd: {type: string, pattern: '^[0-9]+\.[0-9]{9}$', description: Exact USD decimal string; legacy JSON numbers are rejected.}, impressions: {type: integer, minimum: 0, maximum: 4294967295}, clicks: {type: integer, minimum: 0, maximum: 4294967295}}
     DeliveryPolicy:
       type: object
       additionalProperties: false
@@ -275,7 +275,7 @@ components:
       type: object
       additionalProperties: false
       required: [name, landing_url, price_cpm_usd, delivery]
-      properties: {name: {type: string, maxLength: 255}, landing_url: {type: string, format: uri}, impression_urls: {type: array, maxItems: 10, items: {type: string, format: uri}}, click_urls: {type: array, maxItems: 10, items: {type: string, format: uri}}, price_cpm_usd: {type: number, exclusiveMinimum: 0}, delivery: {$ref: "#/components/schemas/ItemDeliveryPolicy"}}
+      properties: {name: {type: string, maxLength: 255}, landing_url: {type: string, format: uri}, impression_urls: {type: array, maxItems: 10, items: {type: string, format: uri}}, click_urls: {type: array, maxItems: 10, items: {type: string, format: uri}}, price_cpm_usd: {type: string, pattern: '^[0-9]+\.[0-9]{6}$', description: Exact USD CPM decimal string; legacy JSON numbers are rejected.}, delivery: {$ref: "#/components/schemas/ItemDeliveryPolicy"}}
     CreativeInput:
       type: object
       additionalProperties: false
@@ -335,7 +335,7 @@ components:
         landing_url: {type: string, format: uri}
         impression_urls: {type: array, items: {type: string, format: uri}}
         click_urls: {type: array, items: {type: string, format: uri}}
-        price_cpm_usd: {type: number, exclusiveMinimum: 0}
+        price_cpm_usd: {type: string, pattern: '^[0-9]+\.[0-9]{6}$'}
         status: {type: string}
         version: {type: integer, format: int64, minimum: 1}
         delivery: {$ref: "#/components/schemas/DeliveryPolicy"}
@@ -405,7 +405,7 @@ components:
         impressions: {type: integer, format: int64, minimum: 0}
         clicks: {type: integer, format: int64, minimum: 0}
         spend_usd: {type: string, pattern: '^[0-9]+\.[0-9]{6}$'}
-        accounting_version: {type: string, const: usd-cpm-impression-v2}
+        accounting_version: {type: string, enum: [usd-cpm-impression-v2, usd-cpm-impression-v3]}
     PageMeta:
       type: object
       additionalProperties: false

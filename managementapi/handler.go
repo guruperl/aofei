@@ -485,6 +485,9 @@ func decodeBody(w http.ResponseWriter, r *http.Request, limit int64, target any)
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
+		if errors.Is(err, ErrMoneyStringRequired) {
+			return nil, clientError{status: 400, code: "money_string_required", err: ErrMoneyStringRequired}
+		}
 		return nil, clientError{status: 400, code: "invalid_json", err: fmt.Errorf("request body is not valid contract JSON")}
 	}
 	var trailing any

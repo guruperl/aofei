@@ -2158,7 +2158,7 @@ CREATE TABLE `report_delivery` (
   `downstream_cpm_sum` decimal(20,6) NOT NULL DEFAULT '0.000000',
   `returned_cpm_sum` decimal(20,6) NOT NULL DEFAULT '0.000000',
   `callback_errors` int unsigned NOT NULL DEFAULT '0',
-  `accounting_version` varchar(32) NOT NULL DEFAULT 'usd-cpm-impression-v2',
+  `accounting_version` varchar(32) NOT NULL DEFAULT 'usd-cpm-impression-v3',
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   PRIMARY KEY (`report_id`),
   UNIQUE KEY `report_delivery_interval_dimension` (`timely`,`dimension_hash`),
