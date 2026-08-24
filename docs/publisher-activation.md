@@ -6,18 +6,17 @@ integrations. It does not authorize a production launch by itself: D01, S01,
 O01, and A01 must also be accepted, and the named publisher must have an
 approved privacy and support owner.
 
-P03 is in progress. Its
-[direct SSP authenticity contract](direct-ssp-authenticity.md) is accepted,
-and the default-off v2 token reader, SDK/server request-authentication boundary,
-and independent browser/App enforcement are implemented. The publisher UI and
-readiness manifest now share the `/pz` issuer and emit current v2 locators when
-configured, but no production tag migration or legacy withdrawal has occurred
-and checked-in SDK authentication remains off.
-Therefore the checks below establish current P01/P02 compatibility, inventory
-ownership, and commercial correctness; they do not establish complete P03
-request authenticity. Do not enable either P03 gate, deny legacy reads, or
-approve a new App integration as authenticated production traffic until all
-later P03 rows and their named canary/rollback evidence are complete.
+P03 repository implementation and review are complete. Its
+[direct SSP authenticity contract](direct-ssp-authenticity.md), default-off v2
+token reader, SDK/server request-authentication boundary, independent
+browser/App enforcement, shared portal/readiness issuer, evidence tooling, and
+rollback operations are implemented. No production tag migration or legacy
+withdrawal has occurred and checked-in SDK authentication remains off.
+Therefore the checks below are the named-publisher activation gate; repository
+completion alone does not establish production authenticity. Do not enable
+either P03 gate, deny legacy reads, or approve a new App integration as
+authenticated production traffic without the canary, support, monitoring, and
+rollback evidence required below.
 
 ## 1. Inventory readiness
 

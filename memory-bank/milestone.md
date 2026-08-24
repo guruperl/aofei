@@ -33,8 +33,8 @@ complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 is now complete. S06 repository
 hardening, managed Cloudflare widget, constrained Free-plan edge rule,
 production deployment, and live proof are also complete. The remaining
-deep-review horizon resumes with P03, S05, O03, R03, and A03. I02 remains
-demand-gated and must not start until P03/S05
+deep-review horizon resumes with S05, O03, R03, and A03 after P03 completion.
+I02 remains demand-gated and must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
 OS/version and lifecycle requirements. Matching lane status files are the
 authoritative completion record; completed M-lane files retain earlier runtime
@@ -47,9 +47,9 @@ Delivery sequence:
 3. Core expansion: D02, I01, R01, and O02, then staged D03 after I01.
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
 5. Follow-up review remediation: D04 callback/runtime history, D05
-   auction/cap/hot-path fixes, and S06 repository plus production activation
-   are complete; the remaining sequence starts with P03 direct-SSP
-   authenticity, then S05 trust boundaries, O03
+   auction/cap/hot-path fixes, S06 repository plus production activation, and
+   P03 direct-SSP authenticity are complete; the remaining sequence starts with
+   S05 trust boundaries, then O03
    job/cache/filesystem reliability, R03 experiment/report integrity, then A03
    exact monetary sources.
 6. Demand-gated mobile delivery: I02 after P03/S05 and a named mobile
@@ -78,7 +78,7 @@ acceptance criteria recorded in the corresponding status files.
 | D05 | Completed | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
-| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract, versioned locator codec/runtime reader, SDK/server authentication, independent enforcement, and client-claim disposition complete. |
+| P03 | Completed; disabled by default | [status-P03.md](status-P03.md) | Direct SSP request authenticity, scoped App proofs, portal/cache integration, and rollout/rollback evidence. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
 | R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
@@ -1546,7 +1546,7 @@ Implement the additive supply taxonomy selected by ADR 0001 and introduce
 seller/supply-chain metadata without changing the existing publisher account
 boundary. Detailed tasks are in [status-P02.md](status-P02.md).
 
-## P03 - Direct SSP Request Authenticity `[~]`
+## P03 - Direct SSP Request Authenticity `[+]`
 
 Version direct-SSP inventory token integrity and add a distinct authenticated,
 fresh publisher/App request boundary for SDK-style traffic. Public browser

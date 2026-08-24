@@ -29,7 +29,7 @@ only when the client explicitly accepts gzip; no-fill behavior is unchanged.
 Any synthesized request sent to an external DSP uses the exact OpenRTB 2.5
 profile in [middleman-adx.md](middleman-adx.md).
 
-P03 is now in progress. Its accepted
+P03 repository implementation and review are complete. Its accepted
 [authenticity contract](direct-ssp-authenticity.md) records that the current
 packed browser values are enumerable and that HMAC-protected browser locators
 remain public and replayable. The v2 codec, bounded current/previous key ring,
@@ -44,7 +44,8 @@ effects. Publisher pages and the cache readiness manifest now use the same
 configured issuer as `/pz`: the disabled compatibility state emits v1, and an
 enabled deployment emits current-epoch v2 site/slot locators. App samples
 include the four request-signing header placeholders but never embed a private
-signing value. The P03 contract governs the staged security boundary.
+signing value. Both gates remain disabled by default until a separately
+authorized named-publisher canary follows the P03 rollout/rollback contract.
 
 ## Browser Contract And Locator Versions
 

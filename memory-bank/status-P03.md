@@ -1,6 +1,6 @@
 # Status P03 - Direct SSP Request Authenticity
 
-State: `[~]` In progress
+State: `[+]` Completed
 
 ## Goal
 
@@ -40,6 +40,32 @@ traffic origin.
   complete reload query/build/install sequence is now serialized with snapshot
   mutation, and a deterministic race regression plus `publisherauth` test,
   race, vet, and static analysis checks pass.
+- Iteration 2 (2026-08-24): full milestone review found no P1, P2, or
+  higher-severity findings; the bounded review-fix gate passes after one fix
+  iteration.
+
+## Closeout Evidence (2026-08-24)
+
+- All seven task units are complete in focused Aofei and pzdesign commits. The
+  review fix is `5097369`; it prevents an in-flight credential reload from
+  undoing a local lifecycle snapshot mutation.
+- Aofei passed `GOWORK=off go test ./...`, vet, pinned staticcheck, the complete
+  scoped race suite, `aofei-p03-proof.sh`, documentation/public-data guards,
+  and diff hygiene. The proof includes 32 concurrent claims of one nonce with
+  exactly one winner.
+- pzdesign passed its full test, vet, documented staticcheck, full race,
+  template, public-copy, public-data, and diff gates. Genelet passed full test,
+  vet, documented baseline staticcheck, full race, and diff gates.
+- The local MySQL baseline guard and read-only schema comparison pass at 95
+  tables, 6 routines, and 55 triggers. No destructive reset or cache
+  publication was needed.
+- The evolution log was checked; no successor to v28 is needed because P03
+  fulfills the already-approved direct-SSP authenticity direction rather than
+  changing the product or architecture boundary.
+- No production key, publisher credential, deployment, live traffic, cache
+  generation, database row, or external service was mutated. Both P03 gates
+  remain disabled by default until a separately authorized named-publisher
+  canary follows the documented rollout and rollback contract.
 
 ## Acceptance Criteria
 

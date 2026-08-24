@@ -13,6 +13,8 @@ atomic generation publication with partial live writes.
 - M14 cache architecture, D03 callback retry, O01 observability, and O02
   single-region ownership/recovery contracts.
 - D04 defines callback publication state; S05 defines safe outbound transport.
+- Completed P03 defines immutable publisher-credential snapshot refresh and
+  short-lived hashed replay-state contracts used by the HTTP tier.
 
 ## Tasks
 
@@ -49,3 +51,16 @@ atomic generation publication with partial live writes.
 
 - JetStream/KV cache distribution, multi-region coordination, and million-RPM
   engineering remain deferred unless their existing evidence triggers are met.
+
+## Reconciliation From P03
+
+- P03 credential reload keeps the previous complete immutable generation on
+  query/build failure, fails request authentication closed after its bounded
+  maximum age, and serializes query/build/install with local lifecycle
+  mutation. O03 cache/job abstractions must not replace that with partial
+  in-place publication or allow stale reload completion to undo a revocation.
+- P03 replay keys contain only a domain-separated hash of public id plus nonce
+  and expire through the accepted timestamp window. Recovery tooling must not
+  scan, export, persist, or bulk-delete them; dependency failure remains a
+  fixed-cardinality retryable authentication outcome rather than a
+  credentialless fallback.

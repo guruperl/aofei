@@ -130,12 +130,10 @@ placement and direct `go install` invocations in
 
 ## Capability And Activation Status
 
-The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, and
-S06 are complete. P03 is in progress with its threat and compatibility
-contract, default-off versioned locator codec/runtime dual reader, and
-default-off SDK/server request authentication plus independent browser/App
-enforcement complete; its remaining
-implementation precedes S05, O03, R03, and A03. I02 remains
+The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, S06,
+and P03 are complete. P03's authenticity gates remain disabled by default
+until a separately authorized named-publisher canary. The remaining
+implementation proceeds through S05, O03, R03, and A03. I02 remains
 separately demand-gated. Implementation does not imply production activation:
 
 | Area | Current state |
@@ -145,7 +143,7 @@ separately demand-gated. Implementation does not imply production activation:
 | D04 delivery/tracking integrity | Implemented; confirmed ACL, callback, cap-time, bounded-input, and tracking semantic corrections are complete. |
 | D05 post-D04 auction remediation | Implemented; legacy cap migration compatibility, invalid-cap isolation, optional OpenRTB dimensions, and bid hot-path cleanup are complete. |
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
-| P03 direct SSP authenticity | In progress; the contract, default-off v2 locator codec/dual reader, SDK/server authentication, independent browser/App enforcement, and client-claim disposition are implemented, while portal/cache integration and rollout remain pending. |
+| P03 direct SSP authenticity | Implemented and disabled by default; versioned public locators, scoped App request proofs, portal/cache integration, abuse evidence, and rollout/rollback operations are complete, while production activation remains publisher-canary gated. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
 | R03 experiment/report integrity | Planned; will version assignment privacy and strengthen analytical validation. |
 | I01 OpenRTB interoperability | Implemented as a bounded OpenRTB 2.5 profile. |

@@ -2,13 +2,15 @@
 
 This document is the P03 security and compatibility contract for `POST /pz`.
 It separates public browser inventory locators from publisher/App request
-authentication and defines the invariants that the remaining P03 work must
-preserve.
+authentication and defines the invariants that P03 implements and future
+changes must preserve.
 
 The threat contract, versioned browser-token codec/runtime reader, default-off
 SDK/server request-authentication boundary, independent browser/App
-enforcement, client-claim disposition, and portal/cache integration are now
-implemented. Production rollout remains pending. Publisher pages and the
+enforcement, client-claim disposition, portal/cache integration, evidence
+tooling, and rollout/rollback operations are implemented and reviewed.
+Production activation remains pending a separately authorized named-publisher
+canary. Publisher pages and the
 readiness manifest now use the same controller-configured issuer as `/pz`: the
 checked-in disabled state emits v1, while an enabled v2 deployment emits only
 current-epoch v2 samples. The checked-in v2 block stays disabled and legacy
@@ -289,6 +291,6 @@ it remains a publisher assertion rather than verified device location, and
 latitude/longitude/accuracy/fix age are always removed.
 
 See [publisher-activation.md](publisher-activation.md) for the current rollout
-gate. Production authenticity is not established until the remaining P03 work
-finishes observability and rotation/rollback operations and passes a named
-publisher canary.
+gate. Repository completion is not production authenticity: observability,
+rotation/rollback operations, and a named-publisher canary must be executed and
+retained for that deployment before either default-off gate is activated.

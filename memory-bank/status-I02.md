@@ -172,11 +172,26 @@ when customer demand justifies their long-term support cost.
 
 ## Reconciliation From P03 And S05
 
+- P03 repository implementation is complete, but both authenticity gates stay
+  disabled by default until a named publisher canary is separately authorized.
+  That completion satisfies only I02's server-auth prerequisite; S05 remains
+  pending and no named Android/iOS integration, OS/version matrix, or lifecycle
+  owner exists, so I02 is not triggered by the current goal.
 - A native SDK must use the P03 publisher/App-scoped request credential,
-  freshness proof, replay rules, rotation, and revocation contract. Packed or
-  HMAC-protected inventory locators are public identifiers and are never used as
-  the application's authentication secret.
+  exact-decompressed-body signature, freshness proof, one-use replay rules,
+  rotation, and revocation contract. A retry signs the exact new request with a
+  fresh timestamp and nonce. The private seed belongs in platform-approved
+  secure storage, never source, samples, telemetry, logs, or release artifacts.
+  Packed or HMAC-protected inventory locators are public identifiers and are
+  never used as the application's authentication secret.
 - SDK WebViews/renderers must implement S05's tested origin, navigation,
   storage, bridge, redirect, and URL isolation for every Banner, Video, and
   Native consumer. A named integration cannot start until the P03 legacy
   compatibility window and S05 rendering requirements are explicit.
+
+## Conditional Trigger Evaluation
+
+- 2026-08-24: no named Android or iOS integration supplied supported OS/
+  version, consent, renderer, release, or support-lifecycle requirements. I02
+  remains planned and is skipped, not completed or cancelled, when this goal
+  reaches its conditional step.

@@ -13,7 +13,7 @@ container and legitimate third-party advertising behavior.
 - S01 data disclosure, S02 identity/RBAC, S03 traffic quality, and S04 template
   rendering contracts.
 - D02 owns creative acceptance; D03 owns middleman transport and callbacks;
-  P03 owns direct-SSP request authenticity.
+  completed P03 owns direct-SSP request authenticity.
 
 ## Tasks
 
@@ -54,3 +54,20 @@ container and legitimate third-party advertising behavior.
 - Sanitizing arbitrary third-party markup into a different creative language is
   not assumed to be compatible and requires a separate approved contract.
 - Automatic or learned fraud scoring remains deferred.
+
+## Reconciliation From P03
+
+- P03 now supplies two distinct reviewed inputs: public versioned inventory
+  locators and an App-scoped Ed25519 request principal. S05 principal review
+  must preserve that separation, prove Summer credential actors still come
+  only from Genelet's verified `_grole`/account/permission/MFA state, and never
+  reinterpret request-proof headers, locators, Redis markers, or client account
+  fields as control-plane authority.
+- The current App integration output is a textual request sample, not a native
+  renderer. No Android/iOS package or first-party WebView consumer was added by
+  P03, so S05 still owns the complete creative-consumer inventory and hostile-
+  markup isolation proof; conditional I02 remains untriggered.
+- P03's immutable credential snapshot now serializes full reload construction
+  with local issue/rotation/revocation mutation. S05 changes to principal or
+  credential provenance must retain that immediate local containment and the
+  bounded cross-node fail-closed refresh contract.

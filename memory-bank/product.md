@@ -147,12 +147,12 @@ confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
-and quota-script work. D05 and S06 are now complete. P03 is in progress: its
+and quota-script work. D05, S06, and P03 are now complete. P03 provides its
 threat contract, default-off versioned locator codec/runtime dual reader,
 default-off SDK/server authentication, independent browser/App enforcement,
 client-claim disposition, portal/cache integration, and repository rollout/
-abuse evidence are complete. Production gates remain default-off and require a
-separately authorized named publisher canary.
+abuse evidence. Production gates remain default-off and require a separately
+authorized named publisher canary.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in
@@ -240,8 +240,9 @@ The established runtime direction remains:
 	  exact-body signature, bounded timestamp, and shared one-use Redis nonce.
 	  S02-scoped issue/rotation/revocation shows the private seed once, stores
 	  only the public verifier, and writes immutable lifecycle audits. The gate
-	  stays off until the remaining P03 rollout work. Valid locators or request
-	  proofs cannot override Web/App type, active inventory, App identity,
+	  stays off until a separately authorized named-publisher rollout. Valid
+	  locators or request proofs cannot override Web/App type, active inventory,
+	  App identity,
 	  browser provenance, privacy, admission, or server-owned seller-chain
 	  policy; pre-auction rejections do not reflect cached ids, hostnames, or
 	  credential state. S02 sessions, I03 advertiser credentials, and

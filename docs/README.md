@@ -7,11 +7,9 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order, D04, D05, and S06 are complete. P03 is in progress with its threat
-contract, default-off versioned locator codec/runtime dual reader, and
-default-off SDK/server request authentication plus independent browser/App
-enforcement complete; the remaining review
-order continues through P03, S05, O03, R03, and A03. I02
+order, D04, D05, S06, and P03 are complete. P03's authenticity gates remain
+disabled by default until a separately authorized named-publisher canary. The
+remaining review order continues through S05, O03, R03, and A03. I02
 remains separately demand-gated until P03/S05 are complete and a named Android
 or iOS integration defines supported platforms and lifecycle requirements. The
 active MySQL baseline is 95 tables, 0 views, 6 routines, and 55 triggers;
@@ -48,7 +46,7 @@ planned milestones do not imply schema or runtime activation.
 | D05 post-D04 auction remediation | Completed | [status-D05.md](../memory-bank/status-D05.md) | Existing [DSP workflow](dsp-workflow.md), [auction](auction-pricing-creatives.md), and [measurement](openrtb-measurement.md) contracts |
 | P01 direct SSP readiness | Completed; publisher activation-gated | [status-P01.md](../memory-bank/status-P01.md) | [Publisher activation](publisher-activation.md) and [`/pz` contract](ssp-direct-traffic.md) |
 | P02 supply and seller transparency | Completed | [status-P02.md](../memory-bank/status-P02.md) | [Supply taxonomy ADR](adr/0001-richer-supply-taxonomy.md) and [ownership ADR](adr/0002-ssp-account-schema-boundary.md) |
-| P03 direct SSP authenticity | In progress | [status-P03.md](../memory-bank/status-P03.md) | [Authenticity contract](direct-ssp-authenticity.md), existing [`/pz` contract](ssp-direct-traffic.md), [publisher activation](publisher-activation.md), and [identity boundary](identity-access-security.md) |
+| P03 direct SSP authenticity | Completed; disabled by default | [status-P03.md](../memory-bank/status-P03.md) | [Authenticity contract](direct-ssp-authenticity.md), existing [`/pz` contract](ssp-direct-traffic.md), [publisher activation](publisher-activation.md), and [identity boundary](identity-access-security.md) |
 | R01 conversion and attribution | Completed | [status-R01.md](../memory-bank/status-R01.md) | [Conversion and attribution](conversion-attribution.md) |
 | R02 analytics and experiments | Completed | [status-R02.md](../memory-bank/status-R02.md) | [Marketplace analytics and experiments](marketplace-analytics-experiments.md) |
 | R03 experiment/report integrity | Planned | [status-R03.md](../memory-bank/status-R03.md) | Existing [analytics and experiment contract](marketplace-analytics-experiments.md) |

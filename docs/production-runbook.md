@@ -6,10 +6,9 @@ Local Docker development remains documented separately in
 
 The current lane baseline is summarized in the
 [documentation and milestone index](README.md). The original D/P/R/I/S/A/O
-sequence through A02 plus D04, D05, and S06 is implemented. P03 is in progress
-with its threat contract, default-off v2 locator codec/runtime dual reader, and
-default-off SDK/server authentication plus independent browser/App enforcement
-complete; S05, O03, R03, and
+sequence through A02 plus D04, D05, S06, and P03 is implemented. P03 remains
+disabled by default pending a separately authorized named-publisher activation;
+S05, O03, R03, and
 A03 remain planned, and I02 remains demand-gated.
 D03 remains partner activation-gated; I03, S02, S03, and A02 remain
 independently disabled by default. Operators must assess open remediation
@@ -162,8 +161,8 @@ out of config, logs, cache payloads, database rows, tags, and publisher-visible
 output. The current default-off codec does not by itself authorize production
 activation.
 The separate default-off `direct_ssp_auth` block controls publisher/App request
-credentials. Before a later P03 rollout authorizes it, apply the additive
-`pub_request_credential` migration, enable S02 identity with exact
+credentials. Before a named P03 activation canary authorizes it, apply the
+additive `pub_request_credential` migration, enable S02 identity with exact
 `publisher.credential.read|issue|rotate|revoke` permissions and recent MFA for
 mutations, and prove MySQL/Redis availability on every HTTP node. The defaults
 allow 300 seconds of request clock skew, refresh the immutable public-key
@@ -173,8 +172,8 @@ issuance returns the Ed25519 private seed once to the authorized publisher,
 while MySQL retains only the public verifier. The caller must keep that private
 value in an approved secret manager and generate a new nonce per request; never
 place it in configuration samples, logs, Redis, backups, browser tags, or
-mobile source. Do not enable this gate until P03 is closed and the named
-publisher canary, support window, and rollback ownership are approved. An auth
+mobile source. Do not enable this gate until the named publisher canary,
+support window, and rollback ownership are approved. An auth
 incident does not authorize a silent credentialless fallback: withdraw the App
 through a complete cache generation before disabling the gate.
 Frequency-cap payload version 2 is rolling-compatible: upgrade readers/writers
