@@ -1,11 +1,35 @@
 package acl
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-sql-driver/mysql"
 )
+
+func TestDBAddNewContextRejectsCanceledInventoryMutation(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	pub := &Pub{
+		PubID: 7,
+		Sites: map[string]uint32{"site.example": 11},
+		Slots: map[uint32]map[string]uint32{11: {}},
+	}
+	_, err = (PubMap{"pub.example": pub}).DBAddNewContext(ctx, db, "pub.example", "site.example", "Web", "new-slot")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("DBAddNewContext error = %v, want context canceled", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestInsertPublisherRetriesPrimaryKeyCollision(t *testing.T) {
 	db, mock, err := sqlmock.New()

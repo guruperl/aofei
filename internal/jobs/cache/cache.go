@@ -114,7 +114,7 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 	}
 
 	if opts.UpdatePubMap {
-		if err := UpdatePubMap(c, db, pubmap, opts.UpdateInterval, opts.UpdateStamp); err != nil {
+		if err := UpdatePubMap(ctx, c, db, pubmap, opts.UpdateInterval, opts.UpdateStamp); err != nil {
 			return err
 		}
 	}
@@ -879,7 +879,10 @@ func deleteRedisKeysByPattern(ctx context.Context, redis radix.Client, pattern s
 	return nil
 }
 
-func UpdatePubMap(c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp int) error {
+func UpdatePubMap(ctx context.Context, c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp int) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if interval <= 0 {
 		return fmt.Errorf("cache update interval must be positive")
 	}
@@ -900,6 +903,9 @@ func UpdatePubMap(c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp 
 
 	scanner := newAttributeLogScanner(fh)
 	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		line := scanner.Text()
 		if line == "" {
 			continue
@@ -913,13 +919,16 @@ func UpdatePubMap(c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp 
 		if plus.Attribute.IsApp {
 			siteType = "App"
 		}
-		pub, err := pubmap.DBAddNew(db, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
+		pub, err := pubmap.DBAddNewContext(ctx, db, acl.PubStr, acl.SiteStr, siteType, acl.SlotStr)
 		if err != nil {
 			return err
 		}
 		pubmap[acl.PubStr] = pub
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 
 func newAttributeLogScanner(r io.Reader) *bufio.Scanner {

@@ -148,9 +148,10 @@ atomic generation publication with partial live writes.
     the newest distinct rollback asset in addition to the selected digest;
     failed staging directories are ineligible. A focused repeated-publication
     test proves the prior valid asset remains available.
-  - P2 open: attribute-log inventory discovery runs context-free `DBAddNew`
-    mutations, so cache work can continue changing MySQL after its lease-owned
-    context has been canceled.
+  - P2 resolved: attribute-log inventory discovery checks the lease context on
+    every record and uses context-aware publisher/site/slot insert and collision
+    lookup paths. A canceled-context test proves no inventory SQL is issued
+    after lease cancellation; compatibility wrappers retain the old API.
   - P2 open: the exported legacy `SpreadGetPub` filesystem writer still accepts
     an unchecked subject-derived path and truncates it directly at mode `0644`
     instead of using the validated durable `0640` snapshot boundary.

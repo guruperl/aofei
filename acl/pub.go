@@ -295,7 +295,11 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 }
 
 func (self *Pub) addSlot(db *sql.DB, siteID uint32, slotStr string) (uint32, error) {
-	row, err := db.Exec(`
+	return self.addSlotContext(context.Background(), db, siteID, slotStr)
+}
+
+func (self *Pub) addSlotContext(ctx context.Context, db *sql.DB, siteID uint32, slotStr string) (uint32, error) {
+	row, err := db.ExecContext(ctx, `
 INSERT INTO pub_slot (site_id, slot_name, active, created)
 VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 	if err != nil {
@@ -331,7 +335,11 @@ VALUES (?, ?, 'Yes', NOW())`, siteID, slotStr)
 }
 
 func (self *Pub) addSite(db *sql.DB, siteStr string, siteType string) (uint32, error) {
-	row, err := db.Exec(`
+	return self.addSiteContext(context.Background(), db, siteStr, siteType)
+}
+
+func (self *Pub) addSiteContext(ctx context.Context, db *sql.DB, siteStr string, siteType string) (uint32, error) {
+	row, err := db.ExecContext(ctx, `
 INSERT INTO pub_site (pub_id, site_name, foreign_id, site_url, site_type, active, created)
 VALUES (?, ?, ?, ?, ?, 'Yes', NOW())`, self.PubID, siteStr, siteStr, siteStr, siteType)
 	if err != nil {
@@ -368,12 +376,19 @@ func randomPublisherID() (uint32, error) {
 }
 
 func insertPublisher(db *sql.DB, pubStr string, generateID func() (uint32, error)) (uint32, error) {
+	return insertPublisherContext(context.Background(), db, pubStr, generateID)
+}
+
+func insertPublisherContext(ctx context.Context, db *sql.DB, pubStr string, generateID func() (uint32, error)) (uint32, error) {
 	for attempt := 0; attempt < publisherIDAllocationAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
 		pubID, err := generateID()
 		if err != nil {
 			return 0, err
 		}
-		_, err = db.Exec(`
+		_, err = db.ExecContext(ctx, `
 INSERT INTO pub (pub_id, domain, email, passwd, address_id, active, created)
 VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
 		if err == nil {
@@ -384,7 +399,7 @@ VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
 			return 0, err
 		}
 		var existingEmail string
-		lookupErr := db.QueryRow(`SELECT email FROM pub WHERE pub_id=? LIMIT 1`, pubID).Scan(&existingEmail)
+		lookupErr := db.QueryRowContext(ctx, `SELECT email FROM pub WHERE pub_id=? LIMIT 1`, pubID).Scan(&existingEmail)
 		if lookupErr == nil {
 			continue
 		}
@@ -397,7 +412,11 @@ VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
 }
 
 func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
-	pubID, err := insertPublisher(db, pubStr, randomPublisherID)
+	return AddPubContext(context.Background(), db, pubStr)
+}
+
+func AddPubContext(ctx context.Context, db *sql.DB, pubStr string) (*Pub, error) {
+	pubID, err := insertPublisherContext(ctx, db, pubStr, randomPublisherID)
 	if err != nil {
 		return nil, err
 	}
@@ -408,10 +427,10 @@ func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
 		SlotSizes: make(map[uint32]map[uint32]uint32),
 	}
 
-	if pub.DefaultAppSiteID, err = pub.addSite(db, SITEDefaultApp, "App"); err == nil {
-		if pub.DefaultWebSiteID, err = pub.addSite(db, SITEDefaultWeb, "Web"); err == nil {
-			if pub.DefaultAppSlotID, err = pub.addSlot(db, pub.DefaultAppSiteID, SLOTDefault); err == nil {
-				pub.DefaultWebSlotID, err = pub.addSlot(db, pub.DefaultWebSiteID, SLOTDefault)
+	if pub.DefaultAppSiteID, err = pub.addSiteContext(ctx, db, SITEDefaultApp, "App"); err == nil {
+		if pub.DefaultWebSiteID, err = pub.addSiteContext(ctx, db, SITEDefaultWeb, "Web"); err == nil {
+			if pub.DefaultAppSlotID, err = pub.addSlotContext(ctx, db, pub.DefaultAppSiteID, SLOTDefault); err == nil {
+				pub.DefaultWebSlotID, err = pub.addSlotContext(ctx, db, pub.DefaultWebSiteID, SLOTDefault)
 			}
 		}
 	}

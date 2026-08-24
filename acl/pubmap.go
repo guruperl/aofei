@@ -551,6 +551,12 @@ func DBGetPubMap(db *sql.DB) (PubMap, error) {
 
 // DBAddNew adds a new RPub object to the database.
 func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr string) (*Pub, error) {
+	return self.DBAddNewContext(context.Background(), db, pubStr, siteStr, siteType, slotStr)
+}
+
+// DBAddNewContext adds discovered publisher inventory while honoring the
+// owning cache job's cancellation boundary.
+func (self PubMap) DBAddNewContext(ctx context.Context, db *sql.DB, pubStr, siteStr, siteType, slotStr string) (*Pub, error) {
 	var pub *Pub
 	var siteID, slotID uint32
 	var ok1, ok2, ok3 bool
@@ -560,20 +566,20 @@ func (self PubMap) DBAddNew(db *sql.DB, pubStr, siteStr, siteType, slotStr strin
 		siteID, ok2 = pub.Sites[siteStr]
 		if ok2 {
 			if _, ok3 = pub.Slots[siteID][slotStr]; !ok3 {
-				slotID, err = pub.addSlot(db, siteID, slotStr)
+				slotID, err = pub.addSlotContext(ctx, db, siteID, slotStr)
 				pub.Slots[siteID][slotStr] = slotID
 			}
 		} else {
-			if siteID, err = pub.addSite(db, siteStr, siteType); err == nil {
+			if siteID, err = pub.addSiteContext(ctx, db, siteStr, siteType); err == nil {
 				pub.Sites[siteStr] = siteID
-				if slotID, err = pub.addSlot(db, siteID, slotStr); err == nil {
+				if slotID, err = pub.addSlotContext(ctx, db, siteID, slotStr); err == nil {
 					pub.Slots[siteID] = make(map[string]uint32)
 					pub.Slots[siteID][slotStr] = slotID
 				}
 			}
 		}
 	} else {
-		pub, err = AddPub(db, pubStr)
+		pub, err = AddPubContext(ctx, db, pubStr)
 	}
 
 	return pub, err
