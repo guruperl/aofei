@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
@@ -260,27 +259,7 @@ func newestValidCityGeneration(assetRoot, exclude string, validate func(string) 
 }
 
 func withCityPublicationLock(configPath string, publish func() error) (err error) {
-	if publish == nil {
-		return errors.New("MaxMind publisher is nil")
-	}
-	lockPath := filepath.Join(filepath.Dir(configPath), "."+filepath.Base(configPath)+".lock")
-	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return err
-	}
-	locked := false
-	defer func() {
-		var unlockErr error
-		if locked {
-			unlockErr = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
-		}
-		err = errors.Join(err, unlockErr, lock.Close())
-	}()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
-		return err
-	}
-	locked = true
-	return publish()
+	return maxmind.WithCityPublicationLock(configPath, publish)
 }
 
 func cityAssetRoot(configPath string) string {

@@ -226,10 +226,10 @@ atomic generation publication with partial live writes.
     Cleanup and pointer replacement retain the exclusive side; a deterministic
     lock test proves selection waits until the resolved read releases its root.
 
-- Iteration 13 (2026-08-24): one P2 finding remains open.
-  - P2: MaxMind publishers take an exclusive sibling lock, but JSON readers do
-    not take its shared side while reading the selected config and opening the
-    referenced City asset. Two rapid publications can therefore prune the
-    asset named by a config that a concurrent reader already loaded. Move the
-    stable lock into the shared MaxMind package and hold it across the complete
-    config-and-asset load as well as publication.
+- Iteration 13 (2026-08-24): one P2 finding was found.
+  - P2 resolved: the stable MaxMind sibling lock now lives in the shared
+    package. JSON readers hold its shared side across both config parsing and
+    opening the selected heap-backed City asset, while publication retains the
+    exclusive side across staging, pruning, and config replacement. A focused
+    concurrency test proves publication waits for the selected-asset reader;
+    package, vet, static-analysis, and race checks pass.

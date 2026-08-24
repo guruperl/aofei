@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	legacyip "github.com/guruperl/aofei/maxmind/ipsearch"
 	//"pzutil"
@@ -120,6 +121,47 @@ func TestLoadIPDataUsesStrictLegacyDatFallback(t *testing.T) {
 	}
 	if _, err := LoadIPData(path); err == nil {
 		t.Fatal("malformed legacy LoadIPData() error = nil")
+	}
+}
+
+func TestCityPublicationWaitsForSelectedAssetReader(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "maxmind.json")
+	readerEntered := make(chan struct{})
+	releaseReader := make(chan struct{})
+	readerDone := make(chan error, 1)
+	go func() {
+		readerDone <- withCityPublicationReadLock(configFile, func() error {
+			close(readerEntered)
+			<-releaseReader
+			return nil
+		})
+	}()
+	<-readerEntered
+
+	publisherEntered := make(chan struct{})
+	publisherDone := make(chan error, 1)
+	go func() {
+		publisherDone <- WithCityPublicationLock(configFile, func() error {
+			close(publisherEntered)
+			return nil
+		})
+	}()
+	select {
+	case <-publisherEntered:
+		t.Fatal("publisher entered while selected asset reader held the lock")
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(releaseReader)
+	if err := <-readerDone; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-publisherEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("publisher did not acquire released City publication lock")
+	}
+	if err := <-publisherDone; err != nil {
+		t.Fatal(err)
 	}
 }
 

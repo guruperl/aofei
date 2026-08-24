@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/IncSW/geoip2"
@@ -31,6 +32,16 @@ func LoadIPData(fn string) (*IPSearch, error) {
 		}
 		return &IPSearch{Legacy: legacy}, nil
 	}
+	var loaded *IPSearch
+	err := withCityPublicationReadLock(fn, func() error {
+		var err error
+		loaded, err = loadCurrentIPData(fn)
+		return err
+	})
+	return loaded, err
+}
+
+func loadCurrentIPData(fn string) (*IPSearch, error) {
 	bs, err := os.ReadFile(fn)
 	if err != nil {
 		return nil, err
@@ -53,6 +64,44 @@ func LoadIPData(fn string) (*IPSearch, error) {
 	ipSearch.Reader = reader
 
 	return ipSearch, nil
+}
+
+// WithCityPublicationLock serializes a complete City generation publication
+// against both other publishers and readers loading the selected JSON/asset
+// pair.
+func WithCityPublicationLock(configPath string, publish func() error) error {
+	return withCityPublicationFileLock(configPath, syscall.LOCK_EX, publish)
+}
+
+func withCityPublicationReadLock(configPath string, read func() error) error {
+	return withCityPublicationFileLock(configPath, syscall.LOCK_SH, read)
+}
+
+func withCityPublicationFileLock(configPath string, operation int, work func() error) (err error) {
+	if work == nil {
+		return errors.New("MaxMind publication operation is nil")
+	}
+	lockPath := filepath.Join(filepath.Dir(configPath), "."+filepath.Base(configPath)+".lock")
+	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	locked := false
+	defer func() {
+		var unlockErr error
+		if locked {
+			unlockErr = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		}
+		err = errors.Join(err, unlockErr, lock.Close())
+	}()
+	if err := lock.Chmod(0600); err != nil {
+		return err
+	}
+	if err := syscall.Flock(int(lock.Fd()), operation); err != nil {
+		return err
+	}
+	locked = true
+	return work()
 }
 
 // ResolveCityFilePath resolves a validated City database path relative to its
