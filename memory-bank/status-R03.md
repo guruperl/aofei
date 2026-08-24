@@ -65,6 +65,13 @@ bids, delivery, accounting, or settlement.
   now serializes on the parent row and repeats the 2-20/10,000-basis-point start
   invariant; a disposable two-connection race proves the late insert waits and
   fails after start. The full iteration-3 review remains pending.
+- Iteration 3: one P2 finding. The required recovery drill still seeded its
+  experiment as Running before inserting variants, so the strengthened Draft-
+  only variant guard correctly rejected the fixture and the recovery gate
+  failed. The fixture now follows the production contract (Draft, complete
+  allocation, then Running) with Created/Started audit evidence; the full
+  95-table/6-routine/61-trigger restore and post-restore prune passed. The full
+  iteration-4 review remains pending.
 
 ## Exclusions
 

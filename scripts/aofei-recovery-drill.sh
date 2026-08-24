@@ -94,12 +94,13 @@ VALUES ('2026-08-01 12:00:00','Local',1,1,1,1,2,2,2,1,1,3,2,'Web','BrowserTag',
 INSERT INTO report_experiment
   (owner_type,experiment_name,experiment_version,status,assignment_salt,primary_metric,
    guardrail_metric,starts_at,created_by_uid,created_at)
-VALUES ('Operator','O02 recovery drill',1,'Running','00112233445566778899aabbccddeeff',
+VALUES ('Operator','O02 recovery drill',1,'Draft','00112233445566778899aabbccddeeff',
         'actions','spend','2026-08-01 00:00:00',1,UTC_TIMESTAMP(6));
 SET @report_experiment_id=LAST_INSERT_ID();
 INSERT INTO report_experiment_variant
   (experiment_id,experiment_version,variant_key,allocation_basis_points)
 VALUES (@report_experiment_id,1,'control',5000),(@report_experiment_id,1,'treatment',5000);
+UPDATE report_experiment SET status='Running' WHERE experiment_id=@report_experiment_id;
 INSERT INTO report_exposure
   (experiment_id,experiment_version,subject_hash,variant_key,exposed_at,expires_at)
 VALUES (@report_experiment_id,1,UNHEX(REPEAT('44',32)),'control','2026-08-01 12:00:00.000000',DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 1 DAY));
@@ -112,7 +113,8 @@ INSERT INTO report_exposure
 VALUES (@report_experiment_id,1,UNHEX(REPEAT('45',32)),'treatment','2026-08-01 12:00:00.000000',DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND));
 INSERT INTO report_experiment_audit
   (experiment_id,experiment_version,actor_uid,event,reason,created_at)
-VALUES (@report_experiment_id,1,1,'Created','O02 recovery drill',UTC_TIMESTAMP(6));
+VALUES (@report_experiment_id,1,1,'Created','O02 recovery drill',UTC_TIMESTAMP(6)),
+       (@report_experiment_id,1,1,'Started','O02 recovery drill start',UTC_TIMESTAMP(6));
 INSERT INTO adv_campaign
   (campaign_id,adv_id,campaign_name,foreign_id,access_order,active,created)
 VALUES (3,1,'D03 synthetic reporting','d03-drill','Inherit','No',UTC_TIMESTAMP());
