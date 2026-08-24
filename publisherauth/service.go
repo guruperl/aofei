@@ -239,6 +239,9 @@ func (s *Service) ClaimReplay(ctx context.Context, proof *RequestProof) error {
 	claimCtx, cancel := context.WithTimeout(ctx, replayTimeout)
 	defer cancel()
 	var claimed int
+	// The stored "1" is a non-secret existence label. Authentication already
+	// succeeded through Ed25519; replay authority comes only from the digest key
+	// and atomic SET NX result, never from comparing this marker value.
 	if err := s.redis.Do(claimCtx, claimReplayScript.Cmd(&claimed, []string{key}, strconv.FormatInt(ttlSeconds, 10))); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}

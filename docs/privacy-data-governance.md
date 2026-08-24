@@ -113,6 +113,17 @@ window, so rotation requires a documented maintenance window, acceptance of
 temporary cap discontinuity, and monitoring of signature failures. Never put
 old keys in Git or logs.
 
+Redis replay/cap values such as `"1"` and `"done"` are non-secret internal
+labels, not credentials, identities, signatures, or claim-owner tokens. Direct
+SSP replay and cap idempotency use key existence/atomic insertion only; their
+value is never compared for authority. Tracking processing completion and
+release require the random owner token created after a valid signed callback,
+and no HTTP field supplies that token. Tests replace existence-marker contents
+with arbitrary strings and prove they can suppress a duplicate but cannot
+authorize publication, claim ownership, or cap mutation. Redis still requires
+private transport, authentication, and least-privilege access because an actor
+able to write internal keys can deny service.
+
 The separate Genelet identity key encrypts TOTP secrets and derives recovery,
 session, and failed-login digests. It must be a stable 32-byte key shared by all
 HTTP nodes and the restricted identity maintenance host. There is no dual-key

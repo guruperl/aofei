@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -300,6 +301,52 @@ func TestConfigValidateBidRequiresTrackingSecret(t *testing.T) {
 	}
 	if err := c.Validate(ConfigModeBid); err == nil {
 		t.Fatal("expected bid validation to require tracking_secret")
+	}
+}
+
+func TestProductionValidationRejectsPublicOrWeakTrackingSecrets(t *testing.T) {
+	base := &Config{
+		ServerURL:                   "https://ads.example.test",
+		TrackingSecret:              strings.Repeat("deployment-key-material-", 2),
+		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		DeliveryCacheMaxAgeSeconds:  900,
+		DeliveryReservationSeconds:  86700,
+		DeliveryStateTTLSeconds:     172800,
+		ConnectArray:                []string{"mysql", "user:pass@tcp(127.0.0.1:3306)/aofei"},
+		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
+		NatsURL:                     "nats://127.0.0.1:4222",
+		MiddlemanCallbackTTLSeconds: 86700,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
+		MiddlemanCallbackBaseURL:    "https://ads.example.test",
+	}
+	if err := base.ValidateProduction(ConfigModeBid); err != nil {
+		t.Fatalf("strong production secret: %v", err)
+	}
+	for name, secret := range map[string]string{
+		"checked-in local example":    "local-dev-tracking-secret",
+		"checked-in recovery example": "o02-disposable-drill-secret",
+		"undersized test value":       "test-secret",
+		"surrounding whitespace":      " " + strings.Repeat("x", 32),
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := *base
+			candidate.TrackingSecret = secret
+			err := candidate.ValidateProduction(ConfigModeBid)
+			if err == nil {
+				t.Fatal("unsafe production tracking secret was accepted")
+			}
+			if strings.Contains(err.Error(), secret) {
+				t.Fatalf("validation error leaked tracking secret: %v", err)
+			}
+		})
+	}
+
+	ordinary := *base
+	ordinary.TrackingSecret = "test-secret"
+	if err := ordinary.Validate(ConfigModeBid); err != nil {
+		t.Fatalf("ordinary local/test validation changed: %v", err)
 	}
 }
 

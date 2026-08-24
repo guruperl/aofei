@@ -101,6 +101,13 @@ const (
 	ConfigModeRedis    ConfigMode = "redis"
 )
 
+const minimumProductionTrackingSecretBytes = 32
+
+var publicExampleTrackingSecrets = map[string]struct{}{
+	"local-dev-tracking-secret":   {},
+	"o02-disposable-drill-secret": {},
+}
+
 func NewConfig(filename string) (*Config, error) {
 	parsed := new(Config)
 	content, err := os.ReadFile(filename)
@@ -454,6 +461,38 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 		if strings.TrimSpace(self.TrackingSecret) == "" {
 			return fmt.Errorf("tracking_secret is required when middleman is enabled")
 		}
+	}
+	return nil
+}
+
+// ValidateProduction applies ordinary mode validation plus the deployment
+// preflight required before public bid serving. It performs no network or
+// dependency access and never includes secret material in an error.
+func (self *Config) ValidateProduction(modes ...ConfigMode) error {
+	if err := self.Validate(modes...); err != nil {
+		return err
+	}
+	requiresTracking := self.MiddlemanEnabled
+	for _, mode := range modes {
+		if mode == ConfigModeBid {
+			requiresTracking = true
+		}
+	}
+	if !requiresTracking {
+		return nil
+	}
+	return validateProductionTrackingSecret(self.TrackingSecret)
+}
+
+func validateProductionTrackingSecret(secret string) error {
+	if secret == "" || secret != strings.TrimSpace(secret) {
+		return fmt.Errorf("production tracking_secret must be a non-empty value without surrounding whitespace")
+	}
+	if _, public := publicExampleTrackingSecrets[secret]; public {
+		return fmt.Errorf("tracking_secret is a checked-in public example and cannot be used in production")
+	}
+	if len(secret) < minimumProductionTrackingSecretBytes {
+		return fmt.Errorf("production tracking_secret must contain at least %d bytes", minimumProductionTrackingSecretBytes)
 	}
 	return nil
 }

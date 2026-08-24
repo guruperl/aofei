@@ -125,6 +125,20 @@ retention and defaults to 7776000 seconds (90 days); cap refresh does not
 shorten a longer existing TTL. `BothCap` version 2 keeps a legacy-readable
 prefix and stores authoritative UTC epoch minutes so mixed-version rollout and
 90-day retention do not depend on `time.Local` or 16-bit elapsed-minute wrap.
+
+Before any production bid rollout, run the dependency-free configuration
+preflight from the exact service environment:
+
+```bash
+GOWORK=off GOTOOLCHAIN=go1.23.5 \
+  go run ./cmd/config-preflight -s "$AOFEI"
+```
+
+It applies bid-mode validation, rejects the checked-in local/recovery tracking
+secrets and values shorter than 32 bytes, emits no secret material, and does not
+connect to MySQL, Redis, NATS, or HTTP services. Ordinary `Config.Validate`
+remains compatible with deterministic local/test fixtures; production release
+evidence requires `ValidateProduction` through this command.
 `trusted_proxy_cidrs` is empty by default. `/pz` uses `RemoteAddr` for OpenRTB
 `device.ip` unless the peer address matches an explicit proxy IP or CIDR in
 that list, in which case it accepts `X-Forwarded-For` or `X-Real-IP`.

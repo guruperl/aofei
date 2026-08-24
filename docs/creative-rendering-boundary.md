@@ -22,6 +22,17 @@ the fixed CSRF input described in
 search and the current I02 status confirm that no maintained Android, iOS,
 WebView, or WKWebView package exists.
 
+Stored site review URLs and creative source/image URLs are management metadata,
+not server fetch targets. Syntax and media-shape validation parse them without
+DNS resolution or HTTP. Focused private-host tripwire tests run the actual
+Summer filters against a loopback HTTP server and require zero requests, while
+a source guard rejects outbound HTTP clients, transports, and convenience
+fetch functions in the source-only campaign/item/site/creative packages. A
+private-host URL on one of these source-only surfaces is therefore not an SSRF
+path. Any future preview, crawler, verifier, or metadata-enrichment fetch is a
+new outbound trust boundary and must use the reviewed special-use/rebinding
+transport before it is introduced.
+
 ## Browser Renderer
 
 `ads.js` clears the chosen host container and, for a non-empty string, appends

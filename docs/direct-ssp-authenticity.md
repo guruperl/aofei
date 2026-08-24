@@ -43,6 +43,13 @@ The browser `aofei_pz_uid` cookie is privacy-gated cap/tracking identity. It is
 not a publisher credential, inventory capability, request signature, or
 human-viewability proof.
 
+The App replay key's stored `"1"` is deliberately non-secret and
+non-authoritative for authentication: only atomic key creation after successful
+Ed25519 verification matters. Changing the stored label cannot turn a request
+into a valid proof or grant a claim; any existing value remains a duplicate
+until its exact bounded deadline. Redis write access is therefore an internal
+availability boundary, not an alternative publisher credential.
+
 ## Trust Contracts
 
 | Mechanism | What it may prove | What it does not prove |

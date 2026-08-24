@@ -23,6 +23,7 @@ Use these commands as separate process roles:
 
 | Role | Command | Placement |
 |---|---|---|
+| Production configuration preflight | `cmd/config-preflight` | every distinct HTTP-node service environment before rollout; read-only and dependency-free |
 | HTTP/UI/ADX | `../pzdesign/cmd/unify` | every HTTP node |
 | NATS log writer | `cmd/nats-client` | separate systemd service on nodes that write/aggregate logs |
 | Redis cache refresh | `cmd/redis-cache -cache=redis` | singleton cron/timer on one cache node |
@@ -65,6 +66,20 @@ owned service connections shut down in order.
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=redis
 ```
+
+Production does not use the checked-in/local tracking secret. From each exact
+canary service environment, before any restart, run:
+
+```bash
+GOWORK=off GOTOOLCHAIN=go1.23.5 \
+  go run ./cmd/config-preflight -s "$AOFEI"
+```
+
+This is a configuration-only check: it connects to no dependency and emits no
+secret. It applies bid-mode validation and rejects checked-in example values,
+surrounding whitespace, and tracking secrets shorter than 32 bytes. Archive
+only its fixed `production_config_preflight=passed` result with rollout
+evidence.
 
 This refresh also compiles `middleman:routes:v2` for M25 middleman routing and
 the fallback-only legacy `middleman:routes` key for M24 rolling-deploy safety.

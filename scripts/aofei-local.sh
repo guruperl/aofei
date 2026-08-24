@@ -631,6 +631,7 @@ install_commands() {
 		GOWORK=off go install \
 			./cmd/accounting \
 			./cmd/action-measurement \
+			./cmd/config-preflight \
 			./cmd/ledger \
 			./cmd/maxmind \
 			./cmd/mid-callback-retry \

@@ -376,7 +376,13 @@ escaping. Genelet's fixed CSRF hidden-input renderer is the sole approved raw
 HTML conversion. Summer management/review pages show stored creative markup or
 URLs only as escaped source; intentional auction delivery of approved creative
 markup remains an Aofei response contract owned by D02 validation, not a UI
-safe-HTML exception. The inventory and rules are in
+safe-HTML exception. Stored site-review and creative source URLs are parsed as
+metadata without DNS or HTTP. Loopback tripwire tests require zero requests
+through the real Summer filters, and a source guard prevents their production
+management packages from acquiring outbound HTTP clients/transports/fetch
+functions. A future preview/crawler must establish a new special-use-address
+and rebinding-safe boundary rather than reclassifying today's unfetched
+metadata as SSRF. The inventory and rules are in
 [docs/template-rendering-security.md](../docs/template-rendering-security.md)
 and `../pzdesign/docs/rendering-security.md`.
 
@@ -394,6 +400,10 @@ The source/runtime boundary and populated-data rollout are specified in
   `../pzdesign/www`.
 - Production configs default to `/etc/aofei/aofei.json` and
   `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`.
+- `cmd/config-preflight` performs dependency-free production bid-mode
+  validation. It rejects checked-in tracking-secret examples, surrounding
+  whitespace, and values shorter than 32 bytes without printing key material;
+  deployment must pass it before an HTTP-node rollout.
 - `etc/maxmind.json` is the active MaxMind config reference.
 - `etc/maxmind.json` references an external GeoLite2 City `.mmdb` through
   `city_file`, currently `/media/GeoLite2-City.mmdb`.
@@ -458,6 +468,12 @@ keep normal HTTP behavior but skip both side effects. Claim/cap Redis failures
 fail open, keyed events still attempt the idempotent cap transaction after a
 claim failure, and unkeyed events publish without cap mutation. Tracking Redis
 work is bounded to two seconds and detached from HTTP cancellation.
+Static replay/cap strings are non-secret state labels: App request replay and
+cap markers use atomic existence only, while tracking completion/release
+requires the random owner token acquired after signature validation. Tests
+with arbitrary marker contents prove those labels cannot grant authentication,
+publication, ownership, or cap mutation. Redis access control remains an
+availability and integrity prerequisite.
 Full Redis static refreshes build shadow families and replace all live hashes
 in one transaction, including empty-family and obsolete-slot deletion. A build
 failure leaves the previous live generation untouched.

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -449,6 +450,40 @@ func TestServeStatusSuppressesConcurrentProcessingClaim(t *testing.T) {
 	}
 	if got := published.Load(); got != 1 {
 		t.Fatalf("published = %d, want 1", got)
+	}
+}
+
+func TestTrackingMarkerLabelsNeverGrantClaimOwnership(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	controller := &Controller{Redis: client}
+	validUntil := time.Now().Add(time.Hour)
+
+	for name, value := range map[string]string{
+		"terminal label": "done",
+		"opaque label":   "caller-supplied-looking-value",
+	} {
+		t.Run(name, func(t *testing.T) {
+			key := "tracking:marker-boundary:" + strings.ReplaceAll(name, " ", "-")
+			if err := client.Do(ctx, radix.Cmd(nil, "SET", key, value, "EX", "60")); err != nil {
+				t.Fatal(err)
+			}
+			claim := controller.claimTrackingKey(ctx, key, validUntil)
+			if claim.owned() || claim.token != "" {
+				t.Fatalf("static marker granted claim ownership: %#v", claim)
+			}
+			if value == "done" && !claim.completed() {
+				t.Fatalf("terminal label outcome = %v, want completed duplicate", claim.outcome)
+			}
+			if value != "done" && claim.outcome != trackingClaimDuplicate {
+				t.Fatalf("opaque label outcome = %v, want in-flight duplicate", claim.outcome)
+			}
+		})
 	}
 }
 

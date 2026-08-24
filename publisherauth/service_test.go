@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -44,8 +45,13 @@ func TestRequestProofBindsBodyFreshnessScopeAndSharedReplay(t *testing.T) {
 	if err := service.ClaimReplay(context.Background(), proof); err != nil {
 		t.Fatal(err)
 	}
+	digest := sha256.Sum256([]byte("w8m-pz-replay-v1\x00" + proof.principal.PublicID + "\x00" + proof.nonce))
+	replayKey := "pz:auth:replay:" + base64.RawURLEncoding.EncodeToString(digest[:])
+	if err := service.redis.Do(context.Background(), radix.Cmd(nil, "SET", replayKey, "opaque-non-secret-label", "EX", "300")); err != nil {
+		t.Fatal(err)
+	}
 	if err := service.ClaimReplay(context.Background(), proof); !errors.Is(err, ErrReplay) {
-		t.Fatalf("replay error = %v", err)
+		t.Fatalf("arbitrary replay marker value became authoritative: %v", err)
 	}
 
 	tampered := append([]byte(nil), body...)

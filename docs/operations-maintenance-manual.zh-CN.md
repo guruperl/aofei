@@ -146,6 +146,19 @@ SUMMER=/etc/aofei/summer.json
   `live_mode` 是单独的法务、财务、税务、风控、隐私和客服上线决定，不能因代码
   已部署而自动开启。详见[托管资金与结算](hosted-funding-payout.md)。
 
+生产跟踪密钥必须由部署密钥系统生成且至少 32 字节。仓库中的
+`local-dev-tracking-secret` 和恢复演练值都是公开示例，不能用于线上。在每种
+实际服务环境、上线或重启之前运行只读预检：
+
+```bash
+GOWORK=off GOTOOLCHAIN=go1.23.5 \
+  go run ./cmd/config-preflight -s "$AOFEI"
+```
+
+预检不连接 MySQL、Redis、NATS 或 HTTP，不输出密钥；只有输出
+`production_config_preflight=passed` 才能作为上线证据。普通本地测试仍使用
+常规配置校验，不能用本地测试通过替代该生产预检。
+
 每个活动中的 `adv_bidder.credential_ref` 只能保存环境变量名称。该变量对 `unify` 可见，值为 JSON HTTP 请求头对象，例如 `{"Authorization":"Bearer ..."}`。真实值不得写入 MySQL、Redis、管理页面或版本库。系统会拒绝 `Host`、`Connection`、`Content-Length` 等逐跳或不安全头。
 
 ## 5. 本地开发环境

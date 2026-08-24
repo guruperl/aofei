@@ -353,6 +353,34 @@ func TestMustRefreshBothCapEventMarkerUsesAbsoluteDeadline(t *testing.T) {
 	}
 }
 
+func TestMustRefreshBothCapEventMarkerValueIsNonAuthoritative(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	const eventKey = "event:opaque-label"
+	if err := client.Do(ctx, radix.Cmd(nil, "SET", eventKey, "not-a-password", "EX", "60")); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := MustRefreshBothCapOnceWithTTL(ctx, client, time.Now(), "marker-value", 1, Cap{CapThrottle: 1}, time.Hour, eventKey, time.Minute, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied {
+		t.Fatal("an existing opaque marker permitted a second cap update")
+	}
+	if server.Exists(HashNameBothCap("marker-value")) {
+		t.Fatal("an arbitrary marker value caused cap state mutation")
+	}
+	if value, err := server.Get(eventKey); err != nil || value != "not-a-password" {
+		t.Fatalf("marker value was interpreted or rewritten: value=%q error=%v", value, err)
+	}
+}
+
 func TestMustRefreshBothCapDoesNotShortenLongerTTL(t *testing.T) {
 	server := miniredis.RunT(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

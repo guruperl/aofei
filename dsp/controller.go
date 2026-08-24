@@ -1657,6 +1657,9 @@ func trackingNotifyKey(status Status, auctionBidID string) string {
 }
 
 var (
+	// "done" is a non-secret terminal-state label. Only the random owner token
+	// returned by a successful claim may complete or release a processing claim;
+	// no HTTP field or static marker value can establish ownership.
 	claimTrackingEventScript = radix.NewEvalScript(`
 local current = redis.call("GET", KEYS[1])
 if current then

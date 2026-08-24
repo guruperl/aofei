@@ -150,6 +150,22 @@ win/loss, middleman callback, and cap-mutation tracker payloads. Set
 86400 seconds. Set `cap_state_ttl_seconds` to bound idle Redis frequency-cap
 state; the default is 7776000 seconds (90 days), and refreshes never shorten a
 longer existing key TTL.
+
+Generate production tracking material in the deployment secret manager (at
+least 32 bytes), expose it through the exact service environment, and run the
+dependency-free preflight before staging or production rollout:
+
+```bash
+GOWORK=off GOTOOLCHAIN=go1.23.5 \
+  go run ./cmd/config-preflight -s "$AOFEI"
+```
+
+The command performs no network connection and prints no secret. It rejects
+the public local/recovery examples shipped in this repository, surrounding
+whitespace, and values shorter than 32 bytes. Ordinary local fixtures continue
+to use normal config validation; a successful production rollout requires the
+explicit `production_config_preflight=passed` evidence from each distinct
+service environment.
 P03 repository integration is complete, but production activation still
 requires the named cache-first canary in
 [publisher-activation.md](publisher-activation.md). When that approval
@@ -649,6 +665,9 @@ sudo systemctl status aofei-unify.service
 
 Smoke checks:
 
+- `cmd/config-preflight -s "$AOFEI"` prints
+  `production_config_preflight=passed` in each exact canary service
+  environment before any process restart.
 - Every HTTP node returns 204 on `/healthz`; `/readyz` returns 204 only after
   initialization and becomes 503 before graceful drain. The load balancer uses
   `/readyz` without caching and keeps `/debug/vars` externally blocked.

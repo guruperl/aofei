@@ -23,7 +23,7 @@ container and legitimate third-party advertising behavior.
 | Injected-client safety | `[+]` | Controller construction, bidder calls, live callback forwarding, and retry forwarding now normalize every injected client through `safehttp`. Supported `*http.Transport` settings are cloned while proxy/custom dial paths, insecure TLS, certificate-name overrides, oversized response headers, cookie jars, unsafe redirects, and cross-authority credentials are rejected or removed. Arbitrary network round trippers fail closed; explicitly marked socket-free test doubles stay injectable but cannot bypass URL validation. Complete DNS answers are checked before any dial, including the rebind pass. Client context/timeouts and existing bidder/callback body bounds remain caller-owned and tested. |
 | Creative rendering boundary | `[+]` | `docs/creative-rendering-boundary.md` inventories management source views, browser HTML, structured `/pz`, OpenRTB, audit, and P03 sample consumers and confirms that only pzdesign `ads.js` executes HTML; no maintained native renderer exists. Source/Node fixtures lock one opaque-origin `srcdoc` iframe without `allow-same-origin`, add a fixed sensitive-feature deny policy, and contain hostile strings without a host-page HTML sink. D02 contained-markup validation now covers `srcset`, `ping`, legacy `background`, and entity-decoded event attempts to address top/parent while retaining approved scripts. The document defines mandatory ephemeral WebView, navigation, storage, bridge, VAST, Native, lifecycle, and hostile-test rules for demand-gated I02. A universal CSP/script sanitizer is correctly deferred pending compatibility evidence and migration. |
 | Principal provenance | `[+]` | Genelet now scrubs all caller-supplied role/permission/principal/MFA form markers, requires the Gate-validated opaque session, authorizes the server-configured permission/resource, and only then emits `genelet-session`, MFA, and future-deadline recent-MFA fields. Summer security, advertiser/publisher credential, traffic-quality, and hosted-payment actors require that source marker and copy rather than infer recent MFA. Traffic-quality and hosted-payment CLIs removed actor flags and derive exact-permission `unix-uid:<effective-uid>` principals that service boundaries restrict to health/retention and reject for quality mutation, reconciliation, or money movement. `identity-admin` now requires a restricted `Identity.MaintenanceActors` UID-to-admin mapping and prefixes the launcher UID in every audited reason. Existing maker/checker service rules remain intact, with explicit offline-principal denial tests and the full contract in `docs/principal-provenance.md`. |
-| Dormant surface review | `[ ]` | Prove management URLs are never fetched before classifying private-host validation as SSRF, keep Redis marker strings non-authoritative, and add production preflight evidence that public example tracking secrets cannot satisfy a live deployment. Record dismissed findings with their enforcing tests. |
+| Dormant surface review | `[+]` | Closed the dormant findings with executable boundary evidence. Summer loopback tripwires prove site-review and creative source/image URLs are parsed/stored without a request, and an AST guard rejects outbound HTTP clients/transports/convenience fetches in the source-only campaign/item/site/creative packages; private-host syntax on these unfetched fields is not SSRF. Publisher/App replay, cap, and tracking-claim tests replace static marker contents and prove existence can suppress a duplicate but cannot authenticate, own a tracking claim, publish, or mutate caps; random owner tokens remain mandatory where ownership matters. New dependency-free `cmd/config-preflight` applies production bid validation, rejects both checked-in tracking-secret examples, surrounding whitespace, and values below 32 bytes without printing material; the checked-in config fails as intended while a deployment-owned fixture passes. |
 | Traffic-quality version selection | `[ ]` | Evaluate the highest eligible version for each `(rule_key, rollout_mode)` so a newer Observe/Canary rule cannot hide an older Active rule. Define deterministic precedence when multiple modes apply and keep incomplete evidence observe-only. |
 | Database integrity | `[ ]` | Add column-level identity/evidence immutability for quality enforcement and billing while allowing documented state transitions, rollback, approval, retention, and correction workflows. Prove direct SQL cannot rewrite financial or quality authority without introducing blanket triggers that block valid lifecycle changes. |
 
@@ -54,6 +54,31 @@ container and legitimate third-party advertising behavior.
 - Sanitizing arbitrary third-party markup into a different creative language is
   not assumed to be compatible and requires a separate approved contract.
 - Automatic or learned fraud scoring remains deferred.
+
+## Dormant-Surface Finding Dispositions
+
+- **Private-host management/review URLs — dismissed as SSRF on the current
+  surface.** `summer/site.TestPresetTreatsPrivateHostReviewURLAsUnfetchedMetadata`
+  and
+  `summer/creative.TestManagementCreativeURLsAreValidatedWithoutFetching`
+  send loopback URLs through the real filters and observe zero requests;
+  `tools.TestSourceOnlyManagementPackagesHaveNoOutboundHTTPPrimitive` rejects
+  a future production management HTTP client/transport/fetch primitive. A
+  future preview, crawler, or verifier reopens the outbound-address review.
+- **Static Redis `"1"`/`"done"` values — dismissed as hard-coded
+  credentials.**
+  `publisherauth.TestRequestProofBindsBodyFreshnessScopeAndSharedReplay`,
+  `match.TestMustRefreshBothCapEventMarkerValueIsNonAuthoritative`, and
+  `dsp.TestTrackingMarkerLabelsNeverGrantClaimOwnership` replace marker labels
+  and prove they never create authentication, publication, cap mutation, or
+  claim ownership. Redis write access can still cause denial and remains an
+  internal access-control boundary.
+- **Checked-in tracking secret in a live configuration — confirmed and
+  remediated.** `dsp.TestProductionValidationRejectsPublicOrWeakTrackingSecrets`
+  and `cmd/config-preflight.TestRunRejectsCheckedInExampleTrackingSecret`
+  enforce the production-only rejection without changing deterministic local
+  validation. Running the preflight against `etc/aofei.json` exits nonzero with
+  a fixed non-secret diagnostic.
 
 ## Reconciliation From P03
 

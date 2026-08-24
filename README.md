@@ -70,7 +70,7 @@ owner-only temporary dump on exit. It is not a production backup or SLO result.
 Run the operational command package gate:
 
 ```bash
-GOWORK=off go test ./cmd/accounting ./cmd/action-measurement \
+GOWORK=off go test ./cmd/accounting ./cmd/action-measurement ./cmd/config-preflight \
   ./cmd/hosted-payment ./cmd/ledger ./cmd/maxmind \
   ./cmd/mid-callback-retry ./cmd/nats-client ./cmd/redis-cache \
   ./cmd/report-experiment ./cmd/spread ./cmd/traffic-quality ./cmd/winloss
@@ -78,7 +78,7 @@ GOWORK=off go test ./cmd/accounting ./cmd/action-measurement \
 
 See [docs/operational-commands.md](docs/operational-commands.md) for the local
 contracts for `cmd/redis-cache`, `cmd/ledger`, `cmd/accounting`,
-`cmd/action-measurement`, `cmd/report-experiment`, `cmd/hosted-payment`,
+`cmd/action-measurement`, `cmd/config-preflight`, `cmd/report-experiment`, `cmd/hosted-payment`,
 `cmd/traffic-quality`, `cmd/nats-client`, `cmd/winloss`, `cmd/spread`,
 `cmd/maxmind`, and `cmd/mid-callback-retry`,
 including where each command should run in production.
@@ -110,6 +110,11 @@ The helper starts:
 The local-only logins are `admin_local`, `advertiser@example.test`, and
 `publisher@example.test`, all with password `local-demo-password`. Never copy
 these public development credentials into production.
+
+The checked-in tracking secret is also public and local-only. Every production
+HTTP-node environment must pass `go run ./cmd/config-preflight -s "$AOFEI"`
+with deployment-owned tracking material before rollout; the command is
+dependency-free and does not print the secret.
 
 Stop the local services without deleting Docker volumes:
 

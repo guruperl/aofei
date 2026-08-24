@@ -437,6 +437,9 @@ func mustRefreshBothCapWithTTL(ctx context.Context, conn radix.Client, when time
 				}
 			}
 			if eventKey != "" {
+				// The marker value is intentionally non-authoritative. The
+				// transaction checks only key existence; claim ownership and
+				// callback authenticity are enforced by the tracking layer.
 				if err = redisConn.Do(ctx, radix.Cmd(nil, "SETNX", eventKey, "1")); err != nil {
 					return err
 				}
