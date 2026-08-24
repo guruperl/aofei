@@ -1,8 +1,8 @@
 # Status S06 - Public Account Abuse Protection
 
 State: `[~]` In progress; repository remediation (iteration 4) is complete.
-Cloudflare activation and production live-proof remain blocked on a valid
-Cloudflare management credential and external-mutation authority.
+The managed Cloudflare widget now exists. The constrained Free-plan edge rule,
+production enablement, and live proof remain pending.
 
 ## Goal
 
@@ -31,8 +31,8 @@ raw email/IP identities in Redis.
 | Gmail MIME construction | `[+]` | `gmailRawMessage` canonicalizes header names case-insensitively, rejects canonical duplicates, and supplies `MIME-Version`/`Content-Type`/`Content-Transfer-Encoding` defaults only when absent, preserving caller-selected content types (Genelet `27b9d57`). |
 | Gmail token concurrency | `[+]` | `accessToken` holds the cache lock only around state, coalesces refreshes per credential key (different keys refresh in parallel), and uses per-key generations so `401` invalidation cannot restore a stale in-flight token. Proved under `-race` by `TestGmailTokenCacheCoalescesConcurrentRefreshes` and `TestGmailTokenInvalidationPreventsStaleInFlightToken` (Genelet `6a0fa64`). |
 | Metrics and operator contract | `[+]` | Fixed-cardinality expvar counters cover submissions/admissions, Turnstile rejection, quota rejection, and dependency failure. `docs/public-account-abuse-protection.md`, production/Chinese runbooks, README, architecture, and tech-stack memory define activation, rotation, rollback, alerts, and secret handling. |
-| Cloudflare activation | `[!]` | The owner environment contains a Cloudflare token variable, but Cloudflare reports that token invalid. Create/reuse the exact W8M widget and zone rate-limit rule only after a replacement token has Turnstile Sites Write, Zone Read, and Zone WAF/Rulesets Write scope. Never put either token or the returned widget secret in Git or command output. |
-| Production deployment and live proof | `[~]` | The activation-ready `unify` binary is installed, the user service restarted healthy, and all four Chinese production start pages were checked. Protection remains intentionally default-off, so they render without a widget until Cloudflare activation. After activation, write the returned keys and reviewed host/proxy settings to an owner-only `0600` environment file, add it to the user service, restart, then prove widget rendering, missing/invalid-token rejection with zero account/mail side effects, successful advertiser/publisher submissions, quota `429`, metrics, and rollback. |
+| Cloudflare activation | `[~]` | A valid scoped management token created the managed `w8m-public-account` widget for only `w8m.com` and `www.w8m.com`; API readback found no pre-existing widget or rate-limit entry point. The widget keys and reviewed Cloudflare proxy ranges are in the owner-only `0600` deployment environment. A dry run proved the current Free plan cannot express the original POST-only 10-request/10-minute edge target: it permits Path/Verified Bot matching and a 10-second period only. The owner chose to remain on Free; create and read back the constrained exact-path 10-request/10-second Managed Challenge profile documented in `docs/cloudflare-w8m.md`. Never put the management token or widget secret in Git or command output. |
+| Production deployment and live proof | `[~]` | The activation-ready `unify` binary is installed, the user service is healthy, and all four Chinese production start pages were checked. The owner-only protection environment now exists but has not been attached to the service, so protection remains intentionally default-off and pages still render without a widget. After the constrained edge rule is active, add the environment file to the user service, restart, then prove widget rendering, missing/invalid-token rejection with zero account/mail side effects, successful advertiser/publisher submissions, quota `429`, metrics, and rollback. |
 
 ## Acceptance Criteria
 
@@ -71,11 +71,15 @@ raw email/IP identities in Redis.
   succeeded, all four fixed-cardinality metric maps were registered, and all
   four Chinese production start pages remained available without a widget
   while the feature is disabled.
-- Pending repository verification: hostile `_gadmin` publisher submissions,
-  trusted admin compatibility, safe/internal error rendering, canonical MIME
-  headers, per-key OAuth refresh concurrency and invalidation, and Redis
-  `EVALSHA`/`NOSCRIPT` fallback, followed by full Aofei, pzdesign, and Genelet
-  tests/vet/race/staticcheck and documentation/diff guards.
+- Completed iteration-4 repository verification: hostile `_gadmin` publisher
+  submissions, safe/internal error rendering, canonical MIME headers, per-key
+  OAuth refresh concurrency and invalidation, Redis `EVALSHA`/`NOSCRIPT`
+  fallback, and the full Aofei, pzdesign, and Genelet
+  tests/vet/race/staticcheck/documentation/diff gates.
+- Completed Cloudflare discovery: token verification, exact active-zone
+  resolution, empty-widget/rate-rule readback, managed-widget creation and
+  owner-only secret handoff, and a non-persisting rule dry run that recorded
+  the Free-plan 10-second/method-matching limitation.
 - Pending closeout: live Cloudflare widget/rule inspection, enabled-form and
   no-side-effect tests, Gmail delivery, quota/metrics evidence, rollback proof,
   and the final milestone review after production activation is complete.

@@ -90,6 +90,13 @@ account access to Turnstile Sites Write plus zone read and WAF/rulesets write
 for `w8m.com`; store it outside the application service and revoke/rotate it
 after automation if continuous management is unnecessary.
 
+The current zone uses Cloudflare Free. Its UI-path matching and 10-second
+counting-window limitations, the constrained edge profile, and the explicit
+non-impact on DSP/ad-serving endpoints are recorded in
+[cloudflare-w8m.md](cloudflare-w8m.md). That profile is a burst control and is
+not equivalent to the POST-only 10-request/10-minute target below; application
+Redis quotas remain authoritative for sustained abuse.
+
 1. Create one managed Turnstile widget named `w8m-public-account` with only
    `w8m.com` and `www.w8m.com` in its hostname allowlist. Do not use Cloudflare
    test keys in production.
@@ -101,7 +108,9 @@ after automation if continuous management is unnecessary.
    verified bots where the plan supports it, and start with a managed challenge
    or block threshold no looser than 10 requests per 10 minutes. Because these
    paths also carry activation/reset completion actions, canary the edge
-   threshold and keep the application email quotas authoritative.
+   threshold and keep the application email quotas authoritative. While the
+   zone remains on Free, use the constrained profile in `cloudflare-w8m.md`
+   instead and retain the limitation explicitly in activation evidence.
 4. Keep rate-limit rules at the end of the `http_ratelimit` entry-point rule
    list as required by Cloudflare, and preserve any pre-existing rules.
 5. Inspect the resulting widget and entry-point rate-limit rules after creation;

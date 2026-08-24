@@ -31,8 +31,9 @@ accounting safety, and production controls before expanding automation or
 scale. D01 through A02 in the original sequence below, D04, and D05 are
 complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 repository work is now complete.
-S06 repository hardening is complete (iteration 4 clean) and remains ahead of
-its still-blocked Cloudflare/deployment proof. The remaining deep-review
+S06 repository hardening is complete (iteration 4 clean), its managed
+Cloudflare widget exists, and its constrained Free-plan edge rule and
+deployment proof remain pending. The remaining deep-review
 horizon then resumes with P03, S05, O03, R03, and A03. I02 remains demand-gated and
 must not start until P03/S05
 are complete and a named Android or iOS integration supplies supported
@@ -90,7 +91,7 @@ acceptance criteria recorded in the corresponding status files.
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
 | S05 | Planned | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
-| S06 | In progress; repository remediation complete, Cloudflare activation blocked | [status-S06.md](status-S06.md) | Public account abuse protection. |
+| S06 | In progress; repository remediation complete, Free-plan edge activation pending | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -1630,8 +1631,10 @@ atomic pseudonymous Redis quotas, derive client identity only through reviewed
 trusted proxies, and layer a Cloudflare edge rate limit over public account
 POSTs. Review2 reopened the trusted admin marker, anonymous error rendering,
 Gmail MIME/concurrency, and quota-script tasks. The live widget, edge rule, and
-W8M deployment evidence also remain pending because the current Cloudflare API
-token is invalid. Detailed tasks and verification are in
+W8M deployment evidence were also pending; the managed widget now exists, while
+the owner-selected Free plan limits the pending exact-path edge rule to a
+10-second burst profile that cannot distinguish GET from POST. Detailed tasks
+and verification are in
 [status-S06.md](status-S06.md).
 
 ## A01 - Billing And Manual Settlement Safety `[+]`
