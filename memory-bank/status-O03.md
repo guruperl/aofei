@@ -180,3 +180,15 @@ atomic generation publication with partial live writes.
     synthetic-audience compilation uses the same context-aware ACL path.
     Compatibility wrappers retain the old APIs, while focused canceled-context
     tests prove no audience SQL is issued after ownership cancellation.
+
+- Iteration 9 (2026-08-24): two P2 findings remain open.
+  - P2: context-aware publisher discovery still performs compound publisher,
+    default-site, and slot creation as independent committed statements. Lease
+    cancellation or an intermediate SQL failure can therefore strand partial
+    inventory; a publisher row without its defaults also blocks later retry on
+    the unique email. Make every compound discovery mutation transactional and
+    update in-memory inventory only after commit.
+  - P2: the memory-only spread-generation sink lets publisher, RAdv, and
+    creative packing loops continue after the lease context is canceled. Carry
+    cancellation checks through every generation-building loop so ownership
+    loss bounds compilation work as well as SQL and external writes.
