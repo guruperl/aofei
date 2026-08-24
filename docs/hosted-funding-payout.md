@@ -314,7 +314,7 @@ host:
 ```bash
 AOFEI=/etc/aofei/aofei-maintenance.json \
   /opt/aofei/bin/hosted-payment -action=prune-events \
-  -actor-admin-id=42 -limit=1000 \
+  -limit=1000 \
   -reason='approved provider-event retention schedule'
 ```
 

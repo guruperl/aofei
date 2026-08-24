@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
@@ -21,11 +20,10 @@ import (
 )
 
 type options struct {
-	config  string
-	action  string
-	actorID string
-	reason  string
-	limit   int
+	config string
+	action string
+	reason string
+	limit  int
 }
 
 type serviceAPI interface {
@@ -37,7 +35,6 @@ func main() {
 	var opts options
 	flag.StringVar(&opts.config, "s", os.Getenv("AOFEI"), "Aofei configuration path")
 	flag.StringVar(&opts.action, "action", "health", "health or prune-events")
-	flag.StringVar(&opts.actorID, "actor-admin-id", "", "administrator id used only for retention audit attribution")
 	flag.StringVar(&opts.reason, "reason", "", "required bounded retention reason")
 	flag.IntVar(&opts.limit, "limit", 1000, "provider-event prune batch size, 1-10000")
 	flag.Parse()
@@ -76,11 +73,7 @@ func run(ctx context.Context, service serviceAPI, opts options, output io.Writer
 		}
 		return json.NewEncoder(output).Encode(health)
 	case "prune-events":
-		id, err := strconv.ParseUint(opts.actorID, 10, 64)
-		if err != nil || id == 0 {
-			return fmt.Errorf("actor-admin-id must be a positive numeric administrator id")
-		}
-		actor := payment.Actor{Role: "admin", ID: strconv.FormatUint(id, 10), Permissions: map[string]bool{payment.PermissionReconcile: true}, RecentMFA: true}
+		actor := payment.Actor{Role: "admin", ID: fmt.Sprintf("unix-uid:%d", os.Geteuid()), Permissions: map[string]bool{payment.PermissionRetentionPrune: true}}
 		deleted, err := service.PruneEvents(ctx, actor, opts.limit, opts.reason)
 		if err != nil {
 			return err

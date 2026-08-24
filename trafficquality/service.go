@@ -925,7 +925,7 @@ WHERE billing_id=? AND state='Recommended'`, next, actor.Name(), billingID)
 // PruneEvidence removes only expired short-lived summaries. Decisions,
 // aggregate counters, case events, and audit records remain intact.
 func (s *Service) PruneEvidence(ctx context.Context, actor Actor, limit int, reason string) (deleted int64, err error) {
-	if err := requireActor(actor, PermissionRetentionPrune, true); err != nil {
+	if err := requireMaintenanceActor(actor, PermissionRetentionPrune); err != nil {
 		return 0, err
 	}
 	if actor.Role != "admin" || limit < 1 || limit > 10_000 || !validAuditReason(reason) {
@@ -989,7 +989,23 @@ func (s *Service) currentTime() time.Time {
 }
 
 func requireActor(actor Actor, permission string, recentMFA bool) error {
-	if err := actor.Validate(); err != nil || !actor.Can(permission) || recentMFA && !actor.RecentMFA {
+	if err := actor.Validate(); err != nil {
+		return ErrForbidden
+	}
+	if strings.HasPrefix(actor.ID, "unix-uid:") {
+		if permission != PermissionEvidenceRead || !actor.isUnixMaintenance(permission) {
+			return ErrForbidden
+		}
+		return nil
+	}
+	if !actor.Can(permission) || recentMFA && !actor.RecentMFA {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func requireMaintenanceActor(actor Actor, permission string) error {
+	if err := actor.Validate(); err != nil || !actor.isUnixMaintenance(permission) {
 		return ErrForbidden
 	}
 	return nil

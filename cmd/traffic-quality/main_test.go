@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -53,16 +55,16 @@ func TestAssessWindowUsesBoundedStrictJSONAndDoesNotPrintDigests(t *testing.T) {
 func TestMaintenanceActionsUseBoundedAdministratorAttribution(t *testing.T) {
 	service := new(fakeQualityService)
 	var output bytes.Buffer
-	if err := run(context.Background(), service, options{action: "prune-evidence", actorID: "42", limit: 10, reason: "scheduled retention"}, nil, &output); err != nil {
+	if err := run(context.Background(), service, options{action: "prune-evidence", limit: 10, reason: "scheduled retention"}, nil, &output); err != nil {
 		t.Fatal(err)
 	}
-	if service.actor.Role != "admin" || service.actor.ID != "42" || !service.actor.RecentMFA || !service.actor.Can(quality.PermissionRetentionPrune) {
+	if service.actor.Role != "admin" || service.actor.ID != fmt.Sprintf("unix-uid:%d", os.Geteuid()) || service.actor.RecentMFA || !service.actor.Can(quality.PermissionRetentionPrune) {
 		t.Fatalf("maintenance actor=%#v", service.actor)
 	}
 	if output.String() != "pruned traffic_quality_evidence_rows=3\n" {
 		t.Fatalf("output=%q", output.String())
 	}
-	if _, err := maintenanceActor("0", quality.PermissionEvidenceRead); err == nil {
-		t.Fatal("zero administrator attribution accepted")
+	if _, err := maintenanceActor(-1, quality.PermissionEvidenceRead); err == nil {
+		t.Fatal("invalid effective Unix UID accepted")
 	}
 }

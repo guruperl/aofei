@@ -72,6 +72,7 @@ var (
 	safeReasonCode  = regexp.MustCompile(`^[a-z][a-z0-9_.-]{2,63}$`)
 	safeActorRole   = regexp.MustCompile(`^(admin|adv|pub|agent|analyst)$`)
 	safeActorID     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9@._:-]{0,127}$`)
+	unixActorID     = regexp.MustCompile(`^unix-uid:[0-9]+$`)
 	safeEventKey    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$`)
 	safePartnerKey  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 	safeAuditReason = regexp.MustCompile(`^[^\x00-\x1f\x7f]{1,500}$`)
@@ -285,6 +286,12 @@ func (a Actor) Validate() error {
 
 func (a Actor) Can(permission string) bool {
 	return a.Permissions["*"] || a.Permissions[permission]
+}
+
+func (a Actor) isUnixMaintenance(permission string) bool {
+	return a.Role == "admin" && unixActorID.MatchString(a.ID) &&
+		a.Scope == (Scope{Type: ScopeGlobal}) && !a.RecentMFA &&
+		len(a.Permissions) == 1 && a.Permissions[permission]
 }
 
 func (a Actor) CanRead(scope Scope) bool {

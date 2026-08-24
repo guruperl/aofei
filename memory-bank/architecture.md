@@ -602,6 +602,18 @@ S02 identity, gives advertiser/publisher self-scope appeal, exact delegated
 reads to agent/analyst roles, and recent-MFA administrator mutation. Billing
 holds can affect only Draft/Confirmed A01 statements through separate
 recommend/approve actors and immutable accounting audit.
+S05 makes the S02 handoff explicit. Genelet scrubs caller-provided reserved
+identity fields and emits `genelet-session` plus MFA/recent-MFA markers only
+after opaque-session and permission/resource authorization. Summer's security,
+credential, traffic-quality, and hosted-payment actors require that marker and
+never infer MFA from an action name. Offline traffic-quality/payment commands
+derive `unix-uid:<effective-uid>` and their services accept that principal only
+for exact health/retention operations. The identity-admin command maps the
+effective UID to an existing numeric admin through the restricted
+`Identity.MaintenanceActors` config and prefixes the launcher UID into every
+audit reason; no maintenance command accepts a caller-selected actor label.
+The complete boundary is in
+[docs/principal-provenance.md](../docs/principal-provenance.md).
 
 ## Known Architecture Gaps
 

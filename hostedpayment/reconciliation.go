@@ -362,7 +362,7 @@ func (s *Service) CheckSecretReadiness(ctx context.Context, actor Actor, reason 
 }
 
 func (s *Service) pruneEvents(ctx context.Context, actor Actor, limit int, reason string) (deleted int64, err error) {
-	if err := authorize(actor, PermissionReconcile, Scope{}, true); err != nil {
+	if err := authorizeMaintenance(actor, PermissionRetentionPrune); err != nil {
 		return 0, err
 	}
 	if actor.Role != "admin" || limit < 1 || limit > 10_000 || validateReason(reason) != nil {

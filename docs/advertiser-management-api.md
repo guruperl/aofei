@@ -159,7 +159,7 @@ database configuration:
 ```bash
 SUMMER=/etc/aofei/summer-maintenance.json \
   /opt/aofei/bin/identity-admin \
-  -action=prune-api-audit -actor-admin-id=42 -limit=1000 \
+  -action=prune-api-audit -limit=1000 \
   -reason='scheduled management API audit retention'
 ```
 

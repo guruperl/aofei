@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -26,7 +25,6 @@ const maxWindowBodyBytes = 64 << 10
 type options struct {
 	config     string
 	action     string
-	actorID    string
 	reason     string
 	limit      int
 	sinceHours int
@@ -54,7 +52,6 @@ func main() {
 	var opts options
 	flag.StringVar(&opts.config, "s", os.Getenv("AOFEI"), "Aofei configuration path")
 	flag.StringVar(&opts.action, "action", "", "assess-window, health, or prune-evidence")
-	flag.StringVar(&opts.actorID, "actor-admin-id", "", "authenticated administrator id for health/retention attribution")
 	flag.StringVar(&opts.reason, "reason", "", "required single-line audit reason")
 	flag.IntVar(&opts.limit, "limit", 1000, "bounded evidence prune limit")
 	flag.IntVar(&opts.sinceHours, "since-hours", 24, "bounded rule-health lookback")
@@ -107,7 +104,7 @@ func run(ctx context.Context, service serviceAPI, opts options, input io.Reader,
 		}
 		return json.NewEncoder(output).Encode(out)
 	case "health":
-		actor, err := maintenanceActor(opts.actorID, quality.PermissionEvidenceRead)
+		actor, err := maintenanceActor(os.Geteuid(), quality.PermissionEvidenceRead)
 		if err != nil {
 			return err
 		}
@@ -120,7 +117,7 @@ func run(ctx context.Context, service serviceAPI, opts options, input io.Reader,
 		}
 		return json.NewEncoder(output).Encode(health)
 	case "prune-evidence":
-		actor, err := maintenanceActor(opts.actorID, quality.PermissionRetentionPrune)
+		actor, err := maintenanceActor(os.Geteuid(), quality.PermissionRetentionPrune)
 		if err != nil {
 			return err
 		}
@@ -162,14 +159,13 @@ func decodeWindow(input io.Reader) (quality.Window, error) {
 	return window, nil
 }
 
-func maintenanceActor(rawID, permission string) (quality.Actor, error) {
-	id, err := strconv.ParseUint(rawID, 10, 64)
-	if err != nil || id == 0 {
-		return quality.Actor{}, fmt.Errorf("actor-admin-id must be a positive numeric administrator id")
+func maintenanceActor(euid int, permission string) (quality.Actor, error) {
+	if euid < 0 || permission != quality.PermissionEvidenceRead && permission != quality.PermissionRetentionPrune {
+		return quality.Actor{}, fmt.Errorf("effective Unix principal or maintenance permission is invalid")
 	}
 	return quality.Actor{
-		Role: "admin", ID: strconv.FormatUint(id, 10),
+		Role: "admin", ID: fmt.Sprintf("unix-uid:%d", euid),
 		Scope:       quality.Scope{Type: quality.ScopeGlobal},
-		Permissions: map[string]bool{permission: true}, RecentMFA: true,
+		Permissions: map[string]bool{permission: true},
 	}, nil
 }

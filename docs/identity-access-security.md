@@ -160,45 +160,50 @@ command has no HTTP endpoint. Give it a separate Summer configuration whose
 `ConnectArray` selects the maintenance database principal; do not give the
 HTTP service that credential. The command reads `SUMMER`/`-config`, the identity
 key from the configured environment variable, and a new analyst password only
-from `IDENTITY_NEW_PASSWORD`. Every mutation requires an administrator id and
-a single-line reason of at most 255 bytes.
+from `IDENTITY_NEW_PASSWORD`. `Identity.MaintenanceActors` must map the
+effective Unix UID to a reviewed numeric administrator id. Every mutation
+requires a single-line reason whose stored form, including launcher
+attribution, is at most 255 bytes.
 
 ```bash
 SUMMER=/etc/aofei/summer.json \
 IDENTITY_NEW_PASSWORD='use-a-secret-input-channel' \
 /opt/aofei/bin/identity-admin \
-  -action=create-analyst -actor-admin-id=42 \
+  -action=create-analyst \
   -login=reader@example.invalid \
   -reason='approved operations read-only access'
 
 SUMMER=/etc/aofei/summer.json /opt/aofei/bin/identity-admin \
-  -action=grant -actor-admin-id=42 \
+  -action=grant \
   -subject-role=analyst -subject-id=7 \
   -permission=report.marketplace.read \
   -resource-role=marketplace -resource-id=0 \
   -reason='quarterly marketplace review'
 
 SUMMER=/etc/aofei/summer.json /opt/aofei/bin/identity-admin \
-  -action=revoke -actor-admin-id=42 \
+  -action=revoke \
   -subject-role=analyst -subject-id=7 \
   -permission=report.marketplace.read \
   -resource-role=marketplace -resource-id=0 \
   -reason='review assignment ended'
 
 SUMMER=/etc/aofei/summer.json /opt/aofei/bin/identity-admin \
-  -action=reset-totp -actor-admin-id=42 \
+  -action=reset-totp \
   -subject-role=adv -subject-id=123 \
   -reason='identity verified under incident case reference'
 
 SUMMER=/etc/aofei/summer.json /opt/aofei/bin/identity-admin \
-  -action=prune-audit -actor-admin-id=42 -limit=1000 \
+  -action=prune-audit -limit=1000 \
   -reason='scheduled account-security retention'
 ```
 
-The `-actor-admin-id` is an audit attribution, not a substitute for operating
-system authentication. Limit command execution and config/key access to named
-administrators, record the change ticket externally, and use a separate
-checker for privileged access. Never pass a password or key on a command line.
+The command has no actor override. It derives the kernel-reported effective
+Unix UID, requires that UID's configured mapping, and prefixes
+`launcher=unix-uid:<uid>;` to the stored audit reason. Limit command execution
+and config/key write access to named administrators, record the change ticket
+externally, and use a separate checker for privileged access. Never pass a
+password or key on a command line. See
+[principal provenance](principal-provenance.md).
 
 ## Enablement And Rollback
 

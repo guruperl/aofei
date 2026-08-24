@@ -57,7 +57,7 @@ planned milestones do not imply schema or runtime activation.
 | S02 identity, MFA, and RBAC | Completed; disabled by default | [status-S02.md](../memory-bank/status-S02.md) | [Identity and access security](identity-access-security.md) |
 | S03 traffic quality | Completed; disabled by default | [status-S03.md](../memory-bank/status-S03.md) | [Traffic quality and anti-fraud](traffic-quality-anti-fraud.md) |
 | S04 template/XSS safety | Completed | [status-S04.md](../memory-bank/status-S04.md) | [Template rendering security](template-rendering-security.md) and [pzdesign rendering inventory](../../pzdesign/docs/rendering-security.md) |
-| S05 runtime trust boundaries | In progress | [status-S05.md](../memory-bank/status-S05.md) | [Creative consumer boundary](creative-rendering-boundary.md), existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
+| S05 runtime trust boundaries | In progress | [status-S05.md](../memory-bank/status-S05.md) | [Creative consumer boundary](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
 | S06 public account abuse protection | Completed; active on W8M | [status-S06.md](../memory-bank/status-S06.md) | [Public account abuse protection](public-account-abuse-protection.md) |
 | A01 accounting and settlement | Completed | [status-A01.md](../memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |
@@ -73,7 +73,7 @@ planned milestones do not imply schema or runtime activation.
 | Runtime and matching | [DSP workflow](dsp-workflow.md), [audience matching](audience-matching.md), [multiple-cache architecture](multiple-cache.md), and [OpenRTB measurement](openrtb-measurement.md) |
 | Local development | [Local Docker runtime](local-docker-runtime.md), [database baseline](database-baseline.md), and [MaxMind assets](maxmind-runtime.md) |
 | Production operations | [Production runbook](production-runbook.md), [operational commands](operational-commands.md), [Chinese operations manual](operations-maintenance-manual.zh-CN.md), and [performance roadmap](performance-roadmap.md) |
-| Product boundaries | [Creative consumers](creative-rendering-boundary.md), [deferred investments](defer.md), [Prebid/OpenRTB review](prebid-openrtb-adoption.md), [Cloudflare W8M Free-plan boundary](cloudflare-w8m.md), and [publisher ownership ADRs](adr/) |
+| Product boundaries | [Creative consumers](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), [deferred investments](defer.md), [Prebid/OpenRTB review](prebid-openrtb-adoption.md), [Cloudflare W8M Free-plan boundary](cloudflare-w8m.md), and [publisher ownership ADRs](adr/) |
 | Moved source-owned docs | [Genelet manual pointer](genelet-manual.md) and [Summer UI pointer](summer-ui-structure.md) |
 | Historical reference only | [Historical DSP architecture note](dsp-architecture.zh.md) and [legacy operations notes](legacy-operations.md) |
 

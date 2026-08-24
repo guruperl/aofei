@@ -122,16 +122,15 @@ Expired evidence can be pruned in bounded batches:
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/traffic-quality \
   -action=prune-evidence \
-  -actor-admin-id=123 \
   -limit=1000 \
   -reason='scheduled evidence retention'
 ```
 
-The command's administrator id is audit attribution, not authentication. Run it
-only inside an S02-controlled operator workflow that has authenticated the
-administrator, checked `quality.retention.prune`, required recent MFA/change
-approval where applicable, and restricted access to the configuration and
-environment.
+The command derives `admin:unix-uid:<effective-uid>` from the operating system
+and grants only `quality.retention.prune`; it has no actor flag, wildcard
+permission, or recent-MFA claim. Run it only from a restricted maintenance
+host after independent change approval and protect configuration/environment
+access.
 
 ## Enablement And Rollback
 
@@ -186,7 +185,6 @@ lookback with:
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/traffic-quality \
   -action=health \
-  -actor-admin-id=123 \
   -since-hours=24
 ```
 

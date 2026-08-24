@@ -103,6 +103,21 @@ func TestMachineServiceRoleCannotBePresentedAsHumanActor(t *testing.T) {
 	}
 }
 
+func TestUnixMaintenancePrincipalIsRestrictedToReadAndRetention(t *testing.T) {
+	actor := Actor{Role: "admin", ID: "unix-uid:1001", Scope: Scope{Type: ScopeGlobal}, Permissions: map[string]bool{PermissionEvidenceRead: true}}
+	if err := requireActor(actor, PermissionEvidenceRead, false); err != nil {
+		t.Fatal(err)
+	}
+	actor.Permissions = map[string]bool{PermissionRuleActivate: true}
+	if err := requireActor(actor, PermissionRuleActivate, true); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("offline maintenance mutation err=%v", err)
+	}
+	actor.Permissions = map[string]bool{"*": true}
+	if err := requireMaintenanceActor(actor, PermissionRetentionPrune); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("wildcard offline maintenance err=%v", err)
+	}
+}
+
 func TestFalsePositiveLimitRecommendsRollbackOnlyForEnforcingModes(t *testing.T) {
 	health := RuleHealth{
 		Mode: ModeCanary, ValidTraffic: 2, InvalidTraffic: 8,

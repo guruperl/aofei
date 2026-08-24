@@ -633,7 +633,8 @@ VALUES ('stripe','evt_a02_prune','future.object.changed','future.object','obj_a0
 	if err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := maintenance.PruneEvents(ctx, settler, 100, "approved disposable retention schedule")
+	maintenanceActor := Actor{Role: "admin", ID: "unix-uid:1001", Permissions: map[string]bool{PermissionRetentionPrune: true}}
+	deleted, err := maintenance.PruneEvents(ctx, maintenanceActor, 100, "approved disposable retention schedule")
 	if err != nil || deleted != 1 {
 		t.Fatalf("prune hosted events deleted=%d err=%v", deleted, err)
 	}

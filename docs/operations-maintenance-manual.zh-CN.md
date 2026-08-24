@@ -565,7 +565,7 @@ Stripe 会收到 503 并重试，必须先修复契约或依赖，不能通过�
 ```bash
 AOFEI=/etc/aofei/aofei-maintenance.json \
   /opt/aofei/bin/hosted-payment -action=prune-events \
-  -actor-admin-id=42 -limit=1000 \
+  -limit=1000 \
   -reason='经批准的服务商事件保留计划'
 ```
 
@@ -641,14 +641,15 @@ AOFEI=/etc/aofei/aofei.json \
   代码。身份验证器和恢复代码同时丢失时，只能完成线下身份核验后使用受限的
   `identity-admin -action=reset-totp` 并记录原因；
 - 只读分析账户只能通过 `identity-admin` 创建，并逐权限、逐资源 grant/revoke。
-  `-actor-admin-id` 仅用于审计归属，不能替代维护主机的操作系统身份认证和双人
-  复核；新账户密码只能从 `IDENTITY_NEW_PASSWORD` 环境输入，不能作为命令行
-  参数；
+  命令不接受 actor 参数；它按有效 Unix UID 查询受限配置中的
+  `Identity.MaintenanceActors`，并把 `launcher=unix-uid:<uid>;` 写入审计原因。
+  未映射 UID 必须失败；映射变更和高权限操作仍需双人复核。新账户密码只能从
+  `IDENTITY_NEW_PASSWORD` 环境输入，不能作为命令行参数；
 - 账户安全审计保留 365–2555 天（示例 400 天），只通过有界
   `identity-admin -action=prune-audit` 清理。不得直接更新或删除审计行；
 - 管理 API 审计采用相同保留期，但使用独立动作
   `identity-admin -action=prune-api-audit`。命令必须读取维护专用数据库配置，传入
-  管理员 ID、单行原因和不超过 10000 的批量上限；HTTP 服务数据库账户不得拥有
+  单行原因和不超过 10000 的批量上限；HTTP 服务数据库账户不得拥有
   审计删除权限；
 - 流量质量规则只能按“草案 → 观察 → 灰度 → 生效”发布。拦截规则进入生效前
   必须有完整证据、灰度命中、人工结论，并且误判率不超过规则上限。跨账户证据
@@ -656,9 +657,9 @@ AOFEI=/etc/aofei/aofei.json \
   动作要求管理员近期完成 MFA。短期证据只保存带密钥摘要和受控摘要，不得保存
   IP、Cookie、设备标识、竞价 ID、令牌或凭据；
 - 定期清理使用受限维护主机上的
-  `traffic-quality -action=prune-evidence -actor-admin-id=<id> -limit=1000
-  -reason='<单行原因>'`。管理员 ID 仅用于审计归属，不能替代 S02 认证、近期 MFA
-  和变更审批。命令清理失败会丢弃无法确认状态的数据库连接；不得直接删除证据、
+  `traffic-quality -action=prune-evidence -limit=1000 -reason='<单行原因>'`。
+  命令从有效 Unix UID 派生仅有清理权限且无近期 MFA 声明的审计身份；仍需受限
+  主机和变更审批。命令清理失败会丢弃无法确认状态的数据库连接；不得直接删除证据、
   判断、案件、计数或审计行；
 - 广告主和流量方注册、找回密码使用 Gmail API `users.messages.send`。`Blks._gmail` 设置 `Transport=gmail-api`，JSON 只保存非敏感的可选 `From` 和 `Reply-To`（W8M 使用 `support@w8m.com`）；`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` 与 `GOOGLE_REFRESH_TOKEN` 必须由权限为 `0600`、仅部署账户可读的环境文件注入。服务会在写库前验证 Google 刷新令牌；缺少 `_gmail`、认证信息不完整或 Google 拒绝令牌时，注册和找回密码返回“邮件服务暂时停用”，登录及已认证工作台不受影响。OAuth 凭据一旦泄漏，应先删除 `_gmail` 并重启服务，再在 Google 端吊销凭据；
 - 生产注册和找回密码还必须启用 S06 防滥用边界：Cloudflare Turnstile 仅允许 `w8m.com` 与 `www.w8m.com`，服务端严格核对广告主/流量方注册与找回密码四种固定动作，并在密码散列、Redis、Google、数据库和发信前完成验证；验证通过后再由一条 Redis 原子脚本执行 IP、规范化邮箱和全局限额。Redis 键只保存部署密钥派生的 HMAC 摘要并设置过期时间，转发 IP 只接受 `PUBLIC_ACCOUNT_TRUSTED_PROXY_CIDRS` 明确信任的代理链。Turnstile 密钥、Cloudflare 管理令牌和完整代理列表放入独立 `0600` 环境文件，不得写入 JSON、Git、日志或工单。部署、Cloudflare 边缘限速、监控、轮换及“先停邮件、再停验证”的回滚步骤见 [公开账户防滥用操作契约](public-account-abuse-protection.md)；

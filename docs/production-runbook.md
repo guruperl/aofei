@@ -781,7 +781,7 @@ signal or identifier itself.
 Traffic-quality evidence is also fixed-cardinality. Monitor decision/match and
 five action counters, dependency errors, rollback, enforcement snapshot
 refresh/error/evaluation, and serving throttle/reject/quarantine. Run the
-restricted `cmd/traffic-quality -action=health -actor-admin-id=<id>
+restricted `cmd/traffic-quality -action=health
 -since-hours=24` for per-rule false-positive state instead of adding rule or
 account labels. Dependency/snapshot errors are availability incidents, not IVT;
 roll a canary back when its reviewed false-positive limit is exceeded.

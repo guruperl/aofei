@@ -509,7 +509,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -daily -timestamp=YYYY-MM-DD
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/report-experiment -action=list
-GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/traffic-quality -action=health -actor-admin-id=42 -since-hours=24
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/traffic-quality -action=health -since-hours=24
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -read -json
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/default win
@@ -641,7 +641,12 @@ S02 identity verification also runs the external Genelet suite and the full
 Pzdesign/template gates. `../pzdesign/cmd/identity-admin` is the restricted
 operator CLI for analyst creation, exact grant/revoke, TOTP reset, and bounded
 security-audit retention. It reads `SUMMER`, the environment key named by
-`Identity.KeyEnv`, and new passwords only from `IDENTITY_NEW_PASSWORD`.
+`Identity.KeyEnv`, the effective-UID mapping in `Identity.MaintenanceActors`,
+and new passwords only from `IDENTITY_NEW_PASSWORD`. Genelet-reserved
+`_gprincipal_source`, `_gmfa_verified`, and `_grecent_mfa` fields carry only
+authorized server session state into Summer. The traffic-quality and hosted-
+payment maintenance binaries use `os.Geteuid` directly and expose no actor-id
+flag.
 Disposable MySQL verification restores the current clean baseline, expects 95
 tables, 6 routines, and 55 triggers, proves `auth_security_audit` update/delete fails,
 and exercises analyst creation/grant without touching the configured local

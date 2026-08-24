@@ -35,6 +35,7 @@ const (
 	PermissionDisputeHandle    = "payment.dispute.handle"
 	PermissionReconcile        = "payment.reconcile"
 	PermissionSecretReadiness  = "payment.secret.readiness"
+	PermissionRetentionPrune   = "payment.retention.prune"
 )
 
 type BindingKind string
@@ -1305,6 +1306,9 @@ func authorize(actor Actor, permission string, scope Scope, recentMFA bool) erro
 	if actor.Role == "" || actor.ID == "" || !validActorPart(actor.Role) || !validActorPart(actor.ID) || len(actor.Role)+1+len(actor.ID) > 128 {
 		return fmt.Errorf("authenticated hosted-payment actor is invalid")
 	}
+	if strings.HasPrefix(actor.ID, "unix-uid:") {
+		return fmt.Errorf("offline maintenance principal cannot authorize hosted-payment actions")
+	}
 	if actor.Permissions == nil || (!actor.Permissions[permission] && !actor.Permissions["*"]) {
 		return fmt.Errorf("hosted-payment permission %s is required", permission)
 	}
@@ -1324,6 +1328,24 @@ func authorize(actor Actor, permission string, scope Scope, recentMFA bool) erro
 		return fmt.Errorf("cross-account hosted-payment access is denied")
 	}
 	return nil
+}
+
+func authorizeMaintenance(actor Actor, permission string) error {
+	if permission != PermissionRetentionPrune || actor.Role != "admin" || !validUnixActorID(actor.ID) ||
+		len(actor.Role)+1+len(actor.ID) > 128 || actor.Scope != (Scope{}) || actor.RecentMFA ||
+		len(actor.Permissions) != 1 || !actor.Permissions[permission] {
+		return fmt.Errorf("authenticated hosted-payment maintenance principal is invalid")
+	}
+	return nil
+}
+
+func validUnixActorID(value string) bool {
+	if !strings.HasPrefix(value, "unix-uid:") || len(value) == len("unix-uid:") {
+		return false
+	}
+	raw := strings.TrimPrefix(value, "unix-uid:")
+	uid, err := strconv.ParseUint(raw, 10, 64)
+	return err == nil && strconv.FormatUint(uid, 10) == raw
 }
 
 func validActorPart(value string) bool {

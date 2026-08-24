@@ -387,8 +387,8 @@ audit reasons. See
 Purpose: create a read-only analyst, grant/revoke one exact permission/resource,
 reset one account's TOTP after external identity verification, or prune bounded
 expired security evidence. It requires Summer `Identity.Enabled=true`, the
-configured 32-byte environment key, an administrator audit id, and a bounded
-reason. New analyst passwords are accepted only through
+configured 32-byte environment key, an explicit effective-UID-to-administrator
+mapping in `Identity.MaintenanceActors`, and a bounded reason. New analyst passwords are accepted only through
 `IDENTITY_NEW_PASSWORD`; no password or key flag exists.
 
 Build and run it from the sibling UI/service repository:
@@ -397,14 +397,15 @@ Build and run it from the sibling UI/service repository:
 (cd ../pzdesign && GOWORK=off go install ./cmd/identity-admin)
 
 SUMMER=/etc/aofei/summer.json /opt/aofei/bin/identity-admin \
-  -action=reset-totp -actor-admin-id=42 \
+  -action=reset-totp \
   -subject-role=pub -subject-id=123 \
   -reason='verified recovery case'
 ```
 
-The administrator id is audit attribution, not operating-system
-authentication. Restrict binary/config/key access to named operators and apply
-maker/checker review outside the command. Exact create/grant/revoke/prune
+The command derives its launcher from the effective Unix UID, maps it to the
+reviewed administrator id in the restricted config, and prefixes that launcher
+in every audit reason. Restrict binary/config/key write access to named
+operators and apply maker/checker review outside the command. Exact create/grant/revoke/prune
 examples, retention, rollout, and key-loss behavior are in
 [identity-access-security.md](identity-access-security.md).
 
@@ -421,11 +422,11 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
 
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/traffic-quality -action=health \
-  -actor-admin-id=42 -since-hours=24
+  -since-hours=24
 
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/traffic-quality -action=prune-evidence \
-  -actor-admin-id=42 -limit=1000 \
+  -limit=1000 \
   -reason='scheduled evidence retention'
 ```
 
@@ -438,10 +439,10 @@ is rejected before database work. Output omits event and partner digests.
 counters, false-positive basis points, limits, and rollback recommendation.
 `prune-evidence` permits batches of 1–10000 and uses a dedicated connection
 whose retention flag is cleared with a fresh bounded context; cleanup failure
-discards the connection. The administrator id is attribution only. These
-maintenance actions must run after S02 authentication, exact permission,
-recent MFA/change approval, and restricted config/key access have been enforced
-by the operator workflow. See
+discards the connection. Both actions derive a non-spoofable
+`admin:unix-uid:<effective-uid>` launcher with only the selected read/retention
+permission and no MFA claim. Restrict execution/config access and retain
+external change approval. See
 [traffic-quality-anti-fraud.md](traffic-quality-anti-fraud.md).
 
 ## `cmd/mid-callback-retry`
@@ -524,12 +525,14 @@ Retention, from a restricted maintenance host and database principal:
 ```bash
 AOFEI=/etc/aofei/aofei-maintenance.json \
   /opt/aofei/bin/hosted-payment -action=prune-events \
-  -actor-admin-id=42 -limit=1000 \
+  -limit=1000 \
   -reason='approved provider-event retention schedule'
 ```
 
-The command accepts a batch of 1–10000 and derives an audited administrator
-identity. A connection-local trigger gate permits deletion only for events
+The command accepts a batch of 1–10000 and derives an audited
+`admin:unix-uid:<effective-uid>` identity with the dedicated retention
+permission. That principal is rejected by every money/reconciliation method.
+A connection-local trigger gate permits deletion only for events
 older than `event_retention_days` that are not linked to reconciliation
 evidence. Cleanup runs on a fresh bounded context; an uncertain connection is
 discarded. See [hosted-funding-payout.md](hosted-funding-payout.md) for the

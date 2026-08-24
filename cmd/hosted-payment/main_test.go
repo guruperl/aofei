@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -32,10 +34,10 @@ func TestRunHealthReturnsBoundedAggregateOnly(t *testing.T) {
 func TestRunPruneUsesExplicitAuditActorAndCannotMoveMoney(t *testing.T) {
 	service := new(fakeService)
 	var output bytes.Buffer
-	if err := run(context.Background(), service, options{action: "prune-events", actorID: "9", reason: "retention schedule", limit: 100}, &output); err != nil {
+	if err := run(context.Background(), service, options{action: "prune-events", reason: "retention schedule", limit: 100}, &output); err != nil {
 		t.Fatal(err)
 	}
-	if service.actor.ID != "9" || !service.actor.RecentMFA || !strings.Contains(output.String(), "=7") {
+	if service.actor.ID != fmt.Sprintf("unix-uid:%d", os.Geteuid()) || service.actor.RecentMFA || !service.actor.Permissions[payment.PermissionRetentionPrune] || !strings.Contains(output.String(), "=7") {
 		t.Fatalf("actor=%#v output=%q", service.actor, output.String())
 	}
 }

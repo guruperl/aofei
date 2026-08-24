@@ -161,6 +161,20 @@ func TestAllFinancialMutationPermissionsRequireRecentMFA(t *testing.T) {
 	}
 }
 
+func TestOfflineMaintenancePrincipalCannotAuthorizeMoneyMovement(t *testing.T) {
+	actor := Actor{Role: "admin", ID: "unix-uid:1001", Permissions: map[string]bool{PermissionRetentionPrune: true}}
+	if err := authorizeMaintenance(actor, PermissionRetentionPrune); err != nil {
+		t.Fatal(err)
+	}
+	actor.Permissions = map[string]bool{"*": true}
+	if err := authorize(actor, PermissionOperationExecute, Scope{PartyType: PartyAdvertiser, PartyID: 7}, true); err == nil {
+		t.Fatal("offline maintenance principal authorized money movement")
+	}
+	if err := authorizeMaintenance(actor, PermissionRetentionPrune); err == nil {
+		t.Fatal("wildcard offline maintenance permission accepted")
+	}
+}
+
 func TestFinancialAuditReasonsAreBoundedHumanText(t *testing.T) {
 	if err := validateReason("独立复核通过"); err != nil {
 		t.Fatal(err)

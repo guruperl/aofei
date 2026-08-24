@@ -22,7 +22,8 @@
         "TOTPWindow": 1,
         "RecoveryCodeCount": 10,
         "RequiredTOTP": ["admin", "adv", "pub", "agent", "analyst"],
-        "AuditRetentionDays": 400
+        "AuditRetentionDays": 400,
+        "MaintenanceActors": {}
     },
     "Chartags": {
         "e": {

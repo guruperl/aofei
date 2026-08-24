@@ -205,7 +205,8 @@ VALUES ('s03-integration-statement','publisher',3000000001,'daily',CURRENT_DATE,
 	if _, err := db.ExecContext(ctx, `UPDATE quality_decision SET reason_code='changed' WHERE decision_id=?`, decisions[0].ID); err == nil {
 		t.Fatal("immutable decision update succeeded")
 	}
-	deleted, err := service.PruneEvidence(ctx, admin, 100, "scheduled disposable evidence retention")
+	maintenance := Actor{Role: "admin", ID: "unix-uid:1001", Scope: Scope{Type: ScopeGlobal}, Permissions: map[string]bool{PermissionRetentionPrune: true}}
+	deleted, err := service.PruneEvidence(ctx, maintenance, 100, "scheduled disposable evidence retention")
 	if err != nil || deleted < 1 {
 		t.Fatalf("pruned=%d err=%v", deleted, err)
 	}
