@@ -126,6 +126,9 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/redis-cache -cache=routes
 ```
 
+This Redis-only mode marshals the legacy fallback and v2 route payloads first,
+then replaces both live keys together with one atomic Redis command.
+
 To inspect only the route cache JSON and metadata:
 
 ```bash

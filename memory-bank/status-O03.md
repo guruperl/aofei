@@ -169,6 +169,7 @@ atomic generation publication with partial live writes.
     builder as publishers; Redis now supplies only the lease and monotonic
     sequence. A delayed spread-only delivery can therefore no longer be
     overwritten by older Redis payloads with a higher sequence.
-  - P2 open: the supported route-only cache refresh writes the legacy and v2
-    live route keys in separate commands, exposing mixed route generations to
-    old and current consumers despite the atomic static-publication contract.
+  - P2 resolved: the supported route-only cache refresh now marshals both route
+    versions before one atomic Redis `MSET`; nonempty distinct keys are
+    mandatory. A focused Redis test proves both compatibility versions are
+    published together.

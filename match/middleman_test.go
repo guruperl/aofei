@@ -7,8 +7,43 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/guruperl/aofei/acl"
+	"github.com/mediocregopher/radix/v4"
 )
+
+func TestWriteMiddlemanRouteCacheKeysPublishesBothVersions(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	cache := &MiddlemanRouteCache{
+		Version: MiddlemanRouteCacheVersion,
+		Entries: []MiddlemanRouteEntry{{BidderID: 7, TriggerMode: "Fallback"}},
+	}
+	if err := writeMiddlemanRouteCacheKeys(ctx, client, cache, "routes:legacy", "routes:v2"); err != nil {
+		t.Fatal(err)
+	}
+	for key, wantVersion := range map[string]int{"routes:legacy": MiddlemanRouteCacheLegacyVersion, "routes:v2": MiddlemanRouteCacheVersion} {
+		data, err := server.Get(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got MiddlemanRouteCache
+		if err := json.Unmarshal([]byte(data), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.Version != wantVersion {
+			t.Fatalf("%s version = %d, want %d", key, got.Version, wantVersion)
+		}
+	}
+	if err := writeMiddlemanRouteCacheKeys(ctx, client, cache, "same", "same"); err == nil {
+		t.Fatal("identical route cache keys were accepted")
+	}
+}
 
 func TestDBValidateMiddlemanActivationChecksEveryTopologyBoundary(t *testing.T) {
 	db, mock, err := sqlmock.New()

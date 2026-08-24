@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -472,10 +473,28 @@ func DBGetMiddlemanRoutesToRedisKeys(ctx context.Context, conn radix.Client, db 
 	if err != nil {
 		return err
 	}
-	if err := cache.legacyFallbackCache().ToRedisKey(ctx, conn, legacyKey); err != nil {
+	return writeMiddlemanRouteCacheKeys(ctx, conn, cache, legacyKey, currentKey)
+}
+
+func writeMiddlemanRouteCacheKeys(ctx context.Context, conn radix.Client, cache *MiddlemanRouteCache, legacyKey, currentKey string) error {
+	if conn == nil {
+		return errors.New("middleman route Redis client is nil")
+	}
+	if legacyKey == "" || currentKey == "" || legacyKey == currentKey {
+		return errors.New("middleman route Redis keys must be nonempty and distinct")
+	}
+	legacyData, err := json.Marshal(cache.legacyFallbackCache())
+	if err != nil {
 		return err
 	}
-	return cache.ToRedisKey(ctx, conn, currentKey)
+	currentData, err := json.Marshal(cache)
+	if err != nil {
+		return err
+	}
+	return conn.Do(ctx, radix.Cmd(nil, "MSET",
+		legacyKey, string(legacyData),
+		currentKey, string(currentData),
+	))
 }
 
 func (c *MiddlemanRouteCache) legacyFallbackCache() *MiddlemanRouteCache {
