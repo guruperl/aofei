@@ -611,7 +611,7 @@ Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
 completed original lane set and S06, the remaining
 P03/S05/O03/R03/A03 remediation horizon, demand-gated I02, and the bounded
 `GOAL.md` review-fix contract; checks
-the 95/0/6/55 schema inventory; and rejects attempts to test the removed
+the 95/0/6/57 schema inventory; and rejects attempts to test the removed
 `./genelet` package path from inside pzdesign. Historical status and
 legacy-operation evidence may retain commands and counts that were accurate at
 their recorded closeout.
@@ -662,7 +662,7 @@ authorized server session state into Summer. The traffic-quality and hosted-
 payment maintenance binaries use `os.Geteuid` directly and expose no actor-id
 flag.
 Disposable MySQL verification restores the current clean baseline, expects 95
-tables, 6 routines, and 55 triggers, proves `auth_security_audit` update/delete fails,
+tables, 6 routines, and 57 triggers, proves `auth_security_audit` update/delete fails,
 and exercises analyst creation/grant without touching the configured local
 stack. Operational details are in
 [docs/identity-access-security.md](../docs/identity-access-security.md).
@@ -680,7 +680,7 @@ S03 focused gates cover closed signal/overflow fixtures, incomplete-evidence
 actions and billing, exact canary-review activation, scope authorization,
 appeal and maker/checker transitions, immutable snapshots, false-positive
 rollback, detached serving refresh, and the strict aggregate command. The
-disposable MySQL lifecycle restores the current 95 tables/6 routines/55 triggers and proves
+disposable MySQL lifecycle restores the current 95 tables/6 routines/57 triggers and proves
 rule/decision immutability, review/appeal, enforcement/rollback, A01 hold, and
 fresh-context retention cleanup.
 

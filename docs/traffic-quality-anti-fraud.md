@@ -122,9 +122,21 @@ eligible.
 
 S03 adds nine tables: `quality_rule`, `quality_decision`, `quality_evidence`,
 `quality_case`, `quality_case_event`, `quality_enforcement`, `quality_billing`,
-`quality_counter`, and `quality_audit`. Ten triggers protect rule versioning,
-decisions, evidence retention, case history, and audit history. The current
-clean schema after S03 contains 88 tables, 6 routines, and 43 triggers.
+`quality_counter`, and `quality_audit`. Twelve triggers protect rule versioning,
+decisions, evidence retention, case history, enforcement and billing identity,
+and audit history. S03 originally added ten triggers; S05 adds narrow
+protected-update triggers for `quality_enforcement` and `quality_billing`.
+The current clean schema contains 95 tables, 6 routines, and 57 triggers.
+
+Enforcement updates keep the originating rule, decision, scope, action, canary
+allocation, creator, creation time, and expiry fixed; only a Canary or Active
+row may enter `RolledBack` with complete rollback attribution. Billing updates
+keep the decision, statement, billable digest, accounting version, disposition,
+recommender, recommendation reason, and creation time fixed; only a Recommended
+row may be independently Approved, Rejected, or have a Hold applied. Terminal
+rows cannot be rewritten. These database guards supplement rather than replace
+service permissions, recent MFA, maker/checker checks, immutable quality audit,
+and A01 accounting audit.
 
 Raw event and partner keys exist only long enough to derive HMAC-SHA-256
 digests. Configure the digest key through an environment variable whose name is
@@ -175,6 +187,13 @@ Then:
 5. Roll a rule back to `Observe`, or disable it, if false positives rise.
 6. Set `traffic_quality.enabled` to `false` and restart for a complete runtime
    rollback. Historical evidence and audit rows remain governed by retention.
+
+For a populated S03 database, pause traffic-quality mutations, add the
+`quality_enforcement_protected_update` and
+`quality_billing_protected_update` triggers from `etc/step4_init.sql`, exercise
+rollback plus approval/rejection/application through the service, and resume
+only after direct protected-column rewrites fail. A new deployment installs
+all twelve triggers with the reviewed additive migration before enablement.
 
 Startup is intentionally strict when enabled: missing schema, an invalid key,
 or an initial snapshot load failure prevents service startup. This avoids

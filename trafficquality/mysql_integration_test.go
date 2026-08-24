@@ -144,6 +144,10 @@ func TestMySQLTrafficQualityLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE quality_enforcement SET scope_id=scope_id+1 WHERE enforcement_id=?`, enforcementID); err == nil {
+		t.Fatal("protected enforcement scope update succeeded")
+	}
 	snapshot, err := service.LoadEnforcementSnapshot(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -154,6 +158,11 @@ func TestMySQLTrafficQualityLifecycle(t *testing.T) {
 	}
 	if err := service.RollbackEnforcement(ctx, admin, enforcementID, "false-positive rollback drill"); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE quality_enforcement SET state='Active', rolled_back_by=NULL,
+ rollback_reason=NULL, rolled_back_at=NULL WHERE enforcement_id=?`, enforcementID); err == nil {
+		t.Fatal("terminal enforcement rewrite succeeded")
 	}
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO acct_statement
@@ -172,6 +181,15 @@ VALUES ('s03-integration-statement','publisher',3000000001,'daily',CURRENT_DATE,
 		"billable-s03-integration", BillingHold, "reviewed invalid billable identity")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE quality_billing SET disposition='Exclude' WHERE billing_id=?`, billingID); err == nil {
+		t.Fatal("protected billing disposition update succeeded")
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE quality_billing SET state='Rejected', approved_by=recommended_by,
+ updated_at=UTC_TIMESTAMP(6) WHERE billing_id=?`, billingID); err == nil {
+		t.Fatal("same-actor billing review succeeded")
 	}
 	cases, err = service.ListCases(ctx, pub, scope, 20)
 	if err != nil {
@@ -201,6 +219,10 @@ VALUES ('s03-integration-statement','publisher',3000000001,'daily',CURRENT_DATE,
 	}
 	if err := db.QueryRowContext(ctx, `SELECT state FROM quality_billing WHERE billing_id=?`, billingID).Scan(&billingStatus); err != nil || billingStatus != "Applied" {
 		t.Fatalf("billing status=%s err=%v", billingStatus, err)
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE quality_billing SET approved_by='admin:tampered' WHERE billing_id=?`, billingID); err == nil {
+		t.Fatal("terminal billing approval rewrite succeeded")
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE quality_decision SET reason_code='changed' WHERE decision_id=?`, decisions[0].ID); err == nil {
 		t.Fatal("immutable decision update succeeded")

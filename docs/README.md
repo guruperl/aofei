@@ -12,7 +12,7 @@ disabled by default until a separately authorized named-publisher canary. The
 remaining review order continues through S05, O03, R03, and A03. I02
 remains separately demand-gated until P03/S05 are complete and a named Android
 or iOS integration defines supported platforms and lifecycle requirements. The
-active MySQL baseline is 95 tables, 0 views, 6 routines, and 55 triggers;
+active MySQL baseline is 95 tables, 0 views, 6 routines, and 57 triggers;
 planned milestones do not imply schema or runtime activation.
 
 ## Start By Audience

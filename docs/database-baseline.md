@@ -92,7 +92,7 @@ After `reset && load`, the expected inventory is:
 | Base tables | 95 |
 | Views | 0 |
 | Stored routines | 6 |
-| Triggers | 55 |
+| Triggers | 57 |
 | Events | 0 |
 | Advertisers | 0 |
 | Publishers | 0 |
@@ -252,13 +252,18 @@ the trigger must remain while API clients depend on optimistic conflicts. See
 
 S03 adds empty `quality_rule`, `quality_decision`, `quality_evidence`,
 `quality_case`, `quality_case_event`, `quality_enforcement`, `quality_billing`,
-`quality_counter`, and `quality_audit` tables. Ten triggers prevent rule
+`quality_counter`, and `quality_audit` tables. Twelve triggers prevent rule
 behavior rewrites, decision mutation, evidence deletion outside the bounded
-retention connection, case-event mutation, and audit mutation. Database checks
-also guarantee that incomplete evidence remains observe-only, decision billing
-matches the applied action, and serving canary state is unambiguous. Populated
-systems must apply the reviewed nine-table/ten-trigger migration before
-enabling `traffic_quality`; never replay the baseline. See
+retention connection, case-event mutation, enforcement/billing identity
+rewrites, and audit mutation. The two S05 protected-update triggers allow only
+the documented enforcement rollback and billing review transitions while
+keeping their decision, scope, statement, digest, disposition, and creation
+facts fixed. Database checks also guarantee that incomplete evidence remains
+observe-only, decision billing matches the applied action, and serving canary
+state is unambiguous. Populated systems that already have S03 must add the two
+S05 triggers while traffic-quality writes are paused; new systems apply the
+reviewed nine-table/twelve-trigger migration before enabling
+`traffic_quality`. Never replay the baseline as a production migration. See
 [traffic-quality-anti-fraud.md](traffic-quality-anti-fraud.md).
 
 A02 adds empty `hosted_binding`, `hosted_operation`,

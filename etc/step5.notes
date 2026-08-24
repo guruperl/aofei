@@ -82,6 +82,13 @@ and immutable audit tables plus monotonically updated API versions on campaign,
 item, and creative. The API is disabled in the example and requires a separate
 environment HMAC key, S02 identity, a reviewed populated-system migration, and
 the rollout in `docs/advertiser-management-api.md`.
+The S05 baseline adds protected-update triggers to the existing S03
+`quality_enforcement` and `quality_billing` tables. They preserve originating
+decision/scope/action and statement/digest/disposition evidence while allowing
+only the documented rollback and independent billing-review transitions.
+Populated deployments add the two triggers while traffic-quality writes are
+paused and verify both service lifecycles plus rejected direct rewrites before
+resuming; never replay this baseline over a populated database.
 The A02 baseline adds six empty hosted-payment tables and twelve protective
 triggers. They retain exact A01 statement linkage, opaque Stripe object
 identifiers, the payout account's non-secret two-letter country code,

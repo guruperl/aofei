@@ -2485,6 +2485,36 @@ CREATE TRIGGER `quality_case_event_immutable_update` BEFORE UPDATE ON `quality_c
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality case events are immutable'; END ;;
 CREATE TRIGGER `quality_case_event_immutable_delete` BEFORE DELETE ON `quality_case_event` FOR EACH ROW
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality case events are immutable'; END ;;
+CREATE TRIGGER `quality_enforcement_protected_update` BEFORE UPDATE ON `quality_enforcement` FOR EACH ROW
+BEGIN
+  IF NOT (NEW.rule_id <=> OLD.rule_id) OR NOT (NEW.decision_id <=> OLD.decision_id) OR
+     NOT (NEW.scope_type <=> OLD.scope_type) OR NOT (NEW.scope_id <=> OLD.scope_id) OR
+     NOT (NEW.enforcement_action <=> OLD.enforcement_action) OR
+     NOT (NEW.canary_basis_points <=> OLD.canary_basis_points) OR
+     NOT (NEW.created_by <=> OLD.created_by) OR NOT (NEW.created_at <=> OLD.created_at) OR
+     NOT (NEW.expires_at <=> OLD.expires_at)
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality enforcement identity is immutable'; END IF;
+  IF OLD.state NOT IN ('Canary','Active') OR NEW.state <> 'RolledBack' OR
+     OLD.rolled_back_by IS NOT NULL OR OLD.rollback_reason IS NOT NULL OR OLD.rolled_back_at IS NOT NULL OR
+     NEW.rolled_back_by IS NULL OR NEW.rolled_back_by = '' OR
+     NEW.rollback_reason IS NULL OR NEW.rollback_reason = '' OR NEW.rolled_back_at IS NULL OR
+     NEW.rolled_back_at < OLD.created_at OR NEW.updated_at < OLD.updated_at
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='invalid traffic-quality enforcement transition'; END IF;
+END ;;
+CREATE TRIGGER `quality_billing_protected_update` BEFORE UPDATE ON `quality_billing` FOR EACH ROW
+BEGIN
+  IF NOT (NEW.decision_id <=> OLD.decision_id) OR NOT (NEW.statement_id <=> OLD.statement_id) OR
+     NOT (NEW.billable_digest <=> OLD.billable_digest) OR
+     NOT (NEW.accounting_version <=> OLD.accounting_version) OR
+     NOT (NEW.disposition <=> OLD.disposition) OR NOT (NEW.recommended_by <=> OLD.recommended_by) OR
+     NOT (NEW.reason <=> OLD.reason) OR NOT (NEW.created_at <=> OLD.created_at)
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality billing identity is immutable'; END IF;
+  IF OLD.state <> 'Recommended' OR NEW.state NOT IN ('Approved','Rejected','Applied') OR
+     NEW.approved_by IS NULL OR NEW.approved_by = '' OR NEW.approved_by = OLD.recommended_by OR
+     (NEW.state = 'Applied' AND OLD.disposition <> 'Hold') OR
+     (NEW.state = 'Approved' AND OLD.disposition = 'Hold') OR NEW.updated_at < OLD.updated_at
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='invalid traffic-quality billing transition'; END IF;
+END ;;
 CREATE TRIGGER `quality_audit_immutable_update` BEFORE UPDATE ON `quality_audit` FOR EACH ROW
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='traffic-quality audit records are immutable'; END ;;
 CREATE TRIGGER `quality_audit_immutable_delete` BEFORE DELETE ON `quality_audit` FOR EACH ROW

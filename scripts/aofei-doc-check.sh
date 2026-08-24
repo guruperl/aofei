@@ -181,7 +181,7 @@ for inventory_line in \
 	'| Base tables | 95 |' \
 	'| Views | 0 |' \
 	'| Stored routines | 6 |' \
-	'| Triggers | 55 |'
+	'| Triggers | 57 |'
 do
 	if ! grep -Fq "$inventory_line" docs/database-baseline.md; then
 		fail "docs/database-baseline.md is missing current inventory: $inventory_line"

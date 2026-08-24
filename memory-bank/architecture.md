@@ -612,11 +612,17 @@ does not bypass `New`/`Prepare` review eligibility. The public contract never
 routes through internal Summer JSON.
 S03 adds nine `quality_*` tables for rules, immutable decisions, expiring
 evidence, scoped cases/events, reviewed enforcement, billing recommendations,
-hourly counters, and immutable audit. Ten triggers prevent rule-behavior,
-decision, case-history, evidence, and audit rewrites; evidence deletion needs a
+hourly counters, and immutable audit. Twelve triggers prevent rule-behavior,
+decision, case-history, evidence, enforcement/billing identity, and audit
+rewrites; evidence deletion needs a
 connection-local retention gate that is reset on a fresh bounded context or the
 connection is discarded. Database checks preserve incomplete-evidence
-observe-only and unambiguous canary state. Summer derives actors/scopes from
+observe-only and unambiguous canary state. Enforcement updates permit only a
+fully attributed Canary/Active rollback while preserving rule, decision,
+scope, action, allocation, and expiry. Billing updates permit only independent
+review of a Recommended row while preserving decision, statement, digest,
+accounting version, disposition, and recommendation evidence. Summer derives
+actors/scopes from
 S02 identity, gives advertiser/publisher self-scope appeal, exact delegated
 reads to agent/analyst roles, and recent-MFA administrator mutation. Billing
 holds can affect only Draft/Confirmed A01 statements through separate

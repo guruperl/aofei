@@ -60,6 +60,9 @@ func TestTrafficQualitySchemaIsVersionedScopedAndImmutable(t *testing.T) {
 		"quality_decision_immutable_update", "quality_decision_immutable_delete",
 		"quality_evidence_immutable_update", "quality_evidence_retained_delete",
 		"quality_case_event_immutable_update", "quality_case_event_immutable_delete",
+		"quality_enforcement_protected_update", "quality_billing_protected_update",
+		"traffic-quality enforcement identity is immutable",
+		"traffic-quality billing identity is immutable",
 		"quality_audit_immutable_update", "quality_audit_immutable_delete",
 		"@aofei_quality_retention",
 	} {
