@@ -116,3 +116,34 @@ ALTER TABLE daily_mid
 ALTER TABLE mid_route_group MODIFY min_margin_cpm DECIMAL(12,6) NOT NULL DEFAULT 0.000000;
 ALTER TABLE mid_route_bidder MODIFY min_margin_cpm DECIMAL(12,6) NULL;
 ALTER TABLE report_delivery ALTER accounting_version SET DEFAULT 'usd-cpm-impression-v3';
+
+DROP TRIGGER IF EXISTS acct_statement_protected_update;
+DROP TRIGGER IF EXISTS acct_statement_immutable_delete;
+DROP TRIGGER IF EXISTS money_migration_evidence_immutable_update;
+DROP TRIGGER IF EXISTS money_migration_evidence_immutable_delete;
+DELIMITER ;;
+CREATE TRIGGER acct_statement_protected_update BEFORE UPDATE ON acct_statement FOR EACH ROW
+BEGIN
+  DECLARE expected_adjustment DECIMAL(20,6);
+  IF NOT (NEW.request_key <=> OLD.request_key) OR
+     NOT (NEW.party_type <=> OLD.party_type) OR NOT (NEW.party_id <=> OLD.party_id) OR
+     NOT (NEW.cadence <=> OLD.cadence) OR NOT (NEW.period_start <=> OLD.period_start) OR
+     NOT (NEW.period_end <=> OLD.period_end) OR NOT (NEW.currency <=> OLD.currency) OR
+     NOT (NEW.source_amount <=> OLD.source_amount) OR NOT (NEW.supersedes_id <=> OLD.supersedes_id) OR
+     NOT (NEW.created_by <=> OLD.created_by) OR NOT (NEW.created_at <=> OLD.created_at)
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting statement identity and source are immutable'; END IF;
+  IF NOT (NEW.adjustment_amount <=> OLD.adjustment_amount) OR NOT (NEW.total_amount <=> OLD.total_amount) THEN
+    IF OLD.status NOT IN ('Draft','Held') OR NEW.status <> OLD.status
+    THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting amounts change only through draft adjustments'; END IF;
+    SELECT COALESCE(SUM(amount),0) INTO expected_adjustment FROM acct_adjustment WHERE statement_id=OLD.statement_id;
+    IF NEW.adjustment_amount <> expected_adjustment OR NEW.total_amount <> NEW.source_amount + expected_adjustment
+    THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting amounts must match immutable adjustments'; END IF;
+  END IF;
+END ;;
+CREATE TRIGGER acct_statement_immutable_delete BEFORE DELETE ON acct_statement FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='accounting statements use immutable corrections'; END ;;
+CREATE TRIGGER money_migration_evidence_immutable_update BEFORE UPDATE ON money_migration_evidence FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='money migration evidence is immutable'; END ;;
+CREATE TRIGGER money_migration_evidence_immutable_delete BEFORE DELETE ON money_migration_evidence FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='money migration evidence is immutable'; END ;;
+DELIMITER ;

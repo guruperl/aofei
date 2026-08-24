@@ -32,6 +32,12 @@ func TestServiceIntegration(t *testing.T) {
 	if schema != "aofei_a01_test" {
 		t.Fatalf("refusing accounting integration test against database %q", schema)
 	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO adv (adv_id,email,passwd,active,created) VALUES (1,'a01-adv@example.invalid','fixture','Yes',UTC_TIMESTAMP())`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO pub (pub_id,email,passwd,active,created) VALUES (2,'a01-pub@example.invalid','fixture','Yes',UTC_TIMESTAMP())`); err != nil {
+		t.Fatal(err)
+	}
 
 	day := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
 	result, err := db.ExecContext(ctx, `
@@ -134,6 +140,15 @@ INSERT INTO daily_mid (
 	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM acct_audit WHERE statement_id=?`, statementID); err == nil {
 		t.Fatal("immutable audit delete succeeded")
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE acct_statement SET party_id=99 WHERE statement_id=?`, statementID); err == nil {
+		t.Fatal("protected statement party update succeeded")
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE acct_statement SET source_amount=99,total_amount=99 WHERE statement_id=?`, replacementID); err == nil {
+		t.Fatal("protected statement amount update succeeded")
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM acct_statement WHERE statement_id=?`, replacementID); err == nil {
+		t.Fatal("immutable statement delete succeeded")
 	}
 	var sensitive int
 	if err := db.QueryRowContext(ctx, `

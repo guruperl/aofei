@@ -16,6 +16,8 @@ func TestAccountingBaselineHasV2ContractAndNoCredentialColumns(t *testing.T) {
 		"CREATE TABLE `acct_contract`", "'usd-cpm-impression-v2'",
 		"CREATE TABLE `acct_statement`", "CREATE TABLE `acct_adjustment`",
 		"CREATE TABLE `acct_audit`", "acct_audit_immutable_update",
+		"acct_statement_protected_update", "acct_statement_immutable_delete",
+		"money_migration_evidence_immutable_update", "money_migration_evidence_immutable_delete",
 	} {
 		if !strings.Contains(schema, required) {
 			t.Errorf("accounting schema is missing %q", required)

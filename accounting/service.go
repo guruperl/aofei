@@ -201,6 +201,14 @@ ON DUPLICATE KEY UPDATE statement_id=LAST_INSERT_ID(statement_id)`,
 	if err != nil {
 		return 0, err
 	}
+	// MySQL may report zero for the no-op duplicate branch when a BEFORE UPDATE
+	// integrity trigger is installed, even though LAST_INSERT_ID(id) is present.
+	// Resolve the durable request identity inside the same transaction.
+	if id == 0 {
+		if err := tx.QueryRowContext(ctx, `SELECT statement_id FROM acct_statement WHERE request_key=?`, input.RequestKey).Scan(&id); err != nil {
+			return 0, err
+		}
+	}
 	if err := verifyIdempotentCreate(ctx, tx, uint64(id), input); err != nil {
 		return 0, err
 	}

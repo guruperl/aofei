@@ -19,6 +19,10 @@ The active contract is `usd-cpm-impression-v2`, recorded by the singleton
   publication failure releases the reservation; a successfully published,
   signed impression finalizes it.
 - The ledger counts only idempotently accepted impression trackers as spend.
+- Statement request/party/cadence/period/currency/source/supersession identity
+  is database-immutable. Draft or Held totals may change only when they equal
+  the sum of immutable adjustment rows; corrections create a replacement and
+  original statements cannot be deleted.
   Clicks remain measurement facts and do not create a second charge.
 - Ledger accumulation retains source precision. A statement snapshot rounds
   the daily aggregate to six decimal places. Statement, adjustment, and total

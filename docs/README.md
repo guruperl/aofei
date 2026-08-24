@@ -13,7 +13,7 @@ canary. The remaining required review order is A03. I02
 remains separately demand-gated; its P03/S05 prerequisites are complete, but a
 named Android or iOS integration still has not defined supported platforms and
 lifecycle requirements. The active MySQL baseline is 96 tables, 0 views, 6
-routines, and 61 triggers;
+routines, and 65 triggers;
 planned milestones do not imply schema or runtime activation.
 
 ## Start By Audience
