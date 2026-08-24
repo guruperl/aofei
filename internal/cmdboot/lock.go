@@ -46,6 +46,9 @@ func AcquireLock(ctx context.Context, client radix.Client, key string, ttl time.
 	if ttl <= 0 {
 		ttl = 30 * time.Minute
 	}
+	// Use the exact TTL sent to Redis so the local safety window can never
+	// outlive the server-side PX lease because of millisecond truncation.
+	ttl = time.Duration(lockTTLMillis(ttl)) * time.Millisecond
 	token, err := randomToken()
 	if err != nil {
 		opsmetrics.RecordLease("acquire_error")
@@ -60,6 +63,16 @@ func AcquireLock(ctx context.Context, client radix.Client, key string, ttl time.
 	if reply != "OK" {
 		opsmetrics.RecordLease("held")
 		return nil, ErrLockHeld
+	}
+	if !time.Now().Before(confirmedAt.Add(ttl)) {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), lockReleaseTimeout)
+		releaseErr := (&Lock{client: client, key: key, token: token}).Release(releaseCtx)
+		cancel()
+		opsmetrics.RecordLease("acquire_error")
+		return nil, errors.Join(
+			fmt.Errorf("singleton lease %s acknowledgement exceeded its ownership window: %w", key, ErrLeaseUncertain),
+			releaseErr,
+		)
 	}
 	opsmetrics.RecordLease("acquired")
 	leaseCtx, cancel := context.WithCancel(ctx)

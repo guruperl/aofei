@@ -85,9 +85,10 @@ atomic generation publication with partial live writes.
 ## Bounded Review-Fix Gate
 
 - Iteration 1 (2026-08-24): three findings remain open.
-  - P2: `AcquireLock` measures the first confirmed window before Redis `SET`,
-    but does not reject a successful response that arrives after that window;
-    work can therefore start after its conservative ownership deadline.
+  - P2 resolved: `AcquireLock` now uses the exact millisecond PX duration,
+    rejects a successful Redis response at or after the conservative deadline,
+    and token-checks release before returning `ErrLeaseUncertain`. Delayed-
+    acknowledgement repetition, race, and real-Redis ownership tests pass.
   - P2: `cmd/spread` bootstraps before installing/flushing its subscription and
     reads Redis families without the cache writer lease, so startup can miss a
     publication or select a mixed old/new snapshot.

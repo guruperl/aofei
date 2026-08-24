@@ -21,6 +21,20 @@ type transientLockClient struct {
 	calls  int
 }
 
+type delayedLockClient struct {
+	radix.Client
+	delay time.Duration
+	once  sync.Once
+}
+
+func (c *delayedLockClient) Addr() net.Addr { return c.Client.Addr() }
+
+func (c *delayedLockClient) Do(ctx context.Context, action radix.Action) error {
+	err := c.Client.Do(ctx, action)
+	c.once.Do(func() { time.Sleep(c.delay) })
+	return err
+}
+
 func (c *transientLockClient) Addr() net.Addr { return c.Client.Addr() }
 
 func (c *transientLockClient) Do(ctx context.Context, action radix.Action) error {
@@ -75,6 +89,20 @@ func TestAcquireLockRenewsLeaseAndExcludesSecondOwner(t *testing.T) {
 	}
 	if err := lock.Err(); err != nil {
 		t.Fatalf("lease renewal: %v", err)
+	}
+}
+
+func TestAcquireLockRejectsAcknowledgementAfterConfirmedWindow(t *testing.T) {
+	server := miniredis.RunT(t)
+	base := lockTestClient(t, server.Addr())
+	client := &delayedLockClient{Client: base, delay: 50 * time.Millisecond}
+
+	lock, err := AcquireLock(context.Background(), client, "delayed", 20*time.Millisecond)
+	if lock != nil || !errors.Is(err, ErrLeaseUncertain) {
+		t.Fatalf("lock=%v err=%v, want uncertain acquisition rejection", lock, err)
+	}
+	if server.Exists("delayed") {
+		t.Fatal("stale acquisition acknowledgement left an owned lease behind")
 	}
 }
 
