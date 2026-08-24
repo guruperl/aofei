@@ -2244,6 +2244,8 @@ CREATE TRIGGER `report_exposure_immutable_update` BEFORE UPDATE ON `report_expos
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report exposures are immutable'; END ;;
 CREATE TRIGGER `report_experiment_assignment_immutable_update` BEFORE UPDATE ON `report_experiment` FOR EACH ROW
 BEGIN
+  DECLARE variant_count int DEFAULT 0;
+  DECLARE allocation_total int DEFAULT 0;
   IF NOT (OLD.owner_type <=> NEW.owner_type)
      OR NOT (OLD.adv_id <=> NEW.adv_id)
      OR NOT (OLD.experiment_name <=> NEW.experiment_name)
@@ -2272,12 +2274,22 @@ BEGIN
   ELSEIF NEW.status IN ('Stopped','Completed') AND (NEW.stop_reason IS NULL OR LENGTH(TRIM(NEW.stop_reason))=0) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='stopped experiment requires a reason';
   END IF;
+  IF NOT (OLD.status <=> NEW.status) AND NEW.status='Running' THEN
+    SELECT COUNT(*), COALESCE(SUM(allocation_basis_points),0)
+    INTO variant_count, allocation_total
+    FROM report_experiment_variant
+    WHERE experiment_id=NEW.experiment_id AND experiment_version=NEW.experiment_version;
+    IF variant_count < 2 OR variant_count > 20 OR allocation_total <> 10000 THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment allocation is incomplete';
+    END IF;
+  END IF;
 END ;;
 CREATE TRIGGER `report_experiment_variant_guard_insert` BEFORE INSERT ON `report_experiment_variant` FOR EACH ROW
 BEGIN
   DECLARE experiment_status varchar(16);
   SELECT status INTO experiment_status FROM report_experiment
-  WHERE experiment_id=NEW.experiment_id AND experiment_version=NEW.experiment_version;
+  WHERE experiment_id=NEW.experiment_id AND experiment_version=NEW.experiment_version
+  FOR UPDATE;
   IF experiment_status <> 'Draft' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment variants can be added only in Draft';
   END IF;

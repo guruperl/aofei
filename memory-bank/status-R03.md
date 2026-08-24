@@ -57,6 +57,14 @@ bids, delivery, accounting, or settlement.
   retention/window fields and a late variant insert could still alter or deny
   a started experiment under the same version. Both findings were corrected;
   the full iteration-2 review remains pending.
+- Iteration 2: one P2 finding. The new late-variant trigger read experiment
+  status without a locking read, so a concurrent Draft-to-Running transition
+  could commit before the insert's foreign-key lock while the trigger had
+  already accepted the stale Draft snapshot. The same direct transition also
+  lacked the service's complete-allocation check. The trigger/transition guard
+  now serializes on the parent row and repeats the 2-20/10,000-basis-point start
+  invariant; a disposable two-connection race proves the late insert waits and
+  fails after start. The full iteration-3 review remains pending.
 
 ## Exclusions
 

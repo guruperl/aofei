@@ -64,6 +64,9 @@ VALUES ('Operator','r03-legacy-compatibility',1,'Draft',?,'actions','spend',2160
 	if _, err := tx.ExecContext(ctx, `DELETE FROM report_experiment_variant WHERE experiment_id=? AND experiment_version=1 AND variant_key='control'`, id); err == nil {
 		t.Fatal("variant deletion succeeded")
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET status='Running' WHERE experiment_id=?`, id); err == nil {
+		t.Fatal("incomplete experiment allocation started through direct SQL")
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO report_experiment_variant (experiment_id, experiment_version, variant_key, allocation_basis_points) VALUES (?,?,?,?)`, id, 1, "treatment", 5000); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +81,65 @@ VALUES ('Operator','r03-legacy-compatibility',1,'Draft',?,'actions','spend',2160
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET stop_reason='rewritten' WHERE experiment_id=?`, id); err == nil {
 		t.Fatal("experiment stop reason changed without a status transition")
+	}
+}
+
+func TestExperimentVariantInsertSerializesWithStartMySQL(t *testing.T) {
+	dsn := os.Getenv("AOFEI_MYSQL_TEST_DSN")
+	if dsn == "" {
+		t.Skip("AOFEI_MYSQL_TEST_DSN is not set")
+	}
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	start := time.Now().UTC().Add(time.Hour).Truncate(time.Microsecond)
+	experiment := Experiment{
+		OwnerType: "Operator", Name: "r03-variant-start-race-" + time.Now().UTC().Format("150405.000000"), Version: 1,
+		Status: "Draft", PrimaryMetric: "actions", GuardrailMetric: "spend",
+		RetentionHours: 24, StartsAt: start,
+		Variants: []Variant{{Key: "control", AllocationBasisPts: 5000}, {Key: "treatment", AllocationBasisPts: 5000}},
+	}
+	id, err := CreateExperiment(ctx, db, experiment, 1, "R03 disposable variant race")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET status='Running' WHERE experiment_id=?`, id); err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(started)
+		_, insertErr := db.ExecContext(ctx, `
+INSERT INTO report_experiment_variant
+  (experiment_id, experiment_version, variant_key, allocation_basis_points)
+VALUES (?,?,?,?)`, id, 1, "late", 1)
+		done <- insertErr
+	}()
+	<-started
+	select {
+	case insertErr := <-done:
+		t.Fatalf("late variant insert did not serialize with start: %v", insertErr)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case insertErr := <-done:
+		if insertErr == nil {
+			t.Fatal("late variant insert succeeded after concurrent start")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("late variant insert did not finish after start committed")
 	}
 }
 
