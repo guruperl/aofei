@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/guruperl/aofei/acl"
+	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
 	"go.uber.org/zap"
 )
@@ -216,6 +217,11 @@ func (self *Controller) stopLocalStaticCacheReload() {
 }
 
 func (c *localStaticCache) load(top string) (int, error) {
+	var err error
+	top, err = spreadcache.Resolve(top)
+	if err != nil {
+		return 0, err
+	}
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
 		return 0, err

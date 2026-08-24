@@ -364,6 +364,12 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
   go run ./cmd/spread
 ```
 
+Spread publication uses the Redis `aofei:spread:generation` monotonic fence and
+the `.local/spread/.aofei-current` pointer. Install the receiver before the
+publisher during rollout. Missing or incomplete Core NATS delivery keeps the
+previous disk generation; current and immediately previous generation
+directories are retained.
+
 Populate spread/NATS and Redis together:
 
 ```bash
@@ -401,14 +407,16 @@ Expected Redis cache families are `pubmap`, additive direct-SSP
 `pubmap:by-id`, `audience`, `creative`, `middleman:routes:v2`,
 fallback-only legacy `middleman:routes`, and
 `slot:<size_id>` hashes keyed by slot id. Expected spread directories are
-`.local/spread/pubmap/`, `.local/spread/audience/`,
-`.local/spread/creative/`, and `.local/spread/slot/<size_id>/`.
+`.local/spread/.aofei-generations/<sequence>/{pubmap,audience,creative}/` and
+`.local/spread/.aofei-generations/<sequence>/slot/<size_id>/`, selected by
+`.local/spread/.aofei-current`.
 Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
 Full Redis refreshes build internal `:next` shadows and install all live
 families with one transaction; live key names and payloads are unchanged.
 Direct SSP local/static serving derives its by-publisher-id lookup in memory
-from `.local/spread/pubmap/`; it does not add a separate spread directory. The
+from the selected generation's `pubmap/`; it does not add a separate spread
+family. The
 direct cache includes cache-owned Web/App type, slot-size, and USD CPM floor;
 `/pz` rejects mismatched platform/type/size/media and uses the greater of the
 configured and finite non-negative request floors. Inactive publisher sites

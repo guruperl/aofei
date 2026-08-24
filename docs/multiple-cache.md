@@ -65,8 +65,12 @@ static lookups from memory.
   sinks require a non-empty key namespace; live item sinks reject family reset,
   so a raw Redis client cannot make the RAdv family compiler incrementally
   replace a live hash.
-- Spread mode publishes `__reset__` family subjects before publishing new
-  snapshots.
+- Spread mode compiles the full snapshot before publishing a bounded manifest,
+  generation-tagged data messages, and a commit marker. The receiver stages
+  messages under a monotonically increasing Redis-backed sequence, verifies the
+  entry count and SHA-256 manifest, and atomically switches `.aofei-current`.
+  Missing reconnect messages leave the prior generation selected; duplicate or
+  stale/overlapping producer messages cannot replace a newer generation.
 - Item-level RAdv refreshes recompute affected creative sizes from MySQL slot
   state rather than merging against old Redis or spread-file state.
 

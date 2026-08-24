@@ -12,8 +12,10 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
+	"github.com/nats-io/nats.go"
 )
 
 func TestValidateMode(t *testing.T) {
@@ -24,6 +26,83 @@ func TestValidateMode(t *testing.T) {
 	}
 	if err := ValidateMode("bad"); err == nil {
 		t.Fatal("ValidateMode(bad) = nil, want error")
+	}
+}
+
+type recordingSpreadPublisher struct {
+	messages []*nats.Msg
+	flushed  bool
+	failAt   int
+}
+
+func (p *recordingSpreadPublisher) PublishMsg(message *nats.Msg) error {
+	if p.failAt > 0 && len(p.messages)+1 == p.failAt {
+		return errors.New("publish failed")
+	}
+	copyMessage := &nats.Msg{Subject: message.Subject, Data: append([]byte(nil), message.Data...)}
+	if message.Header != nil {
+		copyMessage.Header = make(nats.Header, len(message.Header))
+		for key, values := range message.Header {
+			copyMessage.Header[key] = append([]string(nil), values...)
+		}
+	}
+	p.messages = append(p.messages, copyMessage)
+	return nil
+}
+
+func (p *recordingSpreadPublisher) FlushWithContext(context.Context) error {
+	p.flushed = true
+	return nil
+}
+
+func TestPublishSpreadMessagesUsesOrderedGenerationProtocol(t *testing.T) {
+	publisher := &recordingSpreadPublisher{}
+	messages := []spreadcache.Message{
+		{Subject: "creative:7", Data: []byte("creative")},
+		{Subject: "slot:1:2", Data: []byte("slot")},
+	}
+	if err := publishSpreadMessages(context.Background(), publisher, 9, messages); err != nil {
+		t.Fatal(err)
+	}
+	if !publisher.flushed {
+		t.Fatal("spread generation was not flushed")
+	}
+	if len(publisher.messages) != 4 {
+		t.Fatalf("published messages = %d, want 4", len(publisher.messages))
+	}
+	if publisher.messages[0].Subject != spreadcache.BeginSubject || publisher.messages[3].Subject != spreadcache.CommitSubject {
+		t.Fatalf("control order = %q ... %q", publisher.messages[0].Subject, publisher.messages[3].Subject)
+	}
+	manifest, err := spreadcache.ParseManifest(publisher.messages[0].Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Sequence != 9 || manifest.EntryCount != len(messages) {
+		t.Fatalf("manifest = %#v", manifest)
+	}
+	for i, message := range publisher.messages[1:3] {
+		if message.Subject != spreadcache.DataSubject || message.Header.Get(spreadcache.GenerationHeader) != "9" || message.Header.Get(spreadcache.OriginalSubjectHeader) != messages[i].Subject {
+			t.Fatalf("data message %d = %#v", i, message)
+		}
+	}
+}
+
+func TestPublishSpreadMessagesFailureCannotEmitCommit(t *testing.T) {
+	publisher := &recordingSpreadPublisher{failAt: 3}
+	err := publishSpreadMessages(context.Background(), publisher, 9, []spreadcache.Message{
+		{Subject: "creative:7", Data: []byte("creative")},
+		{Subject: "slot:1:2", Data: []byte("slot")},
+	})
+	if err == nil || !strings.Contains(err.Error(), "publish failed") {
+		t.Fatalf("publish error = %v", err)
+	}
+	if publisher.flushed {
+		t.Fatal("failed spread generation was flushed")
+	}
+	for _, message := range publisher.messages {
+		if message.Subject == spreadcache.CommitSubject {
+			t.Fatal("failed spread generation emitted commit")
+		}
 	}
 }
 

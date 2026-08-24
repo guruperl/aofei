@@ -125,6 +125,12 @@ are unique database backstops; no job may rely on a lease as its only
 idempotency boundary.
 All mutating `cmd/redis-cache` modes share the `aofei:redis-cache` lock; a
 partial route or spread run therefore cannot overlap a full generation build.
+Spread/local deployments must install and restart the generation-aware
+`cmd/spread` receiver before installing the matching cache compiler. The
+compiler assigns `aofei:spread:generation`, publishes a checksummed staged
+generation, and flushes its commit; the receiver switches `.aofei-current` only
+when every entry is present. Legacy direct messages are ignored after this
+activation boundary. Keep the Redis sequence key during rollback and restore.
 
 Checked-in `etc/aofei.json` and `etc/summer.example.json` are examples. Generated
 `etc/*.local.json` files are local-only artifacts and must not be copied into

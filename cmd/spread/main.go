@@ -11,11 +11,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/internal/cmdboot"
+	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
 	"github.com/nats-io/nats.go"
 
@@ -67,6 +70,7 @@ func main() {
 type spreadConn interface {
 	ConnectedUrl() string
 	Subscribe(string, nats.MsgHandler) (*nats.Subscription, error)
+	FlushTimeout(time.Duration) error
 	Drain() error
 }
 
@@ -84,10 +88,13 @@ func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Lo
 	if err := bootstrapSpreadFromRedis(ctx, c, top); err != nil {
 		logger.Printf("spread bootstrap skipped: %v", err)
 	}
+	receiver, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		return err
+	}
 
-	logger.Printf("Listening on [%s]", nc.ConnectedUrl())
-	_, err := nc.Subscribe(spreadSubjectPattern, func(m *nats.Msg) {
-		handled, err := handleSpreadMessage(top, m)
+	_, err = nc.Subscribe(spreadSubjectPattern, func(m *nats.Msg) {
+		handled, err := receiver.handle(m)
 		if err != nil {
 			logger.Printf("error: %v", err)
 			return
@@ -99,10 +106,177 @@ func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Lo
 	if err != nil {
 		return err
 	}
+	if err := nc.FlushTimeout(5 * time.Second); err != nil {
+		return err
+	}
+	logger.Printf("Listening on [%s]", nc.ConnectedUrl())
 
 	<-ctx.Done()
 	if err := nc.Drain(); err != nil {
 		return err
+	}
+	return nil
+}
+
+type spreadGenerationReceiver struct {
+	mu        sync.Mutex
+	top       string
+	active    uint64
+	committed uint64
+	expected  spreadcache.Manifest
+	seen      map[string]string
+}
+
+func newSpreadGenerationReceiver(top string) (*spreadGenerationReceiver, error) {
+	committed, ok, err := spreadcache.CurrentSequence(top)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		committed = 0
+	}
+	return &spreadGenerationReceiver{top: top, committed: committed}, nil
+}
+
+func (r *spreadGenerationReceiver) handle(m *nats.Msg) (bool, error) {
+	if m == nil {
+		return false, errors.New("spread message is nil")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch m.Subject {
+	case spreadcache.BeginSubject:
+		manifest, err := spreadcache.ParseManifest(m.Data)
+		if err != nil {
+			return true, err
+		}
+		return true, r.begin(manifest)
+	case spreadcache.DataSubject:
+		sequence, err := spreadcache.ParseSequence(m.Header.Get(spreadcache.GenerationHeader))
+		if err != nil {
+			return true, err
+		}
+		return true, r.put(sequence, m.Header.Get(spreadcache.OriginalSubjectHeader), m.Data)
+	case spreadcache.CommitSubject:
+		sequence, err := spreadcache.ParseSequence(string(m.Data))
+		if err != nil {
+			return true, err
+		}
+		return true, r.commit(sequence)
+	default:
+		if r.committed != 0 {
+			if _, _, ok := spreadSubjectPath(m.Subject); ok {
+				return false, nil
+			}
+		}
+		return handleSpreadMessage(r.top, m)
+	}
+}
+
+func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
+	if manifest.Sequence <= r.committed || manifest.Sequence < r.active {
+		return nil
+	}
+	if manifest.Sequence == r.active {
+		if r.expected != manifest {
+			return fmt.Errorf("spread generation %d manifest changed", manifest.Sequence)
+		}
+		return nil
+	}
+	if r.active != 0 {
+		if err := os.RemoveAll(spreadcache.GenerationRoot(r.top, r.active)); err != nil {
+			return err
+		}
+	}
+	root := spreadcache.GenerationRoot(r.top, manifest.Sequence)
+	if err := os.RemoveAll(root); err != nil {
+		return err
+	}
+	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
+		if err := os.MkdirAll(filepath.Join(root, family), 0750); err != nil {
+			return err
+		}
+	}
+	r.active = manifest.Sequence
+	r.expected = manifest
+	r.seen = make(map[string]string)
+	return nil
+}
+
+func (r *spreadGenerationReceiver) put(sequence uint64, subject string, data []byte) error {
+	if sequence != r.active || sequence <= r.committed {
+		return nil
+	}
+	relative, ok := spreadcache.RelativePath(subject)
+	if !ok {
+		return fmt.Errorf("unsupported spread generation subject %q", subject)
+	}
+	digest := spreadcache.Digest(data)
+	if prior, ok := r.seen[subject]; ok && prior != digest {
+		return fmt.Errorf("spread generation %d subject %q changed", sequence, subject)
+	}
+	if err := writeSnapshot(filepath.Join(spreadcache.GenerationRoot(r.top, sequence), relative), data); err != nil {
+		return err
+	}
+	r.seen[subject] = digest
+	return nil
+}
+
+func (r *spreadGenerationReceiver) commit(sequence uint64) error {
+	if sequence <= r.committed {
+		return nil
+	}
+	if sequence != r.active {
+		return nil
+	}
+	if len(r.seen) != r.expected.EntryCount {
+		return fmt.Errorf("spread generation %d is incomplete: received %d of %d entries", sequence, len(r.seen), r.expected.EntryCount)
+	}
+	if digest := spreadcache.ManifestDigest(r.seen); digest != r.expected.SHA256 {
+		return fmt.Errorf("spread generation %d manifest digest mismatch", sequence)
+	}
+	if err := cleanupSpreadGenerations(r.top, r.committed, sequence); err != nil {
+		return err
+	}
+	if err := spreadcache.Commit(r.top, sequence); err != nil {
+		return err
+	}
+	r.committed = sequence
+	r.active = 0
+	r.expected = spreadcache.Manifest{}
+	r.seen = nil
+	return nil
+}
+
+func cleanupSpreadGenerations(top string, keep ...uint64) error {
+	kept := make(map[uint64]struct{}, len(keep))
+	for _, sequence := range keep {
+		if sequence != 0 {
+			kept[sequence] = struct{}{}
+		}
+	}
+	root := filepath.Dir(spreadcache.GenerationRoot(top, 1))
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		sequence, err := strconv.ParseUint(entry.Name(), 10, 64)
+		if err != nil || sequence == 0 {
+			continue
+		}
+		if _, ok := kept[sequence]; ok {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -161,14 +335,16 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 	defer redis.Close()
 	defer db.Close()
 
+	receiver, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		return err
+	}
+	messages := make([]spreadcache.Message, 0)
 	pubmap, err := acl.PubMapFromRedis(ctx, redis)
 	if err != nil {
 		return err
 	}
 	if pubmap != nil {
-		if err := resetSpreadDir(top, acl.HashNamePubmap); err != nil {
-			return err
-		}
 		for domain, pub := range pubmap {
 			if unsafePath(domain) {
 				continue
@@ -177,9 +353,7 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 			if err != nil {
 				return err
 			}
-			if err := writeSnapshot(filepath.Join(top, acl.HashNamePubmap, domain), data); err != nil {
-				return err
-			}
+			messages = append(messages, spreadcache.Message{Subject: acl.HashNamePubmap + ":" + domain, Data: data})
 		}
 	}
 
@@ -188,18 +362,13 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 		return err
 	}
 	if audiences != nil {
-		if err := resetSpreadDir(top, match.HashNameAudience); err != nil {
-			return err
-		}
 		for itemID, audience := range audiences {
 			data, err := audience.Pack()
 			if err != nil {
 				return err
 			}
 			name := strconv.FormatUint(uint64(itemID), 10)
-			if err := writeSnapshot(filepath.Join(top, match.HashNameAudience, name), data); err != nil {
-				return err
-			}
+			messages = append(messages, spreadcache.Message{Subject: match.HashNameAudience + ":" + name, Data: data})
 		}
 	}
 
@@ -208,26 +377,18 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 		return err
 	}
 	if creatives != nil {
-		if err := resetSpreadDir(top, match.HashNameCreative); err != nil {
-			return err
-		}
 		for creativeID, creative := range creatives {
 			data, err := creative.Pack()
 			if err != nil {
 				return err
 			}
 			name := strconv.FormatUint(uint64(creativeID), 10)
-			if err := writeSnapshot(filepath.Join(top, match.HashNameCreative, name), data); err != nil {
-				return err
-			}
+			messages = append(messages, spreadcache.Message{Subject: match.HashNameCreative + ":" + name, Data: data})
 		}
 	}
 
 	sizeIDs, err := match.DBGetActiveCreativeSizeIDs(ctx, db)
 	if err != nil {
-		return err
-	}
-	if err := resetSpreadDir(top, match.HashNameSlot); err != nil {
 		return err
 	}
 	for _, sizeID := range sizeIDs {
@@ -240,14 +401,27 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 			if err != nil {
 				return err
 			}
-			filename := filepath.Join(top, match.HashIONameRAdvs(sizeID), strconv.FormatUint(uint64(slotID), 10))
-			if err := writeSnapshot(filename, data); err != nil {
-				return err
-			}
+			subject := match.HashNameRAdvs(sizeID) + ":" + strconv.FormatUint(uint64(slotID), 10)
+			messages = append(messages, spreadcache.Message{Subject: subject, Data: data})
 		}
 	}
-
-	return nil
+	sequence, err := spreadcache.NextSequence(ctx, redis, receiver.committed)
+	if err != nil {
+		return err
+	}
+	manifest, err := spreadcache.NewManifest(sequence, messages)
+	if err != nil {
+		return err
+	}
+	if err := receiver.begin(manifest); err != nil {
+		return err
+	}
+	for _, message := range messages {
+		if err := receiver.put(sequence, message.Subject, message.Data); err != nil {
+			return err
+		}
+	}
+	return receiver.commit(sequence)
 }
 
 func writeSnapshot(filename string, data []byte) error {

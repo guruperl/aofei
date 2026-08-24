@@ -169,7 +169,8 @@ The established runtime direction remains:
 - Redis and NATS should be available locally through the same helper flow as
   MySQL.
 - Static publisher, slot, audience, and creative data should be inspectable as
-  Redis payloads, spread disk snapshots, and local in-process generations.
+  Redis payloads, atomically selected spread disk generations, and local
+  in-process generations.
 - Middleman fallback is available only by explicit DSP config after
   advertiser-owned endpoint approval, route cache population, synthetic
   reporting row validation, and ACL/channel eligibility checks.

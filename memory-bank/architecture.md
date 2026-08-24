@@ -36,14 +36,18 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 4. The cache job reads MySQL through `dsp.Config`, builds `PubMap`, the derived
    direct-SSP publisher-by-id lookup, `RAdv`, audience, creative, and
    Redis-only middleman route caches, discovers active creative size IDs from
-   the schema, then replaces Redis cache entries or publishes spread/NATS reset
-   and snapshot messages. It runs through standalone `cmd/redis-cache`;
+   the schema, then replaces Redis cache entries or publishes a checksummed,
+   monotonically fenced spread/NATS generation. It runs through standalone `cmd/redis-cache`;
    `cmd/unify` does not run cache refreshers. Route-only middleman cache
    publication is available through
    `cmd/redis-cache -cache=routes`. `cmd/spread` must be running when spread
    messages should become `.local/spread/` file snapshots; on startup it
-   best-effort bootstraps those snapshots from Redis when Redis and MySQL are
-   reachable.
+   best-effort bootstraps an atomic disk generation from Redis when Redis and
+   MySQL are reachable. The receiver stages every declared entry below
+   `.aofei-generations/<sequence>/` and atomically replaces `.aofei-current`
+   only after the entry count and SHA-256 manifest match. Missing reconnect
+   messages, duplicates, and stale or overlapping producer sequences therefore
+   cannot delete or partially replace the current files.
 5. `../pzdesign/cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet
    admin routes, and serves DSP bid paths using the same MySQL/Redis/NATS
    config. `GET /healthz` reports process liveness and `GET /readyz` reports

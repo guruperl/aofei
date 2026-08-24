@@ -15,6 +15,7 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/managementapi"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
@@ -109,11 +110,11 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 	var publicationErr error
 	switch opts.Mode {
 	case ModeSpread:
-		publicationErr = WriteToSpread(ctx, nc, db, pubmap, sizeIDs)
+		publicationErr = PublishSpreadGeneration(ctx, redis, nc, db, pubmap, sizeIDs)
 	case ModeRedis:
 		publicationErr = PublishRedisGeneration(ctx, redis, db, pubmap, sizeIDs)
 	case ModeAll:
-		if err := WriteToSpread(ctx, nc, db, pubmap, sizeIDs); err != nil {
+		if err := PublishSpreadGeneration(ctx, redis, nc, db, pubmap, sizeIDs); err != nil {
 			return err
 		}
 		publicationErr = PublishRedisGeneration(ctx, redis, db, pubmap, sizeIDs)
@@ -655,6 +656,11 @@ func redisLiveSlotKeys(ctx context.Context, redis radix.Client) ([]string, error
 }
 
 func SpreadRead(out io.Writer, top string, sizeIDs []uint32) error {
+	var err error
+	top, err = spreadcache.Resolve(top)
+	if err != nil {
+		return err
+	}
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
 		return err
@@ -706,31 +712,114 @@ func SpreadRead(out io.Writer, top string, sizeIDs []uint32) error {
 	return nil
 }
 
-func WriteToSpread(ctx context.Context, nc *nats.Conn, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
+type spreadPublisher interface {
+	PublishMsg(*nats.Msg) error
+	FlushWithContext(context.Context) error
+}
+
+type spreadMessageSink struct {
+	messages *[]spreadcache.Message
+}
+
+func (s spreadMessageSink) ResetRAdvs(context.Context, uint32) error { return nil }
+
+func (s spreadMessageSink) PutRAdvs(_ context.Context, sizeID, slotID uint32, data []byte, _ bool) error {
+	s.append(match.HashNameRAdvs(sizeID)+":"+strconv.FormatUint(uint64(slotID), 10), data)
+	return nil
+}
+
+func (s spreadMessageSink) CleanupRAdvs(context.Context, uint32) error { return nil }
+
+func (s spreadMessageSink) PutAudience(_ context.Context, itemID uint32, data []byte) error {
+	s.append(match.HashNameAudience+":"+strconv.FormatUint(uint64(itemID), 10), data)
+	return nil
+}
+
+func (s spreadMessageSink) PutCreative(_ context.Context, creativeID uint32, data []byte) error {
+	s.append(match.HashNameCreative+":"+strconv.FormatUint(uint64(creativeID), 10), data)
+	return nil
+}
+
+func (s spreadMessageSink) append(subject string, data []byte) {
+	*s.messages = append(*s.messages, spreadcache.Message{Subject: subject, Data: append([]byte(nil), data...)})
+}
+
+func buildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) ([]spreadcache.Message, error) {
+	messages := make([]spreadcache.Message, 0, len(pubmap))
+	for domain, pub := range pubmap {
+		if pub == nil {
+			return nil, fmt.Errorf("publisher %q is nil", domain)
+		}
+		data, err := pub.Pack()
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, spreadcache.Message{Subject: acl.HashNamePubmap + ":" + domain, Data: data})
+	}
+	sink := spreadMessageSink{messages: &messages}
+	for _, sizeID := range sizeIDs {
+		if err := match.DBGetRAdvsToRedisSpreadBySizeID(ctx, sink, db, sizeID); err != nil {
+			return nil, err
+		}
+	}
+	if err := match.DBGetAudiencesToCache(ctx, sink, db); err != nil {
+		return nil, err
+	}
+	if err := match.DBGetCreativesToRedisSpread(ctx, sink, db); err != nil {
+		return nil, err
+	}
+	sort.Slice(messages, func(i, j int) bool { return messages[i].Subject < messages[j].Subject })
+	return messages, nil
+}
+
+// PublishSpreadGeneration compiles the complete static snapshot before sending
+// a fenced, checksummed generation. Receivers expose it only after every
+// declared entry arrives and the commit control message is flushed.
+func PublishSpreadGeneration(ctx context.Context, redis radix.Client, nc spreadPublisher, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
 	if nc == nil {
 		return fmt.Errorf("NATS connection is nil")
 	}
-	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
-		if err := PublishSpreadReset(nc, family); err != nil {
+	messages, err := buildSpreadGeneration(ctx, db, pubmap, sizeIDs)
+	if err != nil {
+		return err
+	}
+	sequence, err := spreadcache.NextSequence(ctx, redis)
+	if err != nil {
+		return err
+	}
+	return publishSpreadMessages(ctx, nc, sequence, messages)
+}
+
+func publishSpreadMessages(ctx context.Context, nc spreadPublisher, sequence uint64, messages []spreadcache.Message) error {
+	manifest, err := spreadcache.NewManifest(sequence, messages)
+	if err != nil {
+		return err
+	}
+	manifestData, err := manifest.Marshal()
+	if err != nil {
+		return err
+	}
+	if err := nc.PublishMsg(&nats.Msg{Subject: spreadcache.BeginSubject, Data: manifestData}); err != nil {
+		return err
+	}
+	for _, message := range messages {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		out := nats.NewMsg(spreadcache.DataSubject)
+		out.Header.Set(spreadcache.GenerationHeader, spreadcache.SequenceString(sequence))
+		out.Header.Set(spreadcache.OriginalSubjectHeader, message.Subject)
+		out.Data = message.Data
+		if err := nc.PublishMsg(out); err != nil {
 			return err
 		}
 	}
-
-	if err := pubmap.ToSpread(nc); err != nil {
+	if err := nc.PublishMsg(&nats.Msg{Subject: spreadcache.CommitSubject, Data: []byte(spreadcache.SequenceString(sequence))}); err != nil {
 		return err
 	}
-
-	for _, sizeID := range sizeIDs {
-		if err := match.DBGetRAdvsToRedisSpreadBySizeID(ctx, nc, db, sizeID); err != nil {
-			return err
-		}
-	}
-
-	if err := match.DBGetAudiencesToSpread(nc, db); err != nil {
-		return err
-	}
-
-	return match.DBGetCreativesToRedisSpread(ctx, nc, db)
+	flushCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return nc.FlushWithContext(flushCtx)
 }
 
 func ResetRedisStaticCaches(ctx context.Context, redis radix.Client) error {
@@ -766,10 +855,6 @@ func DeleteRedisKeysByPattern(ctx context.Context, redis radix.Client, pattern s
 		return redis.Do(ctx, radix.Cmd(nil, "DEL", keys...))
 	}
 	return nil
-}
-
-func PublishSpreadReset(nc *nats.Conn, family string) error {
-	return nc.Publish(family+":__reset__", nil)
 }
 
 func UpdatePubMap(c *dsp.Config, db *sql.DB, pubmap acl.PubMap, interval, stamp int) error {

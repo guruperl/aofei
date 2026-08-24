@@ -38,8 +38,20 @@ require_redis_key() {
 
 require_spread_dir() {
 	local dir="$1"
-	if [ ! -d "$SPREAD_DIR/$dir" ]; then
-		echo "Missing spread directory: $SPREAD_DIR/$dir" >&2
+	local root="$SPREAD_DIR"
+	local sequence
+	if [ -f "$SPREAD_DIR/.aofei-current" ]; then
+		IFS= read -r sequence <"$SPREAD_DIR/.aofei-current"
+		case "$sequence" in
+			""|*[!0-9]*)
+				echo "Invalid spread generation pointer: $sequence" >&2
+				return 1
+				;;
+		esac
+		root="$SPREAD_DIR/.aofei-generations/$sequence"
+	fi
+	if [ ! -d "$root/$dir" ]; then
+		echo "Missing spread directory: $root/$dir" >&2
 		return 1
 	fi
 }

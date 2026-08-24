@@ -283,18 +283,21 @@ Expected artifact families:
 
 | Directory | Shape |
 |---|---|
-| `.local/spread/pubmap/` | Publisher-domain files. |
-| `.local/spread/audience/` | Item-id files. |
-| `.local/spread/creative/` | Creative-id files. |
-| `.local/spread/slot/<size_id>/` | Slot-id files for each active creative size. |
+| `.local/spread/.aofei-current` | Atomically selected generation sequence. |
+| `.local/spread/.aofei-generations/<sequence>/pubmap/` | Publisher-domain files. |
+| `.local/spread/.aofei-generations/<sequence>/audience/` | Item-id files. |
+| `.local/spread/.aofei-generations/<sequence>/creative/` | Creative-id files. |
+| `.local/spread/.aofei-generations/<sequence>/slot/<size_id>/` | Slot-id files for each active creative size. |
 
 The spread receiver subscribes with a NATS tail wildcard so cache subjects with
-dotted publisher domains are received. It writes each cache message as a full
-file snapshot using atomic replacement. Full refreshes send `__reset__` family
-subjects before new snapshots, and slot cleanup subjects such as
-`slot:<size_id>:<slot_id>cleanup` clear the size directory before writing the
-new slot snapshot. A cleanup-only subject `slot:<size_id>:cleanup` clears a size
-directory when the refreshed size has no nonempty slots.
+dotted publisher domains are received. Full refreshes are compiled before
+publication, assigned the Redis `aofei:spread:generation` sequence, and sent as
+one bounded manifest plus generation-tagged data and commit messages. The
+receiver stages the files, verifies the entry count and SHA-256 manifest, and
+atomically replaces `.aofei-current`; incomplete reconnect delivery leaves the
+prior generation selected. Duplicate and stale overlapping messages are
+idempotent or ignored. Deploy the generation-aware receiver before the matching
+publisher; legacy direct subjects are ignored after the first pointer exists.
 
 On startup, `cmd/spread` also attempts to bootstrap static spread files from
 Redis. This is best effort: if Redis or MySQL is unavailable, the receiver still
@@ -308,7 +311,8 @@ omitted or `responseFormat:"html"` requests return a JSON array of HTML
 strings. `responseFormat:"json"` returns ordered fill/no-fill objects, and
 `responseFormat:"openrtb"` returns an OpenRTB `BidResponse`. Redis mode
 validates those tokens through `pubmap:by-id`; local/static mode derives the
-same lookup from `.local/spread/pubmap/`.
+same lookup from the `pubmap/` directory selected by
+`.local/spread/.aofei-current`.
 
 `/pz` keeps permissive, credentialless CORS for `POST` and `OPTIONS`, but the
 validated `POST` request enforces browser origin/referrer policy. Browser

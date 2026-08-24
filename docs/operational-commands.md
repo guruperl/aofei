@@ -217,10 +217,11 @@ Inputs:
 
 Outputs:
 
-- `.local/spread/pubmap/`
-- `.local/spread/audience/`
-- `.local/spread/creative/`
-- `.local/spread/slot/<size_id>/`
+- `.local/spread/.aofei-current` (the selected sequence)
+- `.local/spread/.aofei-generations/<sequence>/pubmap/`
+- `.local/spread/.aofei-generations/<sequence>/audience/`
+- `.local/spread/.aofei-generations/<sequence>/creative/`
+- `.local/spread/.aofei-generations/<sequence>/slot/<size_id>/`
 
 Middleman bidder routes are not spread snapshots. They remain Redis-only under
 `middleman:routes:v2`, with `middleman:routes` kept as a fallback-only legacy
@@ -231,11 +232,16 @@ Notes:
 - Log subjects are intentionally ignored by this command.
 - Cache subjects are received with a NATS tail wildcard, so publisher domains
   containing dots are valid subject payload keys.
-- File snapshots are written by temp-file plus atomic rename.
-- `__reset__` subjects clear a whole cache family before a full refresh.
-- `DELETE` payloads remove individual snapshots.
-- `cleanup` suffixes are slot-only and clear the relevant size directory before
-  writing the next snapshot.
+- Full refreshes use the Redis `aofei:spread:generation` sequence. The receiver
+  stages generation-tagged entries, verifies their count and SHA-256 manifest,
+  then atomically replaces the current pointer; it retains the current and
+  immediately previous generation.
+- A reconnect gap or failed/incomplete commit leaves the prior generation
+  selected. Duplicate messages are idempotent, and a lower overlapping
+  sequence is ignored.
+- Legacy `__reset__`, `DELETE`, and slot `cleanup` subjects remain receiver-first
+  rollout compatibility only before the first generation pointer exists. Once
+  generation publication is active, legacy direct mutations are ignored.
 - `SIGINT` and `SIGTERM` stop the service through a signal-aware context and
   drain the NATS connection before exit.
 
