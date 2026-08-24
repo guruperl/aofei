@@ -8,14 +8,15 @@ adapter without replacing these records; see
 
 ## Monetary Unit And Billable Facts
 
-The active contract is `usd-cpm-impression-v2`, recorded by the singleton
-`acct_contract` row:
+The active contract is `usd-cpm-impression-v3`, recorded by the singleton
+`acct_contract` row. It preserves the A01 statement semantics while making the
+upstream CPM, impression aggregation, reservation, and ledger path exact:
 
 - OpenRTB bid prices, auction macros, and tracking payload prices remain USD
   CPM. A price of `2.500000` means USD 2.50 per thousand impressions.
 - One billable impression contributes `CPM / 1000`; therefore CPM `2.500000`
   contributes USD `0.002500`.
-- Live D01 spend reservations use the per-impression USD amount. Loss or
+- Live reservations use integer nano-USD per-impression amounts. Loss or
   publication failure releases the reservation; a successfully published,
   signed impression finalizes it.
 - The ledger counts only idempotently accepted impression trackers as spend.
@@ -188,8 +189,10 @@ that performs these changes in one maintenance window:
    six-decimal reviewed results, and an idempotent migration marker.
 4. Reconcile `adv_balance.current_spend` from converted ledger facts. Do not
    divide `limit_spend`: configured limits are already currency amounts.
-5. Create the `acct_*` tables, immutable triggers, and
-   `usd-cpm-impression-v2` marker.
+5. Create the `acct_*` tables, immutable triggers, and historical
+   `usd-cpm-impression-v2` marker. An A03 deployment then follows the separate
+   frozen-backup migration in [exact-money.md](exact-money.md) and advances the
+   singleton only after exact-column conversion succeeds.
 6. Remove full `cardnumber`, `routing_number`, and `account_number` values,
    sender identity, and payment IP fields from the live schema after the legal
    retention owner either approves deletion or moves a required record into

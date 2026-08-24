@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-func TestAccountingBaselineHasV2ContractAndNoCredentialColumns(t *testing.T) {
+func TestAccountingBaselineHasV3ContractAndNoCredentialColumns(t *testing.T) {
 	data, err := os.ReadFile("step4_init.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := string(data)
 	for _, required := range []string{
-		"CREATE TABLE `acct_contract`", "'usd-cpm-impression-v2'",
+		"CREATE TABLE `acct_contract`", "'usd-cpm-impression-v3'",
 		"CREATE TABLE `acct_statement`", "CREATE TABLE `acct_adjustment`",
 		"CREATE TABLE `acct_audit`", "acct_audit_immutable_update",
 		"acct_statement_protected_update", "acct_statement_immutable_delete",

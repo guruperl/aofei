@@ -32,9 +32,10 @@ separate eligibility gates. This is deterministic throttling, not traffic
 forecasting, automatic bid adjustment, or ML optimization. Narrow calendars,
 insufficient eligible traffic, and late starts can therefore underdeliver.
 
-The selected bid and tracking payload retain their OpenRTB USD CPM value. A01's
-`usd-cpm-impression-v2` contract converts that value to one-impression USD
-spend (`CPM / 1000`) before this reservation. Configured spend limits and
+The selected bid and tracking payload retain their OpenRTB USD CPM value. The
+active `usd-cpm-impression-v3` contract maps exact micro-USD CPM to the same
+integer count of nano-USD for one impression (`CPM / 1000`) before this
+reservation. Configured spend limits and
 reconciled ledger floors are USD amounts; they are never divided again.
 
 ## Reservation lifecycle

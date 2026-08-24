@@ -22,6 +22,50 @@ CREATE TABLE IF NOT EXISTS `money_migration_evidence` (
   CONSTRAINT `money_migration_discrepancy_chk` CHECK (((`conversion_rule` = 'Quarantined') AND (`converted_value` IS NULL)) OR (`conversion_rule` <> 'Quarantined'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Capture every database-observable legacy monetary value before its column is
+-- altered. The original human-entered decimal behind an IEEE-754 value is not
+-- recoverable; discrepancy records only the difference between that legacy
+-- value and the reviewed target scale. NULL is already an exact absence.
+DROP PROCEDURE IF EXISTS a03_capture_legacy_money;
+DELIMITER ;;
+CREATE PROCEDURE a03_capture_legacy_money(
+  IN source_table_name VARCHAR(64),
+  IN source_pk_name VARCHAR(64),
+  IN source_column_name VARCHAR(64),
+  IN target_scale TINYINT UNSIGNED,
+  IN require_nonnegative BOOLEAN
+)
+BEGIN
+  IF source_table_name NOT REGEXP '^[a-z0-9_]+$' OR
+     source_pk_name NOT REGEXP '^[a-z0-9_]+$' OR
+     source_column_name NOT REGEXP '^[a-z0-9_]+$' OR
+     target_scale NOT IN (6,9)
+  THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='invalid A03 evidence source'; END IF;
+  SET @a03_target_type = IF(target_scale=6, 'DECIMAL(12,6)', 'DECIMAL(20,9)');
+  SET @a03_source = CONCAT('`',source_column_name,'`');
+  SET @a03_invalid = IF(require_nonnegative,
+    CONCAT(@a03_source,' < 0'), 'FALSE');
+  SET @a03_evidence_sql = CONCAT(
+    'INSERT INTO money_migration_evidence ',
+    '(contract_version,source_table,source_pk,source_column,legacy_value,',
+    'converted_value,conversion_rule,discrepancy,created_at) SELECT ',
+    QUOTE('usd-cpm-impression-v3'),',',QUOTE(source_table_name),',',
+    'CAST(`',source_pk_name,'` AS CHAR),',QUOTE(source_column_name),',',
+    'CAST(',@a03_source,' AS CHAR),',
+    'CASE WHEN ',@a03_source,' IS NULL OR ',@a03_invalid,' THEN NULL ELSE CAST(',
+      @a03_source,' AS ',@a03_target_type,') END,',
+    'CASE WHEN ',@a03_source,' IS NULL THEN ',QUOTE('AlreadyExact'),
+      ' WHEN ',@a03_invalid,' THEN ',QUOTE('Quarantined'),
+      ' ELSE ',QUOTE('LegacyRenderedHalfAway'),' END,',
+    'CASE WHEN ',@a03_source,' IS NULL OR ',@a03_invalid,' THEN NULL ELSE CAST(CAST(',
+      @a03_source,' AS ',@a03_target_type,')-',@a03_source,' AS DECIMAL(20,9)) END,NOW(6) ',
+    'FROM `',source_table_name,'` ON DUPLICATE KEY UPDATE evidence_id=evidence_id');
+  PREPARE a03_evidence_statement FROM @a03_evidence_sql;
+  EXECUTE a03_evidence_statement;
+  DEALLOCATE PREPARE a03_evidence_statement;
+END ;;
+DELIMITER ;
+
 INSERT INTO money_migration_evidence
   (contract_version, source_table, source_pk, source_column, legacy_value,
    converted_value, conversion_rule, discrepancy, created_at)
@@ -31,7 +75,9 @@ SELECT 'usd-cpm-impression-v3', 'adv_item', CAST(item_id AS CHAR), 'cost',
             THEN CAST(cost AS DECIMAL(12,6)) ELSE NULL END,
        CASE WHEN cost_type='CPM' AND cost BETWEEN 0.000001 AND 999999.999999
             THEN 'LegacyRenderedHalfAway' ELSE 'Quarantined' END,
-       NULL, NOW(6)
+       CASE WHEN cost_type='CPM' AND cost BETWEEN 0.000001 AND 999999.999999
+            THEN CAST(CAST(cost AS DECIMAL(12,6))-cost AS DECIMAL(20,9)) ELSE NULL END,
+       NOW(6)
 FROM adv_item
 ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
 
@@ -45,48 +91,40 @@ WHERE active IN ('Yes','New','Pass2')
 INSERT INTO money_migration_evidence
   (contract_version, source_table, source_pk, source_column, legacy_value,
    converted_value, conversion_rule, discrepancy, created_at)
-SELECT 'usd-cpm-impression-v3', 'adv_balance', CAST(balance_id AS CHAR), 'spend',
-       CONCAT('limit=',COALESCE(CAST(limit_spend AS CHAR),'NULL'),';current=',COALESCE(CAST(current_spend AS CHAR),'NULL')),
-       CASE WHEN COALESCE(limit_spend,0) >= 0 AND COALESCE(current_spend,0) >= 0
-            THEN CAST(current_spend AS DECIMAL(20,9)) ELSE NULL END,
-       CASE WHEN COALESCE(limit_spend,0) >= 0 AND COALESCE(current_spend,0) >= 0
-            THEN 'LegacyRenderedHalfAway' ELSE 'Quarantined' END,
-       NULL, NOW(6)
-FROM adv_balance
-ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
-
-INSERT INTO money_migration_evidence
-  (contract_version, source_table, source_pk, source_column, legacy_value,
-   converted_value, conversion_rule, discrepancy, created_at)
 SELECT 'usd-cpm-impression-v3', 'pub_slot', CAST(slot_id AS CHAR), 'bidfloor',
        CAST(bidfloor AS CHAR),
        CASE WHEN COALESCE(bidfloor,0) BETWEEN 0 AND 999999.999999
             THEN CAST(bidfloor AS DECIMAL(12,6)) ELSE NULL END,
        CASE WHEN COALESCE(bidfloor,0) BETWEEN 0 AND 999999.999999
             THEN 'LegacyRenderedHalfAway' ELSE 'Quarantined' END,
-       NULL, NOW(6)
+       CASE WHEN COALESCE(bidfloor,0) BETWEEN 0 AND 999999.999999
+            THEN CAST(CAST(bidfloor AS DECIMAL(12,6))-bidfloor AS DECIMAL(20,9)) ELSE NULL END,
+       NOW(6)
 FROM pub_slot
 ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
 
--- Preserve interval and daily row renderings as a single evidence record per
--- table row. Each component is converted independently by the ALTER below.
-INSERT INTO money_migration_evidence
-  (contract_version, source_table, source_pk, source_column, legacy_value,
-   converted_value, conversion_rule, discrepancy, created_at)
-SELECT 'usd-cpm-impression-v3', 'ledger_pub_adv', CAST(lpa_id AS CHAR), 'spend',
-       CAST(spend AS CHAR), CAST(spend AS DECIMAL(20,9)),
-       'LegacyRenderedHalfAway', NULL, NOW(6)
-FROM ledger_pub_adv
-ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
-
-INSERT INTO money_migration_evidence
-  (contract_version, source_table, source_pk, source_column, legacy_value,
-   converted_value, conversion_rule, discrepancy, created_at)
-SELECT 'usd-cpm-impression-v3', 'daily_pub_adv', CAST(lpa_id AS CHAR), 'spend',
-       CAST(spend AS CHAR), CAST(spend AS DECIMAL(20,9)),
-       'LegacyRenderedHalfAway', NULL, NOW(6)
-FROM daily_pub_adv
-ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
+CALL a03_capture_legacy_money('adv_balance','balance_id','limit_spend',9,TRUE);
+CALL a03_capture_legacy_money('adv_balance','balance_id','current_spend',9,TRUE);
+CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_old',9,TRUE);
+CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_add',9,FALSE);
+CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_new',9,TRUE);
+CALL a03_capture_legacy_money('ledger_log','log_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('ledger_adv','la_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('ledger_pub','lp_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('ledger_pub_adv','lpa_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('ledger_mid','lm_id','charge_spend',9,TRUE);
+CALL a03_capture_legacy_money('ledger_mid','lm_id','pay_spend',9,TRUE);
+CALL a03_capture_legacy_money('ledger_mid','lm_id','margin_spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_log','log_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_adv','la_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_pub','lp_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_pub_adv','lpa_id','spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_mid','lm_id','charge_spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_mid','lm_id','pay_spend',9,TRUE);
+CALL a03_capture_legacy_money('daily_mid','lm_id','margin_spend',9,TRUE);
+CALL a03_capture_legacy_money('mid_route_group','group_id','min_margin_cpm',6,TRUE);
+CALL a03_capture_legacy_money('mid_route_bidder','route_bidder_id','min_margin_cpm',6,TRUE);
+DROP PROCEDURE a03_capture_legacy_money;
 
 ALTER TABLE adv_item MODIFY cost DECIMAL(12,6) NULL;
 ALTER TABLE pub_slot MODIFY bidfloor DECIMAL(12,6) NULL DEFAULT 0.000000;
@@ -116,6 +154,18 @@ ALTER TABLE daily_mid
 ALTER TABLE mid_route_group MODIFY min_margin_cpm DECIMAL(12,6) NOT NULL DEFAULT 0.000000;
 ALTER TABLE mid_route_bidder MODIFY min_margin_cpm DECIMAL(12,6) NULL;
 ALTER TABLE report_delivery ALTER accounting_version SET DEFAULT 'usd-cpm-impression-v3';
+
+INSERT INTO money_migration_evidence
+  (contract_version, source_table, source_pk, source_column, legacy_value,
+   converted_value, conversion_rule, discrepancy, created_at)
+SELECT 'usd-cpm-impression-v3', 'acct_contract', CAST(contract_id AS CHAR),
+       'unit_version', unit_version, NULL, 'AlreadyExact', NULL, NOW(6)
+FROM acct_contract WHERE contract_id=1 AND unit_version='usd-cpm-impression-v2'
+ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
+UPDATE acct_contract
+SET unit_version='usd-cpm-impression-v3', effective_at=UTC_TIMESTAMP(),
+    notes='Exact micro-USD CPM and nano-USD impression aggregation; statements round once to micro-USD'
+WHERE contract_id=1 AND unit_version='usd-cpm-impression-v2';
 
 DROP TRIGGER IF EXISTS acct_statement_protected_update;
 DROP TRIGGER IF EXISTS acct_statement_immutable_delete;

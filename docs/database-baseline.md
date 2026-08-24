@@ -166,8 +166,9 @@ key collision; another unique-key violation remains an error. Authorization
 must continue to use the authenticated role/account context rather than relying
 on an unguessable numeric ID.
 
-A01 adds the singleton `acct_contract` row with
-`usd-cpm-impression-v2`, plus empty `acct_statement`, `acct_adjustment`, and
+A01 introduced the singleton `acct_contract` row; A03 advances its active
+marker to `usd-cpm-impression-v3` while historical facts retain v2, alongside
+empty `acct_statement`, `acct_adjustment`, and
 `acct_audit` tables. Adjustment and audit triggers reject update/delete. The
 inactive `pay_*` compatibility tables contain only non-identity reference and
 status metadata: full card/bank fields, sender identity, and payment IP fields

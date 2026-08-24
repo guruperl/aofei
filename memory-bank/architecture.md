@@ -572,9 +572,10 @@ weekly schedule/pacing fields, and ad-group weekly schedule/pacing fields.
 Interval and daily ledger jobs reconcile those balance baselines before cache
 compilation; deployment-managed migrations must precede the version-3 cache
 compiler.
-The A01 baseline records `usd-cpm-impression-v2` in `acct_contract` and adds
-`acct_statement`, `acct_adjustment`, and `acct_audit`. Audit and adjustment
-rows are database-immutable. Inactive `pay_*` compatibility tables retain only
+The A01 baseline introduced `acct_contract`, `acct_statement`,
+`acct_adjustment`, and `acct_audit`. A03 records the active
+`usd-cpm-impression-v3` marker while retaining historical v2 labels. Audit and
+adjustment rows are database-immutable. Inactive `pay_*` compatibility tables retain only
 non-identity reference/status metadata; full credential, sender, and payment-IP
 columns, the `view_payment` view, and the balance-crediting `trig_payment` are
 absent. pzdesign no longer registers legacy funding modules or exposes the

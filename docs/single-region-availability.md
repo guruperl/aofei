@@ -98,7 +98,7 @@ Restore order is fixed:
 1. Declare incident scope, stop singleton timers and configuration writes, and
    select a checksum-verified encrypted generation plus binlog point.
 2. Restore into an isolated MySQL service. Verify all schema objects,
-   `acct_contract=usd-cpm-impression-v2`, statement/adjustment/audit counts and
+   `acct_contract=usd-cpm-impression-v3`, statement/adjustment/audit counts and
    immutable triggers, correction links, ledger/daily uniqueness, R01/R02
    facts, S02/I03 security state, S03 quality evidence, A02 hosted-payment
    mappings/evidence, and required account/inventory rows. Reject mixed

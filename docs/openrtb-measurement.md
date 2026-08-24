@@ -57,8 +57,8 @@ grouped into `SeatBid` entries by campaign seat. `dsp.WinLoss` builds:
 Tracker URLs are generated with concrete auction values and cap state. Win and
 loss URLs intentionally use standard auction macros until the exchange resolves
 them. Tracker prices use the same selected USD CPM value returned in
-`Bid.price`. Under `usd-cpm-impression-v2`, the tracker retains CPM while the
-reservation and ledger convert one accepted impression to USD spend as
+`Bid.price`. Under `usd-cpm-impression-v3`, the tracker retains exact CPM while
+the reservation and ledger map one accepted impression to integer nano-USD as
 `CPM / 1000`; spend therefore follows the served bid price rather than the raw
 item cost field.
 

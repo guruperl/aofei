@@ -260,8 +260,8 @@ finalization, expiry, and reconciliation anomalies.
 Before paid launch, reconcile one accepted impression end to end:
 
 - OpenRTB and `/pz` prices remain USD CPM;
-- the reservation and ledger fact use one-impression USD (`CPM / 1000`) under
-  `usd-cpm-impression-v2`;
+- the reservation and ledger fact use exact one-impression nano-USD
+  (`CPM / 1000`) under `usd-cpm-impression-v3`;
 - `daily_pub` agrees with the A01 publisher statement at six-decimal source
   precision;
 - correction and settlement evidence is immutable and contains no full payment

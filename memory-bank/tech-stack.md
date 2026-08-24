@@ -726,9 +726,17 @@ refund limits, mandatory approved bindings, immutable payout-country identity,
 Held execution denial, immutable opaque mappings, fee/net and exception
 reconciliation, stale-submission takeover, the 23-hour replay boundary,
 aggregate health, and size-one-pool retention cleanup. Its disposable MySQL
-lifecycle uses only a
-recorded provider adapter; live Stripe sandbox evidence remains an external
-go-live prerequisite.
+lifecycle uses only a recorded provider adapter; live Stripe sandbox evidence
+remains an external go-live prerequisite.
+
+A03 adds `scripts/aofei-exact-money-drill.sh`: three uniquely
+named disposable MySQL 8.0.41 containers model one frozen legacy source, one
+untouched rollback restore, and one migrated restore. The drill hashes every
+affected primary-key/column value at its target scale, checks all migration
+evidence and legacy-only discrepancy bounds, asserts the active v3 schema and
+contract, and runs focused duplicate reservation/ledger/statement/provider
+tests. Its owner-only synthetic dump is checksum-verified and deleted on exit;
+production comparison and backups remain external operator evidence.
 
 Schema baseline verification:
 

@@ -52,9 +52,10 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   before graceful drain, local/static nodes also reject missing or stale
   generations, singleton job leases renew while work runs, and interval/daily
   ledger identities remain database-unique through a Redis partition.
-- Accounting contract `usd-cpm-impression-v2` keeps OpenRTB/tracking prices in
-  USD CPM and converts to per-impression USD only at D01 reservation and ledger
-  boundaries. Authorized operators create immutable advertiser/publisher
+- Accounting contract `usd-cpm-impression-v3` keeps public OpenRTB/tracking
+  prices in USD CPM while authoritative caches, reservations, and ledgers use
+  exact integer micro/nano-USD through the statement boundary. Authorized
+  operators create immutable advertiser/publisher
   statement snapshots, adjustments, approvals, settlements, corrections, and
   CSV exports through `cmd/accounting`; the public Summer funding routes and
   full card/bank credential columns are retired.

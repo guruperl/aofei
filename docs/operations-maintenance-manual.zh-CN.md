@@ -465,7 +465,7 @@ AOFEI=/etc/aofei/aofei.json \
 中的 `pub_id`，角色判断只能使用 Genelet 注入的 `_grole`，不能信任请求参数中
 看似有效的 `admin_id`。
 
-报表使用 UTC、USD 六位小数和 `usd-cpm-impression-v2`。`current`、`partial`、
+当前报表使用 UTC、USD 六位小数和 `usd-cpm-impression-v3`；历史 v2 行仍保留原版本标记。`current`、`partial`、
 `unavailable`、`unknown` 必须按来源高水位解释；依赖故障不能显示为真实零。
 主库保留目标不超过 400 天。连续三个生产复核窗口出现账户报表 p95 大于 2
 秒、运营报表 p95 大于 5 秒、保留行数超过 5000 万或要求超过 400 天保留时，

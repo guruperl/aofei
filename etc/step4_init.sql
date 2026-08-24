@@ -2624,7 +2624,7 @@ CREATE TABLE `acct_contract` (
 
 LOCK TABLES `acct_contract` WRITE;
 /*!40000 ALTER TABLE `acct_contract` DISABLE KEYS */;
-INSERT INTO `acct_contract` VALUES (1,'usd-cpm-impression-v2','USD','2026-08-01 00:00:00','OpenRTB CPM divided by 1000 at reservation and billable-impression boundaries');
+INSERT INTO `acct_contract` VALUES (1,'usd-cpm-impression-v3','USD','2026-08-24 00:00:00','Exact micro-USD CPM and nano-USD impression aggregation; statements round once to micro-USD');
 /*!40000 ALTER TABLE `acct_contract` ENABLE KEYS */;
 UNLOCK TABLES;
 

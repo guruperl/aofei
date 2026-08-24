@@ -301,9 +301,9 @@ margin_cpm = upstream returned bid price - downstream bid price
 Incoming middleman `auction_price` and `auction_currency` query parameters are
 not trusted for ledger math. Downstream callbacks receive the net payable price
 in their `${AUCTION_PRICE}` macro. Winloss logs store charge-side CPM in the
-existing `RAdv.Cost` field; `usd-cpm-impression-v2` converts each billable
-impression to charge, pay, and margin USD spend by dividing the respective CPM
-values by 1000. The logs also preserve downstream bid, upstream bid, pay price,
+exact CPM field; `usd-cpm-impression-v3` maps each billable impression to
+integer nano-USD charge, pay, and margin by dividing the respective CPM values
+by 1000. The logs also preserve downstream bid, upstream bid, pay price,
 margin, callback source, and forward status in middleman metadata.
 
 M22 consumes that metadata in `cmd/ledger`. `ledger_mid` and `daily_mid`
