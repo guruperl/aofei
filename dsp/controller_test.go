@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
@@ -85,6 +86,35 @@ func TestServeStatusUsesSharedCPMCostType(t *testing.T) {
 	}
 	if published.RAdv.CostType != match.CostTypeCPM {
 		t.Fatalf("cost type = %d, want CPM %d", published.RAdv.CostType, match.CostTypeCPM)
+	}
+	if published.RAdv.CostCPM.String() != "1.000000" {
+		t.Fatalf("exact CPM = %s, want 1.000000", published.RAdv.CostCPM)
+	}
+}
+
+func TestSignedTrackingPreservesExactCPMInsteadOfFloatProjection(t *testing.T) {
+	wl := NewWinLoss(
+		StatusBid, time.Now(), match.RPub{},
+		match.RAdv{CostType: match.CostTypeCPM, Cost: 123456.125, CostCPM: accounting.CPM(123456123456)},
+		nil, "", "auction", "bid", "imp", "", "https://dsp.example",
+	).WithTrackingSecret("test-secret")
+	parsed, err := url.Parse(wl.ImpURL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parsed.Query().Get("auction_price"); got != "123456.123456" {
+		t.Fatalf("signed tracking price = %q, want exact source", got)
+	}
+	var published WinLoss
+	controller := &Controller{
+		C:                  &Config{TrackingSecret: "test-secret"},
+		publishWinLossFunc: func(data []byte) error { return json.Unmarshal(data, &published) },
+	}
+	if err := controller.serveStatus(context.Background(), StatusTrackImp, time.Now(), parsed.Query()); err != nil {
+		t.Fatal(err)
+	}
+	if published.RAdv.CostCPM != accounting.CPM(123456123456) {
+		t.Fatalf("published exact CPM = %s, want 123456.123456", published.RAdv.CostCPM)
 	}
 }
 

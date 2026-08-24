@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 )
 
@@ -27,7 +28,7 @@ func actionTestWinLoss(now time.Time) *WinLoss {
 		AuctionID:    "auction-1",
 		AuctionBidID: "bid-1",
 		AuctionImpID: "imp-1",
-		RAdv: match.RAdv{Demand: match.Demand{
+		RAdv: match.RAdv{CostType: match.CostTypeCPM, CostCPM: accounting.CPM(accounting.CPMScale), Demand: match.Demand{
 			AdvID: 11, CampaignID: 12, ItemID: 13, CreativeID: 14,
 		}},
 		RPub: match.RPub{PubID: 21, SiteID: 22, SlotID: 23},

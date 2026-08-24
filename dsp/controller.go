@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -1414,14 +1415,24 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 		}
 	}
 
-	price, err := strconv.ParseFloat(args.Get("auction_price"), 64)
-	if err == nil {
-		wl.RAdv.Cost = float32(price)
+	rawPrice := args.Get("auction_price")
+	cpm, priceErr := accounting.ParseCPM(rawPrice)
+	if priceErr == nil {
+		wl.RAdv.CostCPM = cpm
+		wl.RAdv.Cost = cpm.Float32()
 		if v := args.Get("auction_currency"); v == "USD" {
 			wl.RAdv.CostType = match.CostTypeCPM
 		}
 	} else if status == StatusTrackClk || status == StatusTrackImp {
-		return err
+		return priceErr
+	} else if price, legacyErr := strconv.ParseFloat(rawPrice, 64); legacyErr == nil {
+		// Exchange-resolved win/loss macros are non-billable compatibility
+		// observations. Billable impression/click callbacks above require exact
+		// six-place input.
+		wl.RAdv.Cost = float32(price)
+	}
+	if (status == StatusTrackClk || status == StatusTrackImp) && args.Get("auction_currency") != "USD" {
+		return fmt.Errorf("billable tracking currency must be USD")
 	}
 
 	switch status {

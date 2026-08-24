@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/advice"
 	"github.com/guruperl/aofei/match"
@@ -26,7 +27,7 @@ func TestReportingDimensionsUseOnlyCoarseNumericClassifications(t *testing.T) {
 	if dimensions.CountryID != 44 || dimensions.StateID != 55 || dimensions.DeviceOS != 3 || dimensions.DeviceType != 2 {
 		t.Fatalf("reporting dimensions = %#v", dimensions)
 	}
-	values, err := (&WinLoss{Reporting: dimensions}).packURLValues(true)
+	values, err := (&WinLoss{RAdv: match.RAdv{CostType: match.CostTypeCPM, CostCPM: accounting.CPM(accounting.CPMScale)}, Reporting: dimensions}).packURLValues(true)
 	if err != nil {
 		t.Fatalf("pack tracking values: %v", err)
 	}

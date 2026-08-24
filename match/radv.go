@@ -131,8 +131,13 @@ func (self RAdv) exactCPM() (accounting.CPM, bool) {
 	if self.CostType != CostTypeCPM && self.CostType != 0 {
 		return 0, false
 	}
-	if self.CostCPM > 0 && self.CostCPM <= accounting.MaxCPM {
-		return self.CostCPM, true
+	if self.CostCPM != 0 {
+		if self.CostCPM > 0 && self.CostCPM <= accounting.MaxCPM {
+			return self.CostCPM, true
+		}
+		// A present v3 value is authoritative. It must never be hidden by a
+		// plausible legacy compatibility projection.
+		return 0, false
 	}
 	// Headerless/v1/v2 payloads and old in-process callers carry only the
 	// protocol float. This bounded adapter is read compatibility; new database
@@ -143,6 +148,10 @@ func (self RAdv) exactCPM() (accounting.CPM, bool) {
 	cpm, err := accounting.ParseCPM(strconv.FormatFloat(float64(self.Cost), 'f', 6, 32))
 	return cpm, err == nil && cpm > 0
 }
+
+// ExactCPM returns the authoritative CPM used for billing and signed tracking.
+// The float projection is consulted only when no v3 value is present.
+func (self RAdv) ExactCPM() (accounting.CPM, bool) { return self.exactCPM() }
 
 func legacySpendNano(value float64) (accounting.Nano, error) {
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {

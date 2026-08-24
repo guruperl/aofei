@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
@@ -125,7 +126,7 @@ func TestWinLossUsesSelectedBidPrice(t *testing.T) {
 	if got := tracker.Query().Get("auction_price"); got != "2.000000" {
 		t.Fatalf("tracker auction_price = %q, want selected bid price", got)
 	}
-	if got := winloss.Macro()[`${AUCTION_PRICE}`]; got != "2.000" {
+	if got := winloss.Macro()[`${AUCTION_PRICE}`]; got != "2.000000" {
 		t.Fatalf("macro auction price = %q, want selected bid price", got)
 	}
 }
@@ -135,7 +136,7 @@ func TestWinLossTrackingURLIncludesStandaloneThrottle(t *testing.T) {
 		StatusBid,
 		time.Now(),
 		match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
-		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cap: match.Cap{CapThrottle: 10}},
+		match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, CostType: match.CostTypeCPM, CostCPM: accounting.CPM(accounting.CPMScale), Cap: match.Cap{CapThrottle: 10}},
 		nil,
 		"5",
 		"auction",

@@ -139,13 +139,17 @@ func (self *WinLoss) withReportingDimensions(dimensions *ReportingDimensions) *W
 
 // Macro returns the replacement macro hash
 func (self *WinLoss) Macro() map[string]string {
+	price := fmt.Sprintf("%.3f", self.RAdv.Cost)
+	if cpm, ok := self.RAdv.ExactCPM(); ok {
+		price = cpm.String()
+	}
 	return map[string]string{
 		`${AUCTION_ID}`:       self.AuctionID,
 		`${AUCTION_BID_ID}`:   self.AuctionBidID,
 		`${AUCTION_IMP_ID}`:   self.AuctionImpID,
 		`${AUCTION_AD_ID}`:    self.AuctionAdID,
 		`${AUCTION_SEAT_ID}`:  self.Seat,
-		`${AUCTION_PRICE}`:    fmt.Sprintf("%.3f", self.RAdv.Cost),
+		`${AUCTION_PRICE}`:    price,
 		`${AUCTION_CURRENCY}`: "USD",
 	}
 }
@@ -226,7 +230,11 @@ func (self *WinLoss) packURLValues(tracking bool) (url.Values, error) {
 		args.Set("auction_id", self.AuctionID)
 		args.Set("auction_bid_id", self.AuctionBidID)
 		args.Set("auction_imp_id", self.AuctionImpID)
-		args.Set("auction_price", fmt.Sprintf("%f", self.Cost))
+		cpm, ok := self.RAdv.ExactCPM()
+		if !ok {
+			return nil, fmt.Errorf("tracking price has no exact USD CPM")
+		}
+		args.Set("auction_price", cpm.String())
 		args.Set("auction_currency", "USD")
 		if self.RAdv.Cap.CapNumber > 0 || self.RAdv.Cap.CapThrottle > 0 || self.RAdv.Cap.ClickNumber > 0 {
 			cap, err := self.RAdv.Cap.PackString()

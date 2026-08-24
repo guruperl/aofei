@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"math"
 	"testing"
+
+	"github.com/guruperl/aofei/accounting"
 )
 
 func TestRAdvUpdateRowRejectsCapTruncationAndMissingPeriod(t *testing.T) {
@@ -234,6 +236,8 @@ func TestRAdvCommercialAuctionRejectsLegacyAndInvalidPrices(t *testing.T) {
 		{Weight: 1, CostType: CostTypeCPM, Cost: -1},
 		{Weight: 1, CostType: CostTypeCPM, Cost: float32(math.NaN())},
 		{Weight: 1, CostType: CostTypeCPM, Cost: float32(math.Inf(1))},
+		{Weight: 1, CostType: CostTypeCPM, Cost: 1, CostCPM: -1},
+		{Weight: 1, CostType: CostTypeCPM, Cost: 1, CostCPM: accounting.MaxCPM + 1},
 		{Weight: 0, CostType: CostTypeCPM, Cost: 1},
 	} {
 		if index, price := (RAdvs{candidate}).PickIndexPrice(0, "USD"); index != -1 || price != 0 {

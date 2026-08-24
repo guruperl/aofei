@@ -56,6 +56,39 @@ source while preserving auditable compatibility and hosted-payment safety.
 - Full Aofei/pzdesign/Genelet tests, vet, pinned staticcheck, scoped race,
   documentation/template/public-data guards, benchmarks, and diff hygiene.
 
+## Deep Review Gate
+
+- Iteration 1: `[~]` Eight blocking findings were confirmed before fixes:
+  1. **P1 - local billing price identity:** signed impression/click tracker URLs
+     serialize the `float32` compatibility projection instead of the exact CPM,
+     and callback parsing reconstructs authority from that float text. Larger
+     six-place prices can therefore disagree with the reservation and ledger.
+  2. **P2 - reservation release floors:** release subtracts spend without
+     clamping it to `floor_spend_nano`; a newer reconciled database floor or an
+     evicted state key can be reopened by a late release.
+  3. **P2 - exact-value fail closed:** an invalid nonzero v3 RAdv CPM can fall
+     back to the legacy float, and middleman ledger conversion ignores CPM
+     range errors, permitting malformed exact facts to be reinterpreted or
+     reduced to zero.
+  4. **P2 - migration preflight/evidence:** the offline SQL does not
+     executable-gate the v2 contract and expected source types before durable
+     mutation, does not quarantine values outside Go's signed nano range, and
+     labels already-exact route minimums as legacy float recovery.
+  5. **P2 - Summer monetary writes:** item CPM, slot floor, balance limits, and
+     route minimum CPM still parse/format through `float64`, so direct portal
+     writes can silently round over-scale values before MySQL stores them.
+  6. **P2 - report version identity:** marketplace queries can aggregate mixed
+     v2/v3 rows while the page contract labels every result v3 and detail rows
+     omit their persisted accounting version.
+  7. **P2 - middleman price authority:** downstream CPM, minimum margin, markup,
+     callback state, and charge/pay reconciliation still use binary floating
+     point before exact fields are published, without a declared derived-price
+     rounding boundary or overflow rejection.
+  8. **P2 - configured supply-floor authority:** publisher cache generations
+     scan and serialize the exact database floor only as `float64`, and local
+     matching compares exact demand CPM through a `float32` projection.
+- Iteration 2: pending after all iteration-1 fixes and affected verification.
+
 ## Exclusions
 
 - Internally operated payment-card storage/processing remains deferred.
