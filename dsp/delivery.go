@@ -137,6 +137,20 @@ end
 return 1`)
 
 var releaseDeliveryScript = radix.NewEvalScript(`
+local function norm(value)
+  value = tostring(value or "0")
+  value = string.gsub(value, "^0+", "")
+  if value == "" then return "0" end
+  return value
+end
+local function cmp(a, b)
+  a = norm(a); b = norm(b)
+  if string.len(a) < string.len(b) then return -1 end
+  if string.len(a) > string.len(b) then return 1 end
+  if a < b then return -1 end
+  if a > b then return 1 end
+  return 0
+end
 if redis.call("HGET", KEYS[1], "status") ~= "active" then
   return 0
 end
@@ -146,10 +160,22 @@ for i=1,count do
   local key = redis.call("HGET", KEYS[1], "key:" .. i)
 	if key then
 	  redis.call("HINCRBY", key, "used_spend_nano", "-" .. cost)
+	  local spend_raw = redis.call("HGET", key, "used_spend_nano") or "0"
+	  local floor_spend = norm(redis.call("HGET", key, "floor_spend_nano") or "0")
+	  if string.sub(spend_raw, 1, 1) == "-" or cmp(spend_raw, floor_spend) < 0 then
+	    redis.call("HSET", key, "used_spend_nano", floor_spend)
+	  end
 	  local imp = tonumber(redis.call("HGET", key, "used_imp") or "0") - 1
 	  local floor_imp = tonumber(redis.call("HGET", key, "floor_imp") or "0")
 	  if imp < floor_imp then imp = floor_imp end
     redis.call("HSET", key, "used_imp", imp)
+	  local state_ttl = tonumber(redis.call("HGET", KEYS[1], "ttl:" .. i) or "0")
+	  local ttl = redis.call("TTL", key)
+	  if state_ttl == 0 then
+	    if ttl >= 0 then redis.call("PERSIST", key) end
+	  elseif ttl < state_ttl then
+	    redis.call("EXPIRE", key, state_ttl)
+	  end
   end
 end
 redis.call("DEL", KEYS[1])

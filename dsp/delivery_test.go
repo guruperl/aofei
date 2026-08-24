@@ -249,14 +249,15 @@ func TestReservationReleaseNeverDropsBelowNewerLedgerFloor(t *testing.T) {
 	controller, server := newDeliveryTestController(t)
 	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
 	block := deliveryTestRAdv(now)
-	block.Delivery.ItemTotal = match.DeliveryBalance{ID: 41, LimitImp: 20, CurrentImp: 10}
-	first, err := controller.reserveDelivery(context.Background(), block, now, 0)
+	block.Delivery.ItemTotal = match.DeliveryBalance{ID: 41, LimitSpendNano: 30, CurrentSpendNano: 10, LimitImp: 20, CurrentImp: 10}
+	first, err := controller.reserveDelivery(context.Background(), block, now, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	newer := block
 	newer.Delivery.ItemTotal.CurrentImp = 12
-	second, err := controller.reserveDelivery(context.Background(), newer, now, 0)
+	newer.Delivery.ItemTotal.CurrentSpendNano = 15
+	second, err := controller.reserveDelivery(context.Background(), newer, now, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,6 +270,9 @@ func TestReservationReleaseNeverDropsBelowNewerLedgerFloor(t *testing.T) {
 	key := deliveryTotalKey(41)
 	if used, floor := server.HGet(key, "used_imp"), server.HGet(key, "floor_imp"); used != "12" || floor != "12" {
 		t.Fatalf("used/floor impressions after releases = %q/%q, want 12/12", used, floor)
+	}
+	if used, floor := server.HGet(key, "used_spend_nano"), server.HGet(key, "floor_spend_nano"); used != "15" || floor != "15" {
+		t.Fatalf("used/floor spend after releases = %q/%q, want 15/15", used, floor)
 	}
 	authoritative := block
 	authoritative.Delivery.ItemTotal.CurrentImp = 13
@@ -286,6 +290,28 @@ func TestReservationReleaseNeverDropsBelowNewerLedgerFloor(t *testing.T) {
 	}
 	if _, err := controller.reserveDelivery(context.Background(), stale, now, 0); !errors.Is(err, errDeliveryLimit) {
 		t.Fatalf("stale cache reopened authoritative floor: %v", err)
+	}
+}
+
+func TestReservationReleaseCannotCreateNegativeSpendAfterStateEviction(t *testing.T) {
+	controller, server := newDeliveryTestController(t)
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	block := deliveryTestRAdv(now)
+	block.Delivery.ItemTotal = match.DeliveryBalance{ID: 42, LimitSpendNano: 10, LimitImp: 10}
+	token, err := controller.reserveDelivery(context.Background(), block, now, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := deliveryTotalKey(42)
+	server.Del(key)
+	if err := controller.releaseDeliveryReservation(context.Background(), token); err != nil {
+		t.Fatal(err)
+	}
+	if used := server.HGet(key, "used_spend_nano"); used != "0" {
+		t.Fatalf("evicted release spend = %q, want zero", used)
+	}
+	if used := server.HGet(key, "used_imp"); used != "0" {
+		t.Fatalf("evicted release impressions = %q, want zero", used)
 	}
 }
 
