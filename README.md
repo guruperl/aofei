@@ -162,7 +162,7 @@ separately demand-gated. Implementation does not imply production activation:
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
 | A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |
 | O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
-| O03 job/cache/filesystem reliability | Planned; owns singleton, publication, spread, filesystem, and geodata hardening. |
+| O03 job/cache/filesystem reliability | In progress; singleton liveness is complete, while publication, spread, filesystem, geodata, recovery-evidence, and inventory rows remain. |
 
 See the [documentation and milestone index](docs/README.md) for the authoritative
 guide for each lane and the matching status file. Historical M-lane evidence is

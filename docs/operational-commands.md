@@ -45,11 +45,14 @@ a Redis singleton lock by default; read-only modes skip the lock.
 Every mutating `redis-cache` mode (`redis`, `spread`, `all`, and `routes`) uses
 the same `aofei:redis-cache` lock because modes share live cache families,
 shadow keys, or source data and must not overlap.
-Singleton locks renew at one-third of `-lock-ttl`. Commands fail if renewal is
-lost, and token-checked release cannot remove a successor's lease. Do not treat
-the lock as the durable correctness boundary: ledger interval/day uniqueness,
-callback/action idempotency, and cache generation replacement remain required
-through Redis partitions.
+Singleton locks begin renewal at one-third of `-lock-ttl`. Transient Redis
+errors retry with bounded backoff only inside the last confirmed lease window;
+a token mismatch stops immediately, and dependency uncertainty cancels work no
+later than that conservative deadline. Commands perform a bounded token-checked
+release before returning failure, so they cannot remove a successor's lease.
+Do not treat the lock as the durable correctness boundary: ledger interval/day
+uniqueness, callback/action idempotency, and cache generation replacement remain
+required through Redis partitions.
 
 `cmd/unify` handles `SIGINT` and `SIGTERM`, drains in-flight HTTP requests for
 up to 15 seconds, and closes the DSP controller afterward so queued audits and

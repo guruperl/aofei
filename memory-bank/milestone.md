@@ -95,7 +95,7 @@ acceptance criteria recorded in the corresponding status files.
 | A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
-| O03 | Planned | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
+| O03 | In progress | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
 
 Historical M-lane status index:
 
@@ -1705,7 +1705,7 @@ complete. Production 99.9% and provider RPO/RTO achievement remain explicitly
 unclaimed until a named production window supplies retained evidence. Detailed
 results are in [status-O02.md](status-O02.md).
 
-## O03 - Job, Cache, And Filesystem Reliability `[ ]`
+## O03 - Job, Cache, And Filesystem Reliability `[~]`
 
 Harden singleton renewal, atomic reusable cache publication, spread-generation
 ordering, callback recovery evidence, filesystem permissions/atomicity, and

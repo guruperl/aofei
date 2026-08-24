@@ -542,7 +542,10 @@ and does not republish win/loss records. Its output includes due and stale
 processing backlog counts for operator alerting; use `-json` for stable
 automation fields.
 Mutating cache, ledger, callback-retry, and simulator commands use renewable
-token-owned Redis leases. Lease loss is a failed run, and MySQL uniqueness or
+token-owned Redis leases. Transient renewal errors retry inside the last
+confirmed TTL; token mismatch or an exhausted uncertainty window cancels the
+lease-owned work, and the command performs a token-checked bounded release
+before returning failure. Lease loss is a failed run, and MySQL uniqueness or
 worker idempotency remains required because Redis cannot prove ownership across
 every partition. `scripts/aofei-recovery-drill.sh` uses only uniquely named
 disposable MySQL/Redis containers to checksum and restore the complete schema,

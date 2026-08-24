@@ -420,10 +420,14 @@ The source/runtime boundary and populated-data rollout are specified in
   remains a singleton scheduled `cmd/redis-cache` job on one dedicated node.
   Ledger runs as a singleton scheduled `cmd/ledger` job on the node where
   `cmd/nats-client` aggregates win/loss log files.
-- Mutating operations commands acquire token-owned Redis singleton locks that
-  renew at one-third of their lease while work is active, report uncertain or
-  lost ownership, and cannot delete a successor's lease. Database idempotency
-  remains the authoritative split-brain backstop. The unified
+- Mutating operations commands run inside token-owned Redis singleton leases.
+  Renewal begins at one-third of the TTL; transient dependency errors retry
+  with bounded backoff only until the last confirmed expiry. A confirmed token
+  mismatch or exhausted uncertainty window cancels the work context, while a
+  bounded independent release checks the token before deleting and cannot
+  remove a successor's lease. Cache, ledger, callback-retry, and simulator work
+  all use that context; ledger SQL and file aggregation are cancellation-aware.
+  Database idempotency remains the authoritative split-brain backstop. The unified
   HTTP service exposes stdlib expvar metrics at `/debug/vars`. The endpoint
   authorizes only direct peers in `metrics_allowed_cidrs` (loopback by default)
   and must also be blocked at the edge. Authorized scrapes perform bounded

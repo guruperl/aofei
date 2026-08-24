@@ -158,7 +158,11 @@ if ! grep -Eq '^\| S05 .* \| Completed \|' docs/README.md; then
 	fail "docs/README.md must identify S05 as completed remediation."
 fi
 
-for planned_lane in O03 R03 A03; do
+if ! grep -Eq '^\| O03 .* \| In progress \|' docs/README.md; then
+	fail "docs/README.md must identify O03 as active remediation."
+fi
+
+for planned_lane in R03 A03; do
 	if ! grep -Eq "^\\| ${planned_lane} .* \\| Planned \\|" docs/README.md; then
 		fail "docs/README.md must identify ${planned_lane} as planned remediation."
 	fi

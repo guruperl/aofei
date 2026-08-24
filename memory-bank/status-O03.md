@@ -1,6 +1,6 @@
 # Status O03 - Job, Cache, And Filesystem Reliability
 
-State: `[ ]` Planned
+State: `[~]` In progress
 
 ## Goal
 
@@ -20,7 +20,7 @@ atomic generation publication with partial live writes.
 
 | Item | State | Notes |
 |---|---:|---|
-| Renewable singleton liveness | `[ ]` | Retry transient lease-renewal failures with bounded backoff inside the remaining lease safety window. Distinguish dependency uncertainty from token mismatch/confirmed ownership loss, release explicitly before fatal exit where ownership is still known, and never permit work after the safe lease window. |
+| Renewable singleton liveness | `[+]` | Renewable locks now retry transient Redis errors with bounded exponential backoff only inside the last confirmed TTL, cancel the lease-owned work context immediately on token mismatch or at the conservative uncertainty deadline, and expose distinct confirmed-loss/uncertain errors. `WithLock` releases through a bounded independent context before returning work or lease failures; cache, ledger, callback-retry, and simulator commands all use it. Ledger SQL/file aggregation and simulator delays now honor the lease context. Scripted-clock tests cover recovery, mismatch, deadline stop, and explicit release; miniredis failure tests and disposable real-Redis renewal/exclusion/reacquisition pass. |
 | Redis cache primitive safety | `[ ]` | Prevent direct `RedisCacheSink` callers from exposing a `DEL`-then-`HSET` partial live family. Keep production shadow-family publication atomic and make the safe generation operation the default reusable API. |
 | Spread generation proof | `[ ]` | Reproduce the alleged cleanup/write race with ordered single-producer, reconnect, duplicate, and overlapping-producer tests. If ordering and singleton ownership prove it impossible, document and close it; otherwise add an explicit generation/reset protocol so one refresh cannot delete another refresh's files. |
 | Filesystem safety | `[ ]` | Replace 0777 directory creation and ineffective flock behavior, use atomic write/fsync/rename semantics where recovery requires them, close mmap/file resources, and validate paths without embedding environment-specific absolute locations. |

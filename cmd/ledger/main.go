@@ -53,37 +53,36 @@ func main() {
 	}
 	defer redis.Close()
 	defer db.Close()
-	lock, err := cmdboot.AcquireLock(ctx, redis, "aofei:ledger", lockTTL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer lock.Release(context.Background())
+	err = cmdboot.WithLock(ctx, redis, "aofei:ledger", lockTTL, func(leaseCtx context.Context) error {
+		if daily {
+			day := stamp
+			if day == "" {
+				day = time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+			}
+			if err := ledgerjob.InsertDailyContext(leaseCtx, db, day); err != nil {
+				return err
+			}
+			log.Printf("Daily ledger of %s done", day)
+			return nil
+		}
 
-	if daily {
-		if stamp == "" {
-			err = ledgerjob.InsertDaily(db)
-			log.Printf("Daily ledger of %s done", time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02"))
-		} else {
-			err = ledgerjob.InsertDaily(db, stamp)
-			log.Printf("Daily ledger of %s done", stamp)
-		}
-	} else {
 		var result ledgerjob.IntervalResult
-		var i int
+		var runErr error
 		if stamp == "" {
-			result, err = ledgerjob.RunInterval(db, c.LogWinLoss, interval)
-		} else if i, err = strconv.Atoi(stamp); err == nil {
-			result, err = ledgerjob.RunInterval(db, c.LogWinLoss, interval, i)
+			result, runErr = ledgerjob.RunIntervalContext(leaseCtx, db, c.LogWinLoss, interval)
+		} else {
+			i, parseErr := strconv.Atoi(stamp)
+			if parseErr != nil {
+				return parseErr
+			}
+			result, runErr = ledgerjob.RunIntervalContext(leaseCtx, db, c.LogWinLoss, interval, i)
 		}
-		if err == nil && !result.Skipped {
+		if runErr == nil && !result.Skipped {
 			log.Printf("Ledger %d at %d minutes done", result.Current, interval)
 		}
-	}
-
+		return runErr
+	})
 	if err != nil {
-		log.Fatal(err)
-	}
-	if err := lock.Err(); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -65,7 +65,7 @@ planned milestones do not imply schema or runtime activation.
 | A03 exact monetary sources | Planned | [status-A03.md](../memory-bank/status-A03.md) | Existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |
 | O01 production traffic controls | Completed | [status-O01.md](../memory-bank/status-O01.md) | [Production traffic and observability](production-traffic-observability.md) |
 | O02 single-region availability | Completed; production claims evidence-gated | [status-O02.md](../memory-bank/status-O02.md) | [Availability, recovery, and SLO](single-region-availability.md) |
-| O03 job/cache/filesystem reliability | Planned | [status-O03.md](../memory-bank/status-O03.md) | Existing [operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
+| O03 job/cache/filesystem reliability | In progress | [status-O03.md](../memory-bank/status-O03.md) | Existing [operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
 
 ## Supporting Runtime References
 

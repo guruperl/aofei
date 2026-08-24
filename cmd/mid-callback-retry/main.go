@@ -63,36 +63,30 @@ func main() {
 	}
 	defer redis.Close()
 	defer db.Close()
-	var lock *cmdboot.Lock
-	if !(dryRun || readOnly) {
-		lock, err = cmdboot.AcquireLock(ctx, redis, "aofei:mid-callback-retry", lockTTL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer lock.Release(context.Background())
-	}
-
 	opts := midcallback.Options{
 		Limit:       limit,
 		MaxAttempts: maxAttempts,
 		Timeout:     timeout,
 		DryRun:      dryRun || readOnly,
 	}
-	backlog, err := midcallback.Backlog(ctx, db, opts)
-	if err != nil {
-		log.Fatal(err)
-	}
-	result, err := midcallback.Run(ctx, db, opts)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := writeRetryReport(os.Stdout, jsonOutput, backlog, result); err != nil {
-		log.Fatal(err)
-	}
-	if lock != nil {
-		if err := lock.Err(); err != nil {
-			log.Fatal(err)
+	run := func(runCtx context.Context) error {
+		backlog, err := midcallback.Backlog(runCtx, db, opts)
+		if err != nil {
+			return err
 		}
+		result, err := midcallback.Run(runCtx, db, opts)
+		if err != nil {
+			return err
+		}
+		return writeRetryReport(os.Stdout, jsonOutput, backlog, result)
+	}
+	if dryRun || readOnly {
+		err = run(ctx)
+	} else {
+		err = cmdboot.WithLock(ctx, redis, "aofei:mid-callback-retry", lockTTL, run)
+	}
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 

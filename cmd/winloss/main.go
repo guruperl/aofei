@@ -60,56 +60,70 @@ func main() {
 		log.Fatal(err)
 	}
 	defer sc.Close()
-	var lock *cmdboot.Lock
-	if !allowConcurrent {
-		lock, err = cmdboot.AcquireLock(ctx, sc.Redis, "aofei:winloss", lockTTL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer lock.Release(context.Background())
+	if allowConcurrent {
+		err = runSimulation(ctx, sc)
+	} else {
+		err = cmdboot.WithLock(ctx, sc.Redis, "aofei:winloss", lockTTL, func(leaseCtx context.Context) error {
+			return runSimulation(leaseCtx, sc)
+		})
 	}
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
+func runSimulation(ctx context.Context, sc *dsp.Controller) error {
 	buf := bytes.NewBuffer(jsonBid)
 	host := strings.Replace(sc.C.ServerURL, "https", "http", 1)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, host+address, buf)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	res, err := httpClient.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusNoContent {
 		log.Printf("status code: %d", res.StatusCode)
-		return
+		return nil
 	} else if res.StatusCode != http.StatusOK {
-		log.Fatalf("status code: %d", res.StatusCode)
+		return fmt.Errorf("status code: %d", res.StatusCode)
 	}
 
 	bidResponse := new(openrtb2.BidResponse)
 	err = json.NewDecoder(res.Body).Decode(bidResponse)
 	if err != nil && err != io.EOF {
-		log.Fatal(err)
+		return err
 	}
 
 	trackers, err := extractBidResponseTrackers(bidResponse)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	if err := waitSimulation(ctx, 100*time.Millisecond); err != nil {
+		return err
+	}
 	var rspns, impRspns, clkRspns *http.Response
+	defer func() {
+		for _, response := range []*http.Response{rspns, impRspns, clkRspns} {
+			if response != nil {
+				response.Body.Close()
+			}
+		}
+	}()
 	switch how {
 	case "win":
 		log.Printf("win %s", trackers.nurl.String())
 		rspns, err = getWithContext(ctx, trackers.nurl.String())
 		if err == nil {
-			time.Sleep(1 * time.Second)
-			log.Printf("impression %s", trackers.imp.String())
-			impRspns, err = getWithContext(ctx, trackers.imp.String())
+			if err = waitSimulation(ctx, time.Second); err == nil {
+				log.Printf("impression %s", trackers.imp.String())
+				impRspns, err = getWithContext(ctx, trackers.imp.String())
+			}
 		}
 	case "loss":
 		log.Printf("loss %s", trackers.lurl.String())
@@ -123,10 +137,12 @@ func main() {
 	default:
 		if rand.Intn(10) < 5 {
 			if rspns, err = getWithContext(ctx, trackers.nurl.String()); err == nil {
-				time.Sleep(1 * time.Second)
-				if impRspns, err = getWithContext(ctx, trackers.imp.String()); err == nil && rand.Intn(10) < 5 {
-					time.Sleep(2 * time.Second)
-					clkRspns, err = getWithContext(ctx, trackers.click.String())
+				if err = waitSimulation(ctx, time.Second); err == nil {
+					if impRspns, err = getWithContext(ctx, trackers.imp.String()); err == nil && rand.Intn(10) < 5 {
+						if err = waitSimulation(ctx, 2*time.Second); err == nil {
+							clkRspns, err = getWithContext(ctx, trackers.click.String())
+						}
+					}
 				}
 			}
 		} else {
@@ -134,22 +150,19 @@ func main() {
 		}
 	}
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
+}
 
-	if rspns != nil {
-		rspns.Body.Close()
-	}
-	if impRspns != nil {
-		impRspns.Body.Close()
-	}
-	if clkRspns != nil {
-		clkRspns.Body.Close()
-	}
-	if lock != nil {
-		if err := lock.Err(); err != nil {
-			log.Fatal(err)
-		}
+func waitSimulation(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 

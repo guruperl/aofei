@@ -112,12 +112,6 @@ func main() {
 		}
 		return
 	}
-	lock, err := cmdboot.AcquireLock(ctx, redis, cacheMutationLockKey(cacheMode), lockTTL)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer lock.Release(context.Background())
-
 	var nc *nats.Conn
 	if cacheMode == cachejob.ModeSpread || cacheMode == cachejob.ModeAll {
 		nc, err = nats.Connect(c.NatsURL)
@@ -127,16 +121,15 @@ func main() {
 		defer nc.Drain()
 	}
 
-	err = cachejob.Run(ctx, c, redis, db, nc, cachejob.Options{
-		Mode:           cacheMode,
-		UpdatePubMap:   update,
-		UpdateInterval: interval,
-		UpdateStamp:    stamp,
+	err = cmdboot.WithLock(ctx, redis, cacheMutationLockKey(cacheMode), lockTTL, func(leaseCtx context.Context) error {
+		return cachejob.Run(leaseCtx, c, redis, db, nc, cachejob.Options{
+			Mode:           cacheMode,
+			UpdatePubMap:   update,
+			UpdateInterval: interval,
+			UpdateStamp:    stamp,
+		})
 	})
 	if err != nil {
-		log.Fatal(err)
-	}
-	if err := lock.Err(); err != nil {
 		log.Fatal(err)
 	}
 }

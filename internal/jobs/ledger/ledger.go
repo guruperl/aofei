@@ -37,6 +37,7 @@ type Ledger struct {
 	Interval   int
 	Active     time.Time
 	Current    int64
+	ctx        context.Context
 	slots      map[uint32][2]uint32
 	creatives  map[uint32][3]uint32
 }
@@ -134,6 +135,13 @@ type reportingLedgerStats struct {
 }
 
 func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
+	return NewContext(context.Background(), db, dir, interval, stamp...)
+}
+
+func NewContext(ctx context.Context, db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if interval <= 0 {
 		return nil, fmt.Errorf("ledger interval must be positive")
 	}
@@ -145,7 +153,7 @@ func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
 	}
 	active := time.Unix(current*int64(interval*60), 0).UTC()
 	myDay := active.Format("2006-01-02 15:04:05")
-	err := db.QueryRow(`SELECT 1 FROM ledger_log WHERE timely=?`, myDay).Scan(new(int))
+	err := db.QueryRowContext(ctx, `SELECT 1 FROM ledger_log WHERE timely=?`, myDay).Scan(new(int))
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return nil, err
@@ -154,7 +162,7 @@ func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
 		return nil, nil
 	}
 
-	rows, err := db.Query(`
+	rows, err := db.QueryContext(ctx, `
 SELECT slot_id, s.site_id, s.pub_id
 FROM pub_slot t
 INNER JOIN pub_site s USING (site_id)`)
@@ -174,7 +182,7 @@ INNER JOIN pub_site s USING (site_id)`)
 		return nil, err
 	}
 
-	rows, err = db.Query(`
+	rows, err = db.QueryContext(ctx, `
 SELECT creative_id, i.item_id, i.campaign_id, c.adv_id
 FROM adv_creative t
 INNER JOIN adv_item i USING (item_id)
@@ -201,13 +209,18 @@ INNER JOIN adv_campaign c USING (campaign_id)`)
 		Interval:   interval,
 		Active:     active,
 		Current:    current,
+		ctx:        ctx,
 		slots:      slots,
 		creatives:  creatives,
 	}, nil
 }
 
 func RunInterval(db *sql.DB, dir string, interval int, stamp ...int) (IntervalResult, error) {
-	l, err := New(db, dir, interval, stamp...)
+	return RunIntervalContext(context.Background(), db, dir, interval, stamp...)
+}
+
+func RunIntervalContext(ctx context.Context, db *sql.DB, dir string, interval int, stamp ...int) (IntervalResult, error) {
+	l, err := NewContext(ctx, db, dir, interval, stamp...)
 	if err != nil {
 		return IntervalResult{}, err
 	}
@@ -255,6 +268,10 @@ func (self *Ledger) Statistics() (map[uint32][2]uint32, map[uint32][3]uint32, ma
 }
 
 func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
+	ctx := self.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	imps := make(map[uint32]map[uint32]int)
 	clis := make(map[uint32]map[uint32]int)
 	spes := make(map[uint32]map[uint32]float64)
@@ -276,6 +293,9 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 	scanner := bufio.NewScanner(fh)
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLedgerLogLineBytes)
 	for scanner.Scan() {
+		if err := ctx.Err(); err != nil {
+			return StatisticsResult{}, err
+		}
 		var wl dsp.WinLoss
 		if err := json.Unmarshal(scanner.Bytes(), &wl); err != nil {
 			return StatisticsResult{}, err
@@ -330,7 +350,11 @@ func (self *Ledger) StatisticsToLedger() error {
 		return err
 	}
 	myDay := self.Active.Format("2006-01-02 15:04:05")
-	return insertLedger(self.DB, myDay, stats)
+	ctx := self.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return insertLedgerContext(ctx, self.DB, myDay, stats)
 }
 
 func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, wl dsp.WinLoss) {
@@ -520,7 +544,11 @@ func (s *middlemanLedgerStats) addForwardStatus(status string) {
 }
 
 func insertLedger(db *sql.DB, myDay string, stats StatisticsResult) error {
-	tx, err := db.Begin()
+	return insertLedgerContext(context.Background(), db, myDay, stats)
+}
+
+func insertLedgerContext(ctx context.Context, db *sql.DB, myDay string, stats StatisticsResult) error {
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -575,7 +603,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	var res sql.Result
 
-	if res, err = tx.Exec(insLog, myDay); err != nil {
+	if res, err = tx.ExecContext(ctx, insLog, myDay); err != nil {
 		return err
 	}
 	if logID, err = res.LastInsertId(); err != nil {
@@ -584,7 +612,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	for slotID, ids := range stats.Slots {
 		var lpID int64
-		if res, err = tx.Exec(insPub, logID, slotID, ids[0], ids[1]); err != nil {
+		if res, err = tx.ExecContext(ctx, insPub, logID, slotID, ids[0], ids[1]); err != nil {
 			return err
 		}
 		if lpID, err = res.LastInsertId(); err != nil {
@@ -595,7 +623,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	for creativeID, ids := range stats.Creatives {
 		var laID int64
-		if res, err = tx.Exec(insAdv, logID, creativeID, ids[0], ids[1], ids[2]); err != nil {
+		if res, err = tx.ExecContext(ctx, insAdv, logID, creativeID, ids[0], ids[1], ids[2]); err != nil {
 			return err
 		}
 		if laID, err = res.LastInsertId(); err != nil {
@@ -615,7 +643,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			if !ok1 && !ok2 && !ok3 {
 				continue
 			}
-			if _, err = tx.Exec(insPubAdv, lpID, laID, i, c, s); err != nil {
+			if _, err = tx.ExecContext(ctx, insPubAdv, lpID, laID, i, c, s); err != nil {
 				return err
 			}
 			is += i
@@ -625,7 +653,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	}
 
 	for key, value := range stats.Middleman {
-		if _, err = tx.Exec(insMid,
+		if _, err = tx.ExecContext(ctx, insMid,
 			logID, key.BidderID, key.GroupID, key.RouteBidderID, key.TargetID,
 			key.AdvID, key.CampaignID, key.ItemID, key.CreativeID, key.PubID, key.SiteID, key.SlotID,
 			value.Wins, value.Losses, value.Imps, value.Clis,
@@ -638,7 +666,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	}
 
 	for key, value := range stats.Reporting {
-		if _, err = tx.Exec(insReport,
+		if _, err = tx.ExecContext(ctx, insReport,
 			myDay, key.DemandSource, key.AdvID, key.CampaignID, key.ItemID, key.CreativeID,
 			key.BidderID, key.GroupID, key.RouteBidderID, key.TargetID, key.PubID, key.SiteID, key.SlotID,
 			key.CountryID, key.StateID, key.DeviceOS, key.DeviceType,
@@ -653,17 +681,17 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 		}
 	}
 
-	if _, err = tx.Exec(updPub, logID); err != nil {
+	if _, err = tx.ExecContext(ctx, updPub, logID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(updAdv, logID); err != nil {
+	if _, err = tx.ExecContext(ctx, updAdv, logID); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(updLog, is, cs, ss, logID); err != nil {
+	if _, err = tx.ExecContext(ctx, updLog, is, cs, ss, logID); err != nil {
 		return err
 	}
 
-	if _, err = tx.Exec(`
+	if _, err = tx.ExecContext(ctx, `
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT total_balance_id, imps, clis, spend
@@ -674,17 +702,21 @@ INNER JOIN (
 SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, logID); err != nil {
 		return err
 	}
-	if err = reconcileAdvertiserTotalBalances(tx); err != nil {
+	if err = reconcileAdvertiserTotalBalancesContext(ctx, tx); err != nil {
 		return err
 	}
-	if err = reconcileAdvertiserDailyBalancesFromIntervals(tx, myDay); err != nil {
+	if err = reconcileAdvertiserDailyBalancesFromIntervalsContext(ctx, tx, myDay); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 func reconcileAdvertiserTotalBalances(tx *sql.Tx) error {
-	_, err := tx.Exec(`
+	return reconcileAdvertiserTotalBalancesContext(context.Background(), tx)
+}
+
+func reconcileAdvertiserTotalBalancesContext(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT balance_id, SUM(imps) AS imps, SUM(clis) AS clis, SUM(spend) AS spend
@@ -706,7 +738,11 @@ SET b.current_imp=totals.imps, b.current_cli=totals.clis, b.current_spend=totals
 }
 
 func reconcileAdvertiserDailyBalancesFromIntervals(tx *sql.Tx, myDay string) error {
-	_, err := tx.Exec(`
+	return reconcileAdvertiserDailyBalancesFromIntervalsContext(context.Background(), tx, myDay)
+}
+
+func reconcileAdvertiserDailyBalancesFromIntervalsContext(ctx context.Context, tx *sql.Tx, myDay string) error {
+	_, err := tx.ExecContext(ctx, `
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT balance_id, SUM(imps) AS imps, SUM(clis) AS clis, SUM(spend) AS spend
@@ -730,6 +766,13 @@ SET b.current_imp=totals.imps, b.current_cli=totals.clis, b.current_spend=totals
 }
 
 func InsertDaily(db *sql.DB, myDays ...string) error {
+	return InsertDailyContext(context.Background(), db, myDays...)
+}
+
+func InsertDailyContext(ctx context.Context, db *sql.DB, myDays ...string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var myDay string
 	if len(myDays) == 0 {
 		myDay = time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
@@ -737,7 +780,7 @@ func InsertDaily(db *sql.DB, myDays ...string) error {
 		myDay = myDays[0]
 	}
 
-	err := db.QueryRow(`SELECT 1 FROM daily_log WHERE daily=?`, myDay).Scan(new(int))
+	err := db.QueryRowContext(ctx, `SELECT 1 FROM daily_log WHERE daily=?`, myDay).Scan(new(int))
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return err
@@ -818,29 +861,29 @@ FROM (
 ) tmp
 INNER JOIN daily_log dl ON (dl.daily=tmp.daily)`
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(insLog, myDay); err != nil {
+	if _, err := tx.ExecContext(ctx, insLog, myDay); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(insPub, myDay); err != nil {
+	if _, err := tx.ExecContext(ctx, insPub, myDay); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(insAdv, myDay); err != nil {
+	if _, err := tx.ExecContext(ctx, insAdv, myDay); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(insPubAdv, myDay, myDay, myDay); err != nil {
+	if _, err := tx.ExecContext(ctx, insPubAdv, myDay, myDay, myDay); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(insMid, myDay); err != nil {
+	if _, err := tx.ExecContext(ctx, insMid, myDay); err != nil {
 		return err
 	}
 
-	if _, err = tx.Exec(`
+	if _, err = tx.ExecContext(ctx, `
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT daily_balance_id, l.imps, l.clis, l.spend
@@ -852,14 +895,18 @@ INNER JOIN (
 SET b.current_imp=tmp.imps, b.current_cli=tmp.clis, b.current_spend=tmp.spend`, myDay); err != nil {
 		return err
 	}
-	if err = reconcileAdvertiserDailyBalancesFromDaily(tx, myDay); err != nil {
+	if err = reconcileAdvertiserDailyBalancesFromDailyContext(ctx, tx, myDay); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 func reconcileAdvertiserDailyBalancesFromDaily(tx *sql.Tx, myDay string) error {
-	_, err := tx.Exec(`
+	return reconcileAdvertiserDailyBalancesFromDailyContext(context.Background(), tx, myDay)
+}
+
+func reconcileAdvertiserDailyBalancesFromDailyContext(ctx context.Context, tx *sql.Tx, myDay string) error {
+	_, err := tx.ExecContext(ctx, `
 UPDATE adv_balance b
 INNER JOIN (
 	SELECT balance_id, SUM(imps) AS imps, SUM(clis) AS clis, SUM(spend) AS spend
