@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -64,9 +65,10 @@ func UnpackDemandIO(r *bytes.Reader) (Demand, error) {
 // RAdv is the compiled demand record for one slot candidate.
 type RAdv struct {
 	Demand
-	Weight   float32 `json:"weight,omitempty"`
-	CostType uint8   `json:"cost_type,omitempty"`
-	Cost     float32 `json:"cost,omitempty"`
+	Weight   float32        `json:"weight,omitempty"`
+	CostType uint8          `json:"cost_type,omitempty"`
+	Cost     float32        `json:"cost,omitempty"` // OpenRTB compatibility projection only.
+	CostCPM  accounting.CPM `json:"cost_cpm_micros,omitempty"`
 	Cap
 	Delivery Delivery `json:"-"`
 }
@@ -86,13 +88,140 @@ type legacyRAdv struct {
 	Cap
 }
 
+type legacyDeliveryBalanceV2 struct {
+	ID           uint32
+	LimitSpend   float64
+	LimitImp     uint64
+	LimitClick   uint64
+	CurrentSpend float64
+	CurrentImp   uint64
+	CurrentClick uint64
+}
+
+type legacyDeliveryV2 struct {
+	GeneratedAtUnix int64
+	Timezone        [deliveryTimezoneBytes]byte
+	Campaign        DeliveryWindow
+	Item            DeliveryWindow
+	CampaignTotal   legacyDeliveryBalanceV2
+	CampaignDaily   legacyDeliveryBalanceV2
+	ItemTotal       legacyDeliveryBalanceV2
+	ItemDaily       legacyDeliveryBalanceV2
+}
+
+type legacyRAdvV2 struct {
+	Demand
+	Weight   float32
+	CostType uint8
+	Cost     float32
+	Cap
+	Delivery legacyDeliveryV2
+}
+
+type radvWireV3 struct {
+	Demand
+	Weight   float32
+	CostType uint8
+	CostCPM  accounting.CPM
+	Cap
+	Delivery Delivery
+}
+
+func (self RAdv) exactCPM() (accounting.CPM, bool) {
+	if self.CostType != CostTypeCPM && self.CostType != 0 {
+		return 0, false
+	}
+	if self.CostCPM > 0 && self.CostCPM <= accounting.MaxCPM {
+		return self.CostCPM, true
+	}
+	// Headerless/v1/v2 payloads and old in-process callers carry only the
+	// protocol float. This bounded adapter is read compatibility; new database
+	// and cache writes always carry CostCPM.
+	if !finitePositiveFloat32(self.Cost) {
+		return 0, false
+	}
+	cpm, err := accounting.ParseCPM(strconv.FormatFloat(float64(self.Cost), 'f', 6, 32))
+	return cpm, err == nil && cpm > 0
+}
+
+func legacySpendNano(value float64) (accounting.Nano, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+		return 0, fmt.Errorf("invalid legacy spend %v", value)
+	}
+	return accounting.ParseNano(strconv.FormatFloat(value, 'f', 9, 64))
+}
+
+func convertLegacyBalanceV2(value legacyDeliveryBalanceV2) (DeliveryBalance, error) {
+	limit, err := legacySpendNano(value.LimitSpend)
+	if err != nil {
+		return DeliveryBalance{}, err
+	}
+	current, err := legacySpendNano(value.CurrentSpend)
+	if err != nil {
+		return DeliveryBalance{}, err
+	}
+	return DeliveryBalance{
+		ID: value.ID, LimitSpendNano: limit, LimitImp: value.LimitImp, LimitClick: value.LimitClick,
+		CurrentSpendNano: current, CurrentImp: value.CurrentImp, CurrentClick: value.CurrentClick,
+	}, nil
+}
+
+func convertLegacyRAdvV2(value legacyRAdvV2) (RAdv, error) {
+	cpm, err := accounting.ParseCPM(strconv.FormatFloat(float64(value.Cost), 'f', 6, 32))
+	if err != nil {
+		return RAdv{}, err
+	}
+	balances := []legacyDeliveryBalanceV2{
+		value.Delivery.CampaignTotal, value.Delivery.CampaignDaily,
+		value.Delivery.ItemTotal, value.Delivery.ItemDaily,
+	}
+	converted := make([]DeliveryBalance, len(balances))
+	for index, balance := range balances {
+		converted[index], err = convertLegacyBalanceV2(balance)
+		if err != nil {
+			return RAdv{}, err
+		}
+	}
+	return RAdv{
+		Demand: value.Demand, Weight: value.Weight, CostType: value.CostType,
+		Cost: value.Cost, CostCPM: cpm, Cap: value.Cap,
+		Delivery: Delivery{
+			GeneratedAtUnix: value.Delivery.GeneratedAtUnix, Timezone: value.Delivery.Timezone,
+			Campaign: value.Delivery.Campaign, Item: value.Delivery.Item,
+			CampaignTotal: converted[0], CampaignDaily: converted[1], ItemTotal: converted[2], ItemDaily: converted[3],
+		},
+	}, nil
+}
+
 // UpdatePerRow
 func (self RAdv) updateRow(
-	cost sql.NullFloat64,
+	cost any,
 	capNumber, clickNumber, capPeriod, clickPeriod, capThrottle sql.NullInt64,
 	costType sql.NullString) (RAdv, error) {
-	if cost.Valid {
-		self.Cost = float32(cost.Float64)
+	switch value := cost.(type) {
+	case sql.NullString:
+		if value.Valid {
+			parsed, err := accounting.ParseCPM(value.String)
+			if err != nil {
+				return self, err
+			}
+			self.CostCPM = parsed
+			self.Cost = parsed.Float32()
+		}
+	case sql.NullFloat64:
+		if value.Valid {
+			if math.IsNaN(value.Float64) || math.IsInf(value.Float64, 0) || value.Float64 < 0 {
+				return self, fmt.Errorf("invalid legacy CPM")
+			}
+			parsed, err := accounting.ParseCPM(strconv.FormatFloat(value.Float64, 'f', 6, 64))
+			if err != nil {
+				return self, err
+			}
+			self.CostCPM = parsed
+			self.Cost = parsed.Float32()
+		}
+	default:
+		return self, fmt.Errorf("unsupported CPM source %T", cost)
 	}
 	if capNumber.Valid {
 		if capNumber.Int64 < 0 || capNumber.Int64 > int64(^uint8(0)) {
@@ -191,7 +320,18 @@ func (self RAdvs) PackIO(w *bytes.Buffer) error {
 }
 
 func (self RAdvs) packCurrent(w io.Writer) error {
-	return binary.Write(w, binary.LittleEndian, self)
+	wire := make([]radvWireV3, len(self))
+	for index, block := range self {
+		cpm, ok := block.exactCPM()
+		if !ok {
+			return fmt.Errorf("item %d has no exact USD CPM", block.ItemID)
+		}
+		wire[index] = radvWireV3{
+			Demand: block.Demand, Weight: block.Weight, CostType: block.CostType,
+			CostCPM: cpm, Cap: block.Cap, Delivery: block.Delivery,
+		}
+	}
+	return binary.Write(w, binary.LittleEndian, wire)
 }
 
 // Update updates the current RAdvs with the new RAdv blocks.
@@ -260,22 +400,47 @@ func unpackRAdvsPayload(data []byte) ([]byte, uint8, error) {
 	if kind != cachePayloadKindRAdvs {
 		return nil, 0, fmt.Errorf("cache payload kind %d does not match expected kind %d", kind, cachePayloadKindRAdvs)
 	}
-	if version != 1 && version != cachePayloadVersionRAdvs {
+	if version != 1 && version != 2 && version != cachePayloadVersionRAdvs {
 		return nil, 0, fmt.Errorf("unsupported cache payload version %d for kind %d", version, kind)
 	}
 	return data[headerSize:], version, nil
 }
 
 func unpackRAdvsBody(data []byte, version uint8) (RAdvs, error) {
-	currentSize := binary.Size(RAdv{})
+	currentSize := binary.Size(radvWireV3{})
 	legacySize := binary.Size(legacyRAdv{})
 	if version == cachePayloadVersionRAdvs {
 		if currentSize <= 0 || len(data)%currentSize != 0 {
 			return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
 		}
-		blocks := make(RAdvs, len(data)/currentSize)
-		err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &blocks)
-		return blocks, err
+		wire := make([]radvWireV3, len(data)/currentSize)
+		if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &wire); err != nil {
+			return nil, err
+		}
+		blocks := make(RAdvs, len(wire))
+		for index, block := range wire {
+			blocks[index] = RAdv{Demand: block.Demand, Weight: block.Weight, CostType: block.CostType, Cost: block.CostCPM.Float32(), CostCPM: block.CostCPM, Cap: block.Cap, Delivery: block.Delivery}
+		}
+		return blocks, nil
+	}
+	if version == 2 {
+		legacyV2Size := binary.Size(legacyRAdvV2{})
+		if legacyV2Size <= 0 || len(data)%legacyV2Size != 0 {
+			return nil, fmt.Errorf("invalid version-2 RAdvs payload length %d", len(data))
+		}
+		legacy := make([]legacyRAdvV2, len(data)/legacyV2Size)
+		if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &legacy); err != nil {
+			return nil, err
+		}
+		blocks := make(RAdvs, len(legacy))
+		for index, block := range legacy {
+			converted, err := convertLegacyRAdvV2(block)
+			if err != nil {
+				return nil, err
+			}
+			blocks[index] = converted
+		}
+		return blocks, nil
 	}
 	if legacySize <= 0 || len(data)%legacySize != 0 {
 		return nil, fmt.Errorf("invalid RAdvs payload length %d", len(data))
@@ -401,7 +566,7 @@ func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint3
 		w := RAdv{}
 		var costType sql.NullString
 		var capNumber, capPeriod, capThrottle, clickNumber, clickPeriod sql.NullInt64
-		var cost sql.NullFloat64
+		var cost sql.NullString
 		var itemStart, itemEnd any
 		err = rows.Scan(&w.AdvID, &w.CampaignID, &w.ItemID, &w.CreativeID, &w.Weight, &costType, &cost, &capNumber, &capPeriod, &capThrottle, &clickNumber, &clickPeriod, &itemStart, &itemEnd)
 		if err != nil {
@@ -442,28 +607,28 @@ func dbRAdvsBySizeIDSlotID(ctx context.Context, db *sql.DB, sizeID, slotID uint3
 }
 
 type deliveryBalanceRow struct {
-	id           uint32
-	limitSpend   float64
-	limitImp     uint64
-	limitClick   uint64
-	currentSpend float64
-	currentImp   uint64
-	currentClick uint64
+	id               uint32
+	limitSpendNano   accounting.Nano
+	limitImp         uint64
+	limitClick       uint64
+	currentSpendNano accounting.Nano
+	currentImp       uint64
+	currentClick     uint64
 }
 
 func (r *deliveryBalanceRow) scanArgs() []any {
-	return []any{&r.id, &r.limitSpend, &r.limitImp, &r.limitClick, &r.currentSpend, &r.currentImp, &r.currentClick}
+	return []any{&r.id, &r.limitSpendNano, &r.limitImp, &r.limitClick, &r.currentSpendNano, &r.currentImp, &r.currentClick}
 }
 
 func (r deliveryBalanceRow) value() DeliveryBalance {
 	return DeliveryBalance{
-		ID:           r.id,
-		LimitSpend:   r.limitSpend,
-		LimitImp:     r.limitImp,
-		LimitClick:   r.limitClick,
-		CurrentSpend: r.currentSpend,
-		CurrentImp:   r.currentImp,
-		CurrentClick: r.currentClick,
+		ID:               r.id,
+		LimitSpendNano:   r.limitSpendNano,
+		LimitImp:         r.limitImp,
+		LimitClick:       r.limitClick,
+		CurrentSpendNano: r.currentSpendNano,
+		CurrentImp:       r.currentImp,
+		CurrentClick:     r.currentClick,
 	}
 }
 
@@ -842,10 +1007,22 @@ func (self RAdvs) FilterByAudiences(ctx context.Context, conn radix.Client, bid 
 }
 
 func (self RAdv) ECPM() (float32, bool) {
-	if self.CostType != CostTypeCPM || !finitePositiveFloat32(self.Cost) {
+	cpm, ok := self.exactCPM()
+	if !ok {
 		return 0, false
 	}
-	return self.Cost, true
+	return cpm.Float32(), true
+}
+
+// ImpressionSpendNano returns the authoritative per-impression charge. The
+// OpenRTB float projection is consulted only for bounded legacy payloads.
+func (self RAdv) ImpressionSpendNano() (accounting.Nano, bool) {
+	cpm, ok := self.exactCPM()
+	if !ok {
+		return 0, false
+	}
+	spend, err := cpm.ImpressionNano()
+	return spend, err == nil
 }
 
 func (self RAdv) GetItemWeight(bidFloor float64, bidFoorCur string) (float32, bool) {

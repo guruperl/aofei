@@ -2,9 +2,10 @@ package match
 
 import (
 	"fmt"
-	"math"
 	"strings"
 	"time"
+
+	"github.com/guruperl/aofei/accounting"
 )
 
 const (
@@ -23,33 +24,33 @@ const (
 // budget. Redis owns request-time reservations; Current* seeds that mutable
 // state from the reconciled MySQL ledger.
 type DeliveryBalance struct {
-	ID           uint32
-	LimitSpend   float64
-	LimitImp     uint64
-	LimitClick   uint64
-	CurrentSpend float64
-	CurrentImp   uint64
-	CurrentClick uint64
+	ID               uint32
+	LimitSpendNano   accounting.Nano
+	LimitImp         uint64
+	LimitClick       uint64
+	CurrentSpendNano accounting.Nano
+	CurrentImp       uint64
+	CurrentClick     uint64
 }
 
 func (b DeliveryBalance) Limited() bool {
-	return b.ID != 0 && (b.LimitSpend > 0 || b.LimitImp > 0 || b.LimitClick > 0)
+	return b.ID != 0 && (b.LimitSpendNano > 0 || b.LimitImp > 0 || b.LimitClick > 0)
 }
 
 func (b DeliveryBalance) Exhausted() bool {
-	return b.Limited() && ((b.LimitSpend > 0 && b.CurrentSpend >= b.LimitSpend) ||
+	return b.Limited() && ((b.LimitSpendNano > 0 && b.CurrentSpendNano >= b.LimitSpendNano) ||
 		(b.LimitImp > 0 && b.CurrentImp >= b.LimitImp) ||
 		(b.LimitClick > 0 && b.CurrentClick >= b.LimitClick))
 }
 
 func (b DeliveryBalance) Validate() error {
-	if math.IsNaN(b.LimitSpend) || math.IsInf(b.LimitSpend, 0) || b.LimitSpend < 0 {
-		return fmt.Errorf("invalid spend limit %v", b.LimitSpend)
+	if b.LimitSpendNano < 0 {
+		return fmt.Errorf("invalid spend limit nano-USD %s", b.LimitSpendNano)
 	}
-	if math.IsNaN(b.CurrentSpend) || math.IsInf(b.CurrentSpend, 0) || b.CurrentSpend < 0 {
-		return fmt.Errorf("invalid current spend %v", b.CurrentSpend)
+	if b.CurrentSpendNano < 0 {
+		return fmt.Errorf("invalid current spend nano-USD %s", b.CurrentSpendNano)
 	}
-	if b.ID == 0 && (b.LimitSpend != 0 || b.LimitImp != 0 || b.LimitClick != 0 || b.CurrentSpend != 0 || b.CurrentImp != 0 || b.CurrentClick != 0) {
+	if b.ID == 0 && (b.LimitSpendNano != 0 || b.LimitImp != 0 || b.LimitClick != 0 || b.CurrentSpendNano != 0 || b.CurrentImp != 0 || b.CurrentClick != 0) {
 		return fmt.Errorf("balance values exist without a balance id")
 	}
 	return nil

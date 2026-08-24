@@ -107,7 +107,7 @@ func TestDeliveryEligibilityRejectsMalformedPolicy(t *testing.T) {
 		t.Fatalf("invalid pacing = %v, %q", eligible, reason)
 	}
 	delivery.Campaign.Pacing = DeliveryPacingFast
-	delivery.ItemTotal = DeliveryBalance{ID: 7, CurrentSpend: -1}
+	delivery.ItemTotal = DeliveryBalance{ID: 7, CurrentSpendNano: -1}
 	if eligible, reason := delivery.EligibleAt(now, time.Minute); eligible || !strings.Contains(reason, "invalid current spend") {
 		t.Fatalf("invalid balance = %v, %q", eligible, reason)
 	}
@@ -115,8 +115,8 @@ func TestDeliveryEligibilityRejectsMalformedPolicy(t *testing.T) {
 
 func TestDeliveryBalanceRejectsInvalidFacts(t *testing.T) {
 	for _, balance := range []DeliveryBalance{
-		{ID: 1, LimitSpend: -1},
-		{ID: 1, CurrentSpend: -1},
+		{ID: 1, LimitSpendNano: -1},
+		{ID: 1, CurrentSpendNano: -1},
 		{LimitImp: 1},
 	} {
 		if err := balance.Validate(); err == nil {

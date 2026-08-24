@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/internal/jobs/midcallback"
 	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
@@ -695,6 +696,14 @@ func (self *Controller) publishMiddlemanBillOnce(ctx context.Context, value midd
 }
 
 func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCallbackContext, source string, prices middlemanPrices, forwardStatus string, forwardCode int) error {
+	chargeCPM, err := protocolCPM(prices.ChargePrice)
+	if err != nil {
+		return err
+	}
+	payCPM, err := protocolCPM(prices.PayPrice)
+	if err != nil {
+		return err
+	}
 	wl := &WinLoss{
 		Current:      time.Now(),
 		Status:       status,
@@ -719,11 +728,14 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 			UpstreamBidPrice:   value.UpstreamBidPrice,
 			ChargePrice:        prices.ChargePrice,
 			PayPrice:           prices.PayPrice,
+			ChargeCPM:          chargeCPM,
+			PayCPM:             payCPM,
 			MarginCPM:          value.MarginCPM,
 			Currency:           prices.Currency,
 		},
 	}
 	wl.RAdv.Cost = float32(prices.ChargePrice)
+	wl.RAdv.CostCPM = chargeCPM
 	wl.RAdv.CostType = match.CostTypeCPM
 	data, err := json.Marshal(wl)
 	if err != nil {
@@ -734,6 +746,13 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 	}
 	self.recordAttributionTouch(wl)
 	return nil
+}
+
+func protocolCPM(value float64) (accounting.CPM, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+		return 0, fmt.Errorf("invalid protocol USD CPM %v", value)
+	}
+	return accounting.ParseCPM(strconv.FormatFloat(value, 'f', 6, 64))
 }
 
 func (value middlemanCallbackContext) reconciledPrices() middlemanPrices {

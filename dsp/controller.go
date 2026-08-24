@@ -866,7 +866,11 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 			radvs, auds = removeCandidateAt(radvs, auds, index)
 			continue
 		}
-		reservation, reserveErr := self.reserveDelivery(ctx, candidate, current, auctionCPMToSpend(selectedPrice))
+		spend, exact := candidate.ImpressionSpendNano()
+		if !exact {
+			return nil, audit, noBidErrorf("candidate has no exact USD CPM")
+		}
+		reservation, reserveErr := self.reserveDelivery(ctx, candidate, current, spend)
 		if reserveErr == nil {
 			one = candidate
 			bidPrice = selectedPrice

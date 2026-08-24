@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/dsp"
 )
 
@@ -53,6 +55,7 @@ type StatisticsResult struct {
 	Imps      map[uint32]map[uint32]int
 	Clis      map[uint32]map[uint32]int
 	Spend     map[uint32]map[uint32]float64
+	SpendNano map[uint32]map[uint32]accounting.Nano
 	Middleman map[middlemanLedgerKey]*middlemanLedgerStats
 	Reporting map[reportingLedgerKey]*reportingLedgerStats
 }
@@ -79,6 +82,9 @@ type middlemanLedgerStats struct {
 	ChargeSpend      float64
 	PaySpend         float64
 	MarginSpend      float64
+	ChargeSpendNano  accounting.Nano
+	PaySpendNano     accounting.Nano
+	MarginSpendNano  accounting.Nano
 	ForwardOK        int
 	ForwardDuplicate int
 	ForwardMissing   int
@@ -131,6 +137,10 @@ type reportingLedgerStats struct {
 	MarginUSD        float64
 	DownstreamCPMSum float64
 	ReturnedCPMSum   float64
+	SpendNano        accounting.Nano
+	RevenueNano      accounting.Nano
+	CostNano         accounting.Nano
+	MarginNano       accounting.Nano
 	CallbackErrors   int
 }
 
@@ -275,6 +285,7 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 	imps := make(map[uint32]map[uint32]int)
 	clis := make(map[uint32]map[uint32]int)
 	spes := make(map[uint32]map[uint32]float64)
+	spesNano := make(map[uint32]map[uint32]accounting.Nano)
 	middleman := make(map[middlemanLedgerKey]*middlemanLedgerStats)
 	reporting := make(map[reportingLedgerKey]*reportingLedgerStats)
 
@@ -300,13 +311,21 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 		if err := json.Unmarshal(scanner.Bytes(), &wl); err != nil {
 			return StatisticsResult{}, err
 		}
-		aggregateMiddlemanLedger(middleman, wl)
-		aggregateReportingLedger(reporting, wl)
+		if err := aggregateMiddlemanLedger(middleman, wl); err != nil {
+			return StatisticsResult{}, err
+		}
+		if err := aggregateReportingLedger(reporting, wl); err != nil {
+			return StatisticsResult{}, err
+		}
 		slotID := wl.RPub.SlotID
 		creativeID := wl.RAdv.CreativeID
 		var found bool
 		switch wl.Status {
 		case dsp.StatusTrackImp:
+			spendNano, ok := wl.RAdv.ImpressionSpendNano()
+			if !ok {
+				return StatisticsResult{}, fmt.Errorf("item %d has no exact CPM in win/loss input", wl.RAdv.ItemID)
+			}
 			if imps[slotID] == nil {
 				imps[slotID] = make(map[uint32]int)
 			}
@@ -314,7 +333,15 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 			if spes[slotID] == nil {
 				spes[slotID] = make(map[uint32]float64)
 			}
-			spes[slotID][creativeID] += CPMToImpressionSpend(float64(wl.RAdv.Cost))
+			if spesNano[slotID] == nil {
+				spesNano[slotID] = make(map[uint32]accounting.Nano)
+			}
+			total, err := spesNano[slotID][creativeID].Add(spendNano)
+			if err != nil {
+				return StatisticsResult{}, err
+			}
+			spesNano[slotID][creativeID] = total
+			spes[slotID][creativeID] = float64(total) / float64(accounting.NanoScale)
 			found = true
 		case dsp.StatusTrackClk:
 			if clis[slotID] == nil {
@@ -339,6 +366,7 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 		Imps:      imps,
 		Clis:      clis,
 		Spend:     spes,
+		SpendNano: spesNano,
 		Middleman: middleman,
 		Reporting: reporting,
 	}, nil
@@ -357,9 +385,9 @@ func (self *Ledger) StatisticsToLedger() error {
 	return insertLedgerContext(ctx, self.DB, myDay, stats)
 }
 
-func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, wl dsp.WinLoss) {
+func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, wl dsp.WinLoss) error {
 	if wl.Middleman == nil {
-		return
+		return nil
 	}
 	meta := wl.Middleman
 	key := middlemanLedgerKey{
@@ -394,23 +422,40 @@ func aggregateMiddlemanLedger(out map[middlemanLedgerKey]*middlemanLedgerStats, 
 		}
 	case dsp.StatusTrackImp:
 		stats.Imps++
-		charge := CPMToImpressionSpend(meta.ChargePrice)
-		pay := CPMToImpressionSpend(meta.PayPrice)
-		stats.ChargeSpend += charge
-		stats.PaySpend += pay
+		chargeCPM, payCPM, err := exactMiddlemanCPM(meta)
+		if err != nil {
+			return err
+		}
+		charge, _ := chargeCPM.ImpressionNano()
+		pay, _ := payCPM.ImpressionNano()
+		stats.ChargeSpendNano, err = stats.ChargeSpendNano.Add(charge)
+		if err != nil {
+			return err
+		}
+		stats.PaySpendNano, err = stats.PaySpendNano.Add(pay)
+		if err != nil {
+			return err
+		}
 		margin := charge - pay
 		if margin < 0 {
 			margin = 0
 		}
-		stats.MarginSpend += margin
+		stats.MarginSpendNano, err = stats.MarginSpendNano.Add(margin)
+		if err != nil {
+			return err
+		}
+		stats.ChargeSpend = float64(stats.ChargeSpendNano) / float64(accounting.NanoScale)
+		stats.PaySpend = float64(stats.PaySpendNano) / float64(accounting.NanoScale)
+		stats.MarginSpend = float64(stats.MarginSpendNano) / float64(accounting.NanoScale)
 	case dsp.StatusTrackClk:
 		stats.Clis++
 	}
+	return nil
 }
 
-func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, wl dsp.WinLoss) {
+func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, wl dsp.WinLoss) error {
 	if out == nil {
-		return
+		return nil
 	}
 	key := reportingLedgerKey{
 		DemandSource: "Local",
@@ -475,28 +520,93 @@ func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, 
 	case dsp.StatusTrackImp:
 		stats.Imps++
 		if wl.Middleman == nil {
-			amount := CPMToImpressionSpend(float64(wl.RAdv.Cost))
-			stats.SpendUSD += amount
-			stats.RevenueUSD += amount
-			stats.CostUSD += amount
-			stats.ReturnedCPMSum += float64(wl.RAdv.Cost)
-			return
+			amount, ok := wl.RAdv.ImpressionSpendNano()
+			if !ok {
+				return fmt.Errorf("item %d has no exact CPM in reporting input", wl.RAdv.ItemID)
+			}
+			var err error
+			stats.SpendNano, err = stats.SpendNano.Add(amount)
+			if err != nil {
+				return err
+			}
+			stats.RevenueNano, err = stats.RevenueNano.Add(amount)
+			if err != nil {
+				return err
+			}
+			stats.CostNano, err = stats.CostNano.Add(amount)
+			if err != nil {
+				return err
+			}
+			stats.syncMoneyCompatibility()
+			cpm, _ := wl.RAdv.ECPM()
+			stats.ReturnedCPMSum += float64(cpm)
+			return nil
 		}
-		charge := CPMToImpressionSpend(wl.Middleman.ChargePrice)
-		pay := CPMToImpressionSpend(wl.Middleman.PayPrice)
-		stats.SpendUSD += pay
-		stats.RevenueUSD += charge
-		stats.CostUSD += pay
+		chargeCPM, payCPM, err := exactMiddlemanCPM(wl.Middleman)
+		if err != nil {
+			return err
+		}
+		charge, _ := chargeCPM.ImpressionNano()
+		pay, _ := payCPM.ImpressionNano()
+		stats.SpendNano, err = stats.SpendNano.Add(pay)
+		if err != nil {
+			return err
+		}
+		stats.RevenueNano, err = stats.RevenueNano.Add(charge)
+		if err != nil {
+			return err
+		}
+		stats.CostNano, err = stats.CostNano.Add(pay)
+		if err != nil {
+			return err
+		}
 		margin := charge - pay
 		if margin < 0 {
 			margin = 0
 		}
-		stats.MarginUSD += margin
-		stats.DownstreamCPMSum += wl.Middleman.PayPrice
-		stats.ReturnedCPMSum += wl.Middleman.ChargePrice
+		stats.MarginNano, err = stats.MarginNano.Add(margin)
+		if err != nil {
+			return err
+		}
+		stats.syncMoneyCompatibility()
+		stats.DownstreamCPMSum += payCPM.Float64()
+		stats.ReturnedCPMSum += chargeCPM.Float64()
 	case dsp.StatusTrackClk:
 		stats.Clis++
 	}
+	return nil
+}
+
+func exactMiddlemanCPM(meta *dsp.MiddlemanWinLossMeta) (accounting.CPM, accounting.CPM, error) {
+	if meta == nil {
+		return 0, 0, fmt.Errorf("middleman money metadata is missing")
+	}
+	charge := meta.ChargeCPM
+	pay := meta.PayCPM
+	var err error
+	if charge == 0 && meta.ChargePrice != 0 {
+		charge, err = accounting.ParseCPM(strconv.FormatFloat(meta.ChargePrice, 'f', 6, 64))
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	if pay == 0 && meta.PayPrice != 0 {
+		pay, err = accounting.ParseCPM(strconv.FormatFloat(meta.PayPrice, 'f', 6, 64))
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	if charge < 0 || pay < 0 {
+		return 0, 0, fmt.Errorf("middleman CPM cannot be negative")
+	}
+	return charge, pay, nil
+}
+
+func (s *reportingLedgerStats) syncMoneyCompatibility() {
+	s.SpendUSD = float64(s.SpendNano) / float64(accounting.NanoScale)
+	s.RevenueUSD = float64(s.RevenueNano) / float64(accounting.NanoScale)
+	s.CostUSD = float64(s.CostNano) / float64(accounting.NanoScale)
+	s.MarginUSD = float64(s.MarginNano) / float64(accounting.NanoScale)
 }
 
 func reportingDimensionHash(key reportingLedgerKey) []byte {
@@ -634,12 +744,12 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	is := 0
 	cs := 0
-	ss := float64(0)
+	ss := accounting.Nano(0)
 	for slotID, lpID := range lpIds {
 		for creativeID, laID := range laIds {
 			i, ok1 := stats.Imps[slotID][creativeID]
 			c, ok2 := stats.Clis[slotID][creativeID]
-			s, ok3 := stats.Spend[slotID][creativeID]
+			s, ok3 := stats.SpendNano[slotID][creativeID]
 			if !ok1 && !ok2 && !ok3 {
 				continue
 			}
@@ -648,7 +758,10 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			}
 			is += i
 			cs += c
-			ss += s
+			ss, err = ss.Add(s)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -657,7 +770,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			logID, key.BidderID, key.GroupID, key.RouteBidderID, key.TargetID,
 			key.AdvID, key.CampaignID, key.ItemID, key.CreativeID, key.PubID, key.SiteID, key.SlotID,
 			value.Wins, value.Losses, value.Imps, value.Clis,
-			value.ChargeSpend, value.PaySpend, value.MarginSpend,
+			value.ChargeSpendNano.String(), value.PaySpendNano.String(), value.MarginSpendNano.String(),
 			value.ForwardOK, value.ForwardDuplicate, value.ForwardMissing, value.ForwardError,
 			value.ForwardHTTPError, value.ForwardInvalid, value.ForwardNone,
 		); err != nil {
@@ -674,7 +787,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			key.RenderContext, key.RefreshMode, key.RefreshSeconds, key.AdDensity, key.TrafficQuality, key.SourceQuality,
 			key.ManagementControl, key.SellerType, key.SellerID, reportingDimensionHash(key),
 			value.Wins, value.Losses, value.Imps, value.Clis,
-			value.SpendUSD, value.RevenueUSD, value.CostUSD, value.MarginUSD,
+			value.SpendNano.StatementMoney().String(), value.RevenueNano.StatementMoney().String(), value.CostNano.StatementMoney().String(), value.MarginNano.StatementMoney().String(),
 			value.DownstreamCPMSum, value.ReturnedCPMSum, value.CallbackErrors,
 		); err != nil {
 			return err
@@ -687,7 +800,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 	if _, err = tx.ExecContext(ctx, updAdv, logID); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, updLog, is, cs, ss, logID); err != nil {
+	if _, err = tx.ExecContext(ctx, updLog, is, cs, ss.String(), logID); err != nil {
 		return err
 	}
 

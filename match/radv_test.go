@@ -72,11 +72,10 @@ func TestRAdvPack(t *testing.T) {
 		Demand:   demand,
 		Weight:   0.1,
 		Cost:     0.2,
-		CostType: 3,
+		CostType: CostTypeCPM,
 		Cap:      cap,
 	}
-	radv2 := RAdv{}
-	radvs := RAdvs([]RAdv{radv, radv2})
+	radvs := RAdvs([]RAdv{radv})
 	packed, err := radvs.Pack()
 	if err != nil {
 		t.Error(err)

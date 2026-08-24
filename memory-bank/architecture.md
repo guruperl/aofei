@@ -234,8 +234,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    tables through standalone `cmd/ledger`; missing input remains retryable
    command input. Middleman callback metadata also populates `ledger_mid` and
    `daily_mid` for advertiser pay-side reports and admin settlement views.
-   A01 converts CPM to one-impression USD spend (`CPM/1000`) in D01 reservations
-   and ledger aggregation while leaving wire/tracker prices unchanged.
+   A03 represents six-decimal CPM as integer micro-USD per thousand and one
+   impression as the identical integer count of nano-USD. Redis reservations
+   and ledger aggregation use checked integers; OpenRTB wire/tracker prices are
+   compatibility projections and statement conversion rounds only once.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and
@@ -545,13 +547,16 @@ generation before rolling new HTTP workers.
 Local/static mode derives the same lookup from the loaded `pubmap` snapshot in
 memory; `/bid/{domain}` continues to read the existing domain-keyed publisher
 cache.
-RAdv version 2 carries delivery snapshot generation time, campaign/ad-group
-windows and calendars, pacing modes, and reconciled balance facts. New readers
-retain version-1 and unversioned decode support. A candidate with delivery
+RAdv version 3 carries exact CPM and nano-USD delivery balances plus snapshot
+generation time, campaign/ad-group windows and calendars, and pacing modes.
+New readers retain bounded version-2 float, version-1, and unversioned decode
+support, but new publication emits only v3. A candidate with delivery
 policy fails closed after `delivery_cache_max_age_seconds`; full cache
 publication must therefore run at no more than one-third of that interval.
-Redis delivery reservations use `delivery:reservation:*`, persistent
-`delivery:budget:total:*`, and UTC-date `delivery:budget:daily:*` keys.
+Redis delivery reservations use isolated `delivery:v3:reservation:*`,
+persistent `delivery:v3:budget:total:*`, and UTC-date
+`delivery:v3:budget:daily:*` keys. Spend counters use `HINCRBY` nano-USD;
+legacy float families are drained rather than rewritten in place.
 
 ## Database Boundary
 
@@ -565,7 +570,7 @@ production-derived records, or personal data.
 The D01 baseline adds `adv_balance.current_day`, campaign delivery timezone and
 weekly schedule/pacing fields, and ad-group weekly schedule/pacing fields.
 Interval and daily ledger jobs reconcile those balance baselines before cache
-compilation; deployment-managed migrations must precede the version-2 cache
+compilation; deployment-managed migrations must precede the version-3 cache
 compiler.
 The A01 baseline records `usd-cpm-impression-v2` in `acct_contract` and adds
 `acct_statement`, `acct_adjustment`, and `acct_audit`. Audit and adjustment

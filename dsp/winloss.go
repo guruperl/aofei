@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
@@ -51,20 +52,22 @@ type WinLoss struct {
 // MiddlemanWinLossMeta carries charge/pay audit details for proxied middleman
 // callbacks without changing the existing ledger aggregation contract.
 type MiddlemanWinLossMeta struct {
-	BidderID           uint32  `json:"bidder_id,omitempty"`
-	GroupID            uint32  `json:"group_id,omitempty"`
-	RouteBidderID      uint32  `json:"route_bidder_id,omitempty"`
-	TargetID           uint32  `json:"target_id,omitempty"`
-	TriggerMode        string  `json:"trigger_mode,omitempty"`
-	Source             string  `json:"source,omitempty"`
-	ForwardStatus      string  `json:"forward_status,omitempty"`
-	ForwardHTTPStatus  int     `json:"forward_http_status,omitempty"`
-	DownstreamBidPrice float64 `json:"downstream_bid_price,omitempty"`
-	UpstreamBidPrice   float64 `json:"upstream_bid_price,omitempty"`
-	ChargePrice        float64 `json:"charge_price,omitempty"`
-	PayPrice           float64 `json:"pay_price,omitempty"`
-	MarginCPM          float64 `json:"margin_cpm,omitempty"`
-	Currency           string  `json:"currency,omitempty"`
+	BidderID           uint32         `json:"bidder_id,omitempty"`
+	GroupID            uint32         `json:"group_id,omitempty"`
+	RouteBidderID      uint32         `json:"route_bidder_id,omitempty"`
+	TargetID           uint32         `json:"target_id,omitempty"`
+	TriggerMode        string         `json:"trigger_mode,omitempty"`
+	Source             string         `json:"source,omitempty"`
+	ForwardStatus      string         `json:"forward_status,omitempty"`
+	ForwardHTTPStatus  int            `json:"forward_http_status,omitempty"`
+	DownstreamBidPrice float64        `json:"downstream_bid_price,omitempty"`
+	UpstreamBidPrice   float64        `json:"upstream_bid_price,omitempty"`
+	ChargePrice        float64        `json:"charge_price,omitempty"`
+	PayPrice           float64        `json:"pay_price,omitempty"`
+	ChargeCPM          accounting.CPM `json:"charge_cpm_micros,omitempty"`
+	PayCPM             accounting.CPM `json:"pay_cpm_micros,omitempty"`
+	MarginCPM          float64        `json:"margin_cpm,omitempty"`
+	Currency           string         `json:"currency,omitempty"`
 }
 
 // ReportingDimensions contains only bounded, coarse classifications approved

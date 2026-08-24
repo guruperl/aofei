@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 )
@@ -37,9 +38,9 @@ func deliveryTestRAdv(now time.Time) match.RAdv {
 	delivery := match.Delivery{
 		GeneratedAtUnix: now.Unix(),
 		ItemTotal: match.DeliveryBalance{
-			ID:         10,
-			LimitSpend: 10,
-			LimitImp:   10,
+			ID:             10,
+			LimitSpendNano: 10,
+			LimitImp:       10,
 		},
 	}
 	if err := delivery.SetTimezone("UTC"); err != nil {
@@ -55,8 +56,9 @@ func deliveryTestRAdv(now time.Time) match.RAdv {
 }
 
 func TestAuctionCPMToSpendUsesOneImpressionUnit(t *testing.T) {
-	if got := auctionCPMToSpend(2.5); math.Abs(float64(got-0.0025)) > 0.0000001 {
-		t.Fatalf("auctionCPMToSpend(2.5) = %.8f, want 0.0025", got)
+	got, err := auctionCPMToSpend(accounting.CPM(2_500_000))
+	if err != nil || got != 2_500_000 {
+		t.Fatalf("auctionCPMToSpend(2.5) = %s, %v; want 0.002500000", got, err)
 	}
 }
 
@@ -99,11 +101,26 @@ func TestDeliveryReservationBoundsConcurrentSpendAndImpressions(t *testing.T) {
 	}
 }
 
+func TestDeliveryReservationRejectsNanoOverflowAtomically(t *testing.T) {
+	controller, server := newDeliveryTestController(t)
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	block := deliveryTestRAdv(now)
+	block.Delivery.ItemTotal.LimitSpendNano = accounting.Nano(math.MaxInt64)
+	block.Delivery.ItemTotal.CurrentSpendNano = accounting.Nano(math.MaxInt64 - 1)
+	block.Delivery.ItemTotal.LimitImp = 0
+	if _, err := controller.reserveDelivery(context.Background(), block, now, 2); !errors.Is(err, errDeliveryOverflow) {
+		t.Fatalf("overflow reservation = %v, want errDeliveryOverflow", err)
+	}
+	if got := server.HGet(deliveryTotalKey(10), "used_spend_nano"); got != "9223372036854775806" {
+		t.Fatalf("overflow changed used spend to %q", got)
+	}
+}
+
 func TestDeliveryFinalizationKeepsSpendReservedAndClickIsIdempotent(t *testing.T) {
 	controller, _ := newDeliveryTestController(t)
 	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
 	block := deliveryTestRAdv(now)
-	block.Delivery.ItemTotal.LimitSpend = 1
+	block.Delivery.ItemTotal.LimitSpendNano = 1
 	block.Delivery.ItemTotal.LimitImp = 1
 	block.Delivery.ItemTotal.LimitClick = 1
 	token, err := controller.reserveDelivery(context.Background(), block, now, 1)
@@ -214,7 +231,7 @@ func TestExpiredReservationDoesNotSilentlyReopenTotalBudget(t *testing.T) {
 	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
 	block := deliveryTestRAdv(now)
 	block.Delivery.ItemTotal.LimitImp = 1
-	block.Delivery.ItemTotal.LimitSpend = 0
+	block.Delivery.ItemTotal.LimitSpendNano = 0
 	if _, err := controller.reserveDelivery(context.Background(), block, now, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +305,7 @@ func TestBudgetedDeliveryFailsClosedWithoutRedis(t *testing.T) {
 func TestBudgetedDeliveryRejectsInvalidCost(t *testing.T) {
 	controller, _ := newDeliveryTestController(t)
 	now := time.Now()
-	for _, cost := range []float32{-1, float32(math.NaN()), float32(math.Inf(1))} {
+	for _, cost := range []accounting.Nano{-1} {
 		if _, err := controller.reserveDelivery(context.Background(), deliveryTestRAdv(now), now, cost); err == nil {
 			t.Fatalf("reserveDelivery cost %v succeeded", cost)
 		}
@@ -304,7 +321,7 @@ func TestTrackingCallbacksFinalizeClickAndReleaseDeliveryReservation(t *testing.
 
 	block := deliveryTestRAdv(now)
 	block.Delivery.ItemTotal.LimitImp = 1
-	block.Delivery.ItemTotal.LimitSpend = 0
+	block.Delivery.ItemTotal.LimitSpendNano = 0
 	block.Delivery.ItemTotal.LimitClick = 1
 	token, err := controller.reserveDelivery(context.Background(), block, now, 0)
 	if err != nil {

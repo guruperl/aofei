@@ -27,10 +27,10 @@ func TestHydrateRAdvDeliveriesCarriesAuthoritativePolicy(t *testing.T) {
 		11, 7,
 		100, 200, 110, 190,
 		"Asia/Shanghai", campaignSchedule, "Even", itemSchedule, "Fast",
-		101, 100.5, 1000, 50, 10.25, 100, 5,
-		102, 20.5, 200, 10, 2.25, 20, 1,
-		103, 80.5, 800, 40, 8.25, 80, 4,
-		104, 10.5, 100, 5, 1.25, 10, 1,
+		101, "100.500000000", 1000, 50, "10.250000000", 100, 5,
+		102, "20.500000000", 200, 10, "2.250000000", 20, 1,
+		103, "80.500000000", 800, 40, "8.250000000", 80, 4,
+		104, "10.500000000", 100, 5, "1.250000000", 10, 1,
 	)
 	mock.ExpectQuery(`(?s)SELECT i\.item_id, c\.campaign_id,.*WHERE i\.item_id IN \(\?\)`).
 		WithArgs(uint32(11)).WillReturnRows(rows)
@@ -56,7 +56,7 @@ func TestHydrateRAdvDeliveriesCarriesAuthoritativePolicy(t *testing.T) {
 	if delivery.Campaign.WeeklySchedule() != campaignSchedule || delivery.Item.WeeklySchedule() != itemSchedule {
 		t.Fatal("weekly schedules were not hydrated")
 	}
-	if delivery.CampaignTotal.ID != 101 || delivery.CampaignTotal.LimitSpend != 100.5 || delivery.ItemDaily.CurrentClick != 1 {
+	if delivery.CampaignTotal.ID != 101 || delivery.CampaignTotal.LimitSpendNano != 100_500_000_000 || delivery.ItemDaily.CurrentClick != 1 {
 		t.Fatalf("balance facts = %#v", delivery)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

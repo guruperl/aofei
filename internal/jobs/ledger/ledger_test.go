@@ -123,6 +123,30 @@ func TestStatisticsAggregatesDirectSSPTrackerWinLossWithoutSchemaChange(t *testi
 	}
 }
 
+func TestStatisticsAggregatesMinimumCPMWithoutFloatRounding(t *testing.T) {
+	dir := t.TempDir()
+	ledger := &Ledger{
+		LogWinLoss: dir, Current: 457,
+		slots:     map[uint32][2]uint32{1: {2, 3}},
+		creatives: map[uint32][3]uint32{4: {5, 6, 7}},
+	}
+	events := make([]dsp.WinLoss, 1_000)
+	for index := range events {
+		events[index] = dsp.WinLoss{
+			Status: dsp.StatusTrackImp, RPub: match.RPub{SlotID: 1},
+			RAdv: match.RAdv{Demand: match.Demand{ItemID: 5, CreativeID: 4}, CostType: match.CostTypeCPM, CostCPM: 1},
+		}
+	}
+	writeWinLossLog(t, filepath.Join(dir, "winloss.457"), events...)
+	stats, err := ledger.StatisticsAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := stats.SpendNano[1][4]; got != 1_000 || got.String() != "0.000001000" {
+		t.Fatalf("1,000 minimum CPM impressions = %s (%d nano), want 0.000001000", got, got)
+	}
+}
+
 func TestStatisticsAggregatesMiddlemanMetadata(t *testing.T) {
 	dir := t.TempDir()
 	ledger := &Ledger{

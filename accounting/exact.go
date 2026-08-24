@@ -1,8 +1,10 @@
 package accounting
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"math"
+	"strconv"
 )
 
 const (
@@ -42,6 +44,25 @@ func ParseCPM(raw string) (CPM, error) {
 
 func (c CPM) String() string { return formatFixed(int64(c), 6) }
 
+func (c CPM) Float64() float64 { return float64(c) / float64(CPMScale) }
+
+func (c CPM) Float32() float32 { return float32(c.Float64()) }
+
+func (c *CPM) Scan(source any) error {
+	raw, err := exactDatabaseText(source)
+	if err != nil {
+		return err
+	}
+	value, err := ParseCPM(raw)
+	if err != nil {
+		return err
+	}
+	*c = value
+	return nil
+}
+
+func (c CPM) Value() (driver.Value, error) { return c.String(), nil }
+
 // ImpressionNano converts CPM to one impression's exact USD charge. The
 // integer value is unchanged: USD*1e-6/1000 equals USD*1e-9.
 func (c CPM) ImpressionNano() (Nano, error) {
@@ -61,6 +82,21 @@ func ParseNano(raw string) (Nano, error) {
 }
 
 func (n Nano) String() string { return formatFixed(int64(n), 9) }
+
+func (n *Nano) Scan(source any) error {
+	raw, err := exactDatabaseText(source)
+	if err != nil {
+		return err
+	}
+	value, err := ParseNano(raw)
+	if err != nil {
+		return err
+	}
+	*n = value
+	return nil
+}
+
+func (n Nano) Value() (driver.Value, error) { return n.String(), nil }
 
 func (n Nano) Add(other Nano) (Nano, error) {
 	if (other > 0 && n > Nano(math.MaxInt64)-other) ||
@@ -129,4 +165,19 @@ func parseFixed(raw string, places int) (int64, error) {
 		return -int64(magnitude), nil
 	}
 	return int64(magnitude), nil
+}
+
+func exactDatabaseText(source any) (string, error) {
+	switch value := source.(type) {
+	case string:
+		return value, nil
+	case []byte:
+		return string(value), nil
+	case int64:
+		return strconv.FormatInt(value, 10), nil
+	case nil:
+		return "", fmt.Errorf("exact monetary value is NULL")
+	default:
+		return "", fmt.Errorf("exact monetary scan rejects %T", source)
+	}
 }

@@ -120,6 +120,25 @@ func TestRAdvsDecodeVersionOnePayload(t *testing.T) {
 	}
 }
 
+func TestRAdvsDecodeVersionTwoFloatPayloadAsCompatibilityOnly(t *testing.T) {
+	legacy := []legacyRAdvV2{{
+		Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		Weight: 1, CostType: CostTypeCPM, Cost: 2.5,
+		Delivery: legacyDeliveryV2{ItemTotal: legacyDeliveryBalanceV2{ID: 7, LimitSpend: 1.25, CurrentSpend: 0.0025}},
+	}}
+	var body bytes.Buffer
+	if err := binary.Write(&body, binary.LittleEndian, legacy); err != nil {
+		t.Fatal(err)
+	}
+	got, err := UnpackRAdvs(packCachePayload(cachePayloadKindRAdvs, 2, body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].CostCPM != 2_500_000 || got[0].Delivery.ItemTotal.LimitSpendNano != 1_250_000_000 || got[0].Delivery.ItemTotal.CurrentSpendNano != 2_500_000 {
+		t.Fatalf("version-two exact compatibility decode = %+v", got)
+	}
+}
+
 func TestUnversionedRAdvsAlwaysDecodeAsLegacy(t *testing.T) {
 	legacySize := binary.Size(legacyRAdv{})
 	currentSize := binary.Size(RAdv{})

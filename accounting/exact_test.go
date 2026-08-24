@@ -53,3 +53,17 @@ func TestNanoAggregateOverflowAndStatementRounding(t *testing.T) {
 		t.Fatal("nano subtraction overflow succeeded")
 	}
 }
+
+func TestExactDatabaseScanRejectsBinaryFloat(t *testing.T) {
+	var cpm CPM
+	if err := cpm.Scan([]byte("2.500001")); err != nil || cpm.String() != "2.500001" {
+		t.Fatalf("CPM database scan = %s, %v", cpm, err)
+	}
+	if err := cpm.Scan(float64(2.5)); err == nil {
+		t.Fatal("CPM accepted binary floating-point database source")
+	}
+	var nano Nano
+	if err := nano.Scan("0.002500001"); err != nil || nano.String() != "0.002500001" {
+		t.Fatalf("Nano database scan = %s, %v", nano, err)
+	}
+}

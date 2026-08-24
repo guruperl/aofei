@@ -44,3 +44,10 @@ contract. A v3 writer never updates an unversioned monetary key. Publication
 uses O03's complete-generation protocol; readers retain the previous complete
 generation until every v3 family is present. Old numeric management clients
 are read-only after activation and receive a deprecation error on money writes.
+
+RAdv payload v3 omits binary monetary fields and carries exact CPM plus
+nano-USD delivery balances. Readers may convert a v2 float payload once for a
+bounded drain, but republishing emits v3. Mutable delivery state is isolated
+under `delivery:v3:*`; its spend fields use Redis integer operations and do not
+touch the retired unversioned float family. Win/loss records carry exact local
+or middleman CPM, and ledger aggregation uses checked nano-USD addition.
