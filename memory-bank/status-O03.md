@@ -130,3 +130,23 @@ atomic generation publication with partial live writes.
     no longer copied into durable evidence. Focused tests prove arbitrary
     detail maps to the generic outcome and a secret-bearing transport error is
     stored only as `callback request failed`.
+
+- Iteration 6 (2026-08-24): six P2 findings remain open.
+  - P2 open: when a normal renewal delay or retry backoff reaches the remaining
+    confirmed window, the maintainer sleeps exactly to expiry and therefore
+    guarantees cancellation instead of making a final pre-deadline attempt.
+  - P2 open: the unused but exported `ResetRedisStaticCaches` and generic
+    deletion helper still expose sequential live-family deletion outside the
+    atomic generation publisher.
+  - P2 open: complete spread publication serializes inactive or impression-
+    capped publishers even though Redis publication and legacy spread updates
+    omit/delete them, retaining stale data and breaking backend parity.
+  - P2 open: republishing the currently selected MaxMind content keeps only
+    that digest and prunes the prior rollback generation despite no new
+    generation having been selected.
+  - P2 open: attribute-log inventory discovery runs context-free `DBAddNew`
+    mutations, so cache work can continue changing MySQL after its lease-owned
+    context has been canceled.
+  - P2 open: the exported legacy `SpreadGetPub` filesystem writer still accepts
+    an unchecked subject-derived path and truncates it directly at mode `0644`
+    instead of using the validated durable `0640` snapshot boundary.
