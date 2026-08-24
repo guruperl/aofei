@@ -130,11 +130,10 @@ placement and direct `go install` invocations in
 
 ## Capability And Activation Status
 
-The original D/P/R/I/S/A/O baseline is implemented through A02, and D04 is now
-complete. D05 post-D04 remediation is planned, and review2 reopened S06
-repository hardening before its still-required valid Cloudflare credential and
-live activation proof. The remaining review-remediation horizon then resumes
-with P03, S05, O03, R03, and A03; I02 remains separately demand-gated. Implementation does not imply
+The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, and
+S06 are complete. P03 is in progress with its threat and compatibility
+contract complete; its remaining implementation precedes S05, O03, R03, and
+A03. I02 remains separately demand-gated. Implementation does not imply
 production activation:
 
 | Area | Current state |
@@ -142,9 +141,9 @@ production activation:
 | D01 delivery, D02 auction/creative safety | Implemented and part of the core runtime contract. |
 | D03 external DSP / AdX middleman | Implemented; checked-in disclosure and traffic gates remain off until a named partner passes staged activation. |
 | D04 delivery/tracking integrity | Implemented; confirmed ACL, callback, cap-time, bounded-input, and tracking semantic corrections are complete. |
-| D05 post-D04 auction remediation | Planned; owns legacy cap migration compatibility, invalid-cap isolation, optional OpenRTB dimensions, and bid hot-path cleanup. |
+| D05 post-D04 auction remediation | Implemented; legacy cap migration compatibility, invalid-cap isolation, optional OpenRTB dimensions, and bid hot-path cleanup are complete. |
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
-| P03 direct SSP authenticity | Planned; will separate browser-token integrity from authenticated SDK/server traffic. |
+| P03 direct SSP authenticity | In progress; its accepted contract separates public replayable browser-locator integrity from authenticated SDK/server traffic, while implementation remains pending. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
 | R03 experiment/report integrity | Planned; will version assignment privacy and strengthen analytical validation. |
 | I01 OpenRTB interoperability | Implemented as a bounded OpenRTB 2.5 profile. |
@@ -153,7 +152,7 @@ production activation:
 | S01 privacy, S04 rendering safety | Implemented core boundaries. |
 | S02 identity/RBAC, S03 traffic quality | Implemented but independently disabled by default pending migration, keys, permissions, and rollout evidence. |
 | S05 runtime trust boundaries | Planned; owns outbound-network, creative-consumer, principal, and quality-version hardening. |
-| S06 public account abuse protection | Review2 repository remediation plus Cloudflare widget/rate-rule creation and W8M deployment remain open. |
+| S06 public account abuse protection | Implemented and active on W8M with its scoped Cloudflare widget and Free-plan exact-path rate rule. |
 | A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
 | A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |

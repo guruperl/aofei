@@ -147,8 +147,10 @@ confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
-and quota-script work. D05 and S06 are now complete; P03 is the next remaining
-review milestone.
+and quota-script work. D05 and S06 are now complete. P03 is in progress: its
+threat and compatibility contract is accepted, while versioned locators,
+SDK/server authentication, enforcement, integration, and rollout remain
+pending.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in
@@ -225,6 +227,14 @@ The established runtime direction remains:
 	  intermediary chains are not falsely marked complete, and transparency does
 	  not change the A01 settlement owner. The additive cache and privacy-safe
 	  audit fields feed explicit R02 supply dimensions with unknown defaults.
+	  P03 separates public browser locator integrity from non-browser request
+	  authentication. A future versioned HMAC locator can prevent minting or
+	  modification but remains observable and replayable; exact browser
+	  Origin/Referer policy is provenance, not publisher proof. SDK/server
+	  traffic instead requires a publisher/App-scoped, body-bound, fresh,
+	  replay-protected credential. Both paths continue to fail closed against
+	  active cached inventory, and S02 sessions, I03 advertiser credentials, and
+	  `aofei_pz_uid` cannot substitute for runtime publisher authentication.
 - Root documentation should be short, current, and operational.
 - Marketplace report roles derive from the authenticated Genelet `_grole` and
   session account identifier. Advertisers and publishers see only their own

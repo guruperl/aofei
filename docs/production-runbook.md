@@ -6,10 +6,11 @@ Local Docker development remains documented separately in
 
 The current lane baseline is summarized in the
 [documentation and milestone index](README.md). The original D/P/R/I/S/A/O
-sequence through A02 is implemented; D04, P03, S05, O03, R03, and A03 are now
-planned review remediation, and I02 remains demand-gated. D03 remains partner
-activation-gated; I03, S02, S03, and A02 remain independently disabled by
-default. Operators must assess open remediation against any activation scope.
+sequence through A02 plus D04, D05, and S06 is implemented. P03 is in progress
+with its contract-only first row complete; S05, O03, R03, and A03 remain
+planned, and I02 remains demand-gated. D03 remains partner activation-gated;
+I03, S02, S03, and A02 remain independently disabled by default. Operators
+must assess open remediation against any activation scope.
 O02 defines an unclaimed objective, not evidence that production has already
 achieved 99.9% or provider-backed RPO/RTO.
 

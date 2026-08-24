@@ -6,6 +6,16 @@ integrations. It does not authorize a production launch by itself: D01, S01,
 O01, and A01 must also be accepted, and the named publisher must have an
 approved privacy and support owner.
 
+P03 is in progress. Its
+[direct SSP authenticity contract](direct-ssp-authenticity.md) is accepted,
+but the versioned browser locators and SDK/server request credentials are not
+implemented yet. The current packed browser tokens are public enumerable
+locators, and the current `platform:"sdk"` path is credentialless. Therefore
+the checks below establish current P01/P02 compatibility, inventory ownership,
+and commercial correctness; they do not establish P03 request authenticity.
+Do not approve a new App integration as authenticated production traffic until
+all later P03 rows and their named canary/rollback evidence are complete.
+
 ## 1. Inventory readiness
 
 Confirm the MySQL source of truth before publishing any cache generation:

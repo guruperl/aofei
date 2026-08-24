@@ -158,6 +158,17 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   Direct `/pz` ignores client source claims and generates `source.schain`
 	   from approved cache state. Middleman sanitation retains only a valid
 	   bounded standard chain and strips `source.pchain` and node extensions.
+	   P03's accepted authenticity contract keeps the public browser and
+	   non-browser trust paths distinct. Versioned browser locators must bind the
+	   complete publisher/site/slot/size tuple under a server-only integrity key,
+	   but remain observable/replayable and do not authenticate the caller.
+	   Browser Origin/Referer checks and active-cache validation remain
+	   independent. SDK/server traffic instead requires a publisher/App-scoped
+	   credential with exact-body binding, bounded freshness, and shared replay
+	   detection before App/inventory use. Signing-key rotation, scoped
+	   credential revocation, and inventory/cache withdrawal are separate
+	   containment paths; S02 sessions, I03 advertiser credentials, and browser
+	   identity cannot cross into this runtime credential boundary.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files, runs under signal-aware shutdown, drains NATS on exit, and
    flushes its queued log messages before closing files. Generated log

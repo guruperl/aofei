@@ -29,6 +29,14 @@ only when the client explicitly accepts gzip; no-fill behavior is unchanged.
 Any synthesized request sent to an external DSP uses the exact OpenRTB 2.5
 profile in [middleman-adx.md](middleman-adx.md).
 
+P03 is now in progress. Its accepted
+[authenticity contract](direct-ssp-authenticity.md) records that the current
+packed browser values are enumerable, that even future HMAC-protected browser
+locators remain public and replayable, and that the current credentialless SDK
+path is not publisher/App authentication. This document describes the current
+v1 runtime; the P03 contract governs the target security boundary and rollout
+invariants until later P03 rows implement it.
+
 ## V1 Browser Contract
 
 Browser tags post JSON to `/pz` and receive a JSON array of HTML strings. The
@@ -326,7 +334,9 @@ serving; IP and UA may describe the HTTP request, but are removed before
 contextual matching and are not combined into a fallback identity.
 
 SDK and in-app requests are represented by `platform:"sdk"` in the v1 `/pz`
-contract. They are credentialless and cookie-free. SDK requests may include
+contract. They are currently credentialless and cookie-free. This pre-P03
+compatibility path does not authenticate a publisher or App and must not be
+described as doing so. SDK requests may include
 OpenRTB-like `app`, `device`, `user`, and `regs` objects. The adapter synthesizes
 OpenRTB `app` and leaves `site` empty. The validated cache-derived site string
 is authoritative for app identity; any supplied `app.id`, `app.bundle`, or

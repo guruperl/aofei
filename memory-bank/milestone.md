@@ -78,7 +78,7 @@ acceptance criteria recorded in the corresponding status files.
 | D05 | Completed | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
-| P03 | Planned | [status-P03.md](status-P03.md) | Direct SSP request authenticity. |
+| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat and compatibility contract complete. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
 | R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
@@ -1546,11 +1546,14 @@ Implement the additive supply taxonomy selected by ADR 0001 and introduce
 seller/supply-chain metadata without changing the existing publisher account
 boundary. Detailed tasks are in [status-P02.md](status-P02.md).
 
-## P03 - Direct SSP Request Authenticity `[ ]`
+## P03 - Direct SSP Request Authenticity `[~]`
 
 Version direct-SSP inventory token integrity and add a distinct authenticated,
 fresh publisher/App request boundary for SDK-style traffic. Public browser
 locators remain replayable identifiers rather than publisher authentication.
+The accepted threat and compatibility contract separates browser integrity,
+browser provenance, SDK/server authentication, replay, compromise, rotation,
+and inventory revocation while preserving active-cache authority.
 Detailed tasks and verification are in [status-P03.md](status-P03.md).
 
 ## R01 - Conversion, Action, And Attribution Measurement `[+]`

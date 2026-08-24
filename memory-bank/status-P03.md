@@ -1,6 +1,6 @@
 # Status P03 - Direct SSP Request Authenticity
 
-State: `[ ]` Planned
+State: `[~]` In progress
 
 ## Goal
 
@@ -23,7 +23,7 @@ traffic origin.
 
 | Item | State | Notes |
 |---|---:|---|
-| Threat and compatibility contract | `[ ]` | Define browser locator integrity, non-browser authentication, replay, enumeration, publisher compromise, rotation, and revocation separately. Document that HMAC-protected browser values remain observable/replayable and are not publisher authentication. Inventory still fails closed against the active server cache. |
+| Threat and compatibility contract | `[+]` | [The accepted contract](../docs/direct-ssp-authenticity.md) separates browser locator integrity/provenance from publisher/App request authentication; covers enumeration, replay, compromise, key/credential rotation, scoped revocation, and cache withdrawal; and preserves active-cache authority. It explicitly treats HMAC-protected browser values as observable/replayable public locators, not publisher authentication. |
 | Versioned browser inventory tokens | `[ ]` | Define a versioned server-issued integrity format binding the complete publisher/site/slot/size identity, bounded validity or explicit rotation epoch, and key identifier without exposing a secret. Preserve a measured dual-read migration for existing generated tags, then provide an explicit legacy-disable gate. |
 | SDK/server request authentication | `[ ]` | Require a publisher/App-scoped request credential and body-bound freshness/replay proof for `platform:"sdk"` traffic before accepting the omitted Origin/Referer path. Credentials are generated, shown, rotated, revoked, scoped, and audited through S02 controls and never stored in plaintext in MySQL, Redis, logs, samples, or mobile source. |
 | Browser and App enforcement | `[ ]` | Keep exact browser Origin/Referer checks, App identity, media/size/floor, active inventory, consent, quota, and seller-chain derivation independent of client claims. Define deterministic failures before auction, cap, callback, or middleman side effects. |
