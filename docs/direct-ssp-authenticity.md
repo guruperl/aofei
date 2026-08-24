@@ -5,11 +5,11 @@ It separates public browser inventory locators from publisher/App request
 authentication and defines the invariants that the remaining P03 work must
 preserve.
 
-The threat contract, versioned browser-token codec/runtime reader, and
-default-off SDK/server request-authentication boundary are now implemented.
-Final cross-path enforcement, client-claim review, sample/cache integration,
-and production rollout remain pending. Current publisher pages still emit the
-v1 values documented in
+The threat contract, versioned browser-token codec/runtime reader, default-off
+SDK/server request-authentication boundary, and independent browser/App
+enforcement are now implemented. Client-claim review, sample/cache integration,
+and production rollout remain pending. Current publisher pages still emit the v1
+values documented in
 [ssp-direct-traffic.md](ssp-direct-traffic.md), so the checked-in v2 block stays
 disabled and legacy reads stay allowed.
 
@@ -215,7 +215,7 @@ condition that ends compatibility.
 
 ## Enforcement And Side-Effect Order
 
-The implemented SDK authentication and remaining enforcement work retain this
+The implemented SDK authentication and cross-path enforcement retain this
 deterministic pre-auction boundary:
 
 1. apply request-method, encoding, body-size, and bounded JSON checks;
@@ -236,6 +236,10 @@ audits, or disclose account existence through raw ids or credential details.
 The SDK authentication boundary uses generic `401` for proof failures and
 generic `503` for unavailable verifier/replay dependencies; later enforcement
 work must preserve deterministic, non-oracular failures across both paths.
+Malformed, inventory, App-identity, and browser-policy responses therefore use
+only generic HTTP status text. A missing or corrupt publisher-cache dependency
+returns generic retryable `503`; invalid/inactive inventory remains generic
+`400`, and browser provenance policy remains generic `403`.
 
 ## Compatibility Invariants
 
@@ -258,6 +262,6 @@ approved migration says otherwise:
 
 See [publisher-activation.md](publisher-activation.md) for the current rollout
 gate. Production authenticity is not established until the later P03 tasks
-complete cross-path enforcement and client-claim review, integrate generated
-samples/cache metadata, finish observability and rotation/rollback operations,
-and pass a named publisher canary.
+complete client-claim review, integrate generated samples/cache metadata,
+finish observability and rotation/rollback operations, and pass a named
+publisher canary.

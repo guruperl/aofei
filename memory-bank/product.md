@@ -149,9 +149,9 @@ is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
 and quota-script work. D05 and S06 are now complete. P03 is in progress: its
 threat contract, default-off versioned locator codec/runtime dual reader, and
-default-off SDK/server authentication are complete, while cross-path
-enforcement, client-claim review, portal/cache integration, and rollout remain
-pending.
+default-off SDK/server authentication plus independent browser/App enforcement
+are complete, while client-claim review, portal/cache integration, and rollout
+remain pending.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in
@@ -239,8 +239,11 @@ The established runtime direction remains:
 	  exact-body signature, bounded timestamp, and shared one-use Redis nonce.
 	  S02-scoped issue/rotation/revocation shows the private seed once, stores
 	  only the public verifier, and writes immutable lifecycle audits. The gate
-	  stays off until the remaining P03 rollout work. Both paths continue to fail closed against
-	  active cached inventory, and S02 sessions, I03 advertiser credentials, and
+	  stays off until the remaining P03 rollout work. Valid locators or request
+	  proofs cannot override Web/App type, active inventory, App identity,
+	  browser provenance, privacy, admission, or server-owned seller-chain
+	  policy; pre-auction rejections do not reflect cached ids, hostnames, or
+	  credential state. S02 sessions, I03 advertiser credentials, and
 	  `aofei_pz_uid` cannot substitute for runtime publisher authentication.
 - Root documentation should be short, current, and operational.
 - Marketplace report roles derive from the authenticated Genelet `_grole` and

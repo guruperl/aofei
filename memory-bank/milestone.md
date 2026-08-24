@@ -78,7 +78,7 @@ acceptance criteria recorded in the corresponding status files.
 | D05 | Completed | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
-| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract, versioned locator codec/runtime reader, and SDK/server request authentication complete. |
+| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract, versioned locator codec/runtime reader, SDK/server authentication, and independent browser/App enforcement complete. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
 | R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
@@ -1563,6 +1563,10 @@ an immutable public-key snapshot, exact active-cache publisher/App scope, and a
 shared one-use Redis nonce claim. S02-scoped lifecycle controls issue the
 private value once, store only the public verifier, require named permissions
 and recent MFA, and transactionally audit issue, rotation, and revocation.
+Valid proofs remain subordinate to Web/App type, active inventory, App
+identity, browser provenance, privacy, admission, media/size/floor, and
+server-owned seller-chain policy. Pre-auction inventory and policy failures are
+generic, and publisher-cache dependency failure is a retryable `503`.
 Detailed tasks and verification are in [status-P03.md](status-P03.md).
 
 ## R01 - Conversion, Action, And Attribution Measurement `[+]`

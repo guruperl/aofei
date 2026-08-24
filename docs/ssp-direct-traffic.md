@@ -35,7 +35,12 @@ packed browser values are enumerable and that HMAC-protected browser locators
 remain public and replayable. The v2 codec, bounded current/previous key ring,
 runtime dual reader, fixed-cardinality migration counter, explicit legacy gate,
 and SDK/server request-authentication service are implemented but disabled by
-default. Publisher pages and the cache readiness manifest still emit v1 until
+default. Valid proofs do not override active inventory, App identity,
+media/size/floor, browser provenance, privacy, admission, or server-owned
+seller-chain policy. Pre-auction inventory/App failures return generic `400`,
+browser-policy failures generic `403`, and publisher-cache dependency failures
+generic retryable `503`, before cookie, auction, middleman, or audit side
+effects. Publisher pages and the cache readiness manifest still emit v1 until
 the later integration row. This document therefore describes the currently
 generated v1 contract plus the opt-in authenticated SDK contract; the P03
 contract governs the staged security boundary.

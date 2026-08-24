@@ -422,6 +422,115 @@ func TestServeSSPAuthenticationFailuresPrecedeAuctionSideEffects(t *testing.T) {
 	}
 }
 
+func TestServeSSPAuthenticatedSDKCannotOverrideIndependentEnforcement(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutateBody func(*testing.T, []byte) []byte
+		headers    map[string]string
+		wantStatus int
+	}{
+		{
+			name: "App identity",
+			mutateBody: func(t *testing.T, body []byte) []byte {
+				return sspRequestBodyWithFields(t, body, map[string]any{
+					"app": map[string]any{"bundle": "attacker.example"},
+				})
+			},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "active inventory",
+			mutateBody: func(t *testing.T, body []byte) []byte {
+				var payload map[string]any
+				if err := json.Unmarshal(body, &payload); err != nil {
+					t.Fatal(err)
+				}
+				unit := payload["adUnits"].([]any)[0].(map[string]any)
+				slot, err := acl.PackDirectToken(999, match.SizeID2To1(300, 250))
+				if err != nil {
+					t.Fatal(err)
+				}
+				unit["slot"] = slot
+				out, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return out
+			},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "browser provenance headers",
+			headers:    map[string]string{"Origin": "https://attacker.example"},
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			service, privateCredential, now, closeStores := publisherAuthRuntimeService(t, 1, 11)
+			defer closeStores()
+			controller.C.DirectSSPAuth = publisherauth.Config{Enabled: true}.WithDefaults()
+			controller.publisherAuth = service
+			controller.audit = newAuditPublisher(nil, 10)
+			runtime := &recordingMiddlemanRuntime{}
+			enableSSPMiddleman(controller, true, runtime)
+
+			body := sspRequestBodyWithPlatform(t, "sdk", 1, 11, []sspAdUnitSpec{
+				{Code: "authenticated-sdk", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+			})
+			if test.mutateBody != nil {
+				body = test.mutateBody(t, body)
+			}
+			headers := signedPublisherAuthHeaders(t, privateCredential, now, byte(0x70+index), body)
+			for name, value := range test.headers {
+				headers[name] = value
+			}
+
+			rr := serveSSPWithHeaders(t, controller, body, headers)
+			if rr.Code != test.wantStatus || rr.Body.String() != http.StatusText(test.wantStatus)+"\n" {
+				t.Fatalf("rejection = %d %q, want generic %d", rr.Code, rr.Body.String(), test.wantStatus)
+			}
+			if runtime.calls != 0 {
+				t.Fatalf("middleman calls = %d", runtime.calls)
+			}
+			if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+				t.Fatalf("audit messages = %#v", messages)
+			}
+			if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+				t.Fatalf("cookies = %#v", cookies)
+			}
+		})
+	}
+}
+
+func TestServeSSPPublisherCacheFailureIsGenericAndRetryable(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	controller.C.IsLocal = false
+	controller.Redis = nil
+	controller.audit = newAuditPublisher(nil, 10)
+	runtime := &recordingMiddlemanRuntime{}
+	enableSSPMiddleman(controller, true, runtime)
+	body := sspRequestBody(t, 1, 10, []sspAdUnitSpec{
+		{Code: "unit-one", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+
+	rr := serveSSPWithHeaders(t, controller, body, map[string]string{"Origin": "https://example.com"})
+	if rr.Code != http.StatusServiceUnavailable || rr.Body.String() != "Service Unavailable\n" {
+		t.Fatalf("cache failure = %d %q, want generic 503", rr.Code, rr.Body.String())
+	}
+	if runtime.calls != 0 {
+		t.Fatalf("middleman calls = %d", runtime.calls)
+	}
+	if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+		t.Fatalf("audit messages = %#v", messages)
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("cookies = %#v", cookies)
+	}
+}
+
 func TestServeSSPBrowserRequestWithoutConsentDoesNotSetCookie(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	body := sspRequestBodyWithPlatform(t, "browser", 1, 10, []sspAdUnitSpec{

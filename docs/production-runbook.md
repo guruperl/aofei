@@ -8,7 +8,8 @@ The current lane baseline is summarized in the
 [documentation and milestone index](README.md). The original D/P/R/I/S/A/O
 sequence through A02 plus D04, D05, and S06 is implemented. P03 is in progress
 with its threat contract, default-off v2 locator codec/runtime dual reader, and
-default-off SDK/server authentication boundary complete; S05, O03, R03, and
+default-off SDK/server authentication plus independent browser/App enforcement
+complete; S05, O03, R03, and
 A03 remain planned, and I02 remains demand-gated.
 D03 remains partner activation-gated; I03, S02, S03, and A02 remain
 independently disabled by default. Operators must assess open remediation
@@ -169,7 +170,7 @@ issuance returns the Ed25519 private seed once to the authorized publisher,
 while MySQL retains only the public verifier. The caller must keep that private
 value in an approved secret manager and generate a new nonce per request; never
 place it in configuration samples, logs, Redis, backups, browser tags, or
-mobile source. Do not enable this gate until the remaining P03 enforcement,
+mobile source. Do not enable this gate until the remaining P03 client-claim,
 sample/cache integration, and canary/rollback rows are complete.
 Frequency-cap payload version 2 is rolling-compatible: upgrade readers/writers
 normally, monitor cap decode/refresh errors, and keep the rollout bounded to the

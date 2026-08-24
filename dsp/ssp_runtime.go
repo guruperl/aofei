@@ -28,6 +28,8 @@ const (
 
 var legacyDirectSSPTokenCodec = acl.NewLegacyDirectTokenCodec()
 
+var errSSPPublisherCacheUnavailable = errors.New("direct publisher cache is unavailable")
+
 // ServeSSP handles the direct publisher JSON contract on /pz.
 func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	metricSSPRequests.Add(1)
@@ -53,13 +55,13 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	sspReq, err := ParseSSPRequest(rawRequest)
 	if err != nil {
 		metricSSPMalformed.Add(1)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeSSPError(w, http.StatusBadRequest)
 		return
 	}
 	responseFormat, err := sspReq.NormalizedResponseFormat()
 	if err != nil {
 		metricSSPMalformed.Add(1)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeSSPError(w, http.StatusBadRequest)
 		return
 	}
 	var requestProof *publisherauth.RequestProof
@@ -79,7 +81,11 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	recordSSPInventoryTokenOutcome(sspInventoryTokenOutcome(tokenVersion, err))
 	if err != nil {
 		metricSSPValidationErrors.Add(1)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		status := http.StatusBadRequest
+		if errors.Is(err, errSSPPublisherCacheUnavailable) {
+			status = http.StatusServiceUnavailable
+		}
+		writeSSPError(w, status)
 		return
 	}
 	if requestProof != nil {
@@ -91,7 +97,7 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := validateSSPRequestPolicy(r, sspReq, units); err != nil {
 		metricSSPPolicyRejections.Add(1)
-		http.Error(w, err.Error(), http.StatusForbidden)
+		writeSSPError(w, http.StatusForbidden)
 		return
 	}
 	if requestProof != nil {
@@ -110,7 +116,7 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 	bid, err := self.openRTBFromValidatedSSP(r, sspReq, pub, units, cookieUserID)
 	if err != nil {
 		metricSSPValidationErrors.Add(1)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeSSPError(w, http.StatusBadRequest)
 		return
 	}
 	if err := self.applyPrivacyPolicy(bid, privacy); err != nil {
@@ -174,6 +180,14 @@ func writeSSPPublisherAuthError(w http.ResponseWriter, err error) {
 	if errors.Is(err, publisherauth.ErrUnavailable) {
 		status = http.StatusServiceUnavailable
 	}
+	writeSSPError(w, status)
+}
+
+// writeSSPError keeps the public pre-auction rejection surface stable without
+// reflecting cached publisher/App identity, inventory ids, hostnames, or
+// credential state. Detailed validation errors stay inside the process and
+// fixed-cardinality metrics identify the failing boundary.
+func writeSSPError(w http.ResponseWriter, status int) {
 	http.Error(w, http.StatusText(status), status)
 }
 
@@ -645,12 +659,12 @@ func (self *Controller) sspPubByID(ctx context.Context, pubID uint32) (*acl.Dire
 		pub, err = self.localPubByID(self.C.Spread, pubID)
 	} else {
 		if self == nil || self.Redis == nil {
-			return nil, fmt.Errorf("redis publisher cache is unavailable")
+			return nil, errSSPPublisherCacheUnavailable
 		}
 		pub, err = acl.PubByIDFromRedis(ctx, self.Redis, pubID)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", errSSPPublisherCacheUnavailable, err)
 	}
 	if pub == nil || pub.Pub == nil {
 		return nil, fmt.Errorf("publisher %d not found", pubID)

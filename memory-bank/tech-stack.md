@@ -451,6 +451,12 @@ snapshot at startup, refresh it every 30 seconds by default, and reject it after
 `EVALSHA`/`SET NX EX` replay claims over hashed public-id/nonce material and
 performs no MySQL query. Default request skew is 300 seconds and default maximum
 rotation overlap is one day.
+SDK proof acceptance remains independent from cached Web/App type, App
+identity, browser provenance, media/size/floor, privacy, admission, and
+server-owned seller-chain checks. Public pre-auction failures do not reflect
+cached ids, hostnames, or credential state: invalid inventory/App input is
+generic `400`, browser policy is generic `403`, and publisher-cache dependency
+failure is generic retryable `503`.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX keeps its OpenRTB envelope shape, but both sources are
 privacy-scrubbed before NATS. Attribute logs remove identity and precise

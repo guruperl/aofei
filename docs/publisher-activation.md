@@ -8,8 +8,8 @@ approved privacy and support owner.
 
 P03 is in progress. Its
 [direct SSP authenticity contract](direct-ssp-authenticity.md) is accepted,
-and the default-off v2 token reader plus SDK/server request-authentication
-boundary are implemented. The publisher UI and readiness manifest still emit
+and the default-off v2 token reader, SDK/server request-authentication boundary,
+and independent browser/App enforcement are implemented. The publisher UI and readiness manifest still emit
 public enumerable v1 locators; no production tag migration or legacy
 withdrawal has occurred, and checked-in SDK authentication remains off.
 Therefore the checks below establish current P01/P02 compatibility, inventory
