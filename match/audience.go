@@ -106,7 +106,14 @@ func UnpackAudienceIO(r io.Reader) (*Audience, error) {
 
 // getItemIDs retrieves item IDs from the database for active audiences.
 func getItemIDs(db *sql.DB) ([]uint32, error) {
-	rows, err := db.Query(`
+	return getItemIDsContext(context.Background(), db)
+}
+
+func getItemIDsContext(ctx context.Context, db *sql.DB) ([]uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	rows, err := db.QueryContext(ctx, `
 	SELECT item_id
 	FROM adv_item
 	INNER JOIN adv_campaign USING (campaign_id)
@@ -142,13 +149,13 @@ func DBGetAudiencesToRedis(ctx context.Context, conn radix.Client, db *sql.DB) e
 
 // DBGetAudiencesToCache writes database audiences through the supplied cache sink.
 func DBGetAudiencesToCache(ctx context.Context, sink CacheSink, db *sql.DB) error {
-	itemIDs, err := getItemIDs(db)
+	itemIDs, err := getItemIDsContext(ctx, db)
 	if err != nil {
 		return fmt.Errorf("failed to get item IDs: %w", err)
 	}
 
 	for _, itemID := range itemIDs {
-		aud, err := DBGetAudience(db, itemID)
+		aud, err := DBGetAudienceContext(ctx, db, itemID)
 		if err == nil {
 			if aud == nil {
 				continue
@@ -186,12 +193,21 @@ func DBGetAudiencesToSpread(conn *nats.Conn, db *sql.DB) error {
 }
 
 func DBGetAudience(db *sql.DB, itemID uint32) (*Audience, error) {
-	a, err := acl.DBGetACLAudience(db, itemID)
+	return DBGetAudienceContext(context.Background(), db, itemID)
+}
+
+// DBGetAudienceContext builds one audience while honoring cancellation of the
+// owning cache-generation operation.
+func DBGetAudienceContext(ctx context.Context, db *sql.DB, itemID uint32) (*Audience, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	a, err := acl.DBGetACLAudienceContext(ctx, db, itemID)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := db.Query(`
+	rows, err := db.QueryContext(ctx, `
 SELECT tv.value_id, an.attrname_id, an.attrname, av.attrvalue_id
 FROM adv_targetname tn
 INNER JOIN adv_targetvalue tv USING (targetname_id)

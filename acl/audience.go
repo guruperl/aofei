@@ -2,6 +2,7 @@ package acl
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/gob"
 )
@@ -134,23 +135,39 @@ func (self *ACLAudience) Has(a *ACL) bool {
 
 // DBGetACLAudience retrieves category audience from the database.
 func DBGetACLAudience(db *sql.DB, itemID uint32) (*ACLAudience, error) {
+	return DBGetACLAudienceContext(context.Background(), db, itemID)
+}
+
+// DBGetACLAudienceContext retrieves category audience from the database while
+// honoring cancellation of the owning operation.
+func DBGetACLAudienceContext(ctx context.Context, db *sql.DB, itemID uint32) (*ACLAudience, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	aud := new(ACLAudience)
 
-	err := dbGetPubAppAudience(db, itemID, aud)
+	err := dbGetPubAppAudienceContext(ctx, db, itemID, aud)
 	if err != nil {
 		return nil, err
 	}
-	err = dbGetCategoryAudience(db, itemID, aud)
+	err = dbGetCategoryAudienceContext(ctx, db, itemID, aud)
 	return aud, err
 }
 
 // dbGetPubAppAudience retrieves black/white list publisher and app/site audience
 // see proc_slot and proc_creative for more details
 func dbGetPubAppAudience(db *sql.DB, itemID uint32, aud *ACLAudience) error {
+	return dbGetPubAppAudienceContext(context.Background(), db, itemID, aud)
+}
+
+func dbGetPubAppAudienceContext(ctx context.Context, db *sql.DB, itemID uint32, aud *ACLAudience) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var aOrder, cOrder, iOrder string
 	var advID, campaignID uint32
 	var sitetypes string
-	err := db.QueryRow(`
+	err := db.QueryRowContext(ctx, `
 SELECT a.domain, c.foreign_id, a.adv_id, a.access_order, c.campaign_id, c.access_order, i.fl_sitetypes, i.access_order
 FROM adv_item i
 INNER JOIN adv_campaign c USING (campaign_id)
@@ -206,7 +223,7 @@ WHERE (ac.entitytype_id=42 AND ac.entity_id=?)`
 	}
 
 	if iOrder == "Inherit" {
-		rows, err := db.Query(pubSQL, id)
+		rows, err := db.QueryContext(ctx, pubSQL, id)
 		if err != nil {
 			return err
 		}
@@ -229,7 +246,7 @@ WHERE (ac.entitytype_id=42 AND ac.entity_id=?)`
 		rows.Close()
 	}
 
-	rows, err := db.Query(appSQL, id)
+	rows, err := db.QueryContext(ctx, appSQL, id)
 	if err != nil {
 		return err
 	}
@@ -256,7 +273,14 @@ WHERE (ac.entitytype_id=42 AND ac.entity_id=?)`
 
 // dbGetCategoryAudience retrieves category audience from the database.
 func dbGetCategoryAudience(db *sql.DB, itemID uint32, aud *ACLAudience) error {
-	rows, err := db.Query(`
+	return dbGetCategoryAudienceContext(context.Background(), db, itemID, aud)
+}
+
+func dbGetCategoryAudienceContext(ctx context.Context, db *sql.DB, itemID uint32, aud *ACLAudience) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	rows, err := db.QueryContext(ctx, `
 SELECT c.channel_name
 FROM ch_belong b
 INNER JOIN def_channel c USING (channel_id)
@@ -281,7 +305,7 @@ WHERE i.item_id=?`, itemID)
 	rows.Close()
 
 	var channelOrder string
-	err = db.QueryRow(`
+	err = db.QueryRowContext(ctx, `
 SELECT channel_order
 FROM adv_item
 WHERE item_id=?`, itemID).Scan(&channelOrder)
@@ -289,7 +313,7 @@ WHERE item_id=?`, itemID).Scan(&channelOrder)
 		return err
 	}
 
-	rows, err = db.Query(`
+	rows, err = db.QueryContext(ctx, `
 SELECT c.channel_name
 FROM ch_ac a
 INNER JOIN def_channel c USING (channel_id)

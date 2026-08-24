@@ -280,7 +280,7 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 		}
 		aud, ok := audiences[e.SyntheticItemID]
 		if !ok {
-			aud, err = acl.DBGetACLAudience(db, e.SyntheticItemID)
+			aud, err = acl.DBGetACLAudienceContext(ctx, db, e.SyntheticItemID)
 			if err != nil {
 				return nil, fmt.Errorf("middleman bidder %d synthetic item %d audience: %w", e.BidderID, e.SyntheticItemID, err)
 			}

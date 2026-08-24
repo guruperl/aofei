@@ -174,11 +174,9 @@ atomic generation publication with partial live writes.
     mandatory. A focused Redis test proves both compatibility versions are
     published together.
 
-- Iteration 8 (2026-08-24): one P2 finding remains open.
-  - P2: `DBGetAudiencesToCache` accepts the lease-owned context only for cache
-    writes; its item inventory, ACL construction, and targeting queries still
-    use context-free SQL calls. Lease loss during a blocked audience query can
-    therefore leave the singleton work running past cancellation and delay
-    release or safe reacquisition. Make the complete audience build path
-    context-aware while retaining compatibility wrappers, and prove a canceled
-    lease issues no audience SQL.
+- Iteration 8 (2026-08-24): one P2 finding was found.
+  - P2 resolved: `DBGetAudiencesToCache` now carries the lease-owned context
+    through item inventory, ACL construction, and targeting queries; middleman
+    synthetic-audience compilation uses the same context-aware ACL path.
+    Compatibility wrappers retain the old APIs, while focused canceled-context
+    tests prove no audience SQL is issued after ownership cancellation.

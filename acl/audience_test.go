@@ -1,11 +1,30 @@
 package acl
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+func TestDBGetACLAudienceContextCanceledDoesNotQuery(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := DBGetACLAudienceContext(ctx, db, 33); !errors.Is(err, context.Canceled) {
+		t.Fatalf("DBGetACLAudienceContext error = %v, want context canceled", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestDBGetPubAppAudienceInheritanceMatrix(t *testing.T) {
 	for _, advertiserOrder := range []string{"White", "Black"} {
