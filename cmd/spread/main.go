@@ -142,6 +142,7 @@ type spreadGenerationReceiver struct {
 	expected  spreadcache.Manifest
 	seen      map[string]string
 	prepare   func(string) error
+	write     func(string, []byte) error
 }
 
 func newSpreadGenerationReceiver(top string) (*spreadGenerationReceiver, error) {
@@ -182,22 +183,40 @@ func (r *spreadGenerationReceiver) committedSequence() uint64 {
 	return r.committed
 }
 
-func (r *spreadGenerationReceiver) install(sequence uint64, messages []spreadcache.Message) error {
+func (r *spreadGenerationReceiver) install(ctx context.Context, sequence uint64, messages []spreadcache.Message) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	manifest, err := spreadcache.NewManifest(sequence, messages)
 	if err != nil {
 		return err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := r.begin(manifest); err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, message := range messages {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := r.put(sequence, message.Subject, message.Data); err != nil {
 			return err
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 	}
-	return r.commit(sequence)
+	return r.commitContext(ctx, sequence)
 }
 
 func (r *spreadGenerationReceiver) handle(m *nats.Msg) (bool, error) {
@@ -310,7 +329,11 @@ func (r *spreadGenerationReceiver) put(sequence uint64, subject string, data []b
 	if prior, ok := r.seen[subject]; ok && prior != digest {
 		return fmt.Errorf("spread generation %d subject %q changed", sequence, subject)
 	}
-	if err := writeSnapshot(filepath.Join(spreadcache.GenerationRoot(r.top, sequence), relative), data); err != nil {
+	write := r.write
+	if write == nil {
+		write = writeSnapshot
+	}
+	if err := write(filepath.Join(spreadcache.GenerationRoot(r.top, sequence), relative), data); err != nil {
 		return err
 	}
 	r.seen[subject] = digest
@@ -318,6 +341,13 @@ func (r *spreadGenerationReceiver) put(sequence uint64, subject string, data []b
 }
 
 func (r *spreadGenerationReceiver) commit(sequence uint64) error {
+	return r.commitContext(context.Background(), sequence)
+}
+
+func (r *spreadGenerationReceiver) commitContext(ctx context.Context, sequence uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if sequence <= r.committed {
 		opsmetrics.RecordSpread("generation_stale")
 		return nil
@@ -334,11 +364,11 @@ func (r *spreadGenerationReceiver) commit(sequence uint64) error {
 		opsmetrics.RecordSpread("generation_rejected")
 		return fmt.Errorf("spread generation %d manifest digest mismatch", sequence)
 	}
-	if err := cleanupSpreadGenerations(r.top, r.committed, sequence); err != nil {
+	if err := cleanupSpreadGenerationsContext(ctx, r.top, r.committed, sequence); err != nil {
 		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
-	if err := spreadcache.Commit(r.top, sequence); err != nil {
+	if err := spreadcache.CommitContext(ctx, r.top, sequence); err != nil {
 		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
@@ -352,6 +382,16 @@ func (r *spreadGenerationReceiver) commit(sequence uint64) error {
 }
 
 func cleanupSpreadGenerations(top string, keep ...uint64) error {
+	return cleanupSpreadGenerationsContext(context.Background(), top, keep...)
+}
+
+func cleanupSpreadGenerationsContext(ctx context.Context, top string, keep ...uint64) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	kept := make(map[uint64]struct{}, len(keep))
 	for _, sequence := range keep {
 		if sequence != 0 {
@@ -367,6 +407,9 @@ func cleanupSpreadGenerations(top string, keep ...uint64) error {
 		return err
 	}
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if !entry.IsDir() {
 			continue
 		}
@@ -378,6 +421,9 @@ func cleanupSpreadGenerations(top string, keep ...uint64) error {
 			continue
 		}
 		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 	}
@@ -472,7 +518,7 @@ func bootstrapSpreadSnapshot(ctx context.Context, redis radix.Client, db *sql.DB
 	if err != nil {
 		return err
 	}
-	return receiver.install(sequence, messages)
+	return receiver.install(ctx, sequence, messages)
 }
 
 func writeSnapshot(filename string, data []byte) error {

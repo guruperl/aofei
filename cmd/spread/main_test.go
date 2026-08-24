@@ -221,7 +221,7 @@ func TestSpreadReceiverRepairsMissingSelectedGeneration(t *testing.T) {
 		t.Fatalf("committed floor = %d, want 9", floor)
 	}
 	messages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("repaired")}}
-	if err := receiver.install(10, messages); err != nil {
+	if err := receiver.install(context.Background(), 10, messages); err != nil {
 		t.Fatal(err)
 	}
 	if !receiver.hasCommittedGeneration() {
@@ -239,11 +239,51 @@ func TestBootstrapRechecksSubscribedGenerationBeforeDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := receiver.install(1, []spreadcache.Message{{Subject: "creative:7", Data: []byte("subscribed")}}); err != nil {
+	if err := receiver.install(context.Background(), 1, []spreadcache.Message{{Subject: "creative:7", Data: []byte("subscribed")}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := bootstrapSpreadSnapshot(context.Background(), nil, nil, receiver); err != nil {
 		t.Fatalf("selected generation still entered bootstrap dependencies: %v", err)
+	}
+}
+
+func TestBootstrapInstallCancellationStopsFilesAndPointerCommit(t *testing.T) {
+	top := t.TempDir()
+	receiver, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	writes := 0
+	receiver.write = func(filename string, data []byte) error {
+		writes++
+		if err := writeSnapshot(filename, data); err != nil {
+			return err
+		}
+		cancel()
+		return nil
+	}
+	messages := []spreadcache.Message{
+		{Subject: "creative:7", Data: []byte("first")},
+		{Subject: "creative:8", Data: []byte("must-not-write")},
+	}
+	err = receiver.install(ctx, 10, messages)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("install error = %v, want context canceled", err)
+	}
+	if writes != 1 {
+		t.Fatalf("snapshot writes = %d, want 1", writes)
+	}
+	root := spreadcache.GenerationRoot(top, 10)
+	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "first")
+	if _, err := os.Stat(filepath.Join(root, "creative", "8")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("later snapshot stat error = %v, want not exist", err)
+	}
+	if _, ok, err := spreadcache.CurrentSequence(top); err != nil || ok {
+		t.Fatalf("current sequence ok=%t error=%v, want no pointer", ok, err)
+	}
+	if receiver.hasCommittedGeneration() {
+		t.Fatal("canceled bootstrap selected a generation")
 	}
 }
 

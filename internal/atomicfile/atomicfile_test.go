@@ -1,12 +1,46 @@
 package atomicfile
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestWriteContextCancellationPreservesPriorFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "snapshot")
+	if err := os.WriteFile(path, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	err := WriteContext(ctx, path, 0640, func(out io.Writer) error {
+		if _, err := out.Write([]byte("new")); err != nil {
+			return err
+		}
+		cancel()
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("WriteContext error = %v, want context canceled", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "old" {
+		t.Fatalf("snapshot = %q, want prior content", data)
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, ".snapshot.tmp-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("temporary files remain: %v", matches)
+	}
+}
 
 func TestWriteReplacesFileWithPrivateDurableTemporary(t *testing.T) {
 	dir := t.TempDir()

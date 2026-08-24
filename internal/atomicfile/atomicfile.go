@@ -2,6 +2,7 @@
 package atomicfile
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -86,6 +87,14 @@ func EnsureDir(path string, perm fs.FileMode) (err error) {
 // flushed and closed. It then syncs the containing directory so the rename is
 // durable. The caller must create the containing directory first.
 func Write(filename string, perm fs.FileMode, write func(io.Writer) error) (err error) {
+	return WriteContext(context.Background(), filename, perm, write)
+}
+
+// WriteContext is Write with a cancellation gate before replacement. If the
+// context ends while the temporary file is being prepared, the selected file
+// is left unchanged. Once rename starts, directory sync still completes so a
+// successful replacement is never reported without its durability step.
+func WriteContext(ctx context.Context, filename string, perm fs.FileMode, write func(io.Writer) error) (err error) {
 	defer func() {
 		outcome := "write_succeeded"
 		if err != nil {
@@ -93,6 +102,12 @@ func Write(filename string, perm fs.FileMode, write func(io.Writer) error) (err 
 		}
 		opsmetrics.RecordFilesystem(outcome)
 	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if filename == "" {
 		return errors.New("file path is empty")
 	}
@@ -125,13 +140,22 @@ func Write(filename string, perm fs.FileMode, write func(io.Writer) error) (err 
 	if err := write(tmp); err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
 	closed = true
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := os.Rename(tmpName, filename); err != nil {
 		return err
 	}

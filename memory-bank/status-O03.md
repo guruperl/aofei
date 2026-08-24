@@ -1,6 +1,6 @@
 # Status O03 - Job, Cache, And Filesystem Reliability
 
-State: `[!]` Blocked at bounded review iteration limit
+State: `[~]` In progress under authorized review extension (iterations 11-15)
 
 ## Goal
 
@@ -192,14 +192,16 @@ atomic generation publication with partial live writes.
     those memory-only generation paths stop without packing later entries after
     ownership cancellation.
 
-- Iteration 10 (2026-08-24): one P2 finding remains open; the bounded review
-  limit is reached, so O03 remains incomplete and downstream reconciliation
-  must not start without explicit user direction.
-  - P2 open: fresh-node bootstrap calls `receiver.install` after taking the
+- Iteration 10 (2026-08-24): one P2 finding reached the original bounded review
+  limit. On 2026-08-24 the user explicitly authorized at most five additional
+  O03 review iterations (11-15); downstream reconciliation still requires a
+  clean extended pass.
+  - P2 resolved before iteration 11: fresh-node bootstrap called
+    `receiver.install` after taking the
     renewable cache lease, but the full snapshot-write and pointer-commit loop
-    does not accept or check the lease-owned context. Ownership uncertainty
-    during a large or fsync-heavy install can therefore let the old owner keep
-    mutating the spread root after a successor acquires the lease, including a
-    later stale pointer commit. A continuation must make staging and commit
-    cancellation-aware, prove cancellation prevents subsequent files and the
-    pointer switch, then run a new explicitly authorized review cycle.
+    did not accept or check the lease-owned context. Bootstrap installation,
+    generation cleanup, and the atomic pointer replacement now carry that
+    context; atomic replacement checks cancellation before rename but completes
+    directory sync after any rename. Focused tests cancel after the first staged
+    snapshot and prove no later file or generation pointer is installed, while
+    a shared-writer test proves cancellation preserves the prior selected file.

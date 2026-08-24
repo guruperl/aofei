@@ -208,13 +208,19 @@ func Resolve(top string) (string, error) {
 }
 
 func Commit(top string, sequence uint64) error {
+	return CommitContext(context.Background(), top, sequence)
+}
+
+// CommitContext switches the selected generation only while the owning
+// operation remains valid.
+func CommitContext(ctx context.Context, top string, sequence uint64) error {
 	if sequence == 0 {
 		return errors.New("spread generation sequence is zero")
 	}
 	if err := atomicfile.EnsureDir(top, 0750); err != nil {
 		return err
 	}
-	return atomicfile.Write(filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
+	return atomicfile.WriteContext(ctx, filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
 		_, err := fmt.Fprintf(out, "%d\n", sequence)
 		return err
 	})
