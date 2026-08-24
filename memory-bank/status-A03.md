@@ -16,6 +16,8 @@ source while preserving auditable compatibility and hosted-payment safety.
 - S05's verified-principal and protected quality-billing boundaries remain
   authoritative. R02/R03 reporting contracts and O02 backup/restore govern
   migration evidence.
+- O03 owns renewable maintenance leases, durable file replacement, and
+  completeness-validated Redis/static generation publication.
 
 ## Tasks
 
@@ -79,3 +81,15 @@ source while preserving auditable compatibility and hosted-payment safety.
 - New provider/webhook resolution must not introduce a caller-selected URL or
   injected transport that bypasses S05 address, DNS-rebinding, TLS, redirect,
   and credential-forwarding policy.
+
+## Reconciliation From O03
+
+- Exact-money cache migration must publish versioned shadows through O03's
+  completeness-marker script. Missing, evicted, partially recreated, or mixed-
+  version shadows preserve the prior complete live generation; no compatibility
+  writer may reset or repopulate live RAdv/price families in place.
+- Migration, comparison, ledger, and retention commands honor the renewable
+  lease-owned context while database uniqueness/idempotency remains the durable
+  correctness boundary. Filesystem evidence uses the shared durable writer,
+  restricted modes, atomic replacement, and identifier-free fixed-cardinality
+  failure reporting.

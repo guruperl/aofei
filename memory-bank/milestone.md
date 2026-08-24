@@ -32,9 +32,9 @@ scale. D01 through A02 in the original sequence below, D04, and D05 are
 complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 is now complete. S06 repository
 hardening, managed Cloudflare widget, constrained Free-plan edge rule,
-production deployment, and live proof are also complete. P03 and S05 are
-complete; the remaining deep-review horizon resumes with O03, R03, and A03.
-I02 remains demand-gated and starts only when a named Android or iOS integration
+production deployment, and live proof are also complete. P03, S05, and O03 are
+complete; the remaining deep-review horizon is R03, then A03. I02 remains
+demand-gated and starts only when a named Android or iOS integration
 supplies supported OS/version and lifecycle requirements. Matching lane status
 files are the authoritative completion record; completed M-lane files retain
 earlier runtime history.
@@ -47,10 +47,9 @@ Delivery sequence:
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
 5. Follow-up review remediation: D04 callback/runtime history, D05
    auction/cap/hot-path fixes, S06 repository plus production activation, and
-   P03 direct-SSP authenticity and S05 runtime trust boundaries are complete;
-   the remaining sequence starts with O03
-   job/cache/filesystem reliability, R03 experiment/report integrity, then A03
-   exact monetary sources.
+   P03 direct-SSP authenticity, S05 runtime trust boundaries, and O03
+   job/cache/filesystem reliability are complete; the remaining sequence is R03
+   experiment/report integrity, then A03 exact monetary sources.
 6. Demand-gated mobile delivery: P03/S05 are complete, but I02 starts only when
    a named mobile integration supplies supported-platform and lifecycle needs.
 
@@ -95,7 +94,7 @@ acceptance criteria recorded in the corresponding status files.
 | A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
-| O03 | In progress | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
+| O03 | Completed | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
 
 Historical M-lane status index:
 

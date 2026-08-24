@@ -147,7 +147,7 @@ confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
-and quota-script work. D05, S06, P03, and S05 are now complete. P03 provides its
+and quota-script work. D05, S06, P03, S05, and O03 are now complete. P03 provides its
 threat contract, default-off versioned locator codec/runtime dual reader,
 default-off SDK/server authentication, independent browser/App enforcement,
 client-claim disposition, portal/cache integration, and repository rollout/

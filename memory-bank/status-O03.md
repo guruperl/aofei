@@ -1,6 +1,6 @@
 # Status O03 - Job, Cache, And Filesystem Reliability
 
-State: `[~]` In progress at authorized review iteration 16
+State: `[+]` Completed
 
 ## Goal
 
@@ -247,8 +247,9 @@ atomic generation publication with partial live writes.
   extension limit. On 2026-08-24 the user authorized at most five further O03
   review iterations (16-20); downstream reconciliation still requires a clean
   extended pass.
-  - P2 resolved before iteration 16: `swapRedisStaticCaches` checked shadow-key existence before `MULTI`, then
-    queues `RENAME` and `DEL` operations based on that stale observation. If an
+  - P2 resolved before iteration 16: `swapRedisStaticCaches` checked shadow-key
+    existence before `MULTI`, then queued `RENAME` and `DEL` operations based
+    on that stale observation. If an
     expected shadow disappears before `EXEC` (including under an allowed Redis
     eviction policy), its `RENAME` fails at execution time but Redis continues
     later queued operations, exposing a mixed live generation. A disposable
@@ -260,3 +261,10 @@ atomic generation publication with partial live writes.
     partially recreated shadows fail without changing live or obsolete keys;
     successful publication removes markers atomically so reader payloads remain
     unchanged.
+
+- Iteration 16 (2026-08-24): clean. The full milestone review found no P1,
+  P2, or higher-severity issue. Full Go tests, vet, staticcheck, the documented
+  race suite, miniredis failure tests, a disposable Redis 7 `SCRIPT FLUSH`
+  fallback proof, cache smoke, recovery drill, documentation/public-data
+  guards, and diff hygiene passed. The user-authorized 16-20 extension stopped
+  at the first clean pass.

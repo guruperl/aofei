@@ -69,3 +69,15 @@ bids, delivery, accounting, or settlement.
   add a preview, raw DOM sink, WebView renderer, or outbound URL fetch; doing so
   reopens S05's creative-consumer and special-address review before the new
   surface is implemented.
+
+## Reconciliation From O03
+
+- Experiment retention, reconciliation, and export jobs must run under the
+  renewable lease-owned context, stop at the last confirmed ownership window,
+  and retain database idempotency as their durable correctness boundary.
+  Fixed-cardinality process metrics and durable evidence cannot contain raw
+  subjects, event identifiers, salts, report filters, or account data.
+- Any generated analytical file uses the shared durable writer and restricted
+  directory/file modes. A future Redis/static analytical generation must use a
+  completeness-marked shadow plus validation-before-mutation publication; it
+  cannot reset or incrementally repopulate a live family.
