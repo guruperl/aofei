@@ -236,6 +236,11 @@ Notes:
   stages generation-tagged entries, verifies their count and SHA-256 manifest,
   then atomically replaces the current pointer; it retains the current and
   immediately previous generation.
+- The configured spread root must be a specific directory rather than `.`,
+  `/`, or a relative parent traversal. New/tightened directories use at most
+  `0750`; snapshot and pointer files use `0640`. Each file and containing
+  directory is synced around atomic replacement; no process-local flock is
+  used as a publication guarantee.
 - A reconnect gap or failed/incomplete commit leaves the prior generation
   selected. Duplicate messages are idempotent, and a lower overlapping
   sequence is ignored.
@@ -614,7 +619,7 @@ Invocation:
 
 ```bash
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
-  go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
+  go run ./cmd/maxmind -city=GeoLite2-City.mmdb
 ```
 
 Inputs:
@@ -631,8 +636,13 @@ Notes:
 
 - The command reads database country/state tables without loading the existing
   MaxMind runtime JSON first.
-- The `-city` value is recorded as `city_file`; the `.mmdb` payload remains an
-  external asset and is not copied into the repository.
+- The `-city` value (or `AOFEI_GEOLITE_CITY_FILE`) is recorded as `city_file`;
+  the `.mmdb` payload remains an external asset and is not copied into the
+  repository. Relative values resolve against the generated JSON directory;
+  use an explicit absolute value for an asset stored elsewhere.
+- The configured `ips` target rejects root/current-directory/parent-traversal
+  values. JSON replacement uses mode `0640` and syncs both the file and its
+  containing directory before success.
 - See [maxmind-runtime.md](maxmind-runtime.md) for asset and test details.
 
 ## Verification

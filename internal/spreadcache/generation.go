@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -209,39 +211,13 @@ func Commit(top string, sequence uint64) error {
 	if sequence == 0 {
 		return errors.New("spread generation sequence is zero")
 	}
-	if err := os.MkdirAll(top, 0750); err != nil {
+	if err := atomicfile.EnsureDir(top, 0750); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(top, ".aofei-current-*")
-	if err != nil {
+	return atomicfile.Write(filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
+		_, err := fmt.Fprintf(out, "%d\n", sequence)
 		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0640); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := fmt.Fprintf(tmp, "%d\n", sequence); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpName, filepath.Join(top, currentFile)); err != nil {
-		return err
-	}
-	dir, err := os.Open(top)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	})
 }
 
 func canonicalUint32(value string) bool {

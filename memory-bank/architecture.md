@@ -47,7 +47,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    `.aofei-generations/<sequence>/` and atomically replaces `.aofei-current`
    only after the entry count and SHA-256 manifest match. Missing reconnect
    messages, duplicates, and stale or overlapping producer sequences therefore
-   cannot delete or partially replace the current files.
+   cannot delete or partially replace the current files. Spread directories
+   are restricted to at most `0750`, files to `0640`, and the shared durable
+   writer syncs file data plus each containing-directory rename; the former
+   private-temp-file flock provided no exclusion and is removed.
 5. `../pzdesign/cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet
    admin routes, and serves DSP bid paths using the same MySQL/Redis/NATS
    config. `GET /healthz` reports process liveness and `GET /readyz` reports
@@ -412,8 +415,10 @@ The source/runtime boundary and populated-data rollout are specified in
   whitespace, and values shorter than 32 bytes without printing key material;
   deployment must pass it before an HTTP-node rollout.
 - `etc/maxmind.json` is the active MaxMind config reference.
-- `etc/maxmind.json` references an external GeoLite2 City `.mmdb` through
-  `city_file`, currently `/media/GeoLite2-City.mmdb`.
+- `etc/maxmind.json` references an external GeoLite2 City `.mmdb` through the
+  relative `city_file` value `GeoLite2-City.mmdb`, resolved against the JSON's
+  directory. Operators may configure an explicit absolute external path; no
+  host-specific absolute default is embedded in the command or checked-in JSON.
 - Real geodata payloads are external runtime/test assets. `etc/GeoLite2-City.mmdb`
   and `etc/qq-pz.dat` are ignored and must not be committed.
 - The retired root config directory is no longer active and should not be

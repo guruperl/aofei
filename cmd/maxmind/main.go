@@ -8,12 +8,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"path/filepath"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/guruperl/aofei/maxmind"
 )
 
@@ -29,7 +31,7 @@ var city string
 func init() {
 	flag.Usage = usage
 	flag.StringVar(&sConf, "s", os.Getenv("AOFEI"), "DSP Config")
-	flag.StringVar(&city, "city", "/media/GeoLite2-City.mmdb", "Maxmind city mmdb file")
+	flag.StringVar(&city, "city", os.Getenv("AOFEI_GEOLITE_CITY_FILE"), "MaxMind City MMDB path (or AOFEI_GEOLITE_CITY_FILE)")
 }
 
 func main() {
@@ -45,7 +47,13 @@ func run(ctx context.Context, configPath, cityPath string) error {
 		return errors.New("DSP config path is required; set AOFEI or pass -s")
 	}
 	if cityPath == "" {
-		return errors.New("city mmdb path is required; pass -city")
+		return errors.New("city mmdb path is required; pass -city or set AOFEI_GEOLITE_CITY_FILE")
+	}
+	if cityPath != strings.TrimSpace(cityPath) {
+		return errors.New("city mmdb path must not contain surrounding whitespace")
+	}
+	if err := maxmind.ValidateCityFilePath(cityPath); err != nil {
+		return err
 	}
 	c, err := dsp.NewConfig(configPath)
 	if err != nil {
@@ -143,36 +151,9 @@ FROM def_state`)
 }
 
 func writeIPSearchAtomic(filename string, ipSearch *maxmind.IPSearch) error {
-	dir := filepath.Dir(filename)
-	base := filepath.Base(filename)
-	fh, err := os.CreateTemp(dir, "."+base+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tmpName := fh.Name()
-	removeTmp := true
-	defer func() {
-		if removeTmp {
-			_ = os.Remove(tmpName)
-		}
-	}()
-
-	encoder := json.NewEncoder(fh)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(ipSearch); err != nil {
-		_ = fh.Close()
-		return err
-	}
-	if err := fh.Sync(); err != nil {
-		_ = fh.Close()
-		return err
-	}
-	if err := fh.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpName, filename); err != nil {
-		return err
-	}
-	removeTmp = false
-	return nil
+	return atomicfile.Write(filename, 0640, func(out io.Writer) error {
+		encoder := json.NewEncoder(out)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(ipSearch)
+	})
 }

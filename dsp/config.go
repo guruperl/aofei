@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -422,6 +423,7 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 	needNATS := false
 	needTracking := false
 	needSpread := false
+	needMaxMind := false
 	for _, mode := range modes {
 		switch mode {
 		case ConfigModeBid:
@@ -436,6 +438,9 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 		if mode == ConfigModeSpread {
 			needSpread = true
 		}
+		if mode == ConfigModeMaxMind {
+			needMaxMind = true
+		}
 	}
 	if needTracking && strings.TrimSpace(self.TrackingSecret) == "" {
 		return fmt.Errorf("tracking_secret is required")
@@ -446,8 +451,15 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 			return fmt.Errorf("nats_url is invalid")
 		}
 	}
-	if needSpread && strings.TrimSpace(self.Spread) == "" {
-		return fmt.Errorf("spread path is required")
+	if needSpread {
+		if err := validateMutablePath("spread", self.Spread); err != nil {
+			return err
+		}
+	}
+	if needMaxMind {
+		if err := validateMutablePath("ips", self.Ips); err != nil {
+			return err
+		}
 	}
 	if self.MiddlemanEnabled {
 		base := self.MiddlemanCallbackBaseURL
@@ -461,6 +473,26 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 		if strings.TrimSpace(self.TrackingSecret) == "" {
 			return fmt.Errorf("tracking_secret is required when middleman is enabled")
 		}
+	}
+	return nil
+}
+
+func validateMutablePath(name, value string) error {
+	if value == "" || strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s path is required", name)
+	}
+	if value != strings.TrimSpace(value) {
+		return fmt.Errorf("%s path must not contain surrounding whitespace", name)
+	}
+	if strings.IndexByte(value, 0) >= 0 {
+		return fmt.Errorf("%s path contains a NUL byte", name)
+	}
+	clean := filepath.Clean(value)
+	if clean == "." || clean == string(filepath.Separator) {
+		return fmt.Errorf("%s path %q is an unsafe mutable target", name, value)
+	}
+	if !filepath.IsAbs(clean) && (clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))) {
+		return fmt.Errorf("%s path %q escapes the working directory", name, value)
 	}
 	return nil
 }

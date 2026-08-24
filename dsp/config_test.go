@@ -382,6 +382,7 @@ func TestConfigValidateModes(t *testing.T) {
 		Redis:                       &Red{Network: "tcp", Addr: "127.0.0.1:6379"},
 		NatsURL:                     "nats://127.0.0.1:4222",
 		Spread:                      "/tmp/spread",
+		Ips:                         "/tmp/maxmind.json",
 		MiddlemanCallbackTTLSeconds: 86700,
 		MiddlemanCallbackTimeoutMS:  1000,
 		MiddlemanRouteCacheTTLMS:    5000,
@@ -411,6 +412,27 @@ func TestConfigValidateModes(t *testing.T) {
 	noSpread.Spread = ""
 	if err := noSpread.Validate(ConfigModeSpread); err == nil {
 		t.Fatal("expected empty spread path to fail spread mode")
+	}
+
+	for _, path := range []string{".", "..", "../spread", "/", " spread"} {
+		badSpread := *c
+		badSpread.Spread = path
+		if err := badSpread.Validate(ConfigModeSpread); err == nil {
+			t.Errorf("expected unsafe spread path %q to fail spread mode", path)
+		}
+	}
+
+	noMaxMind := *c
+	noMaxMind.Ips = ""
+	if err := noMaxMind.Validate(ConfigModeMaxMind); err == nil {
+		t.Fatal("expected empty ips path to fail maxmind mode")
+	}
+	for _, path := range []string{".", "..", "../maxmind.json", "/", "maxmind.json "} {
+		badMaxMind := *c
+		badMaxMind.Ips = path
+		if err := badMaxMind.Validate(ConfigModeMaxMind); err == nil {
+			t.Errorf("expected unsafe ips path %q to fail maxmind mode", path)
+		}
 	}
 
 	badLocalCacheAge := *c

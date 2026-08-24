@@ -46,6 +46,30 @@ func TestHandleSpreadMessageWritesSnapshot(t *testing.T) {
 	}
 }
 
+func TestWriteSnapshotUsesPrivateModes(t *testing.T) {
+	top := t.TempDir()
+	dir := filepath.Join(top, "creative")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "7")
+	if err := writeSnapshot(path, []byte("creative")); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]os.FileMode{dir: 0750, path: 0640} {
+		info, err := os.Stat(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got != want {
+			t.Errorf("%s mode = %04o, want %04o", name, got, want)
+		}
+	}
+}
+
 func TestSpreadSubscriptionReceivesNestedSubjects(t *testing.T) {
 	if spreadSubjectPattern != ">" {
 		t.Fatalf("spread subject pattern = %q, want tail wildcard", spreadSubjectPattern)

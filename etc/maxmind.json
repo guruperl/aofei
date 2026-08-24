@@ -1,5 +1,5 @@
 {
-  "city_file": "/media/GeoLite2-City.mmdb",
+  "city_file": "GeoLite2-City.mmdb",
   "country_map": {
     "ABW": 3577279,
     "AFG": 1149361,

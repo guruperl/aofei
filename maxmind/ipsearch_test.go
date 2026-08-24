@@ -44,6 +44,33 @@ func TestIpsearch(t *testing.T) {
 	}
 }
 
+func TestResolveCityFile(t *testing.T) {
+	config := filepath.Join(t.TempDir(), "maxmind.json")
+	got, err := resolveCityFile(config, "GeoLite2-City.mmdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(filepath.Dir(config), "GeoLite2-City.mmdb")
+	if got != want {
+		t.Fatalf("resolveCityFile() = %q, want %q", got, want)
+	}
+
+	absolute := filepath.Join(t.TempDir(), "GeoLite2-City.mmdb")
+	got, err = resolveCityFile(config, absolute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != absolute {
+		t.Fatalf("resolveCityFile() = %q, want %q", got, absolute)
+	}
+
+	for _, path := range []string{"", ".", "..", "../GeoLite2-City.mmdb", "/", " GeoLite2-City.mmdb"} {
+		if _, err := resolveCityFile(config, path); err == nil {
+			t.Errorf("resolveCityFile(%q) error = nil", path)
+		}
+	}
+}
+
 func cityMMDBTestPath(t *testing.T) string {
 	t.Helper()
 

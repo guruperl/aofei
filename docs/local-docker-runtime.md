@@ -298,6 +298,8 @@ atomically replaces `.aofei-current`; incomplete reconnect delivery leaves the
 prior generation selected. Duplicate and stale overlapping messages are
 idempotent or ignored. Deploy the generation-aware receiver before the matching
 publisher; legacy direct subjects are ignored after the first pointer exists.
+Spread directories are created or tightened to at most `0750`, files use
+`0640`, and durable replacement syncs each file and containing directory.
 
 On startup, `cmd/spread` also attempts to bootstrap static spread files from
 Redis. This is best effort: if Redis or MySQL is unavailable, the receiver still
@@ -336,10 +338,12 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/nats-client
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/spread
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/ledger -interval=10
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss win
-GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=GeoLite2-City.mmdb
 ```
 
 `cmd/maxmind` reads Docker MySQL country/state tables and atomically writes the
 configured `ips` JSON path, normally `etc/maxmind.json`. The external City
-`.mmdb` payload is referenced by path only; see
+`.mmdb` payload is referenced by path only. Relative `city_file` values resolve
+against the JSON directory; use an explicit absolute path when the asset lives
+elsewhere. See
 [maxmind-runtime.md](maxmind-runtime.md) for geodata asset and test details.

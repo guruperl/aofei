@@ -26,12 +26,12 @@ func TestRunWritesGeneratedConfig(t *testing.T) {
 	outputPath := filepath.Join(dir, "maxmind.json")
 	configPath := writeTestConfig(t, dir, outputPath, maxmindTestDriverName, "ok")
 
-	if err := run(context.Background(), configPath, "/media/GeoLite2-City.mmdb"); err != nil {
+	if err := run(context.Background(), configPath, "GeoLite2-City.mmdb"); err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
 
 	got := readIPSearchConfig(t, outputPath)
-	if got.CityFile != "/media/GeoLite2-City.mmdb" {
+	if got.CityFile != "GeoLite2-City.mmdb" {
 		t.Fatalf("CityFile = %q", got.CityFile)
 	}
 	if got.CountryMap["CAN"] != 6251999 {
@@ -44,8 +44,29 @@ func TestRunWritesGeneratedConfig(t *testing.T) {
 
 func TestRunReturnsConfigAndDatabaseErrors(t *testing.T) {
 	t.Run("missing config path", func(t *testing.T) {
-		err := run(context.Background(), "", "/media/GeoLite2-City.mmdb")
+		err := run(context.Background(), "", "GeoLite2-City.mmdb")
 		if err == nil || !strings.Contains(err.Error(), "DSP config path is required") {
+			t.Fatalf("run() error = %v", err)
+		}
+	})
+
+	t.Run("missing city path", func(t *testing.T) {
+		err := run(context.Background(), "unused", "")
+		if err == nil || !strings.Contains(err.Error(), "city mmdb path is required") {
+			t.Fatalf("run() error = %v", err)
+		}
+	})
+
+	t.Run("city path whitespace", func(t *testing.T) {
+		err := run(context.Background(), "unused", " GeoLite2-City.mmdb")
+		if err == nil || !strings.Contains(err.Error(), "surrounding whitespace") {
+			t.Fatalf("run() error = %v", err)
+		}
+	})
+
+	t.Run("city path escape", func(t *testing.T) {
+		err := run(context.Background(), "unused", "../GeoLite2-City.mmdb")
+		if err == nil || !strings.Contains(err.Error(), "escapes its config directory") {
 			t.Fatalf("run() error = %v", err)
 		}
 	})
@@ -53,7 +74,7 @@ func TestRunReturnsConfigAndDatabaseErrors(t *testing.T) {
 	t.Run("unknown database driver", func(t *testing.T) {
 		dir := t.TempDir()
 		configPath := writeTestConfig(t, dir, filepath.Join(dir, "maxmind.json"), "missing-driver", "unused")
-		err := run(context.Background(), configPath, "/media/GeoLite2-City.mmdb")
+		err := run(context.Background(), configPath, "GeoLite2-City.mmdb")
 		if err == nil || !strings.Contains(err.Error(), "open database") {
 			t.Fatalf("run() error = %v", err)
 		}
@@ -64,7 +85,7 @@ func TestBuildIPSearchReturnsQueryErrors(t *testing.T) {
 	t.Run("country query", func(t *testing.T) {
 		db := openTestDB(t, "country_error")
 		defer db.Close()
-		_, err := buildIPSearch(context.Background(), db, "/media/GeoLite2-City.mmdb")
+		_, err := buildIPSearch(context.Background(), db, "GeoLite2-City.mmdb")
 		if err == nil || !strings.Contains(err.Error(), "query def_country") {
 			t.Fatalf("buildIPSearch() error = %v", err)
 		}
@@ -73,7 +94,7 @@ func TestBuildIPSearchReturnsQueryErrors(t *testing.T) {
 	t.Run("state query", func(t *testing.T) {
 		db := openTestDB(t, "state_error")
 		defer db.Close()
-		_, err := buildIPSearch(context.Background(), db, "/media/GeoLite2-City.mmdb")
+		_, err := buildIPSearch(context.Background(), db, "GeoLite2-City.mmdb")
 		if err == nil || !strings.Contains(err.Error(), "query def_state") {
 			t.Fatalf("buildIPSearch() error = %v", err)
 		}
@@ -84,7 +105,7 @@ func TestWriteIPSearchAtomic(t *testing.T) {
 	dir := t.TempDir()
 	outputPath := filepath.Join(dir, "maxmind.json")
 	input := &maxmind.IPSearch{
-		CityFile:   "/media/GeoLite2-City.mmdb",
+		CityFile:   "GeoLite2-City.mmdb",
 		CountryMap: map[string]uint32{"CAN": 6251999},
 		StateMap: map[uint32]map[string]uint32{
 			6251999: map[string]uint32{"ON": 6093943},
@@ -105,6 +126,13 @@ func TestWriteIPSearchAtomic(t *testing.T) {
 	}
 	if len(matches) != 0 {
 		t.Fatalf("temporary files remain: %v", matches)
+	}
+	info, err := os.Stat(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0640 {
+		t.Fatalf("output mode = %04o, want 0640", got)
 	}
 }
 

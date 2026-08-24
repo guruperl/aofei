@@ -6,17 +6,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/guruperl/aofei/internal/cmdboot"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
@@ -82,7 +83,7 @@ func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Lo
 		logger = log.Default()
 	}
 	top := c.Spread
-	if err := os.MkdirAll(top, os.ModePerm); err != nil {
+	if err := atomicfile.EnsureDir(top, 0750); err != nil {
 		return err
 	}
 	if err := bootstrapSpreadFromRedis(ctx, c, top); err != nil {
@@ -193,7 +194,7 @@ func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
 		return err
 	}
 	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
-		if err := os.MkdirAll(filepath.Join(root, family), 0750); err != nil {
+		if err := atomicfile.EnsureDir(filepath.Join(root, family), 0750); err != nil {
 			return err
 		}
 	}
@@ -426,52 +427,13 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 
 func writeSnapshot(filename string, data []byte) error {
 	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	if err := atomicfile.EnsureDir(dir, 0750); err != nil {
 		return err
 	}
-
-	tmp, err := os.CreateTemp(dir, ".spread-*")
-	if err != nil {
+	return atomicfile.Write(filename, 0640, func(out io.Writer) error {
+		_, err := out.Write(data)
 		return err
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-
-	if err := syscall.Flock(int(tmp.Fd()), syscall.LOCK_EX); err != nil {
-		tmp.Close()
-		return err
-	}
-	defer func() {
-		if err := syscall.Flock(int(tmp.Fd()), syscall.LOCK_UN); err != nil && !errors.Is(err, os.ErrClosed) {
-			log.Println("Error releasing lock:", err)
-		}
-	}()
-
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-
-	if err := os.Rename(tmpName, filename); err != nil {
-		return err
-	}
-	return syncDir(dir)
-}
-
-func syncDir(dir string) error {
-	f, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return f.Sync()
+	})
 }
 
 func ignoredLogSubject(subject string) bool {

@@ -535,7 +535,7 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/traffic-quality -actio
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/mid-callback-retry -read -json
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss --bid=/bid/default win
-GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=/path/to/GeoLite2-City.mmdb
+GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=GeoLite2-City.mmdb
 ./scripts/aofei-recovery-drill.sh
 ./scripts/aofei-reporting-benchmark.sh
 ```
@@ -572,13 +572,19 @@ Generated log directories are `.local/logs/log_request/`,
 directories to `0750` and generated interval files to `0640`; ledger input logs
 should not be world-readable or group/world-writable. `cmd/maxmind` reads MySQL
 country/state tables and atomically writes the configured MaxMind JSON path,
-normally `etc/maxmind.json`.
+normally `etc/maxmind.json`. The shared local-file primitive writes mode `0640`,
+syncs the temporary file, renames it, and syncs the containing directory. Spread
+directories are created or tightened to at most `0750`; its snapshots and
+generation pointer also use the shared primitive. Current geodata readers load
+their files into Go-managed memory and retain neither mmap nor file handles.
 
 ## MaxMind Assets
 
-`etc/maxmind.json` is the active geodata config reference. Its `city_file`
-currently points to the external GeoLite2 City database at
-`/media/GeoLite2-City.mmdb`.
+`etc/maxmind.json` is the active geodata config reference. Its relative
+`city_file` points to `etc/GeoLite2-City.mmdb`; the loader resolves relative
+values against the JSON directory. `cmd/maxmind` has no environment-specific
+absolute default: pass `-city`, set `AOFEI_GEOLITE_CITY_FILE`, or configure an
+explicit production path.
 
 Ignored optional local assets:
 

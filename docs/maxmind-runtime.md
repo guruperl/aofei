@@ -9,7 +9,7 @@ file; generated local configs normally use an absolute path to it.
 | Path | Git status | Purpose |
 |---|---|---|
 | `etc/maxmind.json` | checked in | Runtime JSON with the City database path plus country/state ID maps. |
-| `/media/GeoLite2-City.mmdb` | external | Default City `.mmdb` source referenced by `city_file`. |
+| `GeoLite2-City.mmdb` (`city_file`) | checked-in reference | Relative value resolved against the runtime JSON directory. |
 | `external/GeoLite2-City.mmdb` | external/local | Optional downloaded City `.mmdb` used by asset-backed tests when present. |
 | `etc/GeoLite2-City.mmdb` | ignored | Optional local test copy for `maxmind` package lookup tests. |
 | `etc/qq-pz.dat` | ignored | Optional legacy local test data for `maxmind/ipsearch`. |
@@ -26,11 +26,19 @@ MaxMind runtime JSON before writing the replacement.
 ./scripts/aofei-local.sh reset-sample
 
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" \
-  go run ./cmd/maxmind -city=/media/GeoLite2-City.mmdb
+  go run ./cmd/maxmind -city=GeoLite2-City.mmdb
 ```
 
-Use `-city` to set the external City `.mmdb` path written into
-`city_file`. The command does not copy or validate the `.mmdb` payload.
+Use `-city` to set the external City `.mmdb` path written into `city_file`, or
+set `AOFEI_GEOLITE_CITY_FILE`. A relative value is resolved against the
+generated JSON's directory when the runtime loads it; production may instead
+supply an explicit absolute path. There is no host-specific default. The
+command does not copy or open the `.mmdb` payload.
+
+The JSON replacement and its parent-directory rename are both synced before
+the generator reports success, and the new JSON is mode `0640`. The supported
+City reader loads the database into Go-managed memory; it does not retain an
+open file or mmap handle.
 
 ## Tests
 
@@ -51,7 +59,7 @@ GOWORK=off go test ./maxmind ./maxmind/ipsearch
 
 1. `AOFEI_GEOLITE_CITY_FILE`
 2. `external/GeoLite2-City.mmdb`
-3. `etc/GeoLite2-City.mmdb`
+3. `etc/GeoLite2-City.mmdb` (the checked-in relative runtime reference)
 
 The test creates a temporary runtime JSON wrapper around the `.mmdb`, matching
 the `LoadIPData` contract.
