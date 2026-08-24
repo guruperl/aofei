@@ -208,6 +208,14 @@ func callbackRedirectPolicy(resolver Resolver, base func(*http.Request, []*http.
 		if err := ValidateCallbackURLWithResolver(req.Context(), req.URL.String(), resolver); err != nil {
 			return err
 		}
+		if len(via) != 0 {
+			previous := via[len(via)-1]
+			if previous != nil && previous.URL != nil &&
+				strings.EqualFold(previous.URL.Scheme, "https") &&
+				!strings.EqualFold(req.URL.Scheme, "https") {
+				return fmt.Errorf("callback redirect cannot downgrade HTTPS")
+			}
+		}
 		for _, previous := range via {
 			if previous == nil || previous.URL == nil || !sameCallbackAuthority(req.URL, previous.URL) {
 				stripRedirectCredentials(req)
@@ -276,6 +284,9 @@ func isAllowedCallbackIP(ip net.IP) bool {
 	if !addr.IsValid() || !addr.IsGlobalUnicast() {
 		return false
 	}
+	if prefixContains(callbackPublicExceptions, addr) {
+		return true
+	}
 	if addr.Is4() {
 		return !prefixContains(callbackDeniedIPv4, addr)
 	}
@@ -290,6 +301,20 @@ func isAllowedCallbackIP(ip net.IP) bool {
 
 var (
 	callbackPublicIPv6 = netip.MustParsePrefix("2000::/3")
+	// These more-specific entries are explicitly globally reachable in the
+	// IANA special-purpose registries even though they sit inside a denied
+	// protocol-assignment parent.
+	callbackPublicExceptions = []netip.Prefix{
+		netip.MustParsePrefix("192.0.0.9/32"),
+		netip.MustParsePrefix("192.0.0.10/32"),
+		netip.MustParsePrefix("2001:1::1/128"),
+		netip.MustParsePrefix("2001:1::2/128"),
+		netip.MustParsePrefix("2001:1::3/128"),
+		netip.MustParsePrefix("2001:3::/32"),
+		netip.MustParsePrefix("2001:4:112::/48"),
+		netip.MustParsePrefix("2001:20::/28"),
+		netip.MustParsePrefix("2001:30::/28"),
+	}
 	callbackDeniedIPv4 = []netip.Prefix{
 		netip.MustParsePrefix("0.0.0.0/8"),     // current network / unspecified
 		netip.MustParsePrefix("10.0.0.0/8"),    // private use
@@ -308,10 +333,7 @@ var (
 		netip.MustParsePrefix("240.0.0.0/4"),
 	}
 	callbackDeniedIPv6 = []netip.Prefix{
-		netip.MustParsePrefix("2001::/32"),    // Teredo
-		netip.MustParsePrefix("2001:2::/48"),  // benchmarking
-		netip.MustParsePrefix("2001:10::/28"), // deprecated ORCHID
-		netip.MustParsePrefix("2001:20::/28"), // ORCHIDv2
+		netip.MustParsePrefix("2001::/23"), // IETF protocol assignments
 		netip.MustParsePrefix("2001:db8::/32"),
 		netip.MustParsePrefix("2002::/16"), // 6to4
 		netip.MustParsePrefix("3fff::/20"), // documentation

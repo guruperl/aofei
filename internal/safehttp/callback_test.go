@@ -83,7 +83,9 @@ func TestAllowedCallbackIPUsesReviewedSpecialPurposePolicy(t *testing.T) {
 		{"127.0.0.1", false},
 		{"169.254.169.254", false},
 		{"172.31.255.255", false},
-		{"192.0.0.9", false},
+		{"192.0.0.8", false},
+		{"192.0.0.9", true},
+		{"192.0.0.10", true},
 		{"192.0.2.1", false},
 		{"192.88.99.2", false},
 		{"192.168.1.1", false},
@@ -99,9 +101,16 @@ func TestAllowedCallbackIPUsesReviewedSpecialPurposePolicy(t *testing.T) {
 		{"64:ff9b::c000:201", false},
 		{"100::1", false},
 		{"2001::1", false},
+		{"2001:100::1", false},
 		{"2001:2::1", false},
 		{"2001:10::1", false},
-		{"2001:20::1", false},
+		{"2001:1::1", true},
+		{"2001:1::2", true},
+		{"2001:1::3", true},
+		{"2001:3::1", true},
+		{"2001:4:112::1", true},
+		{"2001:20::1", true},
+		{"2001:30::1", true},
 		{"2001:db8::1", false},
 		{"2002:c000:0201::1", false},
 		{"3fff::1", false},
@@ -300,6 +309,28 @@ func TestCallbackClientReappliesPolicyAfterInjectedRedirectHook(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("transport calls = %d, want injected hook stopped before second hop", calls)
+	}
+}
+
+func TestCallbackClientRejectsHTTPSDowngradeBeforeForwardingBody(t *testing.T) {
+	calls := 0
+	client := NewCallbackClient(&http.Client{Transport: memoryRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		if calls != 1 {
+			t.Fatal("HTTPS downgrade reached a second transport call")
+		}
+		return callbackTestResponse(req, http.StatusTemporaryRedirect, "http://8.8.8.8/plaintext"), nil
+	})})
+	req, err := http.NewRequest(http.MethodPost, "https://8.8.8.8/bid", strings.NewReader(`{"id":"sensitive-auction"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Do(req)
+	if err == nil || !strings.Contains(err.Error(), "downgrade HTTPS") {
+		t.Fatalf("HTTPS downgrade error = %v, want rejection", err)
+	}
+	if calls != 1 {
+		t.Fatalf("transport calls = %d, want only the HTTPS request", calls)
 	}
 }
 
