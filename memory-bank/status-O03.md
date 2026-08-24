@@ -96,3 +96,11 @@ atomic generation publication with partial live writes.
   - P3 resolved: the legacy `.dat` exporter now records every `/8` crossed by
     an ordered IP range and extends each prefix's bounded index interval. A
     round-trip fixture proves lookups on both sides of an octet boundary.
+
+- Iteration 2 (2026-08-24): two P2 findings remain open.
+  - P2: the lease maintainer forces its first renewal delay to at least 10 ms;
+    leases shorter than that can expire in Redis before the work context is
+    canceled.
+  - P2: a parseable `.aofei-current` pointer is treated as committed without
+    verifying that its generation directory exists, so a recoverable missing
+    generation incorrectly suppresses fresh-node bootstrap.
