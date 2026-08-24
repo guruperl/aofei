@@ -517,6 +517,9 @@ Outputs:
 - Loopback, private, link-local, unspecified, multicast, and DNS-rebinding
   callback targets are rejected before forwarding.
 - Retry rows marked `Succeeded`, `Retrying`, or `Abandoned`.
+- Retry-row `last_error` uses only a closed forward-outcome vocabulary. Raw
+  URL-validation, DNS, dial, redirect, response, and injected-client errors are
+  not persisted; the numeric HTTP response remains in `last_http_status`.
 - One summary line with `due`, `stale_processing`, `selected`, `forwarded`,
   `succeeded`, `retrying`, `abandoned`, and `state_errors` counts. The summary
   is written even when a post-forward state transition fails and the command

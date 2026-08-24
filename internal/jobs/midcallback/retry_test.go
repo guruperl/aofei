@@ -29,6 +29,16 @@ func (t safeRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 func (safeRetryRoundTripper) SafeHTTPNonNetworkTransport() {}
 
+type failingSafeRetryRoundTripper struct {
+	err error
+}
+
+func (t failingSafeRetryRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, t.err
+}
+
+func (failingSafeRetryRoundTripper) SafeHTTPNonNetworkTransport() {}
+
 func TestRetryableForward(t *testing.T) {
 	tests := []struct {
 		status string
@@ -70,6 +80,63 @@ func TestForwardRejectsPrivateTargetBeforeInjectedClient(t *testing.T) {
 	}
 	if calls != 0 {
 		t.Fatalf("injected client calls = %d, want zero", calls)
+	}
+}
+
+func TestStoredForwardEvidenceUsesClosedVocabulary(t *testing.T) {
+	tests := map[string]string{
+		"ok":                              "",
+		"invalid_url":                     "callback URL rejected",
+		"request_error":                   "callback request rejected",
+		"error":                           "callback request failed",
+		"http_error":                      "callback HTTP rejected",
+		"https://secret.example/callback": "callback outcome unavailable",
+	}
+	for outcome, want := range tests {
+		if got := storedForwardEvidence(outcome); got != want {
+			t.Fatalf("storedForwardEvidence(%q) = %q, want %q", outcome, got, want)
+		}
+	}
+}
+
+func TestRunPersistsFixedForwardEvidence(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*FOR UPDATE`).
+		WithArgs(5, now, now.Add(-10*time.Minute), 10).
+		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
+			AddRow(uint64(75), "secret-token", "win", safeRetryOrigin+"/credential", 0))
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
+		WithArgs(now, uint64(75)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Retrying'.*last_error=\?.*WHERE retry_id=\? AND status='Processing'`).
+		WithArgs(1, now.Add(time.Minute), nil, "callback request failed", uint64(75)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	result, err := Run(context.Background(), db, Options{
+		Limit:       10,
+		MaxAttempts: 5,
+		Timeout:     time.Second,
+		Now:         func() time.Time { return now },
+		Client: &http.Client{Transport: failingSafeRetryRoundTripper{
+			err: errors.New("dial secret.example at 203.0.113.75 with credential"),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Selected != 1 || result.Forwarded != 1 || result.Retrying != 1 {
+		t.Fatalf("result = %#v, want one forwarded retry", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 

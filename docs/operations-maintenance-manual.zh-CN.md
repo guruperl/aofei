@@ -514,7 +514,7 @@ AOFEI=/etc/aofei/aofei.json \
 
 稳定字段为 `due`、`stale_processing`、`selected`、`forwarded`、`succeeded`、`retrying`、`abandoned` 和 `state_errors`。即使转发后的数据库状态更新失败，命令也会先输出摘要再以非零状态退出。`state_errors` 一旦非零就应立即告警；持续非零的 `stale_processing` 或增长快于处理速度的 `due` 也需要告警。
 
-只对网络错误、HTTP 429 和 5xx 等可重试的 win/loss/bill 下游转发失败入队。非法/缺失 URL、重复通知和除 429 外的 4xx 不入队。重试任务会拒绝环回、私网、链路本地、未指定、多播和 DNS 重绑定目标，并始终保留受控代理/TLS、重定向凭据剥离和响应读取上限。
+只对网络错误、HTTP 429 和 5xx 等可重试的 win/loss/bill 下游转发失败入队。非法/缺失 URL、重复通知和除 429 外的 4xx 不入队。重试任务会拒绝环回、私网、链路本地、未指定、多播和 DNS 重绑定目标，并始终保留受控代理/TLS、重定向凭据剥离和响应读取上限。重试行的 `last_error` 只保存封闭集合中的结果标签，不保存原始 URL 校验、DNS、拨号、重定向或响应细节；HTTP 状态码保存在 `last_http_status`。
 
 `forwarded=1 state_errors=1` 表示下游请求已发生，但单行 `Processing` 状态转换没有得到持久确认。这是至少一次投递的不确定状态：记录可能稍后以 stale `Processing` 被再次发送，下游必须按回调身份幂等。立即暂停重复定时执行并修复 MySQL；只保留固定摘要和依赖日志，不能把 URL、token 或载荷复制到工单，也不能仅凭本地推断手工改成 `Succeeded`。依赖恢复后先用只读 JSON 确认 stale 记录，再恢复一个单例任务并与下游的幂等记录核对可能的重复。
 

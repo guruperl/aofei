@@ -809,7 +809,9 @@ MySQL, assume the partner may already have received the event, and never infer
 or manually write `Succeeded` without independent partner acknowledgement.
 After the stale claim is visible read-only, resume one singleton and reconcile
 any idempotent resend. Do not retain URLs/tokens as evidence or weaken the
-guarded callback transport during recovery.
+guarded callback transport during recovery. Retry-row `last_error` is likewise
+a closed outcome label, never raw URL-validation, DNS, dial, redirect, or
+response detail; use `last_http_status` for the bounded HTTP status.
 Also alert on sustained `aofei_action_touch_errors_total`, action signature or
 dependency rejection growth, and nonzero exits from the singleton action
 reconcile/prune timers. Action failures remain separate from CPM ledger and

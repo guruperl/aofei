@@ -23,22 +23,22 @@ const (
 )
 
 type Failure struct {
-	Token         string
-	Source        string
-	CallbackURL   string
-	BidderID      uint32
-	GroupID       uint32
-	RouteBidderID uint32
-	TargetID      uint32
-	AuctionID     string
-	ImpID         string
-	AuctionBidID  string
-	ChargePrice   float64
-	PayPrice      float64
-	Currency      string
-	HTTPStatus    int
-	LastError     string
-	NextAttemptAt time.Time
+	Token          string
+	Source         string
+	CallbackURL    string
+	BidderID       uint32
+	GroupID        uint32
+	RouteBidderID  uint32
+	TargetID       uint32
+	AuctionID      string
+	ImpID          string
+	AuctionBidID   string
+	ChargePrice    float64
+	PayPrice       float64
+	Currency       string
+	HTTPStatus     int
+	ForwardOutcome string
+	NextAttemptAt  time.Time
 }
 
 type Row struct {
@@ -136,7 +136,7 @@ ON DUPLICATE KEY UPDATE
 		failure.Token, failure.Source, failure.CallbackURL, failure.BidderID, failure.GroupID,
 		failure.RouteBidderID, failure.TargetID, failure.AuctionID, failure.ImpID,
 		failure.AuctionBidID, failure.ChargePrice, failure.PayPrice, failure.Currency,
-		failure.NextAttemptAt, nullableHTTPStatus(failure.HTTPStatus), nullableError(failure.LastError))
+		failure.NextAttemptAt, nullableHTTPStatus(failure.HTTPStatus), nullableError(storedForwardEvidence(failure.ForwardOutcome)))
 	return err
 }
 
@@ -217,6 +217,27 @@ func normalizeForwardOutcome(outcome string) string {
 		return outcome
 	default:
 		return "other"
+	}
+}
+
+// storedForwardEvidence deliberately maps the internal forward disposition to
+// a closed vocabulary. Guarded URL and transport errors can contain callback
+// hosts, resolved addresses, redirect targets, or dependency detail and must
+// never be copied into durable retry/recovery evidence.
+func storedForwardEvidence(outcome string) string {
+	switch normalizeForwardOutcome(outcome) {
+	case "ok":
+		return ""
+	case "invalid_url":
+		return "callback URL rejected"
+	case "request_error":
+		return "callback request rejected"
+	case "error":
+		return "callback request failed"
+	case "http_error":
+		return "callback HTTP rejected"
+	default:
+		return "callback outcome unavailable"
 	}
 }
 
@@ -378,23 +399,23 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 		return "invalid_url", 0, "invalid callback URL", false
 	}
 	if err := safehttp.ValidateCallbackURL(ctx, raw); err != nil {
-		return "invalid_url", 0, err.Error(), false
+		return "invalid_url", 0, storedForwardEvidence("invalid_url"), false
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, raw, nil)
 	if err != nil {
-		return "request_error", 0, err.Error(), false
+		return "request_error", 0, storedForwardEvidence("request_error"), false
 	}
 	client := safehttp.NewCallbackClient(opts.Client)
 	resp, err := client.Do(req)
 	if err != nil {
-		return "error", 0, err.Error(), true
+		return "error", 0, storedForwardEvidence("error"), true
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "http_error", resp.StatusCode, resp.Status, true
+		return "http_error", resp.StatusCode, storedForwardEvidence("http_error"), true
 	}
 	return "ok", resp.StatusCode, "", true
 }
