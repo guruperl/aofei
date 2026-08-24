@@ -62,12 +62,15 @@ The constrained edge profile for the four paths is:
 | Methods | All methods; Free cannot select only `POST` |
 | Characteristic | Client IP |
 | Threshold | 10 requests per 10 seconds |
-| Action | Managed Challenge |
+| Action | Block for 10 seconds |
 
 This profile absorbs rapid bursts without bringing DSP endpoints into the
 rule. It is deliberately high enough that ordinary page loads should not
-trigger a challenge, but users behind shared NAT may still be challenged when
-their aggregate traffic crosses the threshold.
+trigger the rule, but users behind shared NAT may still be blocked for 10
+seconds when their aggregate traffic crosses the threshold. Cloudflare Free is
+not entitled to Managed Challenge for rate-limiting rules; Cloudflare's
+[sensitive-form guidance](https://developers.cloudflare.com/use-cases/solutions/protect-sensitive-forms-fraud-abuse/)
+directs Free zones to use Block.
 
 The profile is not equivalent to a POST-only 10-request/10-minute rule. Do not
 claim that Cloudflare enforces the application's sustained quota while the zone
@@ -77,7 +80,7 @@ uses the Free plan.
 
 The production boundary remains layered:
 
-1. Cloudflare applies the path-scoped 10-second burst challenge.
+1. Cloudflare applies the path-scoped 10-second burst block.
 2. Turnstile verifies the exact registration or recovery action and hostname
    before expensive or mutating work.
 3. The application Redis script enforces the authoritative pseudonymous IP,
