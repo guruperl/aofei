@@ -356,14 +356,8 @@ func DatabaseToDat(db *sql.DB, outfile string) error {
 		ids := Geo{continentID, countryID, stateID, dmaID, cityID, ispID, uint32(zip32), lat64, lon64}
 		ind = append(ind, &ipIndex{ipStartNum, ipEndNum, uint32(total), length, ids, clean})
 
-		prefix := uint32(netip.MustParseAddr(ipStart).As4()[0])
 		index := uint32(len(ind) - 1)
-		if existing, ok := pre[prefix]; ok {
-			existing.EndIndex = index
-		} else {
-			keys = append(keys, prefix)
-			pre[prefix] = &prefixIndex{index, index}
-		}
+		addPrefixRange(&keys, pre, ipStartNum, ipEndNum, index)
 		total += uint64(length)
 	}
 	if err := rows.Err(); err != nil {
@@ -379,6 +373,19 @@ func DatabaseToDat(db *sql.DB, outfile string) error {
 	return atomicfile.Write(outfile, 0640, func(out io.Writer) error {
 		return writeDat(out, ind, keys, pre, uint32(total))
 	})
+}
+
+func addPrefixRange(keys *[]uint32, prefixes map[uint32]*prefixIndex, startIP, endIP, index uint32) {
+	startPrefix := startIP >> 24
+	endPrefix := endIP >> 24
+	for prefix := startPrefix; prefix <= endPrefix; prefix++ {
+		if existing, ok := prefixes[prefix]; ok {
+			existing.EndIndex = index
+		} else {
+			*keys = append(*keys, prefix)
+			prefixes[prefix] = &prefixIndex{StartIndex: index, EndIndex: index}
+		}
+	}
 }
 
 func writeDat(out io.Writer, indexes []*ipIndex, keys []uint32, prefixes map[uint32]*prefixIndex, firstIndexOffset uint32) error {

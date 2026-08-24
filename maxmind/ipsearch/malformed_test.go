@@ -39,6 +39,40 @@ func TestParseIPDataValidatesAndFindsFirstIndex(t *testing.T) {
 	}
 }
 
+func TestDatPrefixIndexCoversCrossOctetRanges(t *testing.T) {
+	start := mustIPLong(t, "1.255.255.0")
+	end := mustIPLong(t, "2.0.0.255")
+	location := []byte("continent|country|state|metro|city|zip|isp")
+	index := &ipIndex{
+		StartIP: start, EndIP: end, LocalOffset: datHeaderSize,
+		LocalLength: datGeoSize + uint32(len(location)), LocalString: location,
+	}
+	keys := make([]uint32, 0, 2)
+	prefixes := make(map[uint32]*prefixIndex)
+	addPrefixRange(&keys, prefixes, start, end, 0)
+	if len(keys) != 2 || keys[0] != 1 || keys[1] != 2 {
+		t.Fatalf("prefix keys = %v, want [1 2]", keys)
+	}
+	firstOffset := datHeaderSize + index.LocalLength
+	var out bytes.Buffer
+	if err := writeDat(&out, []*ipIndex{index}, keys, prefixes, firstOffset); err != nil {
+		t.Fatal(err)
+	}
+	search, err := parseIPData(out.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ip := range []string{"1.255.255.1", "2.0.0.1"} {
+		got, err := search.Get(ip)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != string(location) {
+			t.Fatalf("Get(%s) = %q, want cross-prefix location", ip, got)
+		}
+	}
+}
+
 func TestParseIPDataRejectsMalformedOffsets(t *testing.T) {
 	valid := validDatFixture(t)
 	firstOffset := binary.LittleEndian.Uint32(valid[0:4])
