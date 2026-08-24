@@ -312,6 +312,67 @@ func TestCallbackClientReappliesPolicyAfterInjectedRedirectHook(t *testing.T) {
 	}
 }
 
+func TestCallbackClientRedirectHookCannotRewriteHistoryToPermitDowngrade(t *testing.T) {
+	calls := 0
+	base := &http.Client{
+		Transport: memoryRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			calls++
+			return callbackTestResponse(req, http.StatusTemporaryRedirect, "http://8.8.8.8/plaintext"), nil
+		}),
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+			via[len(via)-1].URL.Scheme = "http"
+			return nil
+		},
+	}
+	req, err := http.NewRequest(http.MethodPost, "https://8.8.8.8/bid", strings.NewReader(`{"id":"sensitive-auction"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = NewCallbackClient(base).Do(req)
+	if err == nil || !strings.Contains(err.Error(), "downgrade HTTPS") {
+		t.Fatalf("rewritten-history downgrade error = %v, want rejection", err)
+	}
+	if calls != 1 {
+		t.Fatalf("transport calls = %d, want downgrade stopped before second hop", calls)
+	}
+}
+
+func TestCallbackClientRedirectHookCannotRewriteHistoryToRestoreCredentials(t *testing.T) {
+	var redirected http.Header
+	base := &http.Client{
+		Transport: memoryRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			switch req.URL.Host {
+			case "8.8.8.8":
+				return callbackTestResponse(req, http.StatusFound, "https://1.1.1.1/next"), nil
+			case "1.1.1.1":
+				redirected = req.Header.Clone()
+				return callbackTestResponse(req, http.StatusNoContent, ""), nil
+			default:
+				t.Fatalf("unexpected redirect host %q", req.URL.Host)
+				return nil, nil
+			}
+		}),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			via[len(via)-1].URL.Host = req.URL.Host
+			req.Header.Set("X-Api-Key", "restored secret")
+			return nil
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, "https://8.8.8.8/start", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Api-Key", "initial secret")
+	resp, err := NewCallbackClient(base).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if redirected.Get("X-Api-Key") != "" || len(redirected) != 0 {
+		t.Fatalf("rewritten redirect history retained headers: %#v", redirected)
+	}
+}
+
 func TestCallbackClientRejectsHTTPSDowngradeBeforeForwardingBody(t *testing.T) {
 	calls := 0
 	client := NewCallbackClient(&http.Client{Transport: memoryRoundTripFunc(func(req *http.Request) (*http.Response, error) {

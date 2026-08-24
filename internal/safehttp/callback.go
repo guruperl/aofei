@@ -198,32 +198,56 @@ func callbackRedirectPolicy(resolver Resolver, base func(*http.Request, []*http.
 		if req == nil || req.URL == nil {
 			return fmt.Errorf("redirect URL is required")
 		}
+		history := snapshotRedirectURLs(via)
+		// Validate and strip before the injected hook, then repeat afterward.
+		// The hook receives mutable request pointers, so the mandatory policy
+		// must compare against an immutable copy of the original redirect chain.
+		if err := enforceCallbackRedirect(req, history, resolver); err != nil {
+			return err
+		}
 		if base != nil {
 			if err := base(req, via); err != nil {
 				return err
 			}
 		}
-		// Run the mandatory policy after the injected hook so it cannot mutate
-		// the hop or restore credentials after validation.
-		if err := ValidateCallbackURLWithResolver(req.Context(), req.URL.String(), resolver); err != nil {
-			return err
-		}
-		if len(via) != 0 {
-			previous := via[len(via)-1]
-			if previous != nil && previous.URL != nil &&
-				strings.EqualFold(previous.URL.Scheme, "https") &&
-				!strings.EqualFold(req.URL.Scheme, "https") {
-				return fmt.Errorf("callback redirect cannot downgrade HTTPS")
-			}
-		}
-		for _, previous := range via {
-			if previous == nil || previous.URL == nil || !sameCallbackAuthority(req.URL, previous.URL) {
-				stripRedirectCredentials(req)
-				break
-			}
-		}
-		return nil
+		return enforceCallbackRedirect(req, history, resolver)
 	}
+}
+
+func snapshotRedirectURLs(via []*http.Request) []*url.URL {
+	history := make([]*url.URL, len(via))
+	for i, previous := range via {
+		if previous == nil || previous.URL == nil {
+			continue
+		}
+		cloned := *previous.URL
+		history[i] = &cloned
+	}
+	return history
+}
+
+func enforceCallbackRedirect(req *http.Request, history []*url.URL, resolver Resolver) error {
+	if req == nil || req.URL == nil {
+		return fmt.Errorf("redirect URL is required")
+	}
+	if err := ValidateCallbackURLWithResolver(req.Context(), req.URL.String(), resolver); err != nil {
+		return err
+	}
+	if len(history) != 0 {
+		previous := history[len(history)-1]
+		if previous != nil &&
+			strings.EqualFold(previous.Scheme, "https") &&
+			!strings.EqualFold(req.URL.Scheme, "https") {
+			return fmt.Errorf("callback redirect cannot downgrade HTTPS")
+		}
+	}
+	for _, previous := range history {
+		if previous == nil || !sameCallbackAuthority(req.URL, previous) {
+			stripRedirectCredentials(req)
+			break
+		}
+	}
+	return nil
 }
 
 func sameCallbackAuthority(a, b *url.URL) bool {
