@@ -258,10 +258,11 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 	if err := c.Validate(ConfigModeBid); err != nil {
 		return nil, err
 	}
-	directTokens, err := newDirectSSPTokenCodec(c.DirectSSPTokens)
+	directTokenIssuer, err := NewDirectSSPTokenIssuer(c)
 	if err != nil {
 		return nil, err
 	}
+	directTokens := directTokenIssuer.codec
 	options := applyControllerOptions(opts...)
 	redis := options.redis
 	db := options.db

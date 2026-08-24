@@ -40,18 +40,21 @@ media/size/floor, browser provenance, privacy, admission, or server-owned
 seller-chain policy. Pre-auction inventory/App failures return generic `400`,
 browser-policy failures generic `403`, and publisher-cache dependency failures
 generic retryable `503`, before cookie, auction, middleman, or audit side
-effects. Publisher pages and the cache readiness manifest still emit v1 until
-the later integration row. This document therefore describes the currently
-generated v1 contract plus the opt-in authenticated SDK contract; the P03
-contract governs the staged security boundary.
+effects. Publisher pages and the cache readiness manifest now use the same
+configured issuer as `/pz`: the disabled compatibility state emits v1, and an
+enabled deployment emits current-epoch v2 site/slot locators. App samples
+include the four request-signing header placeholders but never embed a private
+signing value. The P03 contract governs the staged security boundary.
 
-## V1 Browser Contract
+## Browser Contract And Locator Versions
 
 Browser tags post JSON to `/pz` and receive a JSON array of HTML strings. The
 array order matches the input `adUnits` order. A later no-fill response returns
 an empty string at the matching array position.
 
-Publisher slot pages generate a complete HTML sample per slot:
+Publisher slot pages generate a complete HTML sample per slot. The following
+shows the checked-in v1-compatible output; an enabled v2 deployment replaces
+both locator values with `pz2` values while preserving the JSON shape:
 
 ```html
 <!doctype html>
@@ -172,6 +175,10 @@ API examples on publisher slot pages use the SDK JSON response shape:
 
 ```text
 POST https://aofei.example/pz
+X-W8M-PZ-Credential: w8m_pz_v1_<public-id>
+X-W8M-PZ-Timestamp: <canonical Unix seconds>
+X-W8M-PZ-Nonce: <canonical unpadded base64url, 16-32 bytes>
+X-W8M-PZ-Signature: <canonical unpadded base64url Ed25519 signature>
 
 {
   "platform": "sdk",
@@ -479,8 +486,11 @@ partner credentials that cannot belong to publisher accounts.
 
 The existing `pub` role remains the publisher account boundary. Slot topics
 pages expose the server-owned USD CPM floor and preserve the parent site type.
-Web inventory produces a browser snippet only; App inventory produces an
-SDK/API sample only. The pages keep copy/download affordances.
+They resolve an active site by the authenticated publisher/site tuple before
+minting any locator, so an unowned or inactive site fails before generation or
+download. Web inventory produces a browser snippet only; App inventory
+produces an SDK/API sample only. The pages show the active token/authentication
+mode and keep copy/download affordances.
 Publisher forms also expose controlled site/slot taxonomy and proposed public
 seller metadata. Operator approval is required before seller identity reaches
 an external request, and publisher edits revoke that approval.

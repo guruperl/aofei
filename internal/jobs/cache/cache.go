@@ -168,9 +168,9 @@ func Read(ctx context.Context, out io.Writer, c *dsp.Config, redis radix.Client,
 }
 
 // ValidatePublisherInventory reads the current database inventory and emits a
-// deterministic, credential-free P01 activation manifest without mutating a
-// cache or database row.
-func ValidatePublisherInventory(out io.Writer, db *sql.DB) error {
+// deterministic, secret-free activation manifest without mutating a cache or
+// database row. Public locators come from the same configured issuer as /pz.
+func ValidatePublisherInventory(out io.Writer, db *sql.DB, issuer *dsp.DirectSSPTokenIssuer) error {
 	if db == nil {
 		return fmt.Errorf("publisher inventory database is nil")
 	}
@@ -178,7 +178,7 @@ func ValidatePublisherInventory(out io.Writer, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	return WritePublisherInventoryManifest(out, pubmap)
+	return WritePublisherInventoryManifest(out, pubmap, issuer)
 }
 
 // ValidateMiddlemanActivation compares the current active MySQL route model to
@@ -325,9 +325,12 @@ func validateMiddlemanRouteGeneration(source string, cache *match.MiddlemanRoute
 	return nil
 }
 
-func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap) error {
+func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap, issuer *dsp.DirectSSPTokenIssuer) error {
 	if out == nil {
 		return fmt.Errorf("publisher inventory output is nil")
+	}
+	if issuer == nil {
+		return fmt.Errorf("publisher inventory token issuer is nil")
 	}
 	if err := acl.ValidateCommercialPubMap(pubmap); err != nil {
 		return err
@@ -344,6 +347,14 @@ func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap) error {
 	}
 	writef := func(format string, args ...interface{}) error {
 		_, err := fmt.Fprintf(out, format, args...)
+		return err
+	}
+	metadata := issuer.Metadata()
+	if err := writef("direct_ssp_integration token_version=%s token_key_id=%q token_epoch=%d legacy_read_mode=%s request_authentication=%s credential_refresh_seconds=%d credential_max_age_seconds=%d rotation_max_overlap_seconds=%d\n",
+		metadata.TokenVersion, metadata.TokenKeyID, metadata.TokenEpoch,
+		metadata.LegacyReadMode, metadata.RequestAuthentication,
+		metadata.CredentialRefreshSeconds, metadata.CredentialMaxAgeSeconds,
+		metadata.RotationMaxOverlapSeconds); err != nil {
 		return err
 	}
 	siteCount, slotCount := 0, 0
@@ -366,14 +377,14 @@ func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap) error {
 		for _, identity := range siteIdentities {
 			siteID := pub.Sites[identity]
 			supply := pub.SupplyFor(siteID, 0).Site
-			siteToken, err := acl.PackDirectToken(pub.PubID, siteID)
+			siteToken, err := issuer.PackSite(pub.PubID, siteID)
 			if err != nil {
 				return err
 			}
-			if err := writef("site_ready pub_id=%d site_id=%d type=%s identity=%q environment=%s canonical_identity=%q store_url=%q integration_mode=%s site_token=%s\n",
+			if err := writef("site_ready pub_id=%d site_id=%d type=%s identity=%q environment=%s canonical_identity=%q store_url=%q integration_mode=%s token_version=%s site_token=%s\n",
 				pub.PubID, siteID, commercialSiteType(pub.SiteTypes[siteID]), identity,
 				supply.Environment, supply.CanonicalIdentity, supply.StoreURL,
-				supply.IntegrationMode, siteToken); err != nil {
+				supply.IntegrationMode, metadata.TokenVersion, siteToken); err != nil {
 				return err
 			}
 			siteCount++
@@ -387,16 +398,16 @@ func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap) error {
 				supply := pub.SupplyFor(siteID, slotID).Slot
 				sizeID := pub.SlotSizes[siteID][slotID]
 				width, height := match.SizeID1To2(sizeID)
-				slotToken, err := acl.PackDirectToken(slotID, sizeID)
+				slotToken, err := issuer.PackSlot(pub.PubID, siteID, slotID, sizeID)
 				if err != nil {
 					return err
 				}
-				if err := writef("slot_ready pub_id=%d site_id=%d slot_id=%d name=%q size=%dx%d floor_usd_cpm=%.6f media_intent=%s placement=%s render_context=%s refresh_mode=%s refresh_seconds=%d ad_density=%s traffic_quality=%s source_quality=%s management_control=%s slot_token=%s\n",
+				if err := writef("slot_ready pub_id=%d site_id=%d slot_id=%d name=%q size=%dx%d floor_usd_cpm=%.6f media_intent=%s placement=%s render_context=%s refresh_mode=%s refresh_seconds=%d ad_density=%s traffic_quality=%s source_quality=%s management_control=%s token_version=%s slot_token=%s\n",
 					pub.PubID, siteID, slotID, name, width, height,
 					pub.SlotFloors[siteID][slotID], supply.MediaIntent, supply.Placement,
 					supply.RenderContext, supply.RefreshMode, supply.RefreshSeconds,
 					supply.AdDensity, supply.TrafficQuality, supply.SourceQuality,
-					supply.ManagementControl, slotToken); err != nil {
+					supply.ManagementControl, metadata.TokenVersion, slotToken); err != nil {
 					return err
 				}
 				slotCount++

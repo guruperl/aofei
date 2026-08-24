@@ -169,6 +169,13 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   outcomes have fixed labels. Locators remain observable/replayable and do
 	   not authenticate the caller; the active publisher cache remains
 	   authoritative after verification.
+	   `dsp.DirectSSPTokenIssuer` is the narrow generation boundary shared by
+	   `/pz`, `cmd/unify`, and the read-only publisher readiness manifest. It
+	   emits v1 only while the feature is disabled or the configured current-
+	   epoch v2 values when enabled, and exposes only safe version/key-selector/
+	   epoch plus request-auth lifecycle settings. Summer verifies the active
+	   `(pub_id, site_id)` owner tuple before generation; App samples contain
+	   header placeholders rather than private credential material.
 	   Browser Origin/Referer checks and active-cache validation remain
 	   independent. The default-off `publisherauth.Service` gives SDK/server
 	   traffic a publisher/App-scoped Ed25519 credential. It verifies an exact-

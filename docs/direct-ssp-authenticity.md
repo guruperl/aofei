@@ -6,12 +6,13 @@ authentication and defines the invariants that the remaining P03 work must
 preserve.
 
 The threat contract, versioned browser-token codec/runtime reader, default-off
-SDK/server request-authentication boundary, and independent browser/App
-enforcement plus client-claim disposition are now implemented. Sample/cache
-integration and production rollout remain pending. Current publisher pages still emit the v1
-values documented in
-[ssp-direct-traffic.md](ssp-direct-traffic.md), so the checked-in v2 block stays
-disabled and legacy reads stay allowed.
+SDK/server request-authentication boundary, independent browser/App
+enforcement, client-claim disposition, and portal/cache integration are now
+implemented. Production rollout remains pending. Publisher pages and the
+readiness manifest now use the same controller-configured issuer as `/pz`: the
+checked-in disabled state emits v1, while an enabled v2 deployment emits only
+current-epoch v2 samples. The checked-in v2 block stays disabled and legacy
+reads stay allowed until the rollout gate is complete.
 
 ## Current Boundary And Non-Claims
 
@@ -126,11 +127,18 @@ publisher cache. Integrity cannot reactivate inactive, incomplete, stale, or
 mismatched inventory. V2 locators also remain public and replayable; their
 acceptance is never recorded as publisher authentication.
 
-Publisher tag/API generation and the cache readiness manifest intentionally
-remain v1 until the later portal/API/cache-integration row. Do not enable v2 or
-deny legacy reads in production merely because the codec exists. The migration
-must first generate v2 samples, measure both read paths, name rollback
-ownership, and retain a reversible compatibility interval.
+Publisher tag/API generation and the cache readiness manifest now use the same
+narrow issuer object and immutable codec as `/pz`. The portal first proves the
+authenticated publisher/site owns one active site, then emits v1 in disabled
+compatibility mode or current-epoch v2 locators when enabled. App samples show
+the four signing headers and safe authentication mode but never a private
+credential. The read-only readiness manifest records token version, safe key
+selector/epoch, legacy policy, request-auth mode, and bounded credential refresh,
+staleness, and rotation-overlap settings without exposing environment names,
+key bytes, credential ids, or private values. Do not enable v2 or deny legacy
+reads in production merely because generation is integrated; the rollout must
+measure both read paths, name rollback ownership, and retain a reversible
+compatibility interval.
 
 ## SDK And Server Authentication
 
@@ -271,6 +279,6 @@ it remains a publisher assertion rather than verified device location, and
 latitude/longitude/accuracy/fix age are always removed.
 
 See [publisher-activation.md](publisher-activation.md) for the current rollout
-gate. Production authenticity is not established until the later P03 tasks
-integrate generated samples/cache metadata, finish observability and
-rotation/rollback operations, and pass a named publisher canary.
+gate. Production authenticity is not established until the remaining P03 work
+finishes observability and rotation/rollback operations and passes a named
+publisher canary.

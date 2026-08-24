@@ -148,10 +148,10 @@ operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
 and quota-script work. D05 and S06 are now complete. P03 is in progress: its
-threat contract, default-off versioned locator codec/runtime dual reader, and
-default-off SDK/server authentication plus independent browser/App enforcement
-are complete, while client-claim review, portal/cache integration, and rollout
-remain pending.
+threat contract, default-off versioned locator codec/runtime dual reader,
+default-off SDK/server authentication, independent browser/App enforcement,
+client-claim disposition, and portal/cache integration are complete, while
+rollout and abuse evidence remain pending.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in

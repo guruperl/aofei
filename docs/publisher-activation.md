@@ -9,9 +9,10 @@ approved privacy and support owner.
 P03 is in progress. Its
 [direct SSP authenticity contract](direct-ssp-authenticity.md) is accepted,
 and the default-off v2 token reader, SDK/server request-authentication boundary,
-and independent browser/App enforcement are implemented. The publisher UI and readiness manifest still emit
-public enumerable v1 locators; no production tag migration or legacy
-withdrawal has occurred, and checked-in SDK authentication remains off.
+and independent browser/App enforcement are implemented. The publisher UI and
+readiness manifest now share the `/pz` issuer and emit current v2 locators when
+configured, but no production tag migration or legacy withdrawal has occurred
+and checked-in SDK authentication remains off.
 Therefore the checks below establish current P01/P02 compatibility, inventory
 ownership, and commercial correctness; they do not establish complete P03
 request authenticity. Do not enable either P03 gate, deny legacy reads, or
@@ -57,8 +58,13 @@ The command reads MySQL only. It does not connect to Redis, take the cache
 mutation lock, or change inventory. It fails if active commercial metadata is
 incomplete and otherwise prints a deterministic manifest containing publisher,
 site, slot, type, dimensions, floor, normalized supply categories, seller
-approval state, and the exact packed `site_token` and `slot_token`. Store the
-output as ordinary deployment evidence, not as a credential or consent record.
+approval state, the exact `site_token` and `slot_token`, their version, and
+display-safe token/authentication rotation metadata. In an enabled v2
+configuration the command loads the deployment token key solely to mint the
+same current-epoch public locators as `unify`; it fails closed if that key is
+unavailable. It never prints the key environment name/value, a publisher
+credential id, or a private signing value. Store the output as ordinary
+deployment evidence, not as a credential or consent record.
 
 ## 2. Cache publication order
 

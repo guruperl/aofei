@@ -79,12 +79,16 @@ func main() {
 	ctx, stop := cmdboot.SignalContext(context.Background())
 	defer stop()
 	if validatePublishers {
+		issuer, err := dsp.NewDirectSSPTokenIssuer(c)
+		if err != nil {
+			log.Fatal(err)
+		}
 		db, err := c.OpenDB(ctx)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer db.Close()
-		if err := cachejob.ValidatePublisherInventory(os.Stdout, db); err != nil {
+		if err := cachejob.ValidatePublisherInventory(os.Stdout, db, issuer); err != nil {
 			log.Fatal(err)
 		}
 		return

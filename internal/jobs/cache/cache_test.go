@@ -159,6 +159,18 @@ func TestRunRejectsInvalidUpdateInterval(t *testing.T) {
 }
 
 func TestWritePublisherInventoryManifestIsDeterministicAndCredentialFree(t *testing.T) {
+	t.Setenv("P03_MANIFEST_TOKEN_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
+	config := &dsp.Config{
+		DirectSSPTokens: dsp.DirectSSPTokenConfig{
+			Enabled: true, LegacyReadMode: "allow",
+			Current: dsp.DirectSSPTokenKeyConfig{KeyID: "primary", Epoch: 3, KeyEnv: "P03_MANIFEST_TOKEN_KEY"},
+		},
+	}
+	config.DirectSSPAuth.Enabled = true
+	issuer, err := dsp.NewDirectSSPTokenIssuer(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	pubmap := acl.PubMap{
 		"pub.example": {
 			PubID:      7,
@@ -185,14 +197,15 @@ func TestWritePublisherInventoryManifestIsDeterministicAndCredentialFree(t *test
 		},
 	}
 	var out bytes.Buffer
-	if err := WritePublisherInventoryManifest(&out, pubmap); err != nil {
+	if err := WritePublisherInventoryManifest(&out, pubmap, issuer); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
 	for _, required := range []string{
+		`direct_ssp_integration token_version=v2 token_key_id="primary" token_epoch=3 legacy_read_mode=allow request_authentication=required credential_refresh_seconds=30 credential_max_age_seconds=120 rotation_max_overlap_seconds=86400`,
 		`publisher_ready pub_id=7 domain="pub.example" seller_id="seller-7" seller_type=Publisher seller_asi="w8m.com" seller_name="Example Media" seller_domain="pub.example" seller_authorized=true`,
-		`site_ready pub_id=7 site_id=11 type=Web identity="example.com" environment=Web canonical_identity="example.com" store_url="https://example.com/ads" integration_mode=BrowserTag`,
-		`slot_ready pub_id=7 site_id=11 slot_id=13 name="leaderboard" size=300x250 floor_usd_cpm=1.250000 media_intent=Banner placement=AboveFold render_context=WebPage refresh_mode=Timed refresh_seconds=60 ad_density=Low traffic_quality=Reviewed source_quality=OwnedOperated management_control=Publisher`,
+		`site_ready pub_id=7 site_id=11 type=Web identity="example.com" environment=Web canonical_identity="example.com" store_url="https://example.com/ads" integration_mode=BrowserTag token_version=v2 site_token=pz2.site.primary.3.`,
+		`slot_ready pub_id=7 site_id=11 slot_id=13 name="leaderboard" size=300x250 floor_usd_cpm=1.250000 media_intent=Banner placement=AboveFold render_context=WebPage refresh_mode=Timed refresh_seconds=60 ad_density=Low traffic_quality=Reviewed source_quality=OwnedOperated management_control=Publisher token_version=v2 slot_token=pz2.slot.primary.3.`,
 		`publisher_inventory_ready publishers=1 sites=1 slots=1`,
 	} {
 		if !bytes.Contains(out.Bytes(), []byte(required)) {
@@ -215,6 +228,10 @@ func (failingManifestWriter) Write([]byte) (int, error) {
 }
 
 func TestWritePublisherInventoryManifestReturnsOutputFailure(t *testing.T) {
+	issuer, err := dsp.NewDirectSSPTokenIssuer(&dsp.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	pubmap := acl.PubMap{
 		"pub.example": {
 			PubID:      7,
@@ -226,7 +243,7 @@ func TestWritePublisherInventoryManifestReturnsOutputFailure(t *testing.T) {
 			SlotFloors: map[uint32]map[uint32]float64{11: {13: 1.25}},
 		},
 	}
-	if err := WritePublisherInventoryManifest(failingManifestWriter{}, pubmap); !errors.Is(err, errManifestOutput) {
+	if err := WritePublisherInventoryManifest(failingManifestWriter{}, pubmap, issuer); !errors.Is(err, errManifestOutput) {
 		t.Fatalf("WritePublisherInventoryManifest error = %v", err)
 	}
 }
