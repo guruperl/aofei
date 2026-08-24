@@ -56,8 +56,10 @@ source and validates middleman media, size, MIME, secure-inventory, callback,
 VAST, Native asset, and contained-markup contracts before response selection.
 S05 extends contained-markup checks to fetching `srcset`, `ping`, and legacy
 `background` attributes and to entity-decoded event-handler attempts to address
-the parent/top context. Scripts and ordinary event behavior remain supported
-because removing them would change the approved advertising language.
+the parent/top context. `srcset` follows URL-token boundaries so valid HTTPS
+URLs containing commas remain compatible while every subsequent candidate is
+still checked. Scripts and ordinary event behavior remain supported because
+removing them would change the approved advertising language.
 
 A universal Content Security Policy is not added here. Publisher CSP is
 inherited by `srcdoc`, and a restrictive script/style/network policy would

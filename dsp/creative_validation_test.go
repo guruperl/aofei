@@ -57,6 +57,15 @@ func TestValidateMiddlemanBannerContract(t *testing.T) {
 	}
 }
 
+func TestContainedMarkupSrcsetPreservesURLCommasAndChecksEveryCandidate(t *testing.T) {
+	if err := validateContainedMarkupSrcset("https://cdn.example/asset,javascript:variant.png 1x, https://cdn.example/asset-2x.png 2x", true); err != nil {
+		t.Fatalf("valid HTTPS URL containing a comma was rejected: %v", err)
+	}
+	if err := validateContainedMarkupSrcset("https://cdn.example/asset.png 1x,javascript:alert(1) 2x", true); err == nil || !strings.Contains(err.Error(), "forbidden URL scheme") {
+		t.Fatalf("unsafe subsequent srcset candidate error = %v", err)
+	}
+}
+
 func TestValidateMiddlemanNativeAndVideoContracts(t *testing.T) {
 	format := &match.NativeFormat{Ver: "1.2", Assets: []*match.AssetFormat{{
 		AssetFormat: adcom1.AssetFormat{ID: 7, Img: &adcom1.ImageAssetFormat{Type: adcom1.ImageAssetMain, MIME: []string{"image/png"}}},

@@ -188,16 +188,56 @@ func validateContainedMarkupSrcset(raw string, secure bool) error {
 	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
-	for _, candidate := range strings.Split(raw, ",") {
-		fields := strings.Fields(candidate)
-		if len(fields) == 0 || len(fields) > 2 {
-			return fmt.Errorf("middleman adm contains an invalid srcset")
-		}
-		if err := validateContainedMarkupURL(fields[0], secure); err != nil {
+	for _, candidate := range containedMarkupSrcsetURLs(raw) {
+		if err := validateContainedMarkupURL(candidate, secure); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func containedMarkupSrcsetURLs(raw string) []string {
+	var candidates []string
+	for position := 0; position < len(raw); {
+		for position < len(raw) && (isSrcsetSpace(raw[position]) || raw[position] == ',') {
+			position++
+		}
+		if position == len(raw) {
+			break
+		}
+		start := position
+		for position < len(raw) && !isSrcsetSpace(raw[position]) {
+			position++
+		}
+		candidate := raw[start:position]
+		// Per the HTML candidate-token algorithm, an internal comma remains
+		// part of the URL. Only trailing commas delimit a URL with no descriptor.
+		trimmed := strings.TrimRight(candidate, ",")
+		if trimmed != "" {
+			candidates = append(candidates, trimmed)
+		}
+		if len(trimmed) != len(candidate) {
+			continue
+		}
+		// Descriptor syntax does not introduce another URL. Advance to its
+		// comma delimiter; the next loop then collects the next URL token.
+		for position < len(raw) && raw[position] != ',' {
+			position++
+		}
+		if position < len(raw) {
+			position++
+		}
+	}
+	return candidates
+}
+
+func isSrcsetSpace(value byte) bool {
+	switch value {
+	case ' ', '\t', '\n', '\f', '\r':
+		return true
+	default:
+		return false
+	}
 }
 
 func containsContainerEscapeScript(raw string) bool {

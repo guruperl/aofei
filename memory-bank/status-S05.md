@@ -66,11 +66,13 @@ container and legitimate third-party advertising behavior.
   Genelet `bbeef88` now scrubs `Form`, `PostForm`, and `MultipartForm.Value` at
   both public and direct-Handle boundaries while preserving ordinary fields;
   full tests, vet, documented staticcheck, race, and diff hygiene pass.
-- Iteration 2 (2026-08-24): P2, open — contained-markup `srcset` validation
-  uses `strings.Split` on every comma. A valid HTTPS image URL may contain an
-  internal comma, so the parser rejects legitimate advertising markup despite
-  the milestone's compatibility requirement. Candidate parsing must preserve
-  URL-token commas while continuing to validate every subsequent candidate.
+- Iteration 2 (2026-08-24): P2, resolved — contained-markup `srcset`
+  validation split every comma, so it could reinterpret and reject a valid
+  HTTPS image URL containing an internal comma. Candidate parsing now follows
+  URL-token boundaries, preserves internal/trims only trailing delimiter
+  commas, and continues validating every later URL. Compatibility and unsafe-
+  later-candidate fixtures plus focused test, vet, staticcheck, and race gates
+  pass.
 - Iteration 2 (2026-08-24): P3, open — the new native-renderer inventory scans
   only Go, JavaScript, and template extensions under the current web trees.
   Android/iOS code would normally arrive as Java, Kotlin, Swift, or Objective-C
