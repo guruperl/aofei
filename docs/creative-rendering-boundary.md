@@ -20,7 +20,12 @@ Genelet has no creative trusted-HTML conversion. Its sole raw HTML boundary is
 the fixed CSRF input described in
 [template-rendering-security.md](template-rendering-security.md). Repository
 search and the current I02 status confirm that no maintained Android, iOS,
-WebView, or WKWebView package exists.
+WebView, or WKWebView package exists. A pzdesign repository guard keeps that
+inventory closed: after removing the one exact reviewed `ads.js` `srcdoc`
+assignment, it scans all first-party JavaScript for raw DOM insertion APIs and
+scans the command, Summer, template, and JavaScript trees for Android/iOS
+WebView renderer APIs. A new consumer must therefore declare and review its
+boundary before the ordinary test suite will pass.
 
 Stored site review URLs and creative source/image URLs are management metadata,
 not server fetch targets. Syntax and media-shape validation parse them without
@@ -102,7 +107,9 @@ mobile renderer.
   escapes, secure inventory, and every `/pz` response format.
 - pzdesign source and Node fixtures prove there is one `srcdoc` sink, no host
   `innerHTML`, no `allow-same-origin`, fixed sandbox/referrer/permission values,
-  hostile string containment, and deterministic fill/no-fill/error states.
+  hostile string containment, and deterministic fill/no-fill/error states. Its
+  repository-wide inventory guard rejects another raw DOM or native WebView
+  consumer.
 - pzdesign hostile rendering fixtures prove all management/review surfaces show
   stored creatives as escaped source. Genelet tests preserve its single fixed
   trusted-HTML boundary.

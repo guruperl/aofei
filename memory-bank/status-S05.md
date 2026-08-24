@@ -47,11 +47,12 @@ container and legitimate third-party advertising behavior.
   component/action/permission/resource rather than authenticating marker
   strings. Genelet `fad25a9` and pzdesign `f6bc0c9` pass their full tests, vet,
   documented staticcheck, race, template, and public-data gates.
-- Iteration 1 (2026-08-24): P3, open — the creative boundary checks the known
-  `ads.js` sink but does not scan the remaining first-party JavaScript or
-  command/Summer/template trees for another raw DOM or native WebView consumer.
-  The current inventory is clean, but its closed-world claim lacks a regression
-  guard.
+- Iteration 1 (2026-08-24): P3, resolved — the creative boundary previously
+  checked the known `ads.js` sink without scanning the remaining first-party
+  JavaScript or command/Summer/template trees. Pzdesign `8f8a341` adds a
+  repository-wide guard for raw DOM insertion APIs and Android/iOS WebView
+  renderer APIs, allowing only the one exact reviewed `ads.js` assignment; the
+  focused test, vet, staticcheck, template, and public-data gates pass.
 
 ## Acceptance Criteria
 
