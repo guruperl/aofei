@@ -25,15 +25,29 @@ an `mfa` or recent-reauthentication requirement. JSON report access changes a
 `report.*.read` requirement to the distinct `report.*.export` permission and
 requires recent MFA.
 
-The intended role boundary is:
+The exact interactive account-role inventory is:
 
-| Role | Boundary |
-|---|---|
-| `admin` | Platform administration. The example grants `*`; sensitive bidder, seller, route, credential-reference, export, and experiment actions still require recent MFA and produce security audit rows. |
-| `adv` | Own advertiser profile, demand objects, bidder proposals, and scoped reports. It cannot approve its bidder profile or edit another advertiser. |
-| `pub` | Own publisher profile, inventory, supply proposals, and scoped reports. It cannot authorize its seller tuple or edit another publisher. |
-| `agent` | Reviewed advertiser/campaign/creative read and approval surfaces only; it is not an advertiser account. |
-| `analyst` | Read-only permissions plus an exact active database grant for every resource. It cannot mutate accounts, delivery, routes, bidder credentials, seller approval, payments, or experiments. |
+| Role | Account identity | Boundary |
+|---|---|---|
+| `admin` | `admin.admin_id` | Platform administration. The example grants `*`; sensitive bidder, seller, route, credential-reference, export, and experiment actions still require recent MFA and produce security audit rows. |
+| `adv` | `adv.adv_id` | Own advertiser profile, demand objects, bidder proposals, and scoped reports. It cannot approve its bidder profile or edit another advertiser. |
+| `pub` | `pub.pub_id` | Own publisher profile, inventory, supply proposals, and scoped reports. It cannot authorize its seller tuple or edit another publisher. |
+| `agent` | `agent.agent_id` | Reviewed advertiser/campaign/creative read and approval surfaces only; it is not an advertiser account. |
+| `analyst` | `analyst.analyst_id` | Read-only permissions plus an exact active database grant for every resource. It cannot mutate accounts, delivery, routes, bidder credentials, seller approval, payments, or experiments. |
+
+These five keys are the complete `Roles` map in `etc/summer.example.json` and
+the only interactive roles accepted by the identity boundary. Similar names on
+other surfaces do not add account roles:
+
+- `web` is the unauthenticated public Genelet route, not an account or session
+  role;
+- `ssp` is an auction admission/audit source name; direct SSP inventory remains
+  owned by the authenticated `pub` account role;
+- `service` and `service:unix-uid:<uid>` identify restricted maintenance audit
+  actors, not cookie-bearing accounts;
+- `w8m_v1` management credentials remain scoped to one `adv` account, and
+  publisher App signing credentials remain scoped to one `pub` account. They
+  are service credentials, not new roles.
 
 Hosted funding/payout actions use the separate `payment.*` permission family.
 Reading, customer/payout binding, binding approval, funding/payout/refund

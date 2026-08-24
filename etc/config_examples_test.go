@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -48,8 +49,15 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 		"admin":   {"admin_id", "admin_login", "passwd"},
 		"analyst": {"analyst_id", "analyst_login", "passwd"},
 	}
+	if len(config.Roles) != len(want) {
+		t.Fatalf("summer example roles = %v, want exactly admin, adv, pub, agent, analyst", mapKeys(config.Roles))
+	}
 	for role, fields := range want {
-		issuer := config.Roles[role].Issuers["db"]
+		configured, ok := config.Roles[role]
+		if !ok {
+			t.Fatalf("summer example is missing account role %q", role)
+		}
+		issuer := configured.Issuers["db"]
 		if issuer.PasswordHash != "passwd" {
 			t.Errorf("%s db issuer Password_hash = %q, want passwd", role, issuer.PasswordHash)
 		}
@@ -69,6 +77,27 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 	if len(config.Roles["analyst"].Permissions) == 0 || !config.Roles["analyst"].RequireGrant {
 		t.Fatal("analyst role must be permission-limited and grant-scoped")
 	}
+	totpRoles := make(map[string]bool, len(config.Identity.RequiredTOTP))
+	for _, role := range config.Identity.RequiredTOTP {
+		totpRoles[role] = true
+	}
+	if len(totpRoles) != len(want) {
+		t.Fatalf("RequiredTOTP roles = %v, want every interactive account role", mapKeys(totpRoles))
+	}
+	for role := range want {
+		if !totpRoles[role] {
+			t.Errorf("RequiredTOTP is missing interactive account role %q", role)
+		}
+	}
+}
+
+func mapKeys[M ~map[string]V, V any](values M) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 func TestAofeiExampleKeepsManagementAPIDisabledAndKeyOutOfJSON(t *testing.T) {

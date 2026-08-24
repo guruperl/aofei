@@ -31,7 +31,8 @@ and the lane status files remain the roadmap and task sources of truth.
 - NATS client: `github.com/nats-io/nats.go`
 - OpenRTB: `github.com/prebid/openrtb/v20`
 - Logging: `go.uber.org/zap`
-- Geo/IP and user agent helpers: local `maxmind/`, `github.com/mssola/user_agent`
+- Geo/IP and user agent helpers: local `maxmind/`,
+  `github.com/mileusna/useragent` v1.3.5
 
 ## Local Services
 
