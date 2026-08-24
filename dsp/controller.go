@@ -204,6 +204,8 @@ func WithIPSearch(ips *maxmind.IPSearch) ControllerOption {
 	}
 }
 
+// WithHTTPClient preserves caller timeouts and supported *http.Transport
+// settings, then installs the mandatory safe bidder/callback transport.
 func WithHTTPClient(client *http.Client) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.httpClient = client
@@ -216,6 +218,8 @@ func WithLogger(logger *zap.Logger) ControllerOption {
 	}
 }
 
+// WithCallbackURLGuard adds an application/test guard after the mandatory
+// safehttp URL policy; it cannot relax the network boundary.
 func WithCallbackURLGuard(guard func(context.Context, string) error) ControllerOption {
 	return func(opts *controllerOptions) {
 		opts.callbackURLGuard = guard
@@ -287,14 +291,11 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		}
 	}
 	controller := &Controller{
-		C:      c,
-		Redis:  redis,
-		DB:     db,
-		local:  newLocalStaticCache(),
-		client: safehttp.NewCallbackClient(nil),
-		callbackURLGuard: func(ctx context.Context, raw string) error {
-			return safehttp.ValidateCallbackURL(ctx, raw)
-		},
+		C:              c,
+		Redis:          redis,
+		DB:             db,
+		local:          newLocalStaticCache(),
+		client:         safehttp.NewCallbackClient(options.httpClient),
 		Logger:         options.logger,
 		middlemanStore: options.callbackStore,
 		directTokens:   directTokens,
@@ -332,9 +333,6 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 			return nil, fmt.Errorf("load traffic-quality enforcement: %w", loadErr)
 		}
 		controller.qualitySnapshot.Store(snapshot)
-	}
-	if options.httpClient != nil {
-		controller.client = options.httpClient
 	}
 	if options.callbackURLGuard != nil {
 		controller.callbackURLGuard = options.callbackURLGuard

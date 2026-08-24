@@ -388,9 +388,7 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 		recordMiddlemanBidRejection("endpoint")
 		return nil, err
 	}
-	if client == nil {
-		client = safehttp.NewCallbackClient(nil)
-	}
+	client = safehttp.NewCallbackClient(client)
 	headers, err := middlemanCredentialHeaders(assignment.Entry.CredentialRef)
 	if err != nil {
 		recordMiddlemanBidRejection("credential")
@@ -752,10 +750,13 @@ func classifyMiddlemanBidValidation(err error) string {
 }
 
 func (self *Controller) validateMiddlemanBidderEndpoint(ctx context.Context, raw string) error {
+	if err := safehttp.ValidateCallbackURL(ctx, raw); err != nil {
+		return err
+	}
 	if self != nil && self.callbackURLGuard != nil {
 		return self.callbackURLGuard(ctx, raw)
 	}
-	return safehttp.ValidateCallbackURL(ctx, raw)
+	return nil
 }
 
 func (self *Controller) middlemanClickNotifyURLs(requestToken string, entries map[string]match.MiddlemanRouteEntry) (map[string]string, error) {

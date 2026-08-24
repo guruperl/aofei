@@ -909,9 +909,7 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 		return target, "request_error", 0, err.Error()
 	}
 	client := self.client
-	if client == nil {
-		client = safehttp.NewCallbackClient(nil)
-	}
+	client = safehttp.NewCallbackClient(client)
 	resp, err := client.Do(req)
 	if err != nil {
 		metricMiddlemanForwardErrors.Add(1)
@@ -928,13 +926,13 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 }
 
 func (self *Controller) validateMiddlemanCallbackTarget(ctx context.Context, target string) error {
+	if err := safehttp.ValidateCallbackURL(ctx, target); err != nil {
+		return err
+	}
 	if self != nil && self.callbackURLGuard != nil {
 		return self.callbackURLGuard(ctx, target)
 	}
-	if self != nil && self.client != nil {
-		return nil
-	}
-	return safehttp.ValidateCallbackURL(ctx, target)
+	return nil
 }
 
 func expandMiddlemanCallbackURL(raw string, value middlemanCallbackContext, prices middlemanPrices) (string, error) {

@@ -492,7 +492,7 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	entry := match.MiddlemanRouteEntry{
 		BidderID:            7,
 		AdvID:               8,
-		EndpointURL:         server.URL,
+		EndpointURL:         safeTestOrigin,
 		OpenRTBVersion:      "2.5",
 		CredentialRef:       "BIDDER_HEADERS",
 		GroupTimeoutMS:      100,
@@ -529,7 +529,7 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 			MiddlemanTimeoutMS:       100,
 			MiddlemanCallbackBaseURL: "http://aofei.example",
 		},
-		client:           server.Client(),
+		client:           safeTestClient(server),
 		callbackURLGuard: func(context.Context, string) error { return nil },
 	}
 
@@ -537,7 +537,7 @@ func TestCallMiddlemanBidderNormalizesResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := controller.callMiddlemanBidder(context.Background(), server.Client(), bid, raw, time.Now(), assignment)
+	got, err := controller.callMiddlemanBidder(context.Background(), safeTestClient(server), bid, raw, time.Now(), assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,7 +702,7 @@ func callI01PartnerFixture(t *testing.T, contentType string, timeoutMS uint16, r
 	}))
 	defer server.Close()
 	entry := match.MiddlemanRouteEntry{
-		BidderID: 7, AdvID: 8, EndpointURL: server.URL, OpenRTBVersion: "2.5", Seat: "expected-seat",
+		BidderID: 7, AdvID: 8, EndpointURL: safeTestOrigin, OpenRTBVersion: "2.5", Seat: "expected-seat",
 		CredentialRef: "I01_PARTNER_HEADERS", GroupTimeoutMS: timeoutMS, BidderTimeoutMS: timeoutMS,
 		SyntheticCampaignID: 101, SyntheticItemID: 102, SyntheticCreativeID: 103,
 	}
@@ -733,7 +733,7 @@ func callI01PartnerFixture(t *testing.T, contentType string, timeoutMS uint16, r
 			"imp-1": {RPub: match.RPub{SizeID: match.SizeID2To1(300, 250)}, ACL: &acl.ACL{}},
 		},
 	}
-	return controller.callMiddlemanBidder(context.Background(), server.Client(), bid, raw, time.Now(), assignment)
+	return controller.callMiddlemanBidder(context.Background(), safeTestClient(server), bid, raw, time.Now(), assignment)
 }
 
 func TestCallMiddlemanBidderClassifiesInvalidResponseWithoutPartnerLabel(t *testing.T) {
@@ -744,7 +744,7 @@ func TestCallMiddlemanBidderClassifiesInvalidResponseWithoutPartnerLabel(t *test
 	}))
 	defer server.Close()
 	entry := match.MiddlemanRouteEntry{
-		BidderID: 7, AdvID: 8, EndpointURL: server.URL, OpenRTBVersion: "2.5",
+		BidderID: 7, AdvID: 8, EndpointURL: safeTestOrigin, OpenRTBVersion: "2.5",
 		GroupTimeoutMS: 100, BidderTimeoutMS: 100,
 		CredentialRef:       "INVALID_RESPONSE_BIDDER_HEADERS",
 		SyntheticCampaignID: 101, SyntheticItemID: 102, SyntheticCreativeID: 103,
@@ -763,7 +763,7 @@ func TestCallMiddlemanBidderClassifiesInvalidResponseWithoutPartnerLabel(t *test
 		},
 		callbackURLGuard: func(context.Context, string) error { return nil },
 	}
-	_, err = controller.callMiddlemanBidder(context.Background(), server.Client(), bid, raw, time.Now(), middlemanAssignment{
+	_, err = controller.callMiddlemanBidder(context.Background(), safeTestClient(server), bid, raw, time.Now(), middlemanAssignment{
 		Entry:       entry,
 		EntriesByID: map[string]match.MiddlemanRouteEntry{"imp-1": entry},
 		AttrsByID:   map[string]*match.Attribute{"imp-1": {ACL: &acl.ACL{}}},
@@ -774,7 +774,7 @@ func TestCallMiddlemanBidderClassifiesInvalidResponseWithoutPartnerLabel(t *test
 	if got := expvarMapInt64(metricMiddlemanBidderOutcomes, "invalid_response") - before; got != 1 {
 		t.Fatalf("invalid-response outcome delta = %d, want 1 (error %v)", got, err)
 	}
-	if strings.Contains(metricMiddlemanBidderOutcomes.String(), server.URL) {
+	if strings.Contains(metricMiddlemanBidderOutcomes.String(), safeTestOrigin) {
 		t.Fatal("middleman outcome metrics exposed an endpoint")
 	}
 }

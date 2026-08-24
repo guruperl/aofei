@@ -10,6 +10,22 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
+const safeRetryOrigin = "http://8.8.8.8"
+
+type safeRetryRoundTripper struct {
+	handler http.Handler
+}
+
+func (t safeRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	recorder := httptest.NewRecorder()
+	t.handler.ServeHTTP(recorder, req)
+	response := recorder.Result()
+	response.Request = req
+	return response, nil
+}
+
+func (safeRetryRoundTripper) SafeHTTPNonNetworkTransport() {}
+
 func TestRetryableForward(t *testing.T) {
 	tests := []struct {
 		status string
@@ -30,6 +46,24 @@ func TestRetryableForward(t *testing.T) {
 		if got := RetryableForward(tt.status, tt.code); got != tt.want {
 			t.Fatalf("RetryableForward(%q, %d) = %v, want %v", tt.status, tt.code, got, tt.want)
 		}
+	}
+}
+
+func TestForwardRejectsPrivateTargetBeforeInjectedClient(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: safeRetryRoundTripper{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusNoContent)
+	})}}
+	status, _, _ := forward(context.Background(), "http://127.0.0.1/callback", Options{
+		Timeout: time.Second,
+		Client:  client,
+	})
+	if status != "invalid_url" {
+		t.Fatalf("status = %q, want invalid_url", status)
+	}
+	if calls != 0 {
+		t.Fatalf("injected client calls = %d, want zero", calls)
 	}
 }
 
@@ -62,7 +96,7 @@ func TestRunClaimsDueRowsBeforeForwarding(t *testing.T) {
 	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*FOR UPDATE`).
 		WithArgs(5, sqlmock.AnyArg(), sqlmock.AnyArg(), 10).
 		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
-			AddRow(uint64(7), "tok", "win", downstream.URL+"/win", 0))
+			AddRow(uint64(7), "tok", "win", safeRetryOrigin+"/win", 0))
 	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
 		WithArgs(sqlmock.AnyArg(), uint64(7)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -75,7 +109,7 @@ func TestRunClaimsDueRowsBeforeForwarding(t *testing.T) {
 		Limit:       10,
 		MaxAttempts: 5,
 		Timeout:     time.Second,
-		Client:      downstream.Client(),
+		Client:      &http.Client{Transport: safeRetryRoundTripper{handler: downstream.Config.Handler}},
 	})
 	if err != nil {
 		t.Fatal(err)

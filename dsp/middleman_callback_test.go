@@ -175,7 +175,7 @@ func TestServeMiddlemanBillPublishesOnceAndForwardsPayPrice(t *testing.T) {
 		DownstreamBidID:    "dbid",
 		DownstreamSeat:     "seat",
 		DownstreamAdID:     "ad",
-		DownstreamBURL:     downstream.URL + "/bill?auction_price=${AUCTION_PRICE}",
+		DownstreamBURL:     safeTestOrigin + "/bill?auction_price=${AUCTION_PRICE}",
 		DownstreamBidPrice: 1.0,
 		UpstreamBidPrice:   1.2,
 		MarginCPM:          0.2,
@@ -195,7 +195,7 @@ func TestServeMiddlemanBillPublishesOnceAndForwardsPayPrice(t *testing.T) {
 			MiddlemanCallbackBaseURL:   "http://aofei.example",
 			MiddlemanCallbackTimeoutMS: 1000,
 		},
-		client:         downstream.Client(),
+		client:         safeTestClient(downstream),
 		middlemanStore: store,
 		publishWinLossFunc: func(data []byte) error {
 			var wl WinLoss
@@ -248,7 +248,7 @@ func TestServeMiddlemanBillPublishFailureAllowsRetryWithoutRefiringDownstream(t 
 		RequestID:          "req",
 		ImpID:              "imp",
 		ResponseBidID:      "resp",
-		DownstreamBURL:     downstream.URL + "/bill",
+		DownstreamBURL:     safeTestOrigin + "/bill",
 		DownstreamBidPrice: 1.0,
 		UpstreamBidPrice:   1.2,
 		MarginCPM:          0.2,
@@ -260,7 +260,7 @@ func TestServeMiddlemanBillPublishFailureAllowsRetryWithoutRefiringDownstream(t 
 	publishAttempts := 0
 	controller := &Controller{
 		C:              &Config{ServerURL: "http://aofei.example", TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
-		client:         downstream.Client(),
+		client:         safeTestClient(downstream),
 		middlemanStore: store,
 		publishWinLossFunc: func(_ []byte) error {
 			publishAttempts++
@@ -419,7 +419,7 @@ func TestServeMiddlemanWinDoesNotForwardDuplicateNotifications(t *testing.T) {
 		RequestID:          "req",
 		ImpID:              "imp",
 		ResponseBidID:      "resp",
-		DownstreamNURL:     downstream.URL + "/win",
+		DownstreamNURL:     safeTestOrigin + "/win",
 		DownstreamBidPrice: 1.0,
 		UpstreamBidPrice:   1.2,
 		MarginCPM:          0.2,
@@ -431,7 +431,7 @@ func TestServeMiddlemanWinDoesNotForwardDuplicateNotifications(t *testing.T) {
 	var forwards []string
 	controller := &Controller{
 		C:              &Config{ServerURL: "http://aofei.example", TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
-		client:         downstream.Client(),
+		client:         safeTestClient(downstream),
 		middlemanStore: store,
 		publishWinLossFunc: func(data []byte) error {
 			var wl WinLoss
@@ -483,7 +483,7 @@ func TestServeMiddlemanStatusPublishFailureRetriesLocallyWithoutRefiringDownstre
 			store := newMemoryMiddlemanCallbackStore()
 			value := middlemanCallbackContext{
 				Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp",
-				DownstreamNURL: downstream.URL + "/win", DownstreamLURL: downstream.URL + "/loss",
+				DownstreamNURL: safeTestOrigin + "/win", DownstreamLURL: safeTestOrigin + "/loss",
 				DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
 				RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
 			}
@@ -493,7 +493,7 @@ func TestServeMiddlemanStatusPublishFailureRetriesLocallyWithoutRefiringDownstre
 			publishAttempts := 0
 			controller := &Controller{
 				C:      &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
-				client: downstream.Client(), middlemanStore: store,
+				client: safeTestClient(downstream), middlemanStore: store,
 				publishWinLossFunc: func(data []byte) error {
 					publishAttempts++
 					if publishAttempts == 1 {
@@ -566,7 +566,7 @@ func TestServeMiddlemanWinSuppressesConcurrentForwardAndPublication(t *testing.T
 	defer downstream.Close()
 	store := newMemoryMiddlemanCallbackStore()
 	value := middlemanCallbackContext{
-		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp", DownstreamNURL: downstream.URL,
+		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp", DownstreamNURL: safeTestOrigin,
 		DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
 		RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
 	}
@@ -576,7 +576,7 @@ func TestServeMiddlemanWinSuppressesConcurrentForwardAndPublication(t *testing.T
 	var published atomic.Int32
 	controller := &Controller{
 		C:      &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
-		client: downstream.Client(), middlemanStore: store,
+		client: safeTestClient(downstream), middlemanStore: store,
 		publishWinLossFunc: func([]byte) error { published.Add(1); return nil },
 	}
 	target := signedMiddlemanTestURL(t, controller, "/mid/win", value.Token, "1.000")
@@ -670,6 +670,12 @@ func TestServeMiddlemanRejectsExpiredSignature(t *testing.T) {
 }
 
 func TestServeMiddlemanSSRFIsInvalidForwardTarget(t *testing.T) {
+	forwarded := 0
+	downstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		forwarded++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer downstream.Close()
 	store := newMemoryMiddlemanCallbackStore()
 	value := middlemanCallbackContext{
 		Token:              "tok",
@@ -687,8 +693,10 @@ func TestServeMiddlemanSSRFIsInvalidForwardTarget(t *testing.T) {
 	}
 	var published []WinLoss
 	controller := &Controller{
-		C:              &Config{ServerURL: "http://aofei.example", TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
-		middlemanStore: store,
+		C:                &Config{ServerURL: "http://aofei.example", TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
+		client:           safeTestClient(downstream),
+		callbackURLGuard: func(context.Context, string) error { return nil },
+		middlemanStore:   store,
 		publishWinLossFunc: func(data []byte) error {
 			var wl WinLoss
 			if err := json.Unmarshal(data, &wl); err != nil {
@@ -707,6 +715,9 @@ func TestServeMiddlemanSSRFIsInvalidForwardTarget(t *testing.T) {
 	}
 	if len(published) != 1 || published[0].Middleman.ForwardStatus != "invalid_url" {
 		t.Fatalf("published = %#v, want invalid_url forward status", published)
+	}
+	if forwarded != 0 {
+		t.Fatalf("injected client received %d private-target requests, want zero", forwarded)
 	}
 }
 
@@ -735,7 +746,7 @@ func TestServeMiddlemanWinRetriesOnlyRetryableDownstreamFailure(t *testing.T) {
 				RequestID:          "req",
 				ImpID:              "imp",
 				ResponseBidID:      "resp",
-				DownstreamNURL:     downstream.URL + "/win",
+				DownstreamNURL:     safeTestOrigin + "/win",
 				DownstreamBidPrice: 1.0,
 				UpstreamBidPrice:   1.2,
 				MarginCPM:          0.2,
@@ -750,7 +761,7 @@ func TestServeMiddlemanWinRetriesOnlyRetryableDownstreamFailure(t *testing.T) {
 					TrackingSecret:           "test-secret",
 					MiddlemanCallbackBaseURL: "http://aofei.example",
 				},
-				client:         downstream.Client(),
+				client:         safeTestClient(downstream),
 				middlemanStore: store,
 				publishWinLossFunc: func(_ []byte) error {
 					return nil
@@ -950,7 +961,7 @@ func TestMiddlemanPostForwardStateFailureRetainsAtLeastOnceBoundary(t *testing.T
 	defer downstream.Close()
 	store := &failCompleteNotifyStore{memoryMiddlemanCallbackStore: newMemoryMiddlemanCallbackStore(), failures: 1}
 	value := middlemanCallbackContext{
-		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp", DownstreamNURL: downstream.URL,
+		Token: "tok", RequestID: "req", ImpID: "imp", ResponseBidID: "resp", DownstreamNURL: safeTestOrigin,
 		DownstreamBidPrice: 1, UpstreamBidPrice: 1.1,
 		RAdv: match.RAdv{Demand: match.Demand{AdvID: 8, CampaignID: 101, ItemID: 102, CreativeID: 103}},
 	}
@@ -960,7 +971,7 @@ func TestMiddlemanPostForwardStateFailureRetainsAtLeastOnceBoundary(t *testing.T
 	published := 0
 	controller := &Controller{
 		C:      &Config{TrackingSecret: "test-secret", MiddlemanCallbackBaseURL: "http://aofei.example"},
-		client: downstream.Client(), middlemanStore: store,
+		client: safeTestClient(downstream), middlemanStore: store,
 		publishWinLossFunc: func([]byte) error { published++; return nil },
 	}
 	req := httptest.NewRequest(http.MethodGet, signedMiddlemanTestURL(t, controller, "/mid/win", value.Token, "1.000"), nil)

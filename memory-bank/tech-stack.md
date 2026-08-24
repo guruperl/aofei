@@ -147,6 +147,14 @@ tables for both bidder and callback targets. Do not replace that policy with
 reserved addresses may otherwise pass. Direct URL checks and dial-time DNS
 checks both reject a mixed result set, and IPv4-mapped addresses are evaluated
 under the IPv4 policy.
+`safehttp.NewCallbackClient` is the required normalization point for injected
+bidder/callback clients. It accepts the default transport, a cloneable
+`*http.Transport`, or an explicitly marked socket-free test double. It disables
+proxies and cookie jars, replaces all network/TLS dial hooks, requires verified
+TLS 1.2+, derives the certificate name from the request, bounds response headers
+to 64 KiB, validates every redirect after custom hooks, limits redirects to ten,
+and clears all headers across authority/scheme changes. Client timeouts and the
+callers' existing body limits remain independent.
 
 OpenRTB partner interoperability uses exact version `2.5`. Public auction
 traffic accepts only identity or one gzip content coding; traffic policies set

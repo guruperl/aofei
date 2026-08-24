@@ -334,6 +334,23 @@ The reviewed prefix policy follows the IANA
 special-purpose registries; registry changes require a code and test review,
 not an implicit expansion through `net.IP.IsGlobalUnicast`.
 
+Injected HTTP clients cannot replace this boundary. A supported network client
+must use `*http.Transport`; Aofei clones its TLS and connection-pool settings,
+then removes proxy and custom TLS-dial hooks, installs checked/pinned dialing,
+requires certificate verification and TLS 1.2 or newer, derives certificate
+identity from each request host, and caps response headers at 64 KiB. Arbitrary
+custom network `RoundTripper` implementations fail closed. The only alternative
+is an explicitly marked, socket-free in-memory transport used by tests, and its
+request URLs are still validated. Client timeout and caller context remain in
+force, while the bidder parser retains its independent one-MiB encoded/decoded
+response limit and callbacks retain their 1-KiB drain bound.
+
+Every redirect target is validated after any injected redirect hook and again
+by the transport. At most ten hops are followed. Any authority or scheme change
+clears all request headers and URL credentials, and callback/bidder clients do
+not retain a cookie jar. Application-specific URL guards are additive and
+cannot relax the mandatory policy.
+
 The singleton `cmd/mid-callback-retry` command claims due rows as `Processing`
 before forwarding, then marks them `Succeeded`, `Retrying`, or `Abandoned` with
 bounded attempts and exponential backoff. It forwards downstream callbacks only;

@@ -304,10 +304,8 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "invalid_url", 0, "invalid callback URL"
 	}
-	if opts.Client == nil {
-		if err := safehttp.ValidateCallbackURL(ctx, raw); err != nil {
-			return "invalid_url", 0, err.Error()
-		}
+	if err := safehttp.ValidateCallbackURL(ctx, raw); err != nil {
+		return "invalid_url", 0, err.Error()
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
@@ -315,10 +313,7 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 	if err != nil {
 		return "request_error", 0, err.Error()
 	}
-	client := opts.Client
-	if client == nil {
-		client = safehttp.NewCallbackClient(nil)
-	}
+	client := safehttp.NewCallbackClient(opts.Client)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "error", 0, err.Error()
