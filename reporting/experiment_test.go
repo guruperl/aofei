@@ -96,17 +96,69 @@ func TestRecordExposureIsIdempotentAndDetectsConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT e.owner_type, e.adv_id, e.assignment_algorithm_version, e.status,")).
+		WithArgs(assignment.ExperimentID, assignment.Version, assignment.VariantKey).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"owner_type", "adv_id", "assignment_algorithm_version", "status", "assignment_salt", "retention_hours", "starts_at", "ends_at",
+		}).AddRow("Operator", nil, AssignmentAlgorithmV2, "Running", testExperiment().AssignmentSalt, testExperiment().RetentionHours, testExperiment().StartsAt, nil))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT IGNORE INTO report_exposure")).
 		WithArgs(assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:], assignment.VariantKey, assignment.AssignedAt, assignment.ExpiresAt).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT variant_key FROM report_exposure")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT exposure_id, variant_key, exposed_at, expires_at")).
 		WithArgs(assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:]).
-		WillReturnRows(sqlmock.NewRows([]string{"variant_key"}).AddRow(assignment.VariantKey))
+		WillReturnRows(sqlmock.NewRows([]string{"exposure_id", "variant_key", "exposed_at", "expires_at"}).
+			AddRow(1, assignment.VariantKey, assignment.AssignedAt, assignment.ExpiresAt))
+	mock.ExpectCommit()
 	if err := RecordExposure(context.Background(), db, assignment); err != nil {
 		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRecordExposureRejectsCallerBuiltAssignment(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	assignment := Assignment{
+		ExperimentID: 7, Version: 2, AlgorithmVersion: AssignmentAlgorithmV2,
+		OwnerType: "Operator", VariantKey: "control", SubjectHash: [32]byte{1},
+		AssignedAt: testExperiment().StartsAt,
+		ExpiresAt:  testExperiment().StartsAt.Add(2160 * time.Hour),
+	}
+	if err := RecordExposure(context.Background(), db, assignment); err == nil {
+		t.Fatal("caller-built assignment without internal proof was accepted")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAssignmentContractRejectsScopeRetentionAndProofMismatch(t *testing.T) {
+	experiment := testExperiment()
+	assignment, err := Assign(experiment, "abababababababababababababababababababababababababababababababab", experiment.StartsAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := assignmentContract{
+		ownerType: "Operator", algorithm: AssignmentAlgorithmV2,
+		salt: experiment.AssignmentSalt, retentionHours: experiment.RetentionHours,
+		startsAt: experiment.StartsAt,
+	}
+	for _, mutate := range []func(*Assignment){
+		func(value *Assignment) { value.OwnerID = 7 },
+		func(value *Assignment) { value.ExpiresAt = value.ExpiresAt.Add(time.Hour) },
+		func(value *Assignment) { value.proof = [32]byte{1} },
+	} {
+		candidate := assignment
+		mutate(&candidate)
+		if err := contract.validate(candidate); err == nil {
+			t.Fatalf("mismatched assignment accepted: %#v", candidate)
+		}
 	}
 }
 
@@ -125,10 +177,15 @@ func TestRecordOutcomeIsScopedToExposureDeclaredMetricAndIdempotent(t *testing.T
 		t.Fatal(err)
 	}
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT x.exposure_id, x.variant_key, e.primary_metric, e.guardrail_metric")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT x.exposure_id, x.variant_key, x.exposed_at, x.expires_at,")).
 		WithArgs(assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:]).
-		WillReturnRows(sqlmock.NewRows([]string{"exposure_id", "variant_key", "primary_metric", "guardrail_metric"}).
-			AddRow(41, assignment.VariantKey, "actions", "spend"))
+		WillReturnRows(sqlmock.NewRows([]string{
+			"exposure_id", "variant_key", "exposed_at", "expires_at",
+			"owner_type", "adv_id", "assignment_algorithm_version", "status", "assignment_salt", "retention_hours", "starts_at", "ends_at",
+			"primary_metric", "guardrail_metric",
+		}).AddRow(41, assignment.VariantKey, assignment.AssignedAt, assignment.ExpiresAt,
+			"Operator", nil, AssignmentAlgorithmV2, "Running", testExperiment().AssignmentSalt, testExperiment().RetentionHours, testExperiment().StartsAt, nil,
+			"actions", "spend"))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT IGNORE INTO report_experiment_outcome")).
 		WithArgs(uint64(41), "actions", "1.000000", outcome.IdempotencyKey[:], outcome.OccurredAt).
 		WillReturnResult(sqlmock.NewResult(9, 1))

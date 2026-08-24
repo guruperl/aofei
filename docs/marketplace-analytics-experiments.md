@@ -148,6 +148,15 @@ digest fails. Outcomes cannot precede exposure. The runtime API is:
 4. after observing a declared metric, `reporting.NewOutcome` and
    `reporting.RecordOutcome`.
 
+`Assign` also returns the stored owner scope and a private salt-bound proof.
+`RecordExposure` reloads the exact experiment/version/variant contract and
+requires its owner, algorithm, exposure window, and calculated expiry to match
+before an idempotent insert. A caller-built struct, wrong-account assignment,
+undeclared variant, altered retention, or stopped experiment without a prior
+matching exposure fails before insertion. `RecordOutcome` repeats that proof
+and scope validation against the immutable stored exposure, then permits only
+its experiment's declared metrics and exact idempotency tuple.
+
 The caller owns the pseudonym and event-digest derivation. Do not pass raw
 account, cookie, email, device, or conversion identifiers. The package has no
 automatic campaign or auction mutation path. Operator UI results aggregate

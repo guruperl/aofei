@@ -270,6 +270,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    pseudonym under a v2 hash domain containing experiment id, algorithm
    version, experiment version, and random salt, then records one immutable
    exposure, then may record append-only idempotent primary/guardrail outcomes.
+   The assignment carries stored owner scope and a private salt-bound proof;
+   both recording paths reload and match the database experiment, variant,
+   exposure time, exact retention, algorithm, owner, and declared metric before
+   accepting a fact.
    Only hashes/digests cross the storage boundary. `cmd/report-experiment`
    provides explicit audited create/start/stop/complete transitions, bounded
    expiry prune, and exact audited subject deletion, with no serving mutation.

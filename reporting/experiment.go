@@ -56,10 +56,13 @@ type Assignment struct {
 	ExperimentID     uint64
 	Version          uint32
 	AlgorithmVersion uint16
+	OwnerType        string
+	OwnerID          uint32
 	VariantKey       string
 	SubjectHash      [32]byte
 	AssignedAt       time.Time
 	ExpiresAt        time.Time
+	proof            [32]byte
 }
 
 // Outcome is one immutable observed metric value for an exposed subject. It
@@ -186,14 +189,42 @@ func Assign(e Experiment, subjectPseudonym string, at time.Time) (Assignment, er
 		cumulative += int(variant.AllocationBasisPts)
 		if bucket < cumulative {
 			assignedAt := at.UTC().Truncate(time.Microsecond)
-			return Assignment{
+			assignment := Assignment{
 				ExperimentID: e.ID, Version: e.Version, AlgorithmVersion: e.AssignmentAlgorithmVersion, VariantKey: variant.Key,
 				SubjectHash: subjectHash, AssignedAt: assignedAt,
 				ExpiresAt: assignedAt.Add(time.Duration(e.RetentionHours) * time.Hour),
-			}, nil
+				OwnerType: e.OwnerType,
+			}
+			if e.AdvID != nil {
+				assignment.OwnerID = *e.AdvID
+			}
+			assignment.proof = assignmentProof(e.AssignmentSalt, assignment)
+			return assignment, nil
 		}
 	}
 	return Assignment{}, fmt.Errorf("experiment allocation did not cover bucket")
+}
+
+func assignmentProof(saltText string, assignment Assignment) [32]byte {
+	salt, _ := hex.DecodeString(saltText)
+	input := make([]byte, 0, 160)
+	input = append(input, "aofei/reporting/assignment-proof/v1\x00"...)
+	var numbers [34]byte
+	binary.BigEndian.PutUint64(numbers[0:8], assignment.ExperimentID)
+	binary.BigEndian.PutUint32(numbers[8:12], assignment.Version)
+	binary.BigEndian.PutUint16(numbers[12:14], assignment.AlgorithmVersion)
+	binary.BigEndian.PutUint32(numbers[14:18], assignment.OwnerID)
+	binary.BigEndian.PutUint64(numbers[18:26], uint64(assignment.AssignedAt.UTC().UnixMicro()))
+	binary.BigEndian.PutUint64(numbers[26:34], uint64(assignment.ExpiresAt.UTC().UnixMicro()))
+	input = append(input, numbers[:]...)
+	input = append(input, assignment.SubjectHash[:]...)
+	input = append(input, 0)
+	input = append(input, assignment.OwnerType...)
+	input = append(input, 0)
+	input = append(input, assignment.VariantKey...)
+	input = append(input, 0)
+	input = append(input, salt...)
+	return sha256.Sum256(input)
 }
 
 func assignmentHashInput(e Experiment, subject []byte) ([]byte, error) {
@@ -228,32 +259,116 @@ func RecordExposure(ctx context.Context, db *sql.DB, assignment Assignment) erro
 	if db == nil {
 		return fmt.Errorf("experiment database is nil")
 	}
-	if assignment.ExperimentID == 0 || assignment.Version == 0 || !validAssignmentAlgorithm(assignment.AlgorithmVersion) || !validVariantKey(assignment.VariantKey) || assignment.AssignedAt.IsZero() || !assignment.ExpiresAt.After(assignment.AssignedAt) {
+	if !validAssignment(assignment) {
 		return fmt.Errorf("experiment assignment is incomplete")
 	}
-	if _, err := db.ExecContext(ctx, `
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	contract, err := loadAssignmentContract(ctx, tx, assignment)
+	if err != nil {
+		return err
+	}
+	if err := contract.validate(assignment); err != nil {
+		return err
+	}
+	if contract.status == "Running" {
+		if _, err := tx.ExecContext(ctx, `
 INSERT IGNORE INTO report_exposure
   (experiment_id, experiment_version, subject_hash, variant_key, exposed_at, expires_at)
 VALUES (?,?,?,?,?,?)`, assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:], assignment.VariantKey, assignment.AssignedAt.UTC(), assignment.ExpiresAt.UTC()); err != nil {
+			return err
+		}
+	}
+	var exposureID uint64
+	var storedVariant string
+	var storedAt, storedExpires time.Time
+	err = tx.QueryRowContext(ctx, `
+SELECT exposure_id, variant_key, exposed_at, expires_at
+FROM report_exposure
+WHERE experiment_id=? AND experiment_version=? AND subject_hash=?
+FOR UPDATE`, assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:]).Scan(&exposureID, &storedVariant, &storedAt, &storedExpires)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("experiment is not accepting exposures")
+	}
+	if err != nil {
 		return err
 	}
-	var stored string
-	if err := db.QueryRowContext(ctx, `
-SELECT variant_key FROM report_exposure
-WHERE experiment_id=? AND experiment_version=? AND subject_hash=?`, assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:]).Scan(&stored); err != nil {
-		return err
+	if storedVariant != assignment.VariantKey || !storedAt.UTC().Equal(assignment.AssignedAt.UTC()) || !storedExpires.UTC().Equal(assignment.ExpiresAt.UTC()) {
+		return fmt.Errorf("experiment exposure conflicts with existing assignment")
 	}
-	if stored != assignment.VariantKey {
-		return fmt.Errorf("experiment exposure conflicts with existing variant")
+	return tx.Commit()
+}
+
+type assignmentContract struct {
+	ownerType      string
+	ownerID        uint32
+	algorithm      uint16
+	status         string
+	salt           string
+	retentionHours uint32
+	startsAt       time.Time
+	endsAt         sql.NullTime
+}
+
+func loadAssignmentContract(ctx context.Context, tx *sql.Tx, assignment Assignment) (assignmentContract, error) {
+	var contract assignmentContract
+	var advID sql.NullInt64
+	err := tx.QueryRowContext(ctx, `
+SELECT e.owner_type, e.adv_id, e.assignment_algorithm_version, e.status,
+       e.assignment_salt, e.retention_hours, e.starts_at, e.ends_at
+FROM report_experiment e
+INNER JOIN report_experiment_variant v
+  ON (v.experiment_id=e.experiment_id AND v.experiment_version=e.experiment_version)
+WHERE e.experiment_id=? AND e.experiment_version=? AND v.variant_key=?
+FOR SHARE`, assignment.ExperimentID, assignment.Version, assignment.VariantKey).Scan(
+		&contract.ownerType, &advID, &contract.algorithm, &contract.status,
+		&contract.salt, &contract.retentionHours, &contract.startsAt, &contract.endsAt)
+	if err != nil {
+		return assignmentContract{}, err
+	}
+	if advID.Valid {
+		contract.ownerID = uint32(advID.Int64)
+	}
+	return contract, nil
+}
+
+func (contract assignmentContract) validate(assignment Assignment) error {
+	if assignment.OwnerType != contract.ownerType || assignment.OwnerID != contract.ownerID {
+		return fmt.Errorf("experiment assignment owner scope does not match")
+	}
+	if assignment.AlgorithmVersion != contract.algorithm {
+		return fmt.Errorf("experiment assignment algorithm does not match")
+	}
+	if assignment.AssignedAt.Before(contract.startsAt.UTC()) || (contract.endsAt.Valid && !assignment.AssignedAt.Before(contract.endsAt.Time.UTC())) {
+		return fmt.Errorf("experiment assignment is outside its version window")
+	}
+	expires := assignment.AssignedAt.UTC().Add(time.Duration(contract.retentionHours) * time.Hour)
+	if !assignment.ExpiresAt.UTC().Equal(expires) {
+		return fmt.Errorf("experiment assignment retention does not match")
+	}
+	if assignment.proof != assignmentProof(contract.salt, assignment) {
+		return fmt.Errorf("experiment assignment proof does not match")
 	}
 	return nil
+}
+
+func validAssignment(assignment Assignment) bool {
+	return assignment.ExperimentID != 0 && assignment.Version != 0 &&
+		validAssignmentAlgorithm(assignment.AlgorithmVersion) &&
+		(assignment.OwnerType == "Operator" || (assignment.OwnerType == "Advertiser" && assignment.OwnerID != 0)) &&
+		assignment.SubjectHash != [32]byte{} && assignment.proof != [32]byte{} &&
+		validVariantKey(assignment.VariantKey) && !assignment.AssignedAt.IsZero() &&
+		assignment.ExpiresAt.After(assignment.AssignedAt)
 }
 
 // NewOutcome validates and normalizes an observational experiment result. The
 // fixed six-decimal string avoids binary floating-point ambiguity at the SQL
 // DECIMAL(20,6) boundary.
 func NewOutcome(assignment Assignment, metricName, metricValue, idempotencyDigest string, occurredAt time.Time) (Outcome, error) {
-	if assignment.ExperimentID == 0 || assignment.Version == 0 || !validAssignmentAlgorithm(assignment.AlgorithmVersion) || !validVariantKey(assignment.VariantKey) || assignment.AssignedAt.IsZero() || !assignment.ExpiresAt.After(assignment.AssignedAt) {
+	if !validAssignment(assignment) {
 		return Outcome{}, fmt.Errorf("experiment assignment is incomplete")
 	}
 	if !validateMetricName(metricName) {
@@ -287,9 +402,7 @@ func RecordOutcome(ctx context.Context, db *sql.DB, outcome Outcome) error {
 	if db == nil {
 		return fmt.Errorf("experiment database is nil")
 	}
-	if outcome.Assignment.ExperimentID == 0 || outcome.Assignment.Version == 0 || !validAssignmentAlgorithm(outcome.Assignment.AlgorithmVersion) ||
-		!validVariantKey(outcome.Assignment.VariantKey) || outcome.Assignment.AssignedAt.IsZero() ||
-		!outcome.Assignment.ExpiresAt.After(outcome.Assignment.AssignedAt) ||
+	if !validAssignment(outcome.Assignment) ||
 		!validateMetricName(outcome.MetricName) || !outcomeDecimalPattern.MatchString(outcome.MetricValue) ||
 		outcome.OccurredAt.IsZero() || outcome.OccurredAt.Before(outcome.Assignment.AssignedAt) ||
 		!outcome.OccurredAt.Before(outcome.Assignment.ExpiresAt) {
@@ -302,18 +415,33 @@ func RecordOutcome(ctx context.Context, db *sql.DB, outcome Outcome) error {
 	defer tx.Rollback()
 	var exposureID uint64
 	var storedVariant, primaryMetric, guardrailMetric string
+	var storedAt, storedExpires time.Time
+	var contract assignmentContract
+	var advID sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `
-SELECT x.exposure_id, x.variant_key, e.primary_metric, e.guardrail_metric
+SELECT x.exposure_id, x.variant_key, x.exposed_at, x.expires_at,
+       e.owner_type, e.adv_id, e.assignment_algorithm_version, e.status,
+       e.assignment_salt, e.retention_hours, e.starts_at, e.ends_at,
+       e.primary_metric, e.guardrail_metric
 FROM report_exposure x
 INNER JOIN report_experiment e
   ON (e.experiment_id=x.experiment_id AND e.experiment_version=x.experiment_version)
 WHERE x.experiment_id=? AND x.experiment_version=? AND x.subject_hash=?
 FOR UPDATE`, outcome.Assignment.ExperimentID, outcome.Assignment.Version, outcome.Assignment.SubjectHash[:]).Scan(
-		&exposureID, &storedVariant, &primaryMetric, &guardrailMetric); err != nil {
+		&exposureID, &storedVariant, &storedAt, &storedExpires,
+		&contract.ownerType, &advID, &contract.algorithm, &contract.status,
+		&contract.salt, &contract.retentionHours, &contract.startsAt, &contract.endsAt,
+		&primaryMetric, &guardrailMetric); err != nil {
 		return err
 	}
-	if storedVariant != outcome.Assignment.VariantKey {
-		return fmt.Errorf("experiment outcome conflicts with stored exposure variant")
+	if advID.Valid {
+		contract.ownerID = uint32(advID.Int64)
+	}
+	if err := contract.validate(outcome.Assignment); err != nil {
+		return err
+	}
+	if storedVariant != outcome.Assignment.VariantKey || !storedAt.UTC().Equal(outcome.Assignment.AssignedAt.UTC()) || !storedExpires.UTC().Equal(outcome.Assignment.ExpiresAt.UTC()) {
+		return fmt.Errorf("experiment outcome conflicts with stored exposure assignment")
 	}
 	if outcome.MetricName != primaryMetric && outcome.MetricName != guardrailMetric {
 		return fmt.Errorf("experiment outcome metric is not declared by the experiment")
@@ -325,14 +453,14 @@ VALUES (?,?,?,?,?)`, exposureID, outcome.MetricName, outcome.MetricValue, outcom
 		return err
 	}
 	var storedMetric, storedValue string
-	var storedAt time.Time
+	var storedOutcomeAt time.Time
 	if err := tx.QueryRowContext(ctx, `
 SELECT metric_name, metric_value, occurred_at
 FROM report_experiment_outcome
-WHERE exposure_id=? AND idempotency_key=?`, exposureID, outcome.IdempotencyKey[:]).Scan(&storedMetric, &storedValue, &storedAt); err != nil {
+WHERE exposure_id=? AND idempotency_key=?`, exposureID, outcome.IdempotencyKey[:]).Scan(&storedMetric, &storedValue, &storedOutcomeAt); err != nil {
 		return err
 	}
-	if storedMetric != outcome.MetricName || storedValue != outcome.MetricValue || !storedAt.UTC().Equal(outcome.OccurredAt.UTC()) {
+	if storedMetric != outcome.MetricName || storedValue != outcome.MetricValue || !storedOutcomeAt.UTC().Equal(outcome.OccurredAt.UTC()) {
 		return fmt.Errorf("experiment outcome conflicts with existing idempotency key")
 	}
 	return tx.Commit()

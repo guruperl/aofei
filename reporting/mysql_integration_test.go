@@ -60,3 +60,72 @@ VALUES ('Operator','r03-legacy-compatibility',1,'Draft',?,'actions','spend',2160
 		t.Fatal("variant deletion succeeded")
 	}
 }
+
+func TestExperimentFactBindingMySQL(t *testing.T) {
+	dsn := os.Getenv("AOFEI_MYSQL_TEST_DSN")
+	if dsn == "" {
+		t.Skip("AOFEI_MYSQL_TEST_DSN is not set")
+	}
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	start := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	experiment := Experiment{
+		OwnerType: "Operator", Name: "r03-fact-binding-" + time.Now().UTC().Format("150405.000000"), Version: 1,
+		Status: "Draft", PrimaryMetric: "actions", GuardrailMetric: "spend",
+		RetentionHours: 24, StartsAt: start,
+		Variants: []Variant{{Key: "control", AllocationBasisPts: 5000}, {Key: "treatment", AllocationBasisPts: 5000}},
+	}
+	id, err := CreateExperiment(ctx, db, experiment, 1, "R03 disposable integration")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := TransitionExperiment(ctx, db, id, "Running", 1, "R03 disposable start"); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadExperiment(ctx, db, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignment, err := Assign(loaded, "abababababababababababababababababababababababababababababababab", start.Add(30*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	forged := assignment
+	forged.OwnerID = 9
+	if err := RecordExposure(ctx, db, forged); err == nil {
+		t.Fatal("wrong-scope assignment was stored")
+	}
+	if err := RecordExposure(ctx, db, assignment); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordExposure(ctx, db, assignment); err != nil {
+		t.Fatalf("idempotent exposure retry: %v", err)
+	}
+	outcome, err := NewOutcome(assignment, "actions", "1.000000", "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", assignment.AssignedAt.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordOutcome(ctx, db, outcome); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordOutcome(ctx, db, outcome); err != nil {
+		t.Fatalf("idempotent outcome retry: %v", err)
+	}
+	newAssignment, err := Assign(loaded, "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef", start.Add(31*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := TransitionExperiment(ctx, db, id, "Stopped", 1, "R03 disposable stop"); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordExposure(ctx, db, assignment); err != nil {
+		t.Fatalf("stopped-state idempotent retry: %v", err)
+	}
+	if err := RecordExposure(ctx, db, newAssignment); err == nil {
+		t.Fatal("new exposure was accepted after stop")
+	}
+}
