@@ -34,6 +34,9 @@ func TestAssignV1RetainsLegacyGoldenHash(t *testing.T) {
 	if assignment.AlgorithmVersion != AssignmentAlgorithmV1 {
 		t.Fatalf("algorithm version = %d, want v1", assignment.AlgorithmVersion)
 	}
+	if assignment.VariantKey != "treatment" {
+		t.Fatalf("v1 variant = %q, want legacy treatment bucket", assignment.VariantKey)
+	}
 }
 
 func TestAssignV2SeparatesExperimentIdentityEvenWithSameSalt(t *testing.T) {

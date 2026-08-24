@@ -73,13 +73,15 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   advertiser-scoped event idempotency, click-over-view attribution, bounded
   retention/reconciliation, and scoped reporting keep these facts analytical;
   they never mutate CPM billing, balances, or D01 delivery reservations.
-- R02 marketplace analytics derive account-scoped UTC interval facts and
+- R02/R03 marketplace analytics derive account-scoped UTC interval facts and
   reconciled action ratios for advertisers, publishers, and operators. Every
   metric has a fixed source/formula/currency/freshness contract; dependency
   gaps remain partial or unavailable rather than false zero. Controlled
-  experiments use deterministic pseudonymous assignment, append-only exposure
-  and idempotent declared-metric outcomes with bounded expiry/exact deletion,
-  and explicit OS-principal state
+  experiments use server-owned v2 namespaces (with explicit legacy v1
+  compatibility), deterministic cross-experiment-unlinkable pseudonymous
+  assignment, immutable version/allocation contracts, append-only validated
+  exposure and idempotent declared-metric outcomes, bounded expiry/exact
+  deletion, aggregate-only export, and renewable-lease OS-principal state
   transitions. Reports and experiments cannot modify bids, budgets, delivery,
   accounting, or settlement.
 - Local commercial demand supports reviewed positive USD CPM only. The highest

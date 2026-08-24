@@ -92,7 +92,7 @@ After `reset && load`, the expected inventory is:
 | Base tables | 95 |
 | Views | 0 |
 | Stored routines | 6 |
-| Triggers | 57 |
+| Triggers | 61 |
 | Events | 0 |
 | Advertisers | 0 |
 | Publishers | 0 |

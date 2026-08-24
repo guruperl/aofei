@@ -7,9 +7,9 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order, D04, D05, S06, P03, S05, and O03 are complete. P03's authenticity gates
+order, D04, D05, S06, P03, S05, O03, and R03 are complete. P03's authenticity gates
 remain disabled by default until a separately authorized named-publisher
-canary. The remaining review order continues through R03 and A03. I02
+canary. The remaining required review order is A03. I02
 remains separately demand-gated; its P03/S05 prerequisites are complete, but a
 named Android or iOS integration still has not defined supported platforms and
 lifecycle requirements. The active MySQL baseline is 95 tables, 0 views, 6
@@ -50,7 +50,7 @@ planned milestones do not imply schema or runtime activation.
 | P03 direct SSP authenticity | Completed; disabled by default | [status-P03.md](../memory-bank/status-P03.md) | [Authenticity contract](direct-ssp-authenticity.md), existing [`/pz` contract](ssp-direct-traffic.md), [publisher activation](publisher-activation.md), and [identity boundary](identity-access-security.md) |
 | R01 conversion and attribution | Completed | [status-R01.md](../memory-bank/status-R01.md) | [Conversion and attribution](conversion-attribution.md) |
 | R02 analytics and experiments | Completed | [status-R02.md](../memory-bank/status-R02.md) | [Marketplace analytics and experiments](marketplace-analytics-experiments.md) |
-| R03 experiment/report integrity | Planned | [status-R03.md](../memory-bank/status-R03.md) | Existing [analytics and experiment contract](marketplace-analytics-experiments.md) |
+| R03 experiment/report integrity | Completed | [status-R03.md](../memory-bank/status-R03.md) | [Analytics and experiment contract](marketplace-analytics-experiments.md) |
 | I01 OpenRTB interoperability | Completed | [status-I01.md](../memory-bank/status-I01.md) | [DSP workflow](dsp-workflow.md), [middleman OpenRTB](middleman-adx.md), and [adoption review](prebid-openrtb-adoption.md) |
 | I02 Android/iOS publisher SDKs | Planned; demand-gated | [status-I02.md](../memory-bank/status-I02.md) | Current server contract only: [`/pz`](ssp-direct-traffic.md). Maintained native SDK packages do not exist. |
 | I03 advertiser management API | Completed; disabled by default | [status-I03.md](../memory-bank/status-I03.md) | [Management API guide](advertiser-management-api.md) and [OpenAPI 3.1](management-api-openapi.yaml) |
@@ -65,7 +65,7 @@ planned milestones do not imply schema or runtime activation.
 | A03 exact monetary sources | Planned | [status-A03.md](../memory-bank/status-A03.md) | Existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |
 | O01 production traffic controls | Completed | [status-O01.md](../memory-bank/status-O01.md) | [Production traffic and observability](production-traffic-observability.md) |
 | O02 single-region availability | Completed; production claims evidence-gated | [status-O02.md](../memory-bank/status-O02.md) | [Availability, recovery, and SLO](single-region-availability.md) |
-| O03 job/cache/filesystem reliability | In progress | [status-O03.md](../memory-bank/status-O03.md) | Existing [operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
+| O03 job/cache/filesystem reliability | Completed | [status-O03.md](../memory-bank/status-O03.md) | [Operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
 
 ## Supporting Runtime References
 

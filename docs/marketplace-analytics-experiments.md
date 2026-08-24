@@ -252,10 +252,10 @@ Run the clean-room benchmark after schema, index, dimension, or query changes:
 ./scripts/aofei-reporting-benchmark.sh
 ```
 
-The 2026-08-01 P02-expanded baseline used MySQL 8.0.41 in a disposable
+The 2026-08-24 R03 closeout baseline used MySQL 8.0.41 in a disposable
 container on x86-64 with 8 visible CPUs, 100,000 synthetic interval rows, a
 two-day range, a 200-row limit, and five warm measured runs. Median/max results
-were advertiser 100/119 ms, publisher 105/118 ms, and operator 1684/1830 ms.
+were advertiser 105/143 ms, publisher 110/125 ms, and operator 1696/1880 ms.
 These are local query measurements, not production p95/p99 or an availability
 SLO.
 

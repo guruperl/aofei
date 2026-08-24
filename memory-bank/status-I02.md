@@ -193,6 +193,25 @@ when customer demand justifies their long-term support cost.
   reviewed consumer boundary. A named integration cannot start until the P03
   legacy compatibility window and S05 rendering requirements are explicit.
 
+## Reconciliation From R03
+
+- Assignment algorithm v1/v2 selection, random salts, salt-bound assignment
+  proofs, exposure/outcome validation, and experiment state remain server-only.
+  An SDK never computes buckets, receives or persists a salt/proof/subject hash,
+  chooses a variant, forges a declared metric, or reinterprets a legacy
+  assignment.
+- Native telemetry can feed only the separately reviewed idempotent server
+  integration. It must preserve the exact experiment/version/owner/window and
+  bounded retention contract; repeated-event ratios may exceed one but NaN,
+  infinities, negative values outside the registry domain, and raw event or
+  identity values are rejected before storage.
+- Mobile diagnostics/export surfaces remain aggregate-only and cannot expose
+  subject rows, salts, hashes, idempotency keys, stop/audit reasons, or
+  cross-account results. Exact erasure and expiry pruning remain authorized
+  server operations under the renewable lease, not SDK functions.
+- No named Android/iOS integration, platform matrix, consent contract, or
+  lifecycle owner has appeared, so R03 completion does not trigger I02.
+
 ## Conditional Trigger Evaluation
 
 - 2026-08-24 after S05 closeout: no named Android or iOS integration supplied

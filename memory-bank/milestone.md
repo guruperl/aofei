@@ -33,7 +33,7 @@ complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 is now complete. S06 repository
 hardening, managed Cloudflare widget, constrained Free-plan edge rule,
 production deployment, and live proof are also complete. P03, S05, and O03 are
-complete; the remaining deep-review horizon is R03, then A03. I02 remains
+complete; R03 is also complete, leaving A03 as the required deep-review horizon. I02 remains
 demand-gated and starts only when a named Android or iOS integration
 supplies supported OS/version and lifecycle requirements. Matching lane status
 files are the authoritative completion record; completed M-lane files retain
@@ -48,8 +48,8 @@ Delivery sequence:
 5. Follow-up review remediation: D04 callback/runtime history, D05
    auction/cap/hot-path fixes, S06 repository plus production activation, and
    P03 direct-SSP authenticity, S05 runtime trust boundaries, and O03
-   job/cache/filesystem reliability are complete; the remaining sequence is R03
-   experiment/report integrity, then A03 exact monetary sources.
+   job/cache/filesystem reliability and R03 experiment/report integrity are
+   complete; the remaining sequence is A03 exact monetary sources.
 6. Demand-gated mobile delivery: P03/S05 are complete, but I02 starts only when
    a named mobile integration supplies supported-platform and lifecycle needs.
 
@@ -79,7 +79,7 @@ acceptance criteria recorded in the corresponding status files.
 | P03 | Completed; disabled by default | [status-P03.md](status-P03.md) | Direct SSP request authenticity, scoped App proofs, portal/cache integration, and rollout/rollback evidence. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
-| R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
+| R03 | Completed | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
 | I01 | Completed | [status-I01.md](status-I01.md) | OpenRTB partner interoperability. |
 | I02 | Planned; demand-gated | [status-I02.md](status-I02.md) | Android and iOS publisher SDKs. |
 | I03 | Completed; disabled by default | [status-I03.md](status-I03.md) | External campaign management API. |
@@ -1584,7 +1584,7 @@ Expand reporting dimensions and commercial metrics, define reporting freshness,
 and add controlled A/B assignment only after conversion attribution is
 reliable. Detailed tasks are in [status-R02.md](status-R02.md).
 
-## R03 - Experiment And Reporting Integrity `[ ]`
+## R03 - Experiment And Reporting Integrity `[+]`
 
 Make new experiment assignment namespaces server-owned and cross-experiment
 unlinkable, preserve existing assignments through an explicit algorithm

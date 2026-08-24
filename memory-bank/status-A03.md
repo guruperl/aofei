@@ -93,3 +93,26 @@ source while preserving auditable compatibility and hosted-payment safety.
   correctness boundary. Filesystem evidence uses the shared durable writer,
   restricted modes, atomic replacement, and identifier-free fixed-cardinality
   failure reporting.
+
+## Reconciliation From R03
+
+- The current A03 starting schema is 95 tables, 6 routines, and 61 triggers.
+  Exact-money migrations must preserve the complete experiment-version/state
+  guard, Draft-only serialized variant insertion, variant/outcome immutability,
+  and metric-value CHECK. Update schema counts and recovery evidence for A03's
+  own trigger changes without rewriting legacy v1 or current v2 assignments.
+- `report_delivery` and experiment outcomes remain derived analytical facts,
+  even when represented as exact decimals. A03 must derive every authoritative
+  monetary value from its inventoried demand/reservation/ledger/accounting
+  source; it cannot promote an experiment outcome, aggregate export, ratio, or
+  formatted historical float into price, balance, statement, or settlement
+  authority.
+- Exact report/API work preserves R03's registry value domains: counts are
+  nonnegative integers, repeated-event CTR/CVR may exceed one, ROI is at least
+  -1, and money/CPM/ROAS are nonnegative. NaN/Inf, negative zero, overflow, and
+  noncanonical decimal input remain rejected, while account scope and Summer's
+  aggregate-only experiment export remain unchanged.
+- Populated migration and recovery fixtures create experiments as Draft, add a
+  complete 2-20 variant/10,000-basis-point allocation, then transition to
+  Running with audit evidence. A03 rollback must not disable or bypass these
+  guards to load fixtures or reconcile monetary history.

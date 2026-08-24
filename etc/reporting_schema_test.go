@@ -46,7 +46,7 @@ func TestReportingSchemaIsScopedPseudonymousAndNonFinancial(t *testing.T) {
 			t.Errorf("report experiment retention contract is missing %q", required)
 		}
 	}
-	for _, required := range []string{"report_experiment_variant_immutable_update", "report_experiment_variant_immutable_delete"} {
+	for _, required := range []string{"report_experiment_variant_guard_insert", "report_experiment_variant_immutable_update", "report_experiment_variant_immutable_delete"} {
 		if !strings.Contains(schema, required) {
 			t.Errorf("report experiment compatibility contract is missing %q", required)
 		}
@@ -60,7 +60,7 @@ func TestReportingSchemaIsScopedPseudonymousAndNonFinancial(t *testing.T) {
 	for _, required := range []string{
 		"`exposure_id` bigint unsigned NOT NULL", "`metric_value` decimal(20,6) NOT NULL",
 		"`idempotency_key` binary(32) NOT NULL", "report_experiment_outcome_idempotency",
-		"report_experiment_outcome_immutable_update",
+		"report_experiment_outcome_value_chk", "report_experiment_outcome_immutable_update",
 	} {
 		if !strings.Contains(outcome+schema, required) {
 			t.Errorf("report experiment outcome contract is missing %q", required)

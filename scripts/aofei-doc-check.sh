@@ -158,15 +158,16 @@ if ! grep -Eq '^\| S05 .* \| Completed \|' docs/README.md; then
 	fail "docs/README.md must identify S05 as completed remediation."
 fi
 
-if ! grep -Eq '^\| O03 .* \| In progress \|' docs/README.md; then
-	fail "docs/README.md must identify O03 as active remediation."
+if ! grep -Eq '^\| O03 .* \| Completed \|' docs/README.md; then
+	fail "docs/README.md must identify O03 as completed remediation."
 fi
 
-for planned_lane in R03 A03; do
-	if ! grep -Eq "^\\| ${planned_lane} .* \\| Planned \\|" docs/README.md; then
-		fail "docs/README.md must identify ${planned_lane} as planned remediation."
-	fi
-done
+if ! grep -Eq '^\| R03 .* \| Completed \|' docs/README.md; then
+	fail "docs/README.md must identify R03 as completed remediation."
+fi
+if ! grep -Eq '^\| A03 .* \| Planned \|' docs/README.md; then
+	fail "docs/README.md must identify A03 as planned remediation."
+fi
 
 mapfile -t indexed_docs < <(
 	find docs -type f -name '*.md' \
@@ -185,7 +186,7 @@ for inventory_line in \
 	'| Base tables | 95 |' \
 	'| Views | 0 |' \
 	'| Stored routines | 6 |' \
-	'| Triggers | 57 |'
+	'| Triggers | 61 |'
 do
 	if ! grep -Fq "$inventory_line" docs/database-baseline.md; then
 		fail "docs/database-baseline.md is missing current inventory: $inventory_line"

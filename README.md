@@ -150,7 +150,7 @@ separately demand-gated. Implementation does not imply production activation:
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
 | P03 direct SSP authenticity | Implemented and disabled by default; versioned public locators, scoped App request proofs, portal/cache integration, abuse evidence, and rollout/rollback operations are complete, while production activation remains publisher-canary gated. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
-| R03 experiment/report integrity | Planned; will version assignment privacy and strengthen analytical validation. |
+| R03 experiment/report integrity | Completed; assignment v1/v2 compatibility, immutable contracts, validated facts, privacy-safe aggregates, and leased retention are implemented. |
 | I01 OpenRTB interoperability | Implemented as a bounded OpenRTB 2.5 profile. |
 | I02 Android/iOS publisher SDKs | Planned and demand-gated; `/pz` JSON/OpenRTB examples exist, but maintained native SDK packages do not. |
 | I03 advertiser management API | Implemented but independently disabled by default. |
@@ -162,7 +162,7 @@ separately demand-gated. Implementation does not imply production activation:
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
 | A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |
 | O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
-| O03 job/cache/filesystem reliability | In progress; singleton liveness is complete, while publication, spread, filesystem, geodata, recovery-evidence, and inventory rows remain. |
+| O03 job/cache/filesystem reliability | Completed; renewable ownership, atomic publication, durable filesystem/geodata handling, and recovery evidence are implemented. |
 
 See the [documentation and milestone index](docs/README.md) for the authoritative
 guide for each lane and the matching status file. Historical M-lane evidence is

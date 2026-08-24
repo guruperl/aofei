@@ -1,6 +1,6 @@
 # Status R03 - Experiment And Reporting Integrity
 
-State: `[~]` In progress
+State: `[+]` Completed
 
 ## Goal
 
@@ -72,6 +72,40 @@ bids, delivery, accounting, or settlement.
   allocation, then Running) with Created/Started audit evidence; the full
   95-table/6-routine/61-trigger restore and post-restore prune passed. The full
   iteration-4 review remains pending.
+- Iteration 4: clean. The whole R03 implementation, preceding fixes, schema,
+  privacy/export boundary, failure semantics, compatibility, operations,
+  tests, and documentation had no P1, P2, or higher finding. Two nonblocking
+  coverage refinements also pin the legacy v1 variant (not only its hash) and
+  require the new variant-insert/value-domain schema guards by name. The
+  bounded review-fix gate passed in four iterations.
+
+## Closeout Evidence
+
+- `GOWORK=off go test ./...`, `go vet ./...`, pinned `staticcheck ./...`, and
+  the documented race set passed; the full pzdesign test/vet/staticcheck and
+  `go test -race ./...` gates passed. Genelet was unchanged by R03.
+- A clean local rebuild matched `etc/step4_init.sql` at 95 tables, 0 views, 6
+  routines, and 61 triggers. Disposable MySQL tests passed legacy-v1 default,
+  v1/v2 fact binding, full version immutability, start/variant concurrency,
+  numeric CHECK, idempotency, exact erasure, and expiry pruning; the Summer
+  aggregate SQL integration passed against the same schema.
+- The 100,000-row MySQL 8.0.41 benchmark passed at advertiser 105/143 ms,
+  publisher 110/125 ms, and operator 1696/1880 ms median/max. The recovery
+  drill passed a 95-table/6-routine/61-trigger backup/restore, experiment
+  integrity/prune, cache rebuild, and callback-recovery proof in 36 seconds.
+- Documentation, public-data, and diff-hygiene guards passed. No production,
+  provider, credential, traffic, or other external system was mutated.
+
+## Downstream Reconciliation
+
+- A03 now starts from the current R03 61-trigger schema and must keep report
+  and experiment facts analytical, preserve all experiment guards/value
+  domains, and never promote an experiment metric into monetary authority.
+- Conditional I02 now explicitly consumes the server-only v2 assignment,
+  proof, aggregate-export, and deletion boundaries. No named mobile
+  integration exists, so this reconciliation does not trigger I02.
+- The evolution log needs no successor to v29: R03 implements the already
+  approved milestone target without changing product ownership or direction.
 
 ## Exclusions
 
