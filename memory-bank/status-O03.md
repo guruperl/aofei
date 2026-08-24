@@ -122,3 +122,9 @@ atomic generation publication with partial live writes.
   - P2 resolved: failed Redis-generation shadow cleanup now uses a five-second
     independent timeout, and a context-blocking client test proves cleanup
     returns at its bound so the command can proceed to lease release.
+
+- Iteration 5 (2026-08-24): one P2 finding remains open.
+  - P2 open: callback retry state currently persists raw guarded-transport
+    errors in `last_error`; URL validation and dial failures can therefore
+    retain callback hostnames, resolved addresses, or other dependency detail
+    despite the reconciled fixed-cardinality recovery-evidence contract.
