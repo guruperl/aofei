@@ -136,9 +136,10 @@ atomic generation publication with partial live writes.
     remaining confirmed window, the maintainer now waits for only half that
     window. A scripted slow-response test proves it makes a final successful
     attempt strictly before expiry instead of guaranteeing cancellation.
-  - P2 open: the unused but exported `ResetRedisStaticCaches` and generic
-    deletion helper still expose sequential live-family deletion outside the
-    atomic generation publisher.
+  - P2 resolved: the unused exported `ResetRedisStaticCaches` entry point is
+    removed and its generic deletion helper is private and used only for
+    isolated shadow cleanup. The generation publisher remains the sole
+    supported full-family replacement boundary.
   - P2 open: complete spread publication serializes inactive or impression-
     capped publishers even though Redis publication and legacy spread updates
     omit/delete them, retaining stale data and breaking backend parity.

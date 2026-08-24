@@ -577,7 +577,7 @@ func cleanupRedisShadowCaches(ctx context.Context, redis radix.Client) error {
 	if err := redis.Do(ctx, radix.Cmd(nil, "DEL", keys...)); err != nil {
 		return err
 	}
-	return DeleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*"+redisShadowSuffix)
+	return deleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*"+redisShadowSuffix)
 }
 
 func cleanupRedisShadowCachesWithTimeout(redis radix.Client, timeout time.Duration) error {
@@ -842,16 +842,7 @@ func publishSpreadMessages(ctx context.Context, nc spreadPublisher, sequence uin
 	return nc.FlushWithContext(flushCtx)
 }
 
-func ResetRedisStaticCaches(ctx context.Context, redis radix.Client) error {
-	for _, name := range []string{acl.HashNamePubmap, acl.HashNamePubByID, match.HashNameAudience, match.HashNameCreative, match.HashNameMiddlemanRoutes, match.HashNameMiddlemanRoutesV2} {
-		if err := redis.Do(ctx, radix.Cmd(nil, "DEL", name)); err != nil {
-			return err
-		}
-	}
-	return DeleteRedisKeysByPattern(ctx, redis, match.HashNameSlot+":*")
-}
-
-func DeleteRedisKeysByPattern(ctx context.Context, redis radix.Client, pattern string) error {
+func deleteRedisKeysByPattern(ctx context.Context, redis radix.Client, pattern string) error {
 	const chunk = 256
 	var keys []string
 	scanner := (radix.ScannerConfig{Command: "SCAN", Pattern: pattern, Count: chunk}).New(redis)
