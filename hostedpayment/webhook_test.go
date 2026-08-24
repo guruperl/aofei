@@ -149,6 +149,86 @@ func TestConnectedAccountDirectChargeCannotClaimPlatformOperationMetadata(t *tes
 	}
 }
 
+func TestConnectedAccountReadinessIgnoresOperationMetadata(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	service := webhookService(t, db)
+	now := service.now()
+	payload := []byte(`{"id":"evt_account_binding","type":"account.updated","created":1785600000,"livemode":false,"account":"acct_publisher_fixture","data":{"object":{"id":"acct_publisher_fixture","object":"account","payouts_enabled":true,"details_submitted":true,"capabilities":{"transfers":"active"},"metadata":{"aofei_operation_id":"9","aofei_statement_id":"44","aofei_party_id":"7"}}}}`)
+	hash := sha256.Sum256(payload)
+	mock.ExpectBegin()
+	expectPayoutBindingRow(mock, "acct_publisher_fixture", now)
+	mock.ExpectQuery("SELECT MAX\\(provider_created_at\\) FROM hosted_event").WithArgs(uint64(41)).
+		WillReturnRows(sqlmock.NewRows([]string{"MAX(provider_created_at)"}).AddRow(nil))
+	mock.ExpectExec("INSERT INTO hosted_event").
+		WithArgs("evt_account_binding", "account.updated", "account", "acct_publisher_fixture", nil, uint64(41),
+			now, hash[:], "Applied", "").
+		WillReturnResult(sqlmock.NewResult(23, 1))
+	mock.ExpectExec("INSERT IGNORE INTO hosted_provider_object").
+		WithArgs("PayoutAccount", "acct_publisher_fixture", uint64(41)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT binding_id,object_kind,operation_id FROM hosted_provider_object").
+		WithArgs("acct_publisher_fixture").
+		WillReturnRows(sqlmock.NewRows([]string{"binding_id", "object_kind", "operation_id"}).AddRow(41, "PayoutAccount", nil))
+	mock.ExpectCommit()
+	result, err := service.IngestWebhook(context.Background(), payload)
+	if err != nil || result.EventID != 23 || result.Disposition != "Applied" {
+		t.Fatalf("account readiness=%#v, %v", result, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConnectedPayoutFailureIgnoresOperationMetadata(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	service := webhookService(t, db)
+	now := service.now()
+	payload := []byte(`{"id":"evt_payout_binding","type":"payout.failed","created":1785600000,"livemode":false,"account":"acct_publisher_fixture","data":{"object":{"id":"po_publisher_fixture","object":"payout","currency":"usd","amount":500,"metadata":{"aofei_operation_id":"9","aofei_statement_id":"44","aofei_party_id":"7"}}}}`)
+	hash := sha256.Sum256(payload)
+	mock.ExpectBegin()
+	expectPayoutBindingRow(mock, "acct_publisher_fixture", now)
+	mock.ExpectExec("INSERT INTO hosted_event").
+		WithArgs("evt_payout_binding", "payout.failed", "payout", "po_publisher_fixture", nil, uint64(41),
+			now, hash[:], "Applied", "").
+		WillReturnResult(sqlmock.NewResult(24, 1))
+	mock.ExpectExec("INSERT IGNORE INTO hosted_provider_object").
+		WithArgs("Payout", "po_publisher_fixture", uint64(41)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT binding_id,object_kind,operation_id FROM hosted_provider_object").
+		WithArgs("po_publisher_fixture").
+		WillReturnRows(sqlmock.NewRows([]string{"binding_id", "object_kind", "operation_id"}).AddRow(41, "Payout", nil))
+	mock.ExpectExec("INSERT INTO hosted_reconciliation").
+		WithArgs("event:24:PayoutFailure", nil, uint64(41), uint64(24), "PayoutFailure", "po_publisher_fixture",
+			"5.000000", "0.000000", "0.000000", "Unresolved", "provider reported a failed connected-account payout; exact operation requires manual reconciliation").
+		WillReturnResult(sqlmock.NewResult(34, 1))
+	mock.ExpectCommit()
+	result, err := service.IngestWebhook(context.Background(), payload)
+	if err != nil || result.EventID != 24 || result.Disposition != "Applied" {
+		t.Fatalf("payout failure=%#v, %v", result, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func expectPayoutBindingRow(mock sqlmock.Sqlmock, token string, now time.Time) {
+	mock.ExpectQuery("FROM hosted_binding").WithArgs(token).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"binding_id", "request_key", "provider", "party_type", "party_id", "binding_kind",
+			"provider_token", "country", "status", "provider_ready", "version", "created_by",
+			"approved_by", "revoked_by", "reason", "created_at", "updated_at",
+		}).AddRow(41, "payout-binding", "stripe", "Publisher", 7, "PayoutAccount", token, "US", "Ready", true, 3,
+			"pub:7", nil, nil, "test payout binding", now, now))
+}
+
 func TestDuplicateWebhookDoesNotRepeatSideEffects(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

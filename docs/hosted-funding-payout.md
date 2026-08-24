@@ -277,10 +277,13 @@ Configure Stripe event destinations for both the platform account events used
 by Checkout/refunds/transfers and the connected-account events used by Connect.
 Stripe identifies every connected-account event with the top-level `account`
 field. W8M accepts `account.updated` and `payout.failed` from that namespace
-only when this field identifies the exact stored payout binding. Other
-connected-account activity, including direct charges, is retained as
-out-of-scope and cannot claim a platform funding/refund/payout operation through
-copied metadata.
+only when this signed field identifies the exact stored payout binding;
+`account.updated` also requires its account object ID to match. These two event
+types follow a binding-only resolution path and never consult object metadata
+or an operation-object mapping. Other connected-account activity, including
+direct charges, is retained as out-of-scope, and copied metadata cannot claim a
+platform funding/refund/payout operation or attach payout-failure evidence to
+one.
 
 ## Operations, Metrics, And Incidents
 

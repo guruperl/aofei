@@ -327,6 +327,53 @@ func (s *Service) planEvent(ctx context.Context, tx *sql.Tx, event stripeEvent, 
 		plan.category, plan.reason = "ProviderMismatch", "account update object differs from its connected-account owner"
 		return plan, nil
 	}
+	if connectedBindingEvent {
+		// Connected-account readiness and automatic payout events belong to the
+		// binding named by the signed event envelope. Stripe object metadata is
+		// mutable and must never attach these events to a platform operation.
+		binding, err := bindingForToken(ctx, tx, event.Account)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return plan, err
+		}
+		if err == nil {
+			plan.binding = &binding
+		}
+		switch event.Type {
+		case "account.updated":
+			if plan.binding == nil || plan.binding.Kind != BindingPayoutAccount {
+				plan.disposition, plan.failureCode = "Unresolved", "binding_not_found"
+				plan.category, plan.reason = "ProviderMismatch", "provider account update has no exact publisher binding"
+				return plan, nil
+			}
+			var latest sql.NullTime
+			if err := tx.QueryRowContext(ctx, `SELECT MAX(provider_created_at) FROM hosted_event WHERE binding_id=? AND event_type='account.updated' AND disposition='Applied'`, plan.binding.ID).Scan(&latest); err != nil {
+				return plan, err
+			}
+			incomingReady := payoutAccountReady(object)
+			if latest.Valid && (createdAt.Before(latest.Time) || createdAt.Equal(latest.Time) && (!incomingReady || plan.binding.ProviderReady)) {
+				plan.disposition, plan.failureCode = "Ignored", "stale_or_equal_binding_state"
+				return plan, nil
+			}
+			plan.disposition = "Applied"
+			return plan, nil
+		case "payout.failed":
+			if plan.binding == nil || plan.binding.Kind != BindingPayoutAccount {
+				plan.disposition, plan.failureCode = "Unresolved", "binding_not_found"
+				plan.category, plan.reason = "ProviderMismatch", "failed connected-account payout has no exact publisher binding"
+				return plan, nil
+			}
+			plan.amount = centsMoney(object.Amount)
+			if strings.ToUpper(object.Currency) != "USD" || plan.amount <= 0 || plan.amount == accounting.Money(math.MinInt64) {
+				plan.disposition, plan.failureCode = "Unresolved", "currency_or_amount_mismatch"
+				plan.category, plan.reason = "ProviderMismatch", "failed connected-account payout is outside the supported USD contract"
+				plan.amount = 0
+				return plan, nil
+			}
+			plan.disposition = "Applied"
+			plan.category, plan.reason = "PayoutFailure", "provider reported a failed connected-account payout; exact operation requires manual reconciliation"
+			return plan, nil
+		}
+	}
 	metadataOperationID := metadataUint(object.Metadata, "aofei_operation_id")
 	operationID := metadataOperationID
 	mappedOperationID, err := operationForToken(ctx, tx, object.ID)
@@ -384,20 +431,6 @@ func (s *Service) planEvent(ctx context.Context, tx *sql.Tx, event stripeEvent, 
 		plan.category, plan.reason = "ProviderMismatch", "provider event targets an Aofei operation that was never submitted"
 		return plan, nil
 	}
-	bindingToken := object.ID
-	if event.Type == "payout.failed" && event.Account != "" {
-		bindingToken = event.Account
-	}
-	if strings.HasPrefix(bindingToken, "acct_") {
-		binding, err := bindingForToken(ctx, tx, bindingToken)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return plan, err
-		}
-		if err == nil {
-			plan.binding = &binding
-		}
-	}
-
 	for kind, raw := range map[string]json.RawMessage{
 		"PaymentIntent":      object.PaymentIntent,
 		"Charge":             firstRaw(object.LatestCharge, object.Charge),
@@ -409,39 +442,6 @@ func (s *Service) planEvent(ctx context.Context, tx *sql.Tx, event stripeEvent, 
 	}
 
 	switch event.Type {
-	case "account.updated":
-		if plan.binding == nil || plan.binding.Kind != BindingPayoutAccount {
-			plan.disposition, plan.failureCode = "Unresolved", "binding_not_found"
-			plan.category, plan.reason = "ProviderMismatch", "provider account update has no exact publisher binding"
-			return plan, nil
-		}
-		var latest sql.NullTime
-		if err := tx.QueryRowContext(ctx, `SELECT MAX(provider_created_at) FROM hosted_event WHERE binding_id=? AND event_type='account.updated' AND disposition='Applied'`, plan.binding.ID).Scan(&latest); err != nil {
-			return plan, err
-		}
-		incomingReady := payoutAccountReady(object)
-		if latest.Valid && (createdAt.Before(latest.Time) || createdAt.Equal(latest.Time) && (!incomingReady || plan.binding.ProviderReady)) {
-			plan.disposition, plan.failureCode = "Ignored", "stale_or_equal_binding_state"
-			return plan, nil
-		}
-		plan.disposition = "Applied"
-		return plan, nil
-	case "payout.failed":
-		if plan.binding == nil || plan.binding.Kind != BindingPayoutAccount {
-			plan.disposition, plan.failureCode = "Unresolved", "binding_not_found"
-			plan.category, plan.reason = "ProviderMismatch", "failed connected-account payout has no exact publisher binding"
-			return plan, nil
-		}
-		plan.amount = centsMoney(object.Amount)
-		if strings.ToUpper(object.Currency) != "USD" || plan.amount <= 0 || plan.amount == accounting.Money(math.MinInt64) {
-			plan.disposition, plan.failureCode = "Unresolved", "currency_or_amount_mismatch"
-			plan.category, plan.reason = "ProviderMismatch", "failed connected-account payout is outside the supported USD contract"
-			plan.amount = 0
-			return plan, nil
-		}
-		plan.disposition = "Applied"
-		plan.category, plan.reason = "PayoutFailure", "provider reported a failed connected-account payout; exact operation requires manual reconciliation"
-		return plan, nil
 	case "checkout.session.completed":
 		if object.PaymentStatus == "paid" {
 			plan.desired = OperationSucceeded

@@ -594,12 +594,16 @@ ID on the operation, and every retry reloads the same token even after a later
 binding replacement. A fast signed webhook may safely win the
 response race. Provider events are claimed before mutation,
 preserve immutable linked provider objects, and update locked operations under
-timestamp plus event-specific transition rules. Read-committed transactions,
-exact owner row locks, and unique event/object identities serialize concurrent
-deliveries without pre-owner gap-lock deadlocks. Connect events must carry an
-exact top-level account owner; only account readiness and payout-failure events
-can enter the payout-binding namespace, so connected-account direct charges
-cannot claim platform operations through metadata. Dependency-pending signed
+timestamp plus event-specific transition rules. Connected-account readiness
+and automatic payout failures take a separate binding-only planner path keyed
+by the signed envelope's top-level account; readiness additionally requires the
+account object ID to match, and mutable object metadata is never consulted.
+Read-committed transactions, exact owner row locks, and unique event/object
+identities serialize concurrent deliveries without pre-owner gap-lock
+deadlocks. Connect events must carry an exact top-level account owner; only
+account readiness and payout-failure events can enter the payout-binding
+namespace, so neither those events nor connected-account direct charges can
+claim platform operations through metadata. Dependency-pending signed
 events are durably unresolved and return 503; an identical retry may make one
 trigger-guarded processing transition after its owner mapping appears, while
 the signed envelope/hash remains immutable. Authorized reconciliation
