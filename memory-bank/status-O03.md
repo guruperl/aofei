@@ -1,6 +1,6 @@
 # Status O03 - Job, Cache, And Filesystem Reliability
 
-State: `[~]` In progress under authorized review extension (iterations 11-15)
+State: `[!]` Blocked at authorized review iteration 15
 
 ## Goal
 
@@ -242,3 +242,17 @@ atomic generation publication with partial live writes.
     reader discards its result and repeats under the shared lock. Focused
     read-only-directory, first-publication retry, serialization, and race tests
     pass, and the operator contract documents the boundary.
+
+- Iteration 15 (2026-08-24): one P2 finding remains open at the user-authorized
+  extension limit; O03 cannot close and downstream reconciliation must not
+  begin without further explicit direction.
+  - P2: `swapRedisStaticCaches` checks shadow-key existence before `MULTI`, then
+    queues `RENAME` and `DEL` operations based on that stale observation. If an
+    expected shadow disappears before `EXEC` (including under an allowed Redis
+    eviction policy), its `RENAME` fails at execution time but Redis continues
+    later queued operations, exposing a mixed live generation. A disposable
+    Redis 7 proof left the first live key at `old1` while replacing the second
+    with `new2` after the first queued `RENAME` returned `ERR no such key`; all
+    uniquely named proof keys were removed. Move shadow validation and the
+    complete swap into one server-side atomic boundary that validates every
+    expected presence/absence condition before its first mutation.
