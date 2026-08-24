@@ -206,11 +206,11 @@ atomic generation publication with partial live writes.
     snapshot and prove no later file or generation pointer is installed, while
     a shared-writer test proves cancellation preserves the prior selected file.
 
-- Iteration 11 (2026-08-24): one P2 finding remains open.
-  - P2: context gates stop work after observed cancellation, but generation
-    cleanup and pointer replacement are not serialized across `spread`
-    processes. A stale owner can pass the final context check, lose its lease,
-    and then replace a successor's higher pointer; competing cleanup can also
-    remove the successor's generation root. Serialize cleanup and selection
-    with a stable context-aware file lock, and reject non-increasing pointer
-    commits while holding that lock.
+- Iteration 11 (2026-08-24): one P2 finding was found.
+  - P2 resolved: generation cleanup and pointer replacement now share a stable,
+    context-aware cross-process file lock, and selection rejects non-increasing
+    commits while holding that lock. Cleanup prunes only superseded lower
+    generations so it cannot remove a concurrently staged successor, and a
+    receiver reconciles its local floor when another process already selected a
+    higher generation. Focused monotonic-selection, retention, cancellation,
+    and race tests pass.

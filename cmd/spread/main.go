@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -364,69 +363,21 @@ func (r *spreadGenerationReceiver) commitContext(ctx context.Context, sequence u
 		opsmetrics.RecordSpread("generation_rejected")
 		return fmt.Errorf("spread generation %d manifest digest mismatch", sequence)
 	}
-	if err := cleanupSpreadGenerationsContext(ctx, r.top, r.committed, sequence); err != nil {
+	selected, err := spreadcache.SelectContext(ctx, r.top, sequence)
+	if err != nil {
 		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
-	if err := spreadcache.CommitContext(ctx, r.top, sequence); err != nil {
-		opsmetrics.RecordSpread("generation_rejected")
-		return err
-	}
-	r.committed = sequence
+	r.committed = selected
 	r.selected = true
 	r.active = 0
 	r.expected = spreadcache.Manifest{}
 	r.seen = nil
-	opsmetrics.RecordSpread("generation_committed")
-	return nil
-}
-
-func cleanupSpreadGenerations(top string, keep ...uint64) error {
-	return cleanupSpreadGenerationsContext(context.Background(), top, keep...)
-}
-
-func cleanupSpreadGenerationsContext(ctx context.Context, top string, keep ...uint64) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	kept := make(map[uint64]struct{}, len(keep))
-	for _, sequence := range keep {
-		if sequence != 0 {
-			kept[sequence] = struct{}{}
-		}
-	}
-	root := filepath.Dir(spreadcache.GenerationRoot(top, 1))
-	entries, err := os.ReadDir(root)
-	if errors.Is(err, os.ErrNotExist) {
+	if selected != sequence {
+		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !entry.IsDir() {
-			continue
-		}
-		sequence, err := strconv.ParseUint(entry.Name(), 10, 64)
-		if err != nil || sequence == 0 {
-			continue
-		}
-		if _, ok := kept[sequence]; ok {
-			continue
-		}
-		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
-			return err
-		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
+	opsmetrics.RecordSpread("generation_committed")
 	return nil
 }
 

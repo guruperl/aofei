@@ -469,6 +469,42 @@ func TestSpreadGenerationOverlappingProducerCannotDeleteNewerSnapshot(t *testing
 	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "new-producer")
 }
 
+func TestSpreadGenerationStaleProcessAdoptsNewerDiskSelection(t *testing.T) {
+	top := t.TempDir()
+	stale, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleMessages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("stale")}}
+	staleManifest, err := spreadcache.NewManifest(10, staleMessages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stale.begin(staleManifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := stale.put(10, staleMessages[0].Subject, staleMessages[0].Data); err != nil {
+		t.Fatal(err)
+	}
+
+	sendSpreadGeneration(t, newer, 11, []spreadcache.Message{{Subject: "creative:7", Data: []byte("newer")}}, nil)
+	if err := stale.commit(10); err != nil {
+		t.Fatal(err)
+	}
+	if stale.committed != 11 || !stale.selected || stale.active != 0 {
+		t.Fatalf("stale receiver state = committed %d, selected %t, active %d", stale.committed, stale.selected, stale.active)
+	}
+	root, err := spreadcache.Resolve(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "newer")
+}
+
 func TestSpreadGenerationIgnoresLegacyMutationAfterActivation(t *testing.T) {
 	top := t.TempDir()
 	receiver, err := newSpreadGenerationReceiver(top)

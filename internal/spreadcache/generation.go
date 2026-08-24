@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/mediocregopher/radix/v4"
@@ -29,6 +31,7 @@ const (
 
 	currentFile    = ".aofei-current"
 	generationsDir = ".aofei-generations"
+	selectionLock  = ".aofei-current.lock"
 )
 
 type Message struct {
@@ -212,18 +215,147 @@ func Commit(top string, sequence uint64) error {
 }
 
 // CommitContext switches the selected generation only while the owning
-// operation remains valid.
+// operation remains valid. Selection is serialized across processes and never
+// moves the pointer backward.
 func CommitContext(ctx context.Context, top string, sequence uint64) error {
+	_, err := selectContext(ctx, top, sequence, false)
+	return err
+}
+
+// SelectContext switches the selected generation and removes superseded older
+// generations while holding the same cross-process lock. It returns the
+// sequence that is selected when the operation completes; that can be higher
+// than sequence when another process won the race first.
+func SelectContext(ctx context.Context, top string, sequence uint64) (uint64, error) {
+	return selectContext(ctx, top, sequence, true)
+}
+
+func selectContext(ctx context.Context, top string, sequence uint64, cleanup bool) (selected uint64, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if sequence == 0 {
-		return errors.New("spread generation sequence is zero")
+		return 0, errors.New("spread generation sequence is zero")
 	}
 	if err := atomicfile.EnsureDir(top, 0750); err != nil {
+		return 0, err
+	}
+	err = withSelectionLock(ctx, top, func() error {
+		current, ok, err := CurrentSequence(top)
+		if err != nil {
+			return err
+		}
+		if ok && current >= sequence {
+			selected = current
+			return nil
+		}
+		if cleanup {
+			if err := cleanupOlderGenerations(ctx, top, current, sequence); err != nil {
+				return err
+			}
+		}
+		if err := atomicfile.WriteContext(ctx, filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
+			_, err := fmt.Fprintf(out, "%d\n", sequence)
+			return err
+		}); err != nil {
+			return err
+		}
+		selected = sequence
+		return nil
+	})
+	return selected, err
+}
+
+func withSelectionLock(ctx context.Context, top string, selectGeneration func() error) (err error) {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return atomicfile.WriteContext(ctx, filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
-		_, err := fmt.Fprintf(out, "%d\n", sequence)
+	lock, err := os.OpenFile(filepath.Join(top, selectionLock), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
 		return err
-	})
+	}
+	locked := false
+	defer func() {
+		var unlockErr error
+		if locked {
+			unlockErr = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		}
+		err = errors.Join(err, unlockErr, lock.Close())
+	}()
+	if err := lock.Chmod(0600); err != nil {
+		return err
+	}
+
+	const retryDelay = 10 * time.Millisecond
+	for {
+		err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			locked = true
+			break
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
+			return err
+		}
+		timer := time.NewTimer(retryDelay)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return selectGeneration()
+}
+
+func cleanupOlderGenerations(ctx context.Context, top string, keep ...uint64) error {
+	kept := make(map[uint64]struct{}, len(keep))
+	var ceiling uint64
+	for _, sequence := range keep {
+		if sequence != 0 {
+			kept[sequence] = struct{}{}
+			if sequence > ceiling {
+				ceiling = sequence
+			}
+		}
+	}
+	root := filepath.Join(top, generationsDir)
+	entries, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !entry.IsDir() {
+			continue
+		}
+		sequence, err := strconv.ParseUint(entry.Name(), 10, 64)
+		if err != nil || sequence == 0 || sequence > ceiling {
+			continue
+		}
+		if _, ok := kept[sequence]; ok {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func canonicalUint32(value string) bool {
