@@ -53,6 +53,28 @@ container and legitimate third-party advertising behavior.
   repository-wide guard for raw DOM insertion APIs and Android/iOS WebView
   renderer APIs, allowing only the one exact reviewed `ads.js` assignment; the
   focused test, vet, staticcheck, template, and public-data gates pass.
+- Iteration 2 (2026-08-24): P2, open — an injected `CheckRedirect` hook runs
+  before the mandatory downgrade and authority checks and receives mutable
+  `via` requests. It can rewrite that history so an HTTPS downgrade is no
+  longer recognized or a cross-authority hop retains arbitrary credential
+  headers. The mandatory policy needs an immutable pre-hook history snapshot
+  plus validation and credential stripping both before and after the hook.
+- Iteration 2 (2026-08-24): P2, open — Genelet removes reserved `_g*` values
+  from `Request.Form`, but an ordinary URL-encoded POST retains the same public
+  values in `Request.PostForm` (and a pre-parsed multipart request can retain
+  them in `MultipartForm.Value`). Current Summer consumers use `Form`, but the
+  framework contract still exposes forgeable security-looking values to a
+  request filter through the alternate standard views.
+- Iteration 2 (2026-08-24): P2, open — contained-markup `srcset` validation
+  uses `strings.Split` on every comma. A valid HTTPS image URL may contain an
+  internal comma, so the parser rejects legitimate advertising markup despite
+  the milestone's compatibility requirement. Candidate parsing must preserve
+  URL-token commas while continuing to validate every subsequent candidate.
+- Iteration 2 (2026-08-24): P3, open — the new native-renderer inventory scans
+  only Go, JavaScript, and template extensions under the current web trees.
+  Android/iOS code would normally arrive as Java, Kotlin, Swift, or Objective-C
+  in a new directory, so the guard's repository-wide native-consumer claim is
+  broader than its executable coverage.
 
 ## Acceptance Criteria
 
