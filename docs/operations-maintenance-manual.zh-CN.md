@@ -493,7 +493,10 @@ AOFEI=/etc/aofei/aofei.json /opt/aofei/bin/report-experiment \
 `report-experiment -action=prune -limit=1000`，在一个事务中先删到期结果再删
 曝光。经核验的删除请求使用精确实验 ID、版本和 64 位 subject hash 执行
 `-action=delete-subject`；hash 不得进入共享 shell 历史/日志，审核理由不得含
-标识符，审计只记录主体和理由。
+标识符，审计只记录主体和理由。所有变更和清理操作都持有固定的
+`aofei:report-experiment` 可续租 Redis 租约，并只使用租约拥有的 context；
+失去所有权时最迟在最后确认的到期点停止。Summer 的实验导出只有分组汇总，
+不含 salt、subject hash、幂等键、停止/审计原因或逐主体记录。
 完整契约见[市场分析与对照实验](marketplace-analytics-experiments.md)。
 
 ### 8.5 外部需求方回调重试

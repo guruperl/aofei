@@ -404,7 +404,11 @@ effective OS UID as actor; run it only as an approved service/operations
 principal. Advertiser ownership additionally requires `-owner=advertiser` and
 an active `-adv-id`. Allocation must contain 2–20 valid variant keys totaling
 exactly 10,000 basis points. `start`, `stop`, and `complete` require
-`-experiment-id` and `-reason`.
+`-experiment-id` and `-reason`. Every mutation acquires the fixed
+`aofei:report-experiment` Redis lease and runs with its renewable lease-owned
+context; `-lock-ttl` defaults to five minutes. A lost or uncertain lease
+cancels work by its last confirmed expiry. `list` remains DB-only and
+read-only.
 
 Run `-action=prune -limit=1000` as a singleton timer. It deletes expired
 outcomes then exposures in one bounded transaction. A verified erasure uses
@@ -415,8 +419,8 @@ actor/reason but not the hash.
 
 Assignment/exposure/outcome recording is an application integration through
 the `reporting` package, not a command flag or public endpoint. The operator
-list and Summer page never expose salts, subject hashes, idempotency digests, or
-audit reasons. See
+list and Summer aggregate HTML/JSON never expose salts, subject hashes,
+idempotency digests, stop/audit reasons, or per-subject rows. See
 [marketplace-analytics-experiments.md](marketplace-analytics-experiments.md).
 
 ## `../pzdesign/cmd/identity-admin`

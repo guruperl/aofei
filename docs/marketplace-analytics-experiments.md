@@ -171,8 +171,10 @@ The caller owns the pseudonym and event-digest derivation. Do not pass raw
 account, cookie, email, device, or conversion identifiers. The package has no
 automatic campaign or auction mutation path. Operator UI results aggregate
 exposure count and primary/guardrail record counts and values per variant;
-assignment salts, subject hashes, idempotency digests, and audit reasons are
-never exported.
+assignment salts, subject hashes, idempotency digests, stop/audit reasons, and
+raw event data are never exported. The authenticated HTML/JSON surface is the
+privacy-safe aggregate export; there is no experiment command that exports
+per-subject evidence.
 
 ## Operator Workflow
 
@@ -201,7 +203,11 @@ GOWORK=off AOFEI=/etc/aofei/aofei.json go run ./cmd/report-experiment -action=co
 
 Mutations use the effective OS UID as the audit actor and require a bounded
 reason. Keep this command on an authorized operations host; it is not a public
-HTTP service.
+HTTP service. `create`, state transitions, prune, and exact deletion all run
+under the fixed `aofei:report-experiment` renewable Redis lease (five-minute
+TTL by default). Work receives only the lease-owned context and stops no later
+than the last confirmed ownership window; database transactions, uniqueness,
+and idempotency remain the durable split-brain backstop.
 
 Run the bounded retention task from a singleton authorized operations timer:
 
@@ -270,15 +276,28 @@ baseline is not a production migration. Recommended order:
 2. add the R02/P02 tables or columns, indexes, foreign keys, and immutable
    triggers, and backfill an exact `dimension_hash` for any retained delivery
    facts before enforcing interval uniqueness;
-3. verify the schema and a scoped read on a canary database;
-4. deploy the ledger writer, then the Summer report pages;
-5. compare interval totals to ledger/daily/accounting facts and inspect all
-   freshness states;
-6. create experiments only after the observational integration is reviewed.
+3. for R03, add `assignment_algorithm_version NOT NULL DEFAULT 1` first. Treat
+   every existing experiment as v1; never rewrite its salt, version, variants,
+   or allocation. Add the assignment/variant immutability guards and validate
+   existing outcome values against the registry domains before enabling the
+   outcome CHECK;
+4. verify the schema, mixed v1/v2 assignment golden tests, invalid-value
+   rejection, and a scoped read on a canary database;
+5. drain every old experiment runtime, then deploy the v1/v2-capable runtime.
+   Only its trusted create transaction may begin writing v2 definitions;
+6. deploy the ledger writer and Summer aggregate pages, compare interval totals
+   to ledger/daily/accounting facts, and inspect all freshness states;
+7. create experiments only after the observational integration is reviewed.
 
 Rollback disables the report navigation/writer before reversing application
-binaries. Preserve R02 rows for reconciliation; do not drop facts as an
-application rollback. Verification includes:
+binaries. Before rolling an experiment runtime back to pre-R03 code, stop every
+v2 experiment and disable all assignment/exposure/outcome calls; an old runtime
+must never reinterpret a v2 definition as v1. Preserve v1/v2 definitions and
+facts for reconciliation, keep the additive algorithm column and guards, and
+roll forward to the v1/v2-capable binary. A stopped version accepts only an
+identical existing exposure retry while still allowing declared outcomes for
+already-recorded unexpired exposures. Do not change buckets in place or drop
+facts as an application rollback. Verification includes:
 
 ```bash
 GOWORK=off go test ./reporting ./internal/jobs/ledger ./dsp ./etc ./cmd/report-experiment

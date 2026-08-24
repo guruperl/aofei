@@ -40,4 +40,13 @@ func TestOperationalMetricsHaveClosedOutcomeSets(t *testing.T) {
 	if cache.Get("other").String() != "1" {
 		t.Fatalf("cache other = %s, want 1", cache.Get("other"))
 	}
+
+	RecordExperiment("subject-or-account-id", false)
+	experiments := expvar.Get("aofei_experiment_operation_outcomes_total").(*expvar.Map)
+	if experiments.Get("subject-or-account-id_failed") != nil {
+		t.Fatal("experiment metric admitted an unbounded operation")
+	}
+	if experiments.Get("other").String() != "1" {
+		t.Fatalf("experiment other = %s, want 1", experiments.Get("other"))
+	}
 }

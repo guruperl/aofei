@@ -279,7 +279,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    below the `1e-12` acceptance limit, so no algorithm-version change is needed.
    Only hashes/digests cross the storage boundary. `cmd/report-experiment`
    provides explicit audited create/start/stop/complete transitions, bounded
-   expiry prune, and exact audited subject deletion, with no serving mutation.
+   expiry prune, and exact audited subject deletion under one renewable Redis
+   lease, with no serving mutation. Its fixed operation counters contain only
+   closed action/outcome keys. Summer's aggregate export excludes salts,
+   hashes, idempotency keys, and stop/audit reasons.
    D02 accepts only positive finite local USD CPM, selects the highest demand
    unit with deterministic cross-unit ties, and applies positive creative
    weights only within that winner. It validates local source/media/size/MIME,

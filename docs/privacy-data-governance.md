@@ -196,6 +196,10 @@ non-identifying reason. Outcomes and the one exposure are deleted
 transactionally; the immutable `SubjectErased` audit stores actor/reason but not
 the hash. Scheduled `-action=prune` independently removes bounded expired
 outcomes/exposures without enumerating adjacent subjects.
+The Summer experiment report/export contains per-variant counts and declared
+metric sums only. It omits assignment salts, subject hashes, idempotency keys,
+stop/audit reasons, and per-subject rows; no command provides a subject-level
+experiment export.
 
 ## Operator Configuration And Evidence
 

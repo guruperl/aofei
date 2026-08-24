@@ -1,8 +1,10 @@
 package reporting
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"os"
 	"testing"
 	"time"
@@ -127,7 +129,14 @@ INSERT INTO report_experiment_outcome
 VALUES (?,?,?,?,?)`, exposureID, "actions", "-1.000000", []byte("01234567890123456789012345678901"), assignment.AssignedAt.Add(2*time.Minute)); err == nil {
 		t.Fatal("database accepted an out-of-domain experiment outcome")
 	}
-	newAssignment, err := Assign(loaded, "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef", start.Add(31*time.Minute))
+	adjacentAssignment, err := Assign(loaded, "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef", start.Add(31*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordExposure(ctx, db, adjacentAssignment); err != nil {
+		t.Fatal(err)
+	}
+	newAssignment, err := Assign(loaded, "1212121212121212121212121212121212121212121212121212121212121212", start.Add(32*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,5 +148,64 @@ VALUES (?,?,?,?,?)`, exposureID, "actions", "-1.000000", []byte("012345678901234
 	}
 	if err := RecordExposure(ctx, db, newAssignment); err == nil {
 		t.Fatal("new exposure was accepted after stop")
+	}
+	assignmentHash := hex.EncodeToString(assignment.SubjectHash[:])
+	if deleted, err := DeleteSubject(ctx, db, id, assignment.Version, assignmentHash, 1, "R03 verified disposable erasure"); err != nil || !deleted {
+		t.Fatalf("exact subject deletion deleted=%t err=%v", deleted, err)
+	}
+	for name, test := range map[string]struct {
+		hash []byte
+		want int
+	}{
+		"deleted subject":  {assignment.SubjectHash[:], 0},
+		"adjacent subject": {adjacentAssignment.SubjectHash[:], 1},
+	} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM report_exposure WHERE experiment_id=? AND experiment_version=? AND subject_hash=?`, id, assignment.Version, test.hash).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != test.want {
+			t.Fatalf("%s exposure count = %d, want %d", name, count, test.want)
+		}
+	}
+	var event, auditReason string
+	if err := db.QueryRowContext(ctx, `
+SELECT event, reason FROM report_experiment_audit
+WHERE experiment_id=? AND experiment_version=?
+ORDER BY audit_id DESC LIMIT 1`, id, assignment.Version).Scan(&event, &auditReason); err != nil {
+		t.Fatal(err)
+	}
+	if event != "SubjectErased" || auditReason != "R03 verified disposable erasure" || auditReason == assignmentHash {
+		t.Fatalf("privacy audit event=%q reason=%q", event, auditReason)
+	}
+
+	expiredHash := bytes.Repeat([]byte{0xee}, 32)
+	expiredAt := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	result, err := db.ExecContext(ctx, `
+INSERT INTO report_exposure
+  (experiment_id, experiment_version, subject_hash, variant_key, exposed_at, expires_at)
+VALUES (?,?,?,?,?,?)`, id, assignment.Version, expiredHash, adjacentAssignment.VariantKey, expiredAt.Add(-time.Hour), expiredAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expiredExposureID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO report_experiment_outcome
+  (exposure_id, metric_name, metric_value, idempotency_key, occurred_at)
+VALUES (?,?,?,?,?)`, expiredExposureID, "actions", "1.000000", bytes.Repeat([]byte{0xdd}, 32), expiredAt.Add(-30*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if deleted, err := PruneExpired(ctx, db, 100); err != nil || deleted < 1 {
+		t.Fatalf("retention prune deleted=%d err=%v", deleted, err)
+	}
+	var remaining int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM report_exposure WHERE exposure_id=?`, expiredExposureID).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatal("expired experiment subject survived retention prune")
 	}
 }

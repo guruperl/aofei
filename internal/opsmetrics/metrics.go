@@ -52,6 +52,12 @@ var callbackRetryOutcomes = newFixedCounter("aofei_callback_retry_outcomes_total
 	"state_succeeded", "state_retrying", "state_abandoned",
 	"state_error_after_forward", "state_error_before_forward")
 
+var experimentOutcomes = newFixedCounter("aofei_experiment_operation_outcomes_total",
+	"list_succeeded", "list_failed", "create_succeeded", "create_failed",
+	"start_succeeded", "start_failed", "stop_succeeded", "stop_failed",
+	"complete_succeeded", "complete_failed", "prune_succeeded", "prune_failed",
+	"delete_subject_succeeded", "delete_subject_failed")
+
 func RecordLease(outcome string) {
 	leaseOutcomes.add(outcome)
 }
@@ -79,6 +85,19 @@ func RecordFilesystem(outcome string) {
 
 func RecordCallbackRetry(outcome string) {
 	callbackRetryOutcomes.add(outcome)
+}
+
+func RecordExperiment(operation string, succeeded bool) {
+	switch operation {
+	case "list", "create", "start", "stop", "complete", "prune", "delete_subject":
+	default:
+		operation = "other"
+	}
+	suffix := "_failed"
+	if succeeded {
+		suffix = "_succeeded"
+	}
+	experimentOutcomes.add(operation + suffix)
 }
 
 // KnownOutcome reports whether an already-published metric contains a fixed

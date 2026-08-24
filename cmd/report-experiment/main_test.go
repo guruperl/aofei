@@ -18,6 +18,19 @@ func TestParseVariantsNormalizesDeterministicAllocation(t *testing.T) {
 	}
 }
 
+func TestExperimentOperationsUseRenewableLease(t *testing.T) {
+	for _, operation := range []string{"create", "start", "stop", "complete", "prune", "delete-subject"} {
+		if !requiresLease(operation) {
+			t.Errorf("%s does not require the experiment lease", operation)
+		}
+	}
+	for _, operation := range []string{"list", "unknown"} {
+		if requiresLease(operation) {
+			t.Errorf("%s unexpectedly requires the experiment lease", operation)
+		}
+	}
+}
+
 func TestExperimentFromFlagsKeepsOperatorAndAdvertiserBoundaries(t *testing.T) {
 	oldOwner, oldAdvID, oldName, oldVersion := owner, advID, name, version
 	oldPrimary, oldGuardrail, oldStart, oldEnd, oldVariants := primaryMetric, guardrailMetric, startsAt, endsAt, variants

@@ -148,8 +148,10 @@ All map keys below are fixed source/outcome/reason categories:
   `aofei_callback_retry_outcomes_total` separates forward success/retry/
   abandonment/rejection from confirmed terminal state and state error before
   or after a downstream attempt.
+  `aofei_experiment_operation_outcomes_total` separates success/failure for the
+  fixed list, create, start, stop, complete, prune, and exact-delete operations.
   None admits a lock key, cache key, subject, generation, path, callback URL,
-  token, payload, address, or auction identifier.
+  token, payload, address, account, experiment, or auction identifier.
 
 Expvar counters are process-local. `/debug/vars` shows only work performed in
 that process; the unified endpoint does not aggregate counters from separate

@@ -17,8 +17,11 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/internal/cmdboot"
+	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/guruperl/aofei/reporting"
 )
+
+const experimentOperationLockKey = "aofei:report-experiment"
 
 var (
 	configFile      string
@@ -37,6 +40,7 @@ var (
 	reason          string
 	pruneLimit      int
 	subjectHash     string
+	lockTTL         time.Duration
 )
 
 func init() {
@@ -56,6 +60,7 @@ func init() {
 	flag.StringVar(&reason, "reason", "", "required audit reason for mutations")
 	flag.IntVar(&pruneLimit, "limit", 1000, "expired exposure prune batch size, 1-10000")
 	flag.StringVar(&subjectHash, "subject-hash", "", "exact 32-byte experiment subject hash for authorized privacy deletion")
+	flag.DurationVar(&lockTTL, "lock-ttl", 5*time.Minute, "renewable singleton lease TTL")
 }
 
 func main() {
@@ -66,8 +71,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := config.Validate(dsp.ConfigModeDatabase); err != nil {
-		log.Fatal(err)
+	if requiresLease(action) {
+		redis, db, err := config.GetRedisDB(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer redis.Close()
+		defer db.Close()
+		if err := cmdboot.WithLock(ctx, redis, experimentOperationLockKey, lockTTL, func(leaseCtx context.Context) error {
+			return run(leaseCtx, dbService{db: db}, uint64(os.Geteuid()))
+		}); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 	db, err := config.OpenDB(ctx)
 	if err != nil {
@@ -76,6 +92,15 @@ func main() {
 	defer db.Close()
 	if err := run(ctx, dbService{db: db}, uint64(os.Geteuid())); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func requiresLease(operation string) bool {
+	switch operation {
+	case "create", "start", "stop", "complete", "prune", "delete-subject":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -109,10 +134,13 @@ func (service dbService) DeleteSubject(ctx context.Context, id uint64, version u
 	return reporting.DeleteSubject(ctx, service.db, id, version, hash, actor, reason)
 }
 
-func run(ctx context.Context, service experimentService, actor uint64) error {
+func run(ctx context.Context, service experimentService, actor uint64) (err error) {
+	metricOperation := strings.ReplaceAll(action, "-", "_")
+	defer func() { opsmetrics.RecordExperiment(metricOperation, err == nil) }()
 	switch action {
 	case "list":
-		items, err := service.List(ctx)
+		var items []reporting.ExperimentSummary
+		items, err = service.List(ctx)
 		if err != nil {
 			return err
 		}
@@ -135,7 +163,8 @@ func run(ctx context.Context, service experimentService, actor uint64) error {
 		if err != nil {
 			return err
 		}
-		id, err := service.Create(ctx, experiment, actor, reason)
+		var id uint64
+		id, err = service.Create(ctx, experiment, actor, reason)
 		if err == nil {
 			fmt.Printf("experiment_id=%d status=Draft\n", id)
 		}
@@ -147,7 +176,8 @@ func run(ctx context.Context, service experimentService, actor uint64) error {
 	case "complete":
 		return service.Transition(ctx, experimentID, "Completed", actor, reason)
 	case "prune":
-		deleted, err := service.Prune(ctx, pruneLimit)
+		var deleted int64
+		deleted, err = service.Prune(ctx, pruneLimit)
 		if err == nil {
 			fmt.Printf("expired_exposures_deleted=%d\n", deleted)
 		}
@@ -156,7 +186,8 @@ func run(ctx context.Context, service experimentService, actor uint64) error {
 		if version == 0 || uint64(version) > uint64(^uint32(0)) {
 			return fmt.Errorf("positive 32-bit version is required")
 		}
-		deleted, err := service.DeleteSubject(ctx, experimentID, uint32(version), subjectHash, actor, reason)
+		var deleted bool
+		deleted, err = service.DeleteSubject(ctx, experimentID, uint32(version), subjectHash, actor, reason)
 		if err == nil {
 			fmt.Printf("experiment_subject_deleted=%t\n", deleted)
 		}
