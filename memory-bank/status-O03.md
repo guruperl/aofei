@@ -107,6 +107,7 @@ atomic generation publication with partial live writes.
     generation can repair it; a focused repair test passes.
 
 - Iteration 3 (2026-08-24): one P2 finding remains open.
-  - P2: after an acquire or renewal response arrives near its conservative
-    deadline, the maintainer waits the full normal interval before rechecking;
-    that wait can extend past the last confirmed ownership window.
+  - P2 resolved: every maintainer wait is now capped to the remaining confirmed
+    window before sleeping, including the first wait after a delayed acquire or
+    renewal response. A scripted late-response test proves cancellation occurs
+    at, never after, the conservative deadline.

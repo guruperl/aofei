@@ -192,6 +192,35 @@ func TestLockInitialRenewalDelayStaysInsideShortLease(t *testing.T) {
 	}
 }
 
+func TestLockCapsRenewalWaitAtConfirmedDeadline(t *testing.T) {
+	base := time.Now()
+	current := base.Add(80 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	var waited time.Duration
+	lock := &Lock{
+		key: "late", ttl: 90 * time.Millisecond, ctx: ctx, cancel: cancel,
+		done: make(chan struct{}), confirmedAt: base,
+		now: func() time.Time { return current },
+		wait: func(_ context.Context, delay time.Duration) bool {
+			waited = delay
+			current = current.Add(delay)
+			return true
+		},
+	}
+
+	lock.maintain(ctx)
+
+	if waited != 10*time.Millisecond {
+		t.Fatalf("renewal wait = %s, want remaining 10ms", waited)
+	}
+	if current.After(base.Add(lock.ttl)) {
+		t.Fatalf("work canceled at %s after deadline %s", current, base.Add(lock.ttl))
+	}
+	if !errors.Is(lock.Err(), ErrLeaseUncertain) || ctx.Err() == nil {
+		t.Fatalf("lease error = %v context error = %v, want uncertain cancellation", lock.Err(), ctx.Err())
+	}
+}
+
 func TestLockCancelsImmediatelyOnConfirmedTokenMismatch(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := lockTestClient(t, server.Addr())

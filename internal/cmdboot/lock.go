@@ -179,13 +179,23 @@ if redis.call("GET", KEYS[1]) == ARGV[1] then
 end
 return 0`)
 	for {
-		if !wait(ctx, delay) {
+		deadline := confirmedAt.Add(l.ttl)
+		remaining := deadline.Sub(now())
+		if remaining <= 0 {
+			opsmetrics.RecordLease("uncertainty_expired")
+			l.recordLeaseFailure(fmt.Errorf("%w after renewal deadline", ErrLeaseUncertain))
+			return
+		}
+		waitDelay := delay
+		if waitDelay > remaining {
+			waitDelay = remaining
+		}
+		if !wait(ctx, waitDelay) {
 			return
 		}
 		if ctx.Err() != nil {
 			return
 		}
-		deadline := confirmedAt.Add(l.ttl)
 		started := now()
 		if !started.Before(deadline) {
 			opsmetrics.RecordLease("uncertainty_expired")
@@ -215,7 +225,7 @@ return 0`)
 		}
 		opsmetrics.RecordLease("renewal_error")
 		transientFailures++
-		remaining := deadline.Sub(now())
+		remaining = deadline.Sub(now())
 		if remaining <= 0 {
 			opsmetrics.RecordLease("uncertainty_expired")
 			l.recordLeaseFailure(fmt.Errorf("%w after renewal failure: %v", ErrLeaseUncertain, err))
