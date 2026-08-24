@@ -10,11 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/guruperl/aofei/internal/atomicfile"
+	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
@@ -155,15 +157,21 @@ func (self *Pub) ToSpread(conn *nats.Conn, domain string) error {
 
 // SpreadGetPub retrieves Pub from nats
 func SpreadGetPub(m *nats.Msg, top string) error {
-	subject := m.Subject
-	domain := strings.TrimPrefix(subject, HashNamePubmap+":")
-	w, err := os.OpenFile(top+"/"+HashNamePubmap+"/"+domain, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
+	if m == nil {
+		return errors.New("spread publisher message is nil")
+	}
+	relative, ok := spreadcache.RelativePath(m.Subject)
+	if !ok || !strings.HasPrefix(relative, HashNamePubmap+string(filepath.Separator)) {
+		return fmt.Errorf("invalid spread publisher subject %q", m.Subject)
+	}
+	filename := filepath.Join(top, relative)
+	if err := atomicfile.EnsureDir(filepath.Dir(filename), 0750); err != nil {
 		return err
 	}
-	defer w.Close()
-	_, err = w.Write(m.Data)
-	return err
+	return atomicfile.Write(filename, 0640, func(out io.Writer) error {
+		_, err := out.Write(m.Data)
+		return err
+	})
 }
 
 // DBGetPubByID retrieves the Pub from the database using pubID

@@ -152,6 +152,7 @@ atomic generation publication with partial live writes.
     every record and uses context-aware publisher/site/slot insert and collision
     lookup paths. A canceled-context test proves no inventory SQL is issued
     after lease cancellation; compatibility wrappers retain the old API.
-  - P2 open: the exported legacy `SpreadGetPub` filesystem writer still accepts
-    an unchecked subject-derived path and truncates it directly at mode `0644`
-    instead of using the validated durable `0640` snapshot boundary.
+  - P2 resolved: the exported legacy `SpreadGetPub` writer now accepts only the
+    canonical publisher subject grammar and uses the shared durable writer with
+    a `0750` parent and `0640` snapshot. Focused tests cover mode, content, and
+    traversal rejection.
