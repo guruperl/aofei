@@ -37,6 +37,10 @@ func TestDeriveRatiosZeroDenominators(t *testing.T) {
 	if got.CTR != 0.1 || got.CVR != 0.2 || got.ROI != 3 || got.ROAS != 4 {
 		t.Fatalf("ratios = %#v", got)
 	}
+	repeated, err := DeriveRatios(10, 20, 30, 5, 20)
+	if err != nil || repeated.CTR != 2 || repeated.CVR != 1.5 {
+		t.Fatalf("repeated click/action ratios = %#v err=%v", repeated, err)
+	}
 }
 
 func TestDeriveRatiosRejectsInvalidSourcesAndResults(t *testing.T) {
@@ -44,8 +48,6 @@ func TestDeriveRatiosRejectsInvalidSourcesAndResults(t *testing.T) {
 		impressions, clicks, actions uint64
 		spend, purchase              float64
 	}{
-		{10, 11, 0, 1, 1},
-		{10, 5, 6, 1, 1},
 		{10, 5, 1, math.NaN(), 1},
 		{10, 5, 1, math.Inf(1), 1},
 		{10, 5, 1, -1, 1},

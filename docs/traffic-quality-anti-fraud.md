@@ -126,7 +126,7 @@ S03 adds nine tables: `quality_rule`, `quality_decision`, `quality_evidence`,
 decisions, evidence retention, case history, enforcement and billing identity,
 and audit history. S03 originally added ten triggers; S05 adds narrow
 protected-update triggers for `quality_enforcement` and `quality_billing`.
-The current clean schema contains 95 tables, 6 routines, and 60 triggers after
+The current clean schema contains 95 tables, 6 routines, and 61 triggers after
 R03 adds three experiment-only immutability triggers.
 
 Enforcement updates keep the originating rule, decision, scope, action, canary

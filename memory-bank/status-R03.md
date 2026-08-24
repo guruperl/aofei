@@ -21,9 +21,9 @@ bids, delivery, accounting, or settlement.
 | Item | State | Notes |
 |---|---:|---|
 | Assignment namespace | `[+]` | The trusted create transaction rejects caller-supplied salts/algorithm versions, generates a fresh 16-byte salt, and stores assignment algorithm v2. V2 hashes a fixed domain plus experiment id, algorithm version, experiment version, decoded salt, and the 32-byte input pseudonym. Deterministic tests prove reused input and salt cannot link different experiment identities; only the result hash crosses storage. |
-| Algorithm compatibility | `[+]` | `assignment_algorithm_version` defaults legacy rows to v1 while trusted creates store v2. Assignment dispatch preserves a literal v1 golden hash and uses the new domain only for v2; list/report output exposes the non-secret version but never the salt. Database triggers prevent algorithm/salt/experiment-version rewrites and any variant update/delete, so a running experiment cannot change buckets in place. Mixed-version schema and runtime tests cover both paths. |
+| Algorithm compatibility | `[+]` | `assignment_algorithm_version` defaults legacy rows to v1 while trusted creates store v2. Assignment dispatch preserves a literal v1 golden hash and uses the new domain only for v2; list/report output exposes the non-secret version but never the salt. Database triggers make the complete version contract immutable, enforce forward-only state transitions/reasons, reject variant update/delete, and reject additions after Draft, so a started experiment cannot change semantics or buckets in place. Mixed-version schema and runtime tests cover both paths. |
 | Exposure and outcome validation | `[+]` | `Assign` binds stored owner scope and a private salt-derived proof to the experiment/version/algorithm/hash/variant/times. Exposure recording reloads and locks the exact database contract, validates owner, algorithm, variant, window, and calculated retention, preserves concurrent idempotency, and permits stopped-state retries only for an identical prior exposure. Outcome recording repeats the proof/scope/time checks against the immutable exposure and accepts only declared metrics and an exact idempotency tuple. Caller-built or altered assignments fail before storage; raw subjects/events remain transient. |
-| Numeric and allocation safety | `[+]` | The metric registry now declares a value domain. Checked ratio derivation rejects impossible counts, negative/non-finite sources, and overflow; experiment outcomes reject NaN/Inf, negative zero, fractional/negative counts, CTR/CVR outside 0..1, ROI below -1, negative money/CPM/ROAS, and noncanonical DECIMAL input, with a matching baseline CHECK. The exact 64-bit modulo bucket spread is `10000/2^64` (about 5.42e-16), below the 1e-12 acceptance bound, so v1/v2 hashes and basis-point allocation remain stable. |
+| Numeric and allocation safety | `[+]` | The metric registry now declares a value domain. Checked ratio derivation rejects negative/non-finite monetary sources and overflow while preserving valid repeated-click/action ratios above one; experiment outcomes reject NaN/Inf, negative zero, fractional/negative counts, negative CTR/CVR, ROI below -1, negative money/CPM/ROAS, and noncanonical DECIMAL input, with a matching baseline CHECK. The exact 64-bit modulo bucket spread is `10000/2^64` (about 5.42e-16), below the 1e-12 acceptance bound, so v1/v2 hashes and basis-point allocation remain stable. |
 | Privacy, deletion, and operations | `[+]` | Unit and disposable-MySQL tests prove v2 unlinkability, idempotent facts, exact one-subject erasure without adjacent deletion or hash-bearing audit, and expiry removal of outcomes before exposures. Every experiment mutation runs through the fixed renewable Redis lease and its ownership context; a closed operation/outcome metric admits no resource data. Summer exports only per-variant aggregates and now omits stop reasons as well as salts, hashes, idempotency keys, audit reasons, and subject rows. The runbook documents additive v1 default migration, v1/v2 coexistence, stop semantics, and the required roll-forward response instead of letting old code reinterpret v2. |
 
 ## Acceptance Criteria
@@ -46,6 +46,17 @@ bids, delivery, accounting, or settlement.
 - Disposable MySQL migration and mixed-version integration, reporting
   benchmark, full Go/vet/staticcheck/race gates, docs/public-data checks, and
   diff hygiene.
+
+## Review-Fix Gate
+
+- Iteration 1: two P2 findings. First, the new numeric contract incorrectly
+  assumed one click per impression and one action per click even though the R02
+  formulas and retained facts permit repeated clicks/actions; valid CTR/CVR
+  values above one were rejected. Second, the database guard protected only
+  algorithm/salt/version updates and variant update/delete: owner, metrics,
+  retention/window fields and a late variant insert could still alter or deny
+  a started experiment under the same version. Both findings were corrected;
+  the full iteration-2 review remains pending.
 
 ## Exclusions
 

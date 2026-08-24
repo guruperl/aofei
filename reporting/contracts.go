@@ -25,9 +25,9 @@ type MetricContract struct {
 var metricContracts = []MetricContract{
 	{Name: "impressions", Source: "report_delivery.imps", Formula: "SUM(imps)", Scopes: []string{"advertiser", "publisher", "operator"}, Currency: "none", Timezone: "UTC", Freshness: "interval reporting fact", ValueDomain: "nonnegative integer"},
 	{Name: "clicks", Source: "report_delivery.clis", Formula: "SUM(clis)", Scopes: []string{"advertiser", "publisher", "operator"}, Currency: "none", Timezone: "UTC", Freshness: "interval reporting fact", ValueDomain: "nonnegative integer"},
-	{Name: "ctr", Source: "report_delivery", Formula: "clicks / impressions; zero when impressions is zero", Scopes: []string{"advertiser", "publisher", "operator"}, Currency: "ratio", Timezone: "UTC", Freshness: "interval reporting fact", ValueDomain: "0 through 1"},
+	{Name: "ctr", Source: "report_delivery", Formula: "clicks / impressions; zero when impressions is zero", Scopes: []string{"advertiser", "publisher", "operator"}, Currency: "ratio", Timezone: "UTC", Freshness: "interval reporting fact", ValueDomain: "nonnegative"},
 	{Name: "actions", Source: "measurement_action", Formula: "COUNT(*)", Scopes: []string{"advertiser", "operator"}, Currency: "none", Timezone: "UTC", Freshness: "action receipt and retention window", ValueDomain: "nonnegative integer"},
-	{Name: "cvr", Source: "measurement_action + report_delivery", Formula: "actions / clicks; zero when clicks is zero", Scopes: []string{"advertiser", "operator"}, Currency: "ratio", Timezone: "UTC", Freshness: "partial when action or delivery input is unavailable", ValueDomain: "0 through 1"},
+	{Name: "cvr", Source: "measurement_action + report_delivery", Formula: "actions / clicks; zero when clicks is zero", Scopes: []string{"advertiser", "operator"}, Currency: "ratio", Timezone: "UTC", Freshness: "partial when action or delivery input is unavailable", ValueDomain: "nonnegative"},
 	{Name: "spend", Source: "report_delivery.spend_usd", Formula: "SUM(spend_usd); already per-impression USD", Scopes: []string{"advertiser", "operator"}, Currency: "USD", Timezone: "UTC", Freshness: "interval reporting fact", ValueDomain: "nonnegative"},
 	{Name: "revenue", Source: "report_delivery.revenue_usd", Formula: "SUM(revenue_usd); already per-impression USD", Scopes: []string{"publisher", "operator"}, Currency: "USD", Timezone: "UTC", Freshness: "interval reporting fact", ValueDomain: "nonnegative"},
 	{Name: "cost", Source: "report_delivery.cost_usd", Formula: "SUM(cost_usd); already per-impression USD", Scopes: []string{"operator"}, Currency: "USD", Timezone: "UTC", Freshness: "partial while middleman callback/retry is unresolved", ValueDomain: "nonnegative"},
@@ -84,12 +84,6 @@ type Ratios struct {
 // source values that cannot produce a value in the metric registry's domain.
 func DeriveRatios(impressions, clicks, actions uint64, spendUSD, purchaseValueUSD float64) (Ratios, error) {
 	var out Ratios
-	if clicks > impressions {
-		return out, fmt.Errorf("report clicks cannot exceed impressions")
-	}
-	if actions > clicks {
-		return out, fmt.Errorf("report actions cannot exceed clicks")
-	}
 	if math.IsNaN(spendUSD) || math.IsInf(spendUSD, 0) || spendUSD < 0 {
 		return out, fmt.Errorf("report spend must be finite and nonnegative")
 	}

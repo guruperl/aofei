@@ -251,7 +251,7 @@ database, common key, clocks, and mail path are healthy.
 ## Verification
 
 The current clean baseline after R03 assignment-compatibility hardening contains
-95 tables, 6 routines, and 60 triggers.
+95 tables, 6 routines, and 61 triggers.
 At S02 closeout it contained 75 tables, 6 routines, and 28 triggers;
 I03 subsequently brought the inventory to 79 tables and 33 triggers, S03 added
 nine tables and ten triggers, A02 added six tables and twelve triggers, P03

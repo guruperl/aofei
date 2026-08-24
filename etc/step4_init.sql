@@ -2221,7 +2221,7 @@ CREATE TABLE `report_experiment_outcome` (
   PRIMARY KEY (`outcome_id`),
   UNIQUE KEY `report_experiment_outcome_idempotency` (`exposure_id`,`idempotency_key`),
   KEY `report_experiment_outcome_metric_time` (`exposure_id`,`metric_name`,`occurred_at`),
-  CONSTRAINT `report_experiment_outcome_value_chk` CHECK (((`metric_name` in (_utf8mb4'impressions',_utf8mb4'clicks',_utf8mb4'actions')) AND (`metric_value` >= 0) AND (`metric_value` = FLOOR(`metric_value`))) OR ((`metric_name` in (_utf8mb4'ctr',_utf8mb4'cvr')) AND (`metric_value` BETWEEN 0 AND 1)) OR ((`metric_name` = _utf8mb4'roi') AND (`metric_value` >= -(1))) OR ((`metric_name` in (_utf8mb4'spend',_utf8mb4'revenue',_utf8mb4'cost',_utf8mb4'margin',_utf8mb4'roas',_utf8mb4'downstream_cpm',_utf8mb4'returned_cpm')) AND (`metric_value` >= 0))),
+  CONSTRAINT `report_experiment_outcome_value_chk` CHECK (((`metric_name` in (_utf8mb4'impressions',_utf8mb4'clicks',_utf8mb4'actions')) AND (`metric_value` >= 0) AND (`metric_value` = FLOOR(`metric_value`))) OR ((`metric_name` in (_utf8mb4'ctr',_utf8mb4'cvr')) AND (`metric_value` >= 0)) OR ((`metric_name` = _utf8mb4'roi') AND (`metric_value` >= -(1))) OR ((`metric_name` in (_utf8mb4'spend',_utf8mb4'revenue',_utf8mb4'cost',_utf8mb4'margin',_utf8mb4'roas',_utf8mb4'downstream_cpm',_utf8mb4'returned_cpm')) AND (`metric_value` >= 0))),
   CONSTRAINT `report_experiment_outcome_exposure_fk` FOREIGN KEY (`exposure_id`) REFERENCES `report_exposure` (`exposure_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -2244,10 +2244,42 @@ CREATE TRIGGER `report_exposure_immutable_update` BEFORE UPDATE ON `report_expos
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report exposures are immutable'; END ;;
 CREATE TRIGGER `report_experiment_assignment_immutable_update` BEFORE UPDATE ON `report_experiment` FOR EACH ROW
 BEGIN
-  IF NOT (OLD.experiment_version <=> NEW.experiment_version)
+  IF NOT (OLD.owner_type <=> NEW.owner_type)
+     OR NOT (OLD.adv_id <=> NEW.adv_id)
+     OR NOT (OLD.experiment_name <=> NEW.experiment_name)
+     OR NOT (OLD.experiment_version <=> NEW.experiment_version)
      OR NOT (OLD.assignment_algorithm_version <=> NEW.assignment_algorithm_version)
-     OR NOT (OLD.assignment_salt <=> NEW.assignment_salt) THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment assignment identity is immutable';
+     OR NOT (OLD.assignment_salt <=> NEW.assignment_salt)
+     OR NOT (OLD.primary_metric <=> NEW.primary_metric)
+     OR NOT (OLD.guardrail_metric <=> NEW.guardrail_metric)
+     OR NOT (OLD.retention_hours <=> NEW.retention_hours)
+     OR NOT (OLD.starts_at <=> NEW.starts_at)
+     OR NOT (OLD.ends_at <=> NEW.ends_at)
+     OR NOT (OLD.created_by_uid <=> NEW.created_by_uid)
+     OR NOT (OLD.created_at <=> NEW.created_at) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment version contract is immutable';
+  END IF;
+  IF OLD.status <=> NEW.status THEN
+    IF NOT (OLD.stop_reason <=> NEW.stop_reason) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment stop reason changes only with status';
+    END IF;
+  ELSEIF NOT ((OLD.status='Draft' AND NEW.status='Running')
+           OR (OLD.status='Running' AND NEW.status IN ('Stopped','Completed'))
+           OR (OLD.status='Stopped' AND NEW.status='Completed')) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment status transition is invalid';
+  ELSEIF NEW.status='Running' AND NEW.stop_reason IS NOT NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='running experiment cannot have a stop reason';
+  ELSEIF NEW.status IN ('Stopped','Completed') AND (NEW.stop_reason IS NULL OR LENGTH(TRIM(NEW.stop_reason))=0) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='stopped experiment requires a reason';
+  END IF;
+END ;;
+CREATE TRIGGER `report_experiment_variant_guard_insert` BEFORE INSERT ON `report_experiment_variant` FOR EACH ROW
+BEGIN
+  DECLARE experiment_status varchar(16);
+  SELECT status INTO experiment_status FROM report_experiment
+  WHERE experiment_id=NEW.experiment_id AND experiment_version=NEW.experiment_version;
+  IF experiment_status <> 'Draft' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment variants can be added only in Draft';
   END IF;
 END ;;
 CREATE TRIGGER `report_experiment_variant_immutable_update` BEFORE UPDATE ON `report_experiment_variant` FOR EACH ROW

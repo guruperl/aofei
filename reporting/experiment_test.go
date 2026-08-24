@@ -227,7 +227,7 @@ func TestNewOutcomeRejectsRawOrAmbiguousValues(t *testing.T) {
 		{name: "negative zero", metric: "spend", value: "-0.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "fractional count", metric: "actions", value: "1.500000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "negative count", metric: "actions", value: "-1.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
-		{name: "ctr above one", metric: "ctr", value: "1.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "ctr below zero", metric: "ctr", value: "-0.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "cvr below zero", metric: "cvr", value: "-0.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "roi below minus one", metric: "roi", value: "-1.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "negative money", metric: "spend", value: "-0.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
@@ -240,5 +240,17 @@ func TestNewOutcomeRejectsRawOrAmbiguousValues(t *testing.T) {
 				t.Fatal("invalid experiment outcome was accepted")
 			}
 		})
+	}
+}
+
+func TestNewOutcomeAllowsRepeatedClickAndActionRatios(t *testing.T) {
+	assignment, err := Assign(testExperiment(), "3434343434343434343434343434343434343434343434343434343434343434", testExperiment().StartsAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, metric := range []string{"ctr", "cvr"} {
+		if _, err := NewOutcome(assignment, metric, "1.500000", "5656565656565656565656565656565656565656565656565656565656565656", assignment.AssignedAt); err != nil {
+			t.Fatalf("%s repeated-event ratio rejected: %v", metric, err)
+		}
 	}
 }

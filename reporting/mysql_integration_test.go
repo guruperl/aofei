@@ -52,6 +52,9 @@ VALUES ('Operator','r03-legacy-compatibility',1,'Draft',?,'actions','spend',2160
 	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET assignment_algorithm_version=2 WHERE experiment_id=?`, id); err == nil {
 		t.Fatal("assignment algorithm rewrite succeeded")
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET retention_hours=48 WHERE experiment_id=?`, id); err == nil {
+		t.Fatal("experiment version contract rewrite succeeded")
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO report_experiment_variant (experiment_id, experiment_version, variant_key, allocation_basis_points) VALUES (?,?,?,?)`, id, 1, "control", 5000); err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +63,21 @@ VALUES ('Operator','r03-legacy-compatibility',1,'Draft',?,'actions','spend',2160
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM report_experiment_variant WHERE experiment_id=? AND experiment_version=1 AND variant_key='control'`, id); err == nil {
 		t.Fatal("variant deletion succeeded")
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO report_experiment_variant (experiment_id, experiment_version, variant_key, allocation_basis_points) VALUES (?,?,?,?)`, id, 1, "treatment", 5000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET status='Running' WHERE experiment_id=?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO report_experiment_variant (experiment_id, experiment_version, variant_key, allocation_basis_points) VALUES (?,?,?,?)`, id, 1, "late", 1); err == nil {
+		t.Fatal("variant insertion succeeded after experiment start")
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET status='Draft' WHERE experiment_id=?`, id); err == nil {
+		t.Fatal("backward experiment status transition succeeded")
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE report_experiment SET stop_reason='rewritten' WHERE experiment_id=?`, id); err == nil {
+		t.Fatal("experiment stop reason changed without a status transition")
 	}
 }
 

@@ -493,7 +493,7 @@ func validOutcomeMetricValue(metricName, value string) bool {
 	case "impressions", "clicks", "actions":
 		return scaled.Sign() >= 0 && new(big.Int).Rem(scaled, outcomeDecimalScale).Sign() == 0
 	case "ctr", "cvr":
-		return scaled.Sign() >= 0 && scaled.Cmp(outcomeDecimalScale) <= 0
+		return scaled.Sign() >= 0
 	case "roi":
 		return scaled.Cmp(new(big.Int).Neg(outcomeDecimalScale)) >= 0
 	case "spend", "revenue", "cost", "margin", "roas", "downstream_cpm", "returned_cpm":

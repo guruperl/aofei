@@ -38,9 +38,9 @@ machine-checked contract.
 |---|---|---|---|---|
 | Impressions | `SUM(report_delivery.imps)` | nonnegative integer | advertiser, publisher, operator | interval fact |
 | Clicks | `SUM(report_delivery.clis)` | nonnegative integer | advertiser, publisher, operator | interval fact |
-| CTR | clicks / impressions; zero for a zero denominator | 0 through 1 | advertiser, publisher, operator | interval fact |
+| CTR | clicks / impressions; zero for a zero denominator | nonnegative; repeated clicks may exceed 1 | advertiser, publisher, operator | interval fact |
 | Actions | `COUNT(measurement_action)` | nonnegative integer | advertiser, operator | receipt and retention window |
-| CVR | actions / clicks; zero for a zero denominator | 0 through 1 | advertiser, operator | partial if either source is unavailable |
+| CVR | actions / clicks; zero for a zero denominator | nonnegative; repeated actions may exceed 1 | advertiser, operator | partial if either source is unavailable |
 | Spend | `SUM(report_delivery.spend_usd)`; already per-impression USD | nonnegative | advertiser, operator | interval fact |
 | Revenue | `SUM(report_delivery.revenue_usd)`; already per-impression USD | nonnegative | publisher, operator | interval fact |
 | Cost | `SUM(report_delivery.cost_usd)`; already per-impression USD | nonnegative | operator | partial while callback/retry is unresolved |
@@ -130,19 +130,22 @@ subject deletion.
 
 The schema compatibility default is assignment algorithm v1, reproducing the
 pre-R03 salt/pseudonym/experiment-version hash byte-for-byte while its retained
-exposures expire. Trusted creates explicitly store v2. The algorithm version,
-salt, and experiment version plus all variant keys/allocations are immutable;
-a running experiment is stopped and replaced by a new experiment/version
-instead of changing buckets. List and operator report output disclose the
-algorithm version but never the salt.
+exposures expire. Trusted creates explicitly store v2. Owner, name, algorithm,
+salt, metrics, retention/window, creator, and experiment version form one
+immutable version contract. Variant keys/allocations can be inserted only
+while Draft and cannot be updated or deleted; a started experiment is stopped
+and replaced by a new experiment/version instead of changing semantics or
+buckets. List and operator report output disclose the algorithm version but
+never the salt.
 
 `report_experiment_outcome` attaches an append-only observed value to an existing
 exposure. The caller supplies a 32-byte hexadecimal idempotency digest and an
 exact six-decimal `DECIMAL(20,6)` string. Only the experiment's declared
 primary or guardrail metric is accepted; conflicting reuse of the idempotency
-digest fails. Counts must be nonnegative integers, CTR/CVR must be between zero
-and one, ROI cannot be below -1, and all other registered values are
-nonnegative. `NaN`, infinities, negative zero, overflow, and noncanonical
+digest fails. Counts must be nonnegative integers; CTR/CVR may exceed one when
+the source contains repeated clicks/actions but cannot be negative; ROI cannot
+be below -1; and all other registered values are nonnegative. `NaN`,
+infinities, negative zero, overflow, and noncanonical
 decimal strings fail before storage; the baseline database repeats the value
 domain check. Outcomes cannot precede exposure. The runtime API is:
 
