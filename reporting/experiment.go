@@ -8,12 +8,21 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strings"
 	"time"
 )
 
 const allocationBasisPoints = 10_000
+
+// Mapping 2^64 hash prefixes onto 10,000 basis-point buckets by modulo makes
+// some buckets receive one extra prefix. The relative high-to-low spread is
+// 10,000/2^64, well below this contract's one-part-per-trillion limit.
+const (
+	allocationModuloRelativeSkew    = float64(allocationBasisPoints) / (1 << 64)
+	maxAllocationModuloRelativeSkew = 1e-12
+)
 
 const (
 	AssignmentAlgorithmV1 uint16 = 1
@@ -29,6 +38,8 @@ const (
 )
 
 var outcomeDecimalPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]{0,13})\.[0-9]{6}$`)
+
+var outcomeDecimalScale = big.NewInt(1_000_000)
 
 type Variant struct {
 	Key                string
@@ -374,8 +385,8 @@ func NewOutcome(assignment Assignment, metricName, metricValue, idempotencyDiges
 	if !validateMetricName(metricName) {
 		return Outcome{}, fmt.Errorf("experiment outcome metric is not in the R02 registry")
 	}
-	if !outcomeDecimalPattern.MatchString(metricValue) {
-		return Outcome{}, fmt.Errorf("experiment outcome value must be a signed DECIMAL(20,6)")
+	if !validOutcomeMetricValue(metricName, metricValue) {
+		return Outcome{}, fmt.Errorf("experiment outcome value is outside the metric's DECIMAL(20,6) domain")
 	}
 	if len(idempotencyDigest) != 64 {
 		return Outcome{}, fmt.Errorf("experiment outcome idempotency key must be a 32-byte hexadecimal digest")
@@ -403,7 +414,7 @@ func RecordOutcome(ctx context.Context, db *sql.DB, outcome Outcome) error {
 		return fmt.Errorf("experiment database is nil")
 	}
 	if !validAssignment(outcome.Assignment) ||
-		!validateMetricName(outcome.MetricName) || !outcomeDecimalPattern.MatchString(outcome.MetricValue) ||
+		!validateMetricName(outcome.MetricName) || !validOutcomeMetricValue(outcome.MetricName, outcome.MetricValue) ||
 		outcome.OccurredAt.IsZero() || outcome.OccurredAt.Before(outcome.Assignment.AssignedAt) ||
 		!outcome.OccurredAt.Before(outcome.Assignment.ExpiresAt) {
 		return fmt.Errorf("experiment outcome is incomplete")
@@ -468,4 +479,26 @@ WHERE exposure_id=? AND idempotency_key=?`, exposureID, outcome.IdempotencyKey[:
 
 func validAssignmentAlgorithm(version uint16) bool {
 	return version == AssignmentAlgorithmV1 || version == AssignmentAlgorithmV2
+}
+
+func validOutcomeMetricValue(metricName, value string) bool {
+	if !outcomeDecimalPattern.MatchString(value) || value == "-0.000000" {
+		return false
+	}
+	scaled, ok := new(big.Int).SetString(strings.Replace(value, ".", "", 1), 10)
+	if !ok {
+		return false
+	}
+	switch metricName {
+	case "impressions", "clicks", "actions":
+		return scaled.Sign() >= 0 && new(big.Int).Rem(scaled, outcomeDecimalScale).Sign() == 0
+	case "ctr", "cvr":
+		return scaled.Sign() >= 0 && scaled.Cmp(outcomeDecimalScale) <= 0
+	case "roi":
+		return scaled.Cmp(new(big.Int).Neg(outcomeDecimalScale)) >= 0
+	case "spend", "revenue", "cost", "margin", "roas", "downstream_cpm", "returned_cpm":
+		return scaled.Sign() >= 0
+	default:
+		return false
+	}
 }

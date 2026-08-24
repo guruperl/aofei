@@ -273,7 +273,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    The assignment carries stored owner scope and a private salt-bound proof;
    both recording paths reload and match the database experiment, variant,
    exposure time, exact retention, algorithm, owner, and declared metric before
-   accepting a fact.
+   accepting a fact. Registry value domains reject invalid count, ratio, and
+   money observations in Go and in the baseline database. The stable 64-bit
+   modulo allocator has a measured relative bucket spread of `10000/2^64`,
+   below the `1e-12` acceptance limit, so no algorithm-version change is needed.
    Only hashes/digests cross the storage boundary. `cmd/report-experiment`
    provides explicit audited create/start/stop/complete transitions, bounded
    expiry prune, and exact audited subject deletion, with no serving mutation.

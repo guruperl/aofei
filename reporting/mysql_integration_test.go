@@ -115,6 +115,18 @@ func TestExperimentFactBindingMySQL(t *testing.T) {
 	if err := RecordOutcome(ctx, db, outcome); err != nil {
 		t.Fatalf("idempotent outcome retry: %v", err)
 	}
+	var exposureID uint64
+	if err := db.QueryRowContext(ctx, `
+SELECT exposure_id FROM report_exposure
+WHERE experiment_id=? AND experiment_version=? AND subject_hash=?`, id, assignment.Version, assignment.SubjectHash[:]).Scan(&exposureID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO report_experiment_outcome
+  (exposure_id, metric_name, metric_value, idempotency_key, occurred_at)
+VALUES (?,?,?,?,?)`, exposureID, "actions", "-1.000000", []byte("01234567890123456789012345678901"), assignment.AssignedAt.Add(2*time.Minute)); err == nil {
+		t.Fatal("database accepted an out-of-domain experiment outcome")
+	}
 	newAssignment, err := Assign(loaded, "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef", start.Add(31*time.Minute))
 	if err != nil {
 		t.Fatal(err)

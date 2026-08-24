@@ -74,6 +74,15 @@ func TestAssignIsDeterministicAndStoresOnlyHash(t *testing.T) {
 	}
 }
 
+func TestAllocationModuloSkewStaysWithinV2AcceptanceBound(t *testing.T) {
+	if allocationModuloRelativeSkew > maxAllocationModuloRelativeSkew {
+		t.Fatalf("relative modulo skew %.18g exceeds bound %.18g", allocationModuloRelativeSkew, maxAllocationModuloRelativeSkew)
+	}
+	if allocationModuloRelativeSkew <= 0 {
+		t.Fatal("allocation skew measurement must remain explicit")
+	}
+}
+
 func TestAssignRejectsInactiveOrMalformedSubjects(t *testing.T) {
 	experiment := testExperiment()
 	experiment.Status = "Draft"
@@ -213,6 +222,15 @@ func TestNewOutcomeRejectsRawOrAmbiguousValues(t *testing.T) {
 	}{
 		{name: "raw key", metric: "actions", value: "1.000000", key: "customer-17", at: assignment.AssignedAt},
 		{name: "floating ambiguity", metric: "actions", value: "1.0", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "nan", metric: "actions", value: "NaN", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "infinity", metric: "actions", value: "+Inf", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "negative zero", metric: "spend", value: "-0.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "fractional count", metric: "actions", value: "1.500000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "negative count", metric: "actions", value: "-1.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "ctr above one", metric: "ctr", value: "1.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "cvr below zero", metric: "cvr", value: "-0.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "roi below minus one", metric: "roi", value: "-1.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
+		{name: "negative money", metric: "spend", value: "-0.000001", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "unknown metric", metric: "secret-score", value: "1.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt},
 		{name: "before exposure", metric: "actions", value: "1.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.AssignedAt.Add(-time.Microsecond)},
 		{name: "after expiry", metric: "actions", value: "1.000000", key: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", at: assignment.ExpiresAt},

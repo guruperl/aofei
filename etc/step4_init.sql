@@ -2221,6 +2221,7 @@ CREATE TABLE `report_experiment_outcome` (
   PRIMARY KEY (`outcome_id`),
   UNIQUE KEY `report_experiment_outcome_idempotency` (`exposure_id`,`idempotency_key`),
   KEY `report_experiment_outcome_metric_time` (`exposure_id`,`metric_name`,`occurred_at`),
+  CONSTRAINT `report_experiment_outcome_value_chk` CHECK (((`metric_name` in (_utf8mb4'impressions',_utf8mb4'clicks',_utf8mb4'actions')) AND (`metric_value` >= 0) AND (`metric_value` = FLOOR(`metric_value`))) OR ((`metric_name` in (_utf8mb4'ctr',_utf8mb4'cvr')) AND (`metric_value` BETWEEN 0 AND 1)) OR ((`metric_name` = _utf8mb4'roi') AND (`metric_value` >= -(1))) OR ((`metric_name` in (_utf8mb4'spend',_utf8mb4'revenue',_utf8mb4'cost',_utf8mb4'margin',_utf8mb4'roas',_utf8mb4'downstream_cpm',_utf8mb4'returned_cpm')) AND (`metric_value` >= 0))),
   CONSTRAINT `report_experiment_outcome_exposure_fk` FOREIGN KEY (`exposure_id`) REFERENCES `report_exposure` (`exposure_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

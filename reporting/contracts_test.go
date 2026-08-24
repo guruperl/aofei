@@ -1,6 +1,9 @@
 package reporting
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestMetricContractsAreCompleteAndIndependentOfCPMConversion(t *testing.T) {
 	contracts := MetricContracts()
@@ -24,11 +27,35 @@ func TestMetricContractsAreCompleteAndIndependentOfCPMConversion(t *testing.T) {
 }
 
 func TestDeriveRatiosZeroDenominators(t *testing.T) {
-	if got := DeriveRatios(0, 0, 3, 0, 12); got != (Ratios{}) {
+	if got, err := DeriveRatios(0, 0, 0, 0, 12); err != nil || got != (Ratios{}) {
 		t.Fatalf("zero denominator ratios = %#v", got)
 	}
-	got := DeriveRatios(100, 10, 2, 5, 20)
+	got, err := DeriveRatios(100, 10, 2, 5, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got.CTR != 0.1 || got.CVR != 0.2 || got.ROI != 3 || got.ROAS != 4 {
 		t.Fatalf("ratios = %#v", got)
+	}
+}
+
+func TestDeriveRatiosRejectsInvalidSourcesAndResults(t *testing.T) {
+	for _, input := range []struct {
+		impressions, clicks, actions uint64
+		spend, purchase              float64
+	}{
+		{10, 11, 0, 1, 1},
+		{10, 5, 6, 1, 1},
+		{10, 5, 1, math.NaN(), 1},
+		{10, 5, 1, math.Inf(1), 1},
+		{10, 5, 1, -1, 1},
+		{10, 5, 1, 1, math.NaN()},
+		{10, 5, 1, 1, math.Inf(1)},
+		{10, 5, 1, 1, -1},
+		{10, 5, 1, math.SmallestNonzeroFloat64, math.MaxFloat64},
+	} {
+		if _, err := DeriveRatios(input.impressions, input.clicks, input.actions, input.spend, input.purchase); err == nil {
+			t.Fatalf("invalid ratio sources were accepted: %#v", input)
+		}
 	}
 }

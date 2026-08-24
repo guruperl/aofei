@@ -34,21 +34,21 @@ All dates and intervals are UTC. Amounts are USD with six decimal places unless
 the table says otherwise. The Go registry in `reporting/contracts.go` is the
 machine-checked contract.
 
-| Metric | Exact source and formula | Authorized scope | Freshness |
-|---|---|---|---|
-| Impressions | `SUM(report_delivery.imps)` | advertiser, publisher, operator | interval fact |
-| Clicks | `SUM(report_delivery.clis)` | advertiser, publisher, operator | interval fact |
-| CTR | clicks / impressions; zero for a zero denominator | advertiser, publisher, operator | interval fact |
-| Actions | `COUNT(measurement_action)` | advertiser, operator | receipt and retention window |
-| CVR | actions / clicks; zero for a zero denominator | advertiser, operator | partial if either source is unavailable |
-| Spend | `SUM(report_delivery.spend_usd)`; already per-impression USD | advertiser, operator | interval fact |
-| Revenue | `SUM(report_delivery.revenue_usd)`; already per-impression USD | publisher, operator | interval fact |
-| Cost | `SUM(report_delivery.cost_usd)`; already per-impression USD | operator | partial while callback/retry is unresolved |
-| Margin | `SUM(report_delivery.margin_usd)`; nonnegative | operator | partial while callback/retry is unresolved |
-| ROI | (purchase value - spend) / spend; zero for a zero denominator | advertiser, operator | partial if action or delivery input is unavailable |
-| ROAS | purchase value / spend; zero for a zero denominator | advertiser, operator | partial if action or delivery input is unavailable |
-| Downstream CPM | sum of raw downstream bid CPM / impressions | operator | auction/callback evidence |
-| Returned CPM | sum of returned upstream CPM / impressions | operator | auction/callback evidence |
+| Metric | Exact source and formula | Accepted value domain | Authorized scope | Freshness |
+|---|---|---|---|---|
+| Impressions | `SUM(report_delivery.imps)` | nonnegative integer | advertiser, publisher, operator | interval fact |
+| Clicks | `SUM(report_delivery.clis)` | nonnegative integer | advertiser, publisher, operator | interval fact |
+| CTR | clicks / impressions; zero for a zero denominator | 0 through 1 | advertiser, publisher, operator | interval fact |
+| Actions | `COUNT(measurement_action)` | nonnegative integer | advertiser, operator | receipt and retention window |
+| CVR | actions / clicks; zero for a zero denominator | 0 through 1 | advertiser, operator | partial if either source is unavailable |
+| Spend | `SUM(report_delivery.spend_usd)`; already per-impression USD | nonnegative | advertiser, operator | interval fact |
+| Revenue | `SUM(report_delivery.revenue_usd)`; already per-impression USD | nonnegative | publisher, operator | interval fact |
+| Cost | `SUM(report_delivery.cost_usd)`; already per-impression USD | nonnegative | operator | partial while callback/retry is unresolved |
+| Margin | `SUM(report_delivery.margin_usd)`; nonnegative | nonnegative | operator | partial while callback/retry is unresolved |
+| ROI | (purchase value - spend) / spend; zero for a zero denominator | at least -1 | advertiser, operator | partial if action or delivery input is unavailable |
+| ROAS | purchase value / spend; zero for a zero denominator | nonnegative | advertiser, operator | partial if action or delivery input is unavailable |
+| Downstream CPM | sum of raw downstream bid CPM / impressions | nonnegative | operator | auction/callback evidence |
+| Returned CPM | sum of returned upstream CPM / impressions | nonnegative | operator | auction/callback evidence |
 
 Derived CTR, CVR, ROI, ROAS, CPC, CPA, and effective CPM values are report-only
 analytics. They are not supported auction cost types and are never fed back
@@ -140,7 +140,11 @@ algorithm version but never the salt.
 exposure. The caller supplies a 32-byte hexadecimal idempotency digest and an
 exact six-decimal `DECIMAL(20,6)` string. Only the experiment's declared
 primary or guardrail metric is accepted; conflicting reuse of the idempotency
-digest fails. Outcomes cannot precede exposure. The runtime API is:
+digest fails. Counts must be nonnegative integers, CTR/CVR must be between zero
+and one, ROI cannot be below -1, and all other registered values are
+nonnegative. `NaN`, infinities, negative zero, overflow, and noncanonical
+decimal strings fail before storage; the baseline database repeats the value
+domain check. Outcomes cannot precede exposure. The runtime API is:
 
 1. `reporting.LoadExperiment`;
 2. `reporting.Assign`;
@@ -156,6 +160,12 @@ undeclared variant, altered retention, or stopped experiment without a prior
 matching exposure fails before insertion. `RecordOutcome` repeats that proof
 and scope validation against the immutable stored exposure, then permits only
 its experiment's declared metrics and exact idempotency tuple.
+
+Assignment maps the first 64 hash bits onto the 10,000 basis-point range. The
+exact relative high-to-low bucket skew from modulo reduction is
+`10000 / 2^64`, approximately `5.42e-16`; R03's acceptance limit is `1e-12`.
+The measured skew is therefore more than three orders of magnitude below the
+limit, so v1/v2 assignment bytes and allocation boundaries remain unchanged.
 
 The caller owns the pseudonym and event-digest derivation. Do not pass raw
 account, cookie, email, device, or conversion identifiers. The package has no
