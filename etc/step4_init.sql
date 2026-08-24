@@ -2162,6 +2162,7 @@ CREATE TABLE `report_experiment` (
   `adv_id` int unsigned DEFAULT NULL,
   `experiment_name` varchar(128) NOT NULL,
   `experiment_version` int unsigned NOT NULL,
+  `assignment_algorithm_version` smallint unsigned NOT NULL DEFAULT '1',
   `status` enum('Draft','Running','Stopped','Completed') NOT NULL DEFAULT 'Draft',
   `assignment_salt` char(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `primary_metric` varchar(64) NOT NULL,
@@ -2178,6 +2179,7 @@ CREATE TABLE `report_experiment` (
   UNIQUE KEY `report_experiment_name_version` (`experiment_name`,`experiment_version`),
   KEY `report_experiment_adv` (`adv_id`,`status`,`starts_at`),
   CONSTRAINT `report_experiment_owner_chk` CHECK (((`owner_type` = _utf8mb4'Operator') AND (`adv_id` IS NULL)) OR ((`owner_type` = _utf8mb4'Advertiser') AND (`adv_id` IS NOT NULL))),
+  CONSTRAINT `report_experiment_algorithm_chk` CHECK ((`assignment_algorithm_version` in (1,2))),
   CONSTRAINT `report_experiment_retention_chk` CHECK (((`retention_hours` >= 24) AND (`retention_hours` <= 9600)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

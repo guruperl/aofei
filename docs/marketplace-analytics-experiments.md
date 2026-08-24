@@ -118,10 +118,13 @@ Draft -> Running -> Stopped -> Completed
                  -> Completed
 ```
 
-Assignment uses SHA-256 over a random per-experiment salt, a 32-byte
-hexadecimal pseudonym, and the experiment version. It is deterministic for a
-version and domain-separated between experiments. Only the resulting 32-byte
-hash is stored. `report_exposure` accepts one append-only variant per experiment
+Only the trusted create operation generates an assignment salt; caller-supplied
+salts or algorithm versions are rejected. New experiments use assignment
+algorithm v2: SHA-256 over a fixed domain label, experiment id, algorithm
+version, experiment version, the decoded random salt, and a 32-byte hexadecimal
+pseudonym. It is deterministic inside one version and unlinkable across
+experiment identities even if input is reused. Only the resulting 32-byte hash
+is stored. `report_exposure` accepts one append-only variant per experiment
 version and subject hash until its bounded expiry or an exact authorized
 subject deletion.
 

@@ -16,6 +16,14 @@ import (
 const allocationBasisPoints = 10_000
 
 const (
+	AssignmentAlgorithmV1 uint16 = 1
+	AssignmentAlgorithmV2 uint16 = 2
+
+	currentAssignmentAlgorithm = AssignmentAlgorithmV2
+	assignmentDomainV2         = "aofei/reporting/experiment-assignment/v2\x00"
+)
+
+const (
 	minExperimentRetentionHours = 24
 	maxExperimentRetentionHours = 400 * 24
 )
@@ -28,28 +36,30 @@ type Variant struct {
 }
 
 type Experiment struct {
-	ID              uint64
-	OwnerType       string
-	AdvID           *uint32
-	Name            string
-	Version         uint32
-	Status          string
-	AssignmentSalt  string
-	PrimaryMetric   string
-	GuardrailMetric string
-	RetentionHours  uint32
-	StartsAt        time.Time
-	EndsAt          *time.Time
-	Variants        []Variant
+	ID                         uint64
+	OwnerType                  string
+	AdvID                      *uint32
+	Name                       string
+	Version                    uint32
+	AssignmentAlgorithmVersion uint16
+	Status                     string
+	AssignmentSalt             string
+	PrimaryMetric              string
+	GuardrailMetric            string
+	RetentionHours             uint32
+	StartsAt                   time.Time
+	EndsAt                     *time.Time
+	Variants                   []Variant
 }
 
 type Assignment struct {
-	ExperimentID uint64
-	Version      uint32
-	VariantKey   string
-	SubjectHash  [32]byte
-	AssignedAt   time.Time
-	ExpiresAt    time.Time
+	ExperimentID     uint64
+	Version          uint32
+	AlgorithmVersion uint16
+	VariantKey       string
+	SubjectHash      [32]byte
+	AssignedAt       time.Time
+	ExpiresAt        time.Time
 }
 
 // Outcome is one immutable observed metric value for an exposed subject. It
@@ -76,6 +86,9 @@ func NewAssignmentSalt() (string, error) {
 func (e Experiment) Validate() error {
 	if e.ID == 0 || e.Version == 0 || strings.TrimSpace(e.Name) == "" || len(e.Name) > 128 || strings.IndexFunc(e.Name, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
 		return fmt.Errorf("experiment identity, version, and bounded name are required")
+	}
+	if e.AssignmentAlgorithmVersion != AssignmentAlgorithmV1 && e.AssignmentAlgorithmVersion != AssignmentAlgorithmV2 {
+		return fmt.Errorf("experiment assignment algorithm version %d is invalid", e.AssignmentAlgorithmVersion)
 	}
 	switch e.OwnerType {
 	case "Operator":
@@ -162,13 +175,10 @@ func Assign(e Experiment, subjectPseudonym string, at time.Time) (Assignment, er
 	if err != nil {
 		return Assignment{}, fmt.Errorf("experiment subject pseudonym is invalid")
 	}
-	hashInput := make([]byte, 0, len(e.AssignmentSalt)+len(subject)+24)
-	hashInput = append(hashInput, e.AssignmentSalt...)
-	hashInput = append(hashInput, 0)
-	hashInput = append(hashInput, subject...)
-	var version [4]byte
-	binary.BigEndian.PutUint32(version[:], e.Version)
-	hashInput = append(hashInput, version[:]...)
+	hashInput, err := assignmentHashInput(e, subject)
+	if err != nil {
+		return Assignment{}, err
+	}
 	subjectHash := sha256.Sum256(hashInput)
 	bucket := int(binary.BigEndian.Uint64(subjectHash[:8]) % allocationBasisPoints)
 	cumulative := 0
@@ -177,13 +187,38 @@ func Assign(e Experiment, subjectPseudonym string, at time.Time) (Assignment, er
 		if bucket < cumulative {
 			assignedAt := at.UTC().Truncate(time.Microsecond)
 			return Assignment{
-				ExperimentID: e.ID, Version: e.Version, VariantKey: variant.Key,
+				ExperimentID: e.ID, Version: e.Version, AlgorithmVersion: e.AssignmentAlgorithmVersion, VariantKey: variant.Key,
 				SubjectHash: subjectHash, AssignedAt: assignedAt,
 				ExpiresAt: assignedAt.Add(time.Duration(e.RetentionHours) * time.Hour),
 			}, nil
 		}
 	}
 	return Assignment{}, fmt.Errorf("experiment allocation did not cover bucket")
+}
+
+func assignmentHashInput(e Experiment, subject []byte) ([]byte, error) {
+	if e.AssignmentAlgorithmVersion == AssignmentAlgorithmV1 {
+		input := make([]byte, 0, len(e.AssignmentSalt)+len(subject)+5)
+		input = append(input, e.AssignmentSalt...)
+		input = append(input, 0)
+		input = append(input, subject...)
+		var version [4]byte
+		binary.BigEndian.PutUint32(version[:], e.Version)
+		return append(input, version[:]...), nil
+	}
+	salt, err := hex.DecodeString(e.AssignmentSalt)
+	if err != nil {
+		return nil, fmt.Errorf("experiment assignment salt is invalid")
+	}
+	input := make([]byte, 0, len(assignmentDomainV2)+8+2+4+len(salt)+len(subject))
+	input = append(input, assignmentDomainV2...)
+	var identity [14]byte
+	binary.BigEndian.PutUint64(identity[0:8], e.ID)
+	binary.BigEndian.PutUint16(identity[8:10], e.AssignmentAlgorithmVersion)
+	binary.BigEndian.PutUint32(identity[10:14], e.Version)
+	input = append(input, identity[:]...)
+	input = append(input, salt...)
+	return append(input, subject...), nil
 }
 
 // RecordExposure inserts one immutable exposure per experiment version and
@@ -193,7 +228,7 @@ func RecordExposure(ctx context.Context, db *sql.DB, assignment Assignment) erro
 	if db == nil {
 		return fmt.Errorf("experiment database is nil")
 	}
-	if assignment.ExperimentID == 0 || assignment.Version == 0 || !validVariantKey(assignment.VariantKey) || assignment.AssignedAt.IsZero() || !assignment.ExpiresAt.After(assignment.AssignedAt) {
+	if assignment.ExperimentID == 0 || assignment.Version == 0 || !validAssignmentAlgorithm(assignment.AlgorithmVersion) || !validVariantKey(assignment.VariantKey) || assignment.AssignedAt.IsZero() || !assignment.ExpiresAt.After(assignment.AssignedAt) {
 		return fmt.Errorf("experiment assignment is incomplete")
 	}
 	if _, err := db.ExecContext(ctx, `
@@ -218,7 +253,7 @@ WHERE experiment_id=? AND experiment_version=? AND subject_hash=?`, assignment.E
 // fixed six-decimal string avoids binary floating-point ambiguity at the SQL
 // DECIMAL(20,6) boundary.
 func NewOutcome(assignment Assignment, metricName, metricValue, idempotencyDigest string, occurredAt time.Time) (Outcome, error) {
-	if assignment.ExperimentID == 0 || assignment.Version == 0 || !validVariantKey(assignment.VariantKey) || assignment.AssignedAt.IsZero() || !assignment.ExpiresAt.After(assignment.AssignedAt) {
+	if assignment.ExperimentID == 0 || assignment.Version == 0 || !validAssignmentAlgorithm(assignment.AlgorithmVersion) || !validVariantKey(assignment.VariantKey) || assignment.AssignedAt.IsZero() || !assignment.ExpiresAt.After(assignment.AssignedAt) {
 		return Outcome{}, fmt.Errorf("experiment assignment is incomplete")
 	}
 	if !validateMetricName(metricName) {
@@ -252,7 +287,7 @@ func RecordOutcome(ctx context.Context, db *sql.DB, outcome Outcome) error {
 	if db == nil {
 		return fmt.Errorf("experiment database is nil")
 	}
-	if outcome.Assignment.ExperimentID == 0 || outcome.Assignment.Version == 0 ||
+	if outcome.Assignment.ExperimentID == 0 || outcome.Assignment.Version == 0 || !validAssignmentAlgorithm(outcome.Assignment.AlgorithmVersion) ||
 		!validVariantKey(outcome.Assignment.VariantKey) || outcome.Assignment.AssignedAt.IsZero() ||
 		!outcome.Assignment.ExpiresAt.After(outcome.Assignment.AssignedAt) ||
 		!validateMetricName(outcome.MetricName) || !outcomeDecimalPattern.MatchString(outcome.MetricValue) ||
@@ -301,4 +336,8 @@ WHERE exposure_id=? AND idempotency_key=?`, exposureID, outcome.IdempotencyKey[:
 		return fmt.Errorf("experiment outcome conflicts with existing idempotency key")
 	}
 	return tx.Commit()
+}
+
+func validAssignmentAlgorithm(version uint16) bool {
+	return version == AssignmentAlgorithmV1 || version == AssignmentAlgorithmV2
 }

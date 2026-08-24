@@ -265,8 +265,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    looking parameters. Actions are queried separately to avoid dimensional
    fan-out.
    The `reporting` package owns metric registry and controlled-experiment
-   contracts. A privileged runtime loads a version, deterministically assigns
-   a 32-byte pseudonym under a per-experiment salt, records one immutable
+   contracts. The trusted create operation generates the namespace; a
+   privileged runtime loads a version and deterministically assigns a 32-byte
+   pseudonym under a v2 hash domain containing experiment id, algorithm
+   version, experiment version, and random salt, then records one immutable
    exposure, then may record append-only idempotent primary/guardrail outcomes.
    Only hashes/digests cross the storage boundary. `cmd/report-experiment`
    provides explicit audited create/start/stop/complete transitions, bounded
@@ -603,6 +605,8 @@ OS/type key remains lookup-compatible. Exposure/outcome triggers reject updates;
 bounded prune or exact audited erasure deletes them, while experiment audit
 triggers reject update/delete. Report storage is derived and reconciles to ledger/action/A01
 facts; it is not an auction, reservation, statement, or settlement authority.
+R03 adds an explicit assignment-algorithm column defaulting existing rows to v1;
+trusted creates write v2 and reject caller-selected salts or versions.
 O02 makes `ledger_log.timely` and `daily_log.daily` unique durable identities.
 The renewable Redis lease prevents normal overlap, while these constraints
 reject duplicate interval/day source rows if ownership becomes uncertain.

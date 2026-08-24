@@ -18,9 +18,11 @@ func TestCreateExperimentWritesDraftVariantsAndAuditAtomically(t *testing.T) {
 	experiment := testExperiment()
 	experiment.ID = 0
 	experiment.Status = "Draft"
+	experiment.AssignmentSalt = ""
+	experiment.AssignmentAlgorithmVersion = 0
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO report_experiment")).
-		WithArgs("Operator", nil, experiment.Name, experiment.Version, "Draft", experiment.AssignmentSalt, experiment.PrimaryMetric, experiment.GuardrailMetric, experiment.RetentionHours, experiment.StartsAt, nil, uint64(99)).
+		WithArgs("Operator", nil, experiment.Name, experiment.Version, AssignmentAlgorithmV2, "Draft", sqlmock.AnyArg(), experiment.PrimaryMetric, experiment.GuardrailMetric, experiment.RetentionHours, experiment.StartsAt, nil, uint64(99)).
 		WillReturnResult(sqlmock.NewResult(7, 1))
 	for _, variant := range []Variant{{Key: "control", AllocationBasisPts: 5000}, {Key: "treatment", AllocationBasisPts: 5000}} {
 		mock.ExpectExec(regexp.QuoteMeta("INSERT INTO report_experiment_variant")).
@@ -43,6 +45,23 @@ func TestCreateExperimentWritesDraftVariantsAndAuditAtomically(t *testing.T) {
 	}
 }
 
+func TestCreateExperimentRejectsCallerAssignmentNamespace(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	experiment := testExperiment()
+	experiment.ID = 0
+	experiment.Status = "Draft"
+	if _, err := CreateExperiment(context.Background(), db, experiment, 99, "reviewed test"); err == nil {
+		t.Fatal("caller-supplied assignment namespace was accepted")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLoadExperimentReturnsValidatedRuntimeContract(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -53,10 +72,10 @@ func TestLoadExperimentReturnsValidatedRuntimeContract(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT experiment_id, owner_type, adv_id, experiment_name, experiment_version,")).
 		WithArgs(experiment.ID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"experiment_id", "owner_type", "adv_id", "experiment_name", "experiment_version",
+			"experiment_id", "owner_type", "adv_id", "experiment_name", "experiment_version", "assignment_algorithm_version",
 			"status", "assignment_salt", "primary_metric", "guardrail_metric", "retention_hours", "starts_at", "ends_at",
 		}).AddRow(experiment.ID, experiment.OwnerType, nil, experiment.Name, experiment.Version,
-			experiment.Status, experiment.AssignmentSalt, experiment.PrimaryMetric, experiment.GuardrailMetric, experiment.RetentionHours, experiment.StartsAt, nil))
+			experiment.AssignmentAlgorithmVersion, experiment.Status, experiment.AssignmentSalt, experiment.PrimaryMetric, experiment.GuardrailMetric, experiment.RetentionHours, experiment.StartsAt, nil))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT variant_key, allocation_basis_points")).
 		WithArgs(experiment.ID, experiment.Version).
 		WillReturnRows(sqlmock.NewRows([]string{"variant_key", "allocation_basis_points"}).

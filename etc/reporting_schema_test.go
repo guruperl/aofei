@@ -41,7 +41,7 @@ func TestReportingSchemaIsScopedPseudonymousAndNonFinancial(t *testing.T) {
 		}
 	}
 	experiment := schemaTableDefinition(schema, "report_experiment")
-	for _, required := range []string{"`retention_hours` int unsigned NOT NULL", "report_experiment_retention_chk"} {
+	for _, required := range []string{"`assignment_algorithm_version` smallint unsigned NOT NULL DEFAULT '1'", "report_experiment_algorithm_chk", "`retention_hours` int unsigned NOT NULL", "report_experiment_retention_chk"} {
 		if !strings.Contains(experiment, required) {
 			t.Errorf("report experiment retention contract is missing %q", required)
 		}

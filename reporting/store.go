@@ -31,13 +31,15 @@ func CreateExperiment(ctx context.Context, db *sql.DB, experiment Experiment, ac
 	if experiment.ID != 0 || experiment.Status != "Draft" {
 		return 0, fmt.Errorf("new experiment must be an unassigned Draft")
 	}
-	if experiment.AssignmentSalt == "" {
-		var err error
-		experiment.AssignmentSalt, err = NewAssignmentSalt()
-		if err != nil {
-			return 0, err
-		}
+	if experiment.AssignmentSalt != "" || experiment.AssignmentAlgorithmVersion != 0 {
+		return 0, fmt.Errorf("experiment assignment namespace is generated only by the trusted create operation")
 	}
+	var err error
+	experiment.AssignmentSalt, err = NewAssignmentSalt()
+	if err != nil {
+		return 0, err
+	}
+	experiment.AssignmentAlgorithmVersion = currentAssignmentAlgorithm
 	validation := experiment
 	validation.ID = 1
 	if err := validation.Validate(); err != nil {
@@ -62,12 +64,12 @@ func CreateExperiment(ctx context.Context, db *sql.DB, experiment Experiment, ac
 	}
 	result, err := tx.ExecContext(ctx, `
 INSERT INTO report_experiment
-  (owner_type, adv_id, experiment_name, experiment_version, status,
+  (owner_type, adv_id, experiment_name, experiment_version, assignment_algorithm_version, status,
    assignment_salt, primary_metric, guardrail_metric, retention_hours, starts_at, ends_at,
    created_by_uid, created_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(6))`,
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(6))`,
 		experiment.OwnerType, nullableUint32(experiment.AdvID), experiment.Name,
-		experiment.Version, experiment.Status, experiment.AssignmentSalt,
+		experiment.Version, experiment.AssignmentAlgorithmVersion, experiment.Status, experiment.AssignmentSalt,
 		experiment.PrimaryMetric, experiment.GuardrailMetric, experiment.RetentionHours,
 		experiment.StartsAt.UTC(), nullableTime(experiment.EndsAt), actorUID)
 	if err != nil {
@@ -188,11 +190,11 @@ func LoadExperiment(ctx context.Context, db *sql.DB, experimentID uint64) (Exper
 	var advID sql.NullInt64
 	var endsAt sql.NullTime
 	if err := db.QueryRowContext(ctx, `
-SELECT experiment_id, owner_type, adv_id, experiment_name, experiment_version,
+SELECT experiment_id, owner_type, adv_id, experiment_name, experiment_version, assignment_algorithm_version,
        status, assignment_salt, primary_metric, guardrail_metric, retention_hours, starts_at, ends_at
 FROM report_experiment
 WHERE experiment_id=?`, experimentID).Scan(
-		&out.ID, &out.OwnerType, &advID, &out.Name, &out.Version, &out.Status,
+		&out.ID, &out.OwnerType, &advID, &out.Name, &out.Version, &out.AssignmentAlgorithmVersion, &out.Status,
 		&out.AssignmentSalt, &out.PrimaryMetric, &out.GuardrailMetric, &out.RetentionHours, &out.StartsAt, &endsAt); err != nil {
 		return Experiment{}, err
 	}

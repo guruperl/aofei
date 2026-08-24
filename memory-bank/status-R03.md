@@ -1,6 +1,6 @@
 # Status R03 - Experiment And Reporting Integrity
 
-State: `[ ]` Planned
+State: `[~]` In progress
 
 ## Goal
 
@@ -20,7 +20,7 @@ bids, delivery, accounting, or settlement.
 
 | Item | State | Notes |
 |---|---:|---|
-| Assignment namespace | `[ ]` | Generate assignment salt only inside the trusted create operation and domain-separate the subject hash by experiment identity, algorithm version, experiment version, salt, and subject pseudonym. A caller-supplied salt must not create cross-experiment joinability. |
+| Assignment namespace | `[+]` | The trusted create transaction rejects caller-supplied salts/algorithm versions, generates a fresh 16-byte salt, and stores assignment algorithm v2. V2 hashes a fixed domain plus experiment id, algorithm version, experiment version, decoded salt, and the 32-byte input pseudonym. Deterministic tests prove reused input and salt cannot link different experiment identities; only the result hash crosses storage. |
 | Algorithm compatibility | `[ ]` | Store an explicit immutable assignment-algorithm version. Preserve existing v1 experiments and exposures until their bounded retention expires; new experiments default to the domain-separated version, and no running experiment changes buckets in place. |
 | Exposure and outcome validation | `[ ]` | Bind recorded exposure/outcome fields to the stored experiment/version/variant/metric/retention contract, enforce account scope, and reject caller-built assignments or undeclared outcomes that cannot be proven consistent. Keep raw subject and event identifiers transient. |
 | Numeric and allocation safety | `[ ]` | Reject NaN/Inf and out-of-contract ratios/metric values. Measure modulo allocation skew and replace it only if the acceptance bound requires unbiased sampling; deterministic assignment and documented basis-point allocation remain stable within an algorithm version. |

@@ -13,9 +13,28 @@ func testExperiment() Experiment {
 	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	return Experiment{
 		ID: 7, OwnerType: "Operator", Name: "checkout-copy", Version: 2,
-		Status: "Running", AssignmentSalt: "00112233445566778899aabbccddeeff",
+		AssignmentAlgorithmVersion: AssignmentAlgorithmV2,
+		Status:                     "Running", AssignmentSalt: "00112233445566778899aabbccddeeff",
 		PrimaryMetric: "actions", GuardrailMetric: "spend", RetentionHours: 2160, StartsAt: start,
 		Variants: []Variant{{Key: "control", AllocationBasisPts: 5000}, {Key: "treatment", AllocationBasisPts: 5000}},
+	}
+}
+
+func TestAssignV2SeparatesExperimentIdentityEvenWithSameSalt(t *testing.T) {
+	first := testExperiment()
+	second := first
+	second.ID++
+	subject := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	firstAssignment, err := Assign(first, subject, first.StartsAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAssignment, err := Assign(second, subject, second.StartsAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstAssignment.SubjectHash == secondAssignment.SubjectHash {
+		t.Fatal("v2 subject hash is linkable across experiment identities")
 	}
 }
 
