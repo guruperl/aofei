@@ -24,8 +24,10 @@ WebView, or WKWebView package exists. A pzdesign repository guard keeps that
 inventory closed: after removing the one exact reviewed `ads.js` `srcdoc`
 assignment, it scans all first-party JavaScript for raw DOM insertion APIs and
 scans the command, Summer, template, and JavaScript trees for Android/iOS
-WebView renderer APIs. A new consumer must therefore declare and review its
-boundary before the ordinary test suite will pass.
+WebView renderer APIs. It also scans the full repository for those APIs in
+Java, Kotlin, Swift, Objective-C/C++, C#, Dart, TypeScript/JSX, and XML source,
+excluding dependency/build directories. A new consumer must therefore declare
+and review its boundary before the ordinary test suite will pass.
 
 Stored site review URLs and creative source/image URLs are management metadata,
 not server fetch targets. Syntax and media-shape validation parse them without

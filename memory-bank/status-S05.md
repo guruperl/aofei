@@ -21,7 +21,7 @@ container and legitimate third-party advertising behavior.
 |---|---:|---|
 | Outbound address policy | `[+]` | `internal/safehttp` now normalizes IPv4-mapped addresses and applies one `net/netip` prefix policy to URL validation and every dial. It rejects private, loopback, link-local, unspecified, multicast, CGNAT, benchmarking, documentation, protocol-transition, reserved, and future non-public ranges; IPv6 is limited to public `2000::/3` after the complete `2001::/23` IETF reservation and other reviewed exclusions, with only the IANA globally reachable exceptions restored. Mixed DNS answers fail closed. Boundary fixtures cover every denied class and explicit exception, and the operator contract links the authoritative IANA IPv4/IPv6 registries. |
 | Injected-client safety | `[+]` | Controller construction, bidder calls, live callback forwarding, and retry forwarding now normalize every injected client through `safehttp`. Supported `*http.Transport` settings are cloned while proxy/custom dial paths, insecure TLS, certificate-name overrides, oversized response headers, cookie jars, HTTPS downgrade, unsafe redirect destinations, and cross-authority credentials are rejected or removed. Redirect checks preserve an immutable pre-hook history and enforce validation/credential stripping before and after an injected hook. Arbitrary network round trippers fail closed; explicitly marked socket-free test doubles stay injectable but cannot bypass URL validation. Complete DNS answers are checked before any dial, including the rebind pass. Client context/timeouts and existing bidder/callback body bounds remain caller-owned and tested. |
-| Creative rendering boundary | `[+]` | `docs/creative-rendering-boundary.md` inventories management source views, browser HTML, structured `/pz`, OpenRTB, audit, and P03 sample consumers and confirms that only pzdesign `ads.js` executes HTML; no maintained native renderer exists. Source/Node fixtures lock one opaque-origin `srcdoc` iframe without `allow-same-origin`, add a fixed sensitive-feature deny policy, and contain hostile strings without a host-page HTML sink. D02 contained-markup validation now covers `srcset`, `ping`, legacy `background`, and entity-decoded event attempts to address top/parent while retaining approved scripts. The document defines mandatory ephemeral WebView, navigation, storage, bridge, VAST, Native, lifecycle, and hostile-test rules for demand-gated I02. A universal CSP/script sanitizer is correctly deferred pending compatibility evidence and migration. |
+| Creative rendering boundary | `[+]` | `docs/creative-rendering-boundary.md` inventories management source views, browser HTML, structured `/pz`, OpenRTB, audit, and P03 sample consumers and confirms that only pzdesign `ads.js` executes HTML; no maintained native renderer exists. Source/Node fixtures lock one opaque-origin `srcdoc` iframe without `allow-same-origin`, add a fixed sensitive-feature deny policy, and contain hostile strings without a host-page HTML sink. Repository guards reject another raw DOM sink and scan current web plus Android/iOS/cross-platform source languages for native WebView APIs. D02 contained-markup validation now covers compatible `srcset` URL tokens, `ping`, legacy `background`, and entity-decoded event attempts to address top/parent while retaining approved scripts. The document defines mandatory ephemeral WebView, navigation, storage, bridge, VAST, Native, lifecycle, and hostile-test rules for demand-gated I02. A universal CSP/script sanitizer is correctly deferred pending compatibility evidence and migration. |
 | Principal provenance | `[+]` | Genelet now scrubs every caller-supplied `_g*` value, requires the Gate-validated opaque session, authorizes the server-configured component/action/permission/resource, and only then binds an exact typed principal whose provenance and request-context keys are package-private. Summer security, advertiser/publisher credential, traffic-quality, and hosted-payment actors require that capability, verify it still matches dispatch/resource scope, and derive recent MFA only from its server deadline. Direct `Controller.Handle`, header, form, and Summer-filter spoof tests fail closed. Traffic-quality and hosted-payment CLIs removed actor flags and derive exact-permission `unix-uid:<effective-uid>` principals that service boundaries restrict to health/retention and reject for quality mutation, reconciliation, or money movement. `identity-admin` now requires a restricted `Identity.MaintenanceActors` UID-to-admin mapping and prefixes the launcher UID in every audited reason. Existing maker/checker service rules remain intact, with explicit offline-principal denial tests and the full contract in `docs/principal-provenance.md`. |
 | Dormant surface review | `[+]` | Closed the dormant findings with executable boundary evidence. Summer loopback tripwires prove site-review and creative source/image URLs are parsed/stored without a request, and an AST guard rejects outbound HTTP clients/transports/convenience fetches in the source-only campaign/item/site/creative packages; private-host syntax on these unfetched fields is not SSRF. Publisher/App replay, cap, and tracking-claim tests replace static marker contents and prove existence can suppress a duplicate but cannot authenticate, own a tracking claim, publish, or mutate caps; random owner tokens remain mandatory where ownership matters. New dependency-free `cmd/config-preflight` applies production bid validation, rejects both checked-in tracking-secret examples, surrounding whitespace, and values below 32 bytes without printing material; the checked-in config fails as intended while a deployment-owned fixture passes. |
 | Traffic-quality version selection | `[+]` | Runtime assessment now selects the highest immutable version independently for each `(rule_key, rollout_mode)` and returns coexisting modes in deterministic Active, Canary, then Observe order. Older rows in the same mode cannot hide the selected version, and a newer Observe/Canary rollout cannot displace established Active behavior. Complete evidence preserves per-mode actions; partial or missing evidence forces every mode to Observe for action and billing. |
@@ -73,11 +73,13 @@ container and legitimate third-party advertising behavior.
   commas, and continues validating every later URL. Compatibility and unsafe-
   later-candidate fixtures plus focused test, vet, staticcheck, and race gates
   pass.
-- Iteration 2 (2026-08-24): P3, open — the new native-renderer inventory scans
-  only Go, JavaScript, and template extensions under the current web trees.
-  Android/iOS code would normally arrive as Java, Kotlin, Swift, or Objective-C
-  in a new directory, so the guard's repository-wide native-consumer claim is
-  broader than its executable coverage.
+- Iteration 2 (2026-08-24): P3, resolved — the initial native-renderer
+  inventory scanned only Go, JavaScript, and template extensions under current
+  web trees. Pzdesign `d8d09c5` adds a repository-wide platform-source scan for
+  Java, Kotlin, Swift, Objective-C/C++, C#, Dart, TypeScript/JSX, and XML while
+  excluding dependency/build trees, and expands the reviewed WebView/bridge
+  marker set. Focused test, vet, staticcheck, template, and public-data gates
+  pass.
 
 ## Acceptance Criteria
 
@@ -136,10 +138,10 @@ container and legitimate third-party advertising behavior.
 
 - P03 now supplies two distinct reviewed inputs: public versioned inventory
   locators and an App-scoped Ed25519 request principal. S05 principal review
-  must preserve that separation, prove Summer credential actors still come
-  only from Genelet's verified `_grole`/account/permission/MFA state, and never
-  reinterpret request-proof headers, locators, Redis markers, or client account
-  fields as control-plane authority.
+  preserves that separation: Summer credential actors come only from Genelet's
+  typed verified component/action/permission/resource capability and session
+  MFA deadline, never from request-proof headers, locators, Redis markers,
+  compatibility `_g*` fields, or client account values.
 - The current App integration output is a textual request sample, not a native
   renderer. No Android/iOS package or first-party WebView consumer was added by
   P03, so S05 still owns the complete creative-consumer inventory and hostile-
