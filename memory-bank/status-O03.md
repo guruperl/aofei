@@ -98,9 +98,9 @@ atomic generation publication with partial live writes.
     round-trip fixture proves lookups on both sides of an octet boundary.
 
 - Iteration 2 (2026-08-24): two P2 findings remain open.
-  - P2: the lease maintainer forces its first renewal delay to at least 10 ms;
-    leases shorter than that can expire in Redis before the work context is
-    canceled.
+  - P2 resolved: the lease maintainer now derives its first renewal solely from
+    the exact server TTL, with a nanosecond zero guard rather than a 10 ms
+    floor. A short-lease test proves the first delay remains inside ownership.
   - P2: a parseable `.aofei-current` pointer is treated as committed without
     verifying that its generation directory exists, so a recoverable missing
     generation incorrectly suppresses fresh-node bootstrap.

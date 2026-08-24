@@ -172,6 +172,26 @@ func TestLockRetriesTransientRenewalInsideConfirmedWindow(t *testing.T) {
 	}
 }
 
+func TestLockInitialRenewalDelayStaysInsideShortLease(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var delay time.Duration
+	lock := &Lock{
+		ttl: 3 * time.Millisecond, ctx: ctx, cancel: cancel, done: make(chan struct{}),
+		now: time.Now,
+	}
+	lock.wait = func(_ context.Context, got time.Duration) bool {
+		delay = got
+		return false
+	}
+
+	lock.maintain(ctx)
+
+	if delay <= 0 || delay >= lock.ttl {
+		t.Fatalf("initial renewal delay = %s, want inside %s lease", delay, lock.ttl)
+	}
+}
+
 func TestLockCancelsImmediatelyOnConfirmedTokenMismatch(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := lockTestClient(t, server.Addr())

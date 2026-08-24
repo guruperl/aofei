@@ -156,8 +156,8 @@ func (l *Lock) Err() error {
 func (l *Lock) maintain(ctx context.Context) {
 	defer close(l.done)
 	interval := l.ttl / 3
-	if interval < 10*time.Millisecond {
-		interval = 10 * time.Millisecond
+	if interval <= 0 {
+		interval = time.Nanosecond
 	}
 	now := l.now
 	if now == nil {
