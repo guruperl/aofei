@@ -173,3 +173,12 @@ atomic generation publication with partial live writes.
     versions before one atomic Redis `MSET`; nonempty distinct keys are
     mandatory. A focused Redis test proves both compatibility versions are
     published together.
+
+- Iteration 8 (2026-08-24): one P2 finding remains open.
+  - P2: `DBGetAudiencesToCache` accepts the lease-owned context only for cache
+    writes; its item inventory, ACL construction, and targeting queries still
+    use context-free SQL calls. Lease loss during a blocked audience query can
+    therefore leave the singleton work running past cancellation and delay
+    release or safe reacquisition. Make the complete audience build path
+    context-aware while retaining compatibility wrappers, and prove a canceled
+    lease issues no audience SQL.
