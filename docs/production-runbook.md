@@ -729,7 +729,9 @@ After schema changes:
 Restore drills must be practiced outside production. A restore is not complete
 until the accounting contract/immutability and source counts are verified,
 approved deletion cases are reapplied, `cmd/redis-cache` has repopulated runtime
-cache, and the HTTP/admin smoke checks pass. Run the repository rehearsal with
+cache, restored stale callback claims appear in
+`mid-callback-retry -read -json` without being forwarded, and the HTTP/admin
+smoke checks pass. Run the repository rehearsal with
 `./scripts/aofei-recovery-drill.sh`; it uses only uniquely named disposable
 containers and is not a production backup implementation. Production
 encryption, RPO/RTO, restore order, topology, dependency semantics, and SLO
@@ -783,15 +785,31 @@ dependency, alert, and canary rules are in
 The expvar surface includes bid/no-bid counters, audit queue depth/drops and publish errors,
 middleman callback forwarding results, local cache reload and freshness status,
 direct SSP request results, cap-refresh contention counters, and
-`aofei_ssp_policy_rejections_total`. Local cache freshness includes
+`aofei_ssp_policy_rejections_total`. O03 adds fixed-key
+`aofei_singleton_lease_outcomes_total`,
+`aofei_cache_publication_outcomes_total`,
+`aofei_spread_generation_outcomes_total`,
+`aofei_filesystem_outcomes_total`, and
+`aofei_callback_retry_outcomes_total` maps. They contain only closed operation
+outcomes and never keys, paths, subjects, generations, URLs, tokens, payloads,
+addresses, or auction identifiers. Expvars are process-local: the unified
+endpoint cannot aggregate separate timer or spread processes, so also monitor
+their exit status and private journal without exposing another public listener.
+Local cache freshness includes
 `aofei_local_cache_loaded_at_unix`, scrape-time
 `aofei_local_cache_age_seconds`, and `aofei_local_cache_stale`. Alert on
 non-zero sustained `aofei_audit_dropped_total`, rising
 `aofei_bothcap_refresh_conflicts_total`, stale `aofei_local_cache_stale`, and
 middleman callback retry command output where `stale_processing` stays
 non-zero. Use `cmd/mid-callback-retry -json` for alerting automation; its stable
-fields are `due`, `stale_processing`, `selected`, `succeeded`, `retrying`, and
-`abandoned`.
+fields are `due`, `stale_processing`, `selected`, `forwarded`, `succeeded`,
+`retrying`, `abandoned`, and `state_errors`. A nonzero `state_errors` after a
+forward is an at-least-once uncertainty incident: pause the timer, repair
+MySQL, assume the partner may already have received the event, and never infer
+or manually write `Succeeded` without independent partner acknowledgement.
+After the stale claim is visible read-only, resume one singleton and reconcile
+any idempotent resend. Do not retain URLs/tokens as evidence or weaken the
+guarded callback transport during recovery.
 Also alert on sustained `aofei_action_touch_errors_total`, action signature or
 dependency rejection growth, and nonzero exits from the singleton action
 reconcile/prune timers. Action failures remain separate from CPM ledger and

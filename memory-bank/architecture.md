@@ -344,8 +344,12 @@ MySQL `mid_callback_retry` by `/mid/*` handlers only, never by `/bid`; the
 singleton `cmd/mid-callback-retry` job claims rows as `Processing` and retries
 downstream forwards without republishing ledger events. Its default output
 remains a human-readable summary line, and `-json` emits stable fields
-`due`, `stale_processing`, `selected`, `succeeded`, `retrying`, and
-`abandoned` for automation.
+`due`, `stale_processing`, `selected`, `forwarded`, `succeeded`, `retrying`,
+`abandoned`, and `state_errors` for automation. Claims and terminal transitions
+must affect exactly the selected row count. A guarded forward followed by an
+unconfirmed terminal transition returns an identifier-free typed error, leaves
+at-least-once resend uncertainty visible, and never bypasses the S05 callback
+transport boundary.
 
 D03 keeps middleman routes Redis-only so activation and revocation have one
 shared timeline. The read-only `cmd/redis-cache -validate-middleman` boundary
@@ -447,6 +451,12 @@ The source/runtime boundary and populated-data rollout are specified in
   authorizes only direct peers in `metrics_allowed_cidrs` (loopback by default)
   and must also be blocked at the edge. Authorized scrapes perform bounded
   Redis/MySQL checks and read NATS state.
+- Fixed-cardinality operation maps cover singleton lease, Redis/spread/route
+  cache publication, spread generations, durable filesystem writes, and
+  callback retry forward/state outcomes. Their keys are closed enums without
+  resource or request identifiers. Expvar storage is process-local; the
+  unified endpoint does not aggregate work from separate operations binaries,
+  whose private journal/exit status and stable command reports remain required.
 - Public `/bid/{domain}` and `/pz` requests pass through fixed-config admission
   gates before their controllers. Exact configured ADX partners and `ssp` have
   independent token buckets/concurrency slots; unlisted ADX paths share a

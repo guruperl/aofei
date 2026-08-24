@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/guruperl/aofei/internal/safehttp"
 )
 
@@ -61,10 +62,30 @@ type Options struct {
 }
 
 type Result struct {
-	Selected  int
-	Succeeded int
-	Retrying  int
-	Abandoned int
+	Selected    int
+	Forwarded   int
+	Succeeded   int
+	Retrying    int
+	Abandoned   int
+	StateErrors int
+}
+
+// PostForwardStateError means callback processing completed but the fixed-state
+// database transition was not durably confirmed. Forwarded distinguishes true
+// at-least-once delivery uncertainty from a failure after local rejection. The
+// error deliberately carries no retry id, token, URL, payload, bidder, or
+// auction identifier.
+type PostForwardStateError struct {
+	ForwardOutcome string
+	TargetState    string
+	Forwarded      bool
+}
+
+func (err *PostForwardStateError) Error() string {
+	if !err.Forwarded {
+		return fmt.Sprintf("callback outcome %s has unconfirmed %s state", err.ForwardOutcome, err.TargetState)
+	}
+	return fmt.Sprintf("callback forward outcome %s has uncertain %s state", err.ForwardOutcome, err.TargetState)
 }
 
 type BacklogStats struct {
@@ -139,28 +160,73 @@ func Run(ctx context.Context, db *sql.DB, opts Options) (Result, error) {
 		return result, nil
 	}
 	for _, row := range rows {
-		status, code, lastErr := forward(ctx, row.CallbackURL, opts)
+		status, code, lastErr, forwarded := forward(ctx, row.CallbackURL, opts)
+		if forwarded {
+			result.Forwarded++
+		}
 		attempts := row.Attempts + 1
 		switch {
 		case status == "ok":
+			opsmetrics.RecordCallbackRetry("forward_succeeded")
 			if err := markSucceeded(ctx, db, row.RetryID, attempts, code); err != nil {
-				return result, err
+				return postForwardStateFailure(result, status, StatusSucceeded, forwarded)
 			}
+			opsmetrics.RecordCallbackRetry("state_succeeded")
 			result.Succeeded++
 		case !RetryableForward(status, code) || attempts >= opts.MaxAttempts:
-			if err := markAbandoned(ctx, db, row.RetryID, attempts, code, lastErr); err != nil {
-				return result, err
+			if forwarded {
+				opsmetrics.RecordCallbackRetry("forward_abandoned")
+			} else {
+				opsmetrics.RecordCallbackRetry("forward_rejected")
 			}
+			if err := markAbandoned(ctx, db, row.RetryID, attempts, code, lastErr); err != nil {
+				return postForwardStateFailure(result, status, StatusAbandoned, forwarded)
+			}
+			opsmetrics.RecordCallbackRetry("state_abandoned")
 			result.Abandoned++
 		default:
+			opsmetrics.RecordCallbackRetry("forward_retryable")
 			next := opts.now().Add(backoff(attempts, opts.BaseBackoff, opts.MaxBackoff))
 			if err := markRetrying(ctx, db, row.RetryID, attempts, code, lastErr, next); err != nil {
-				return result, err
+				return postForwardStateFailure(result, status, StatusRetrying, forwarded)
 			}
+			opsmetrics.RecordCallbackRetry("state_retrying")
 			result.Retrying++
 		}
 	}
 	return result, nil
+}
+
+func postForwardStateFailure(result Result, forwardOutcome, targetState string, forwarded bool) (Result, error) {
+	result.StateErrors++
+	stateOutcome := "state_error_before_forward"
+	if forwarded {
+		stateOutcome = "state_error_after_forward"
+	}
+	opsmetrics.RecordCallbackRetry(stateOutcome)
+	return result, &PostForwardStateError{
+		ForwardOutcome: normalizeForwardOutcome(forwardOutcome),
+		TargetState:    normalizeTargetState(targetState),
+		Forwarded:      forwarded,
+	}
+}
+
+func normalizeForwardOutcome(outcome string) string {
+	switch outcome {
+	case "ok", "error", "request_error", "http_error", "invalid_url":
+		return outcome
+	default:
+		return "other"
+	}
+}
+
+func normalizeTargetState(state string) string {
+	switch state {
+	case StatusSucceeded, StatusRetrying, StatusAbandoned:
+		return state
+	default:
+		return "Unknown"
+	}
 }
 
 func RetryableForward(status string, code int) bool {
@@ -285,12 +351,19 @@ func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int, now, 
 		placeholders += "?"
 		ids = append(ids, row.RetryID)
 	}
-	_, err = tx.ExecContext(ctx, `
+	result, err := tx.ExecContext(ctx, `
 	UPDATE mid_callback_retry
 	SET status='Processing', claimed_at=?, updated=NOW()
 	WHERE retry_id IN (`+placeholders+`)`, append([]any{now}, ids...)...)
 	if err != nil {
 		return nil, err
+	}
+	claimed, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if claimed != int64(len(out)) {
+		return nil, fmt.Errorf("callback claim affected %d rows, want %d", claimed, len(out))
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -299,55 +372,69 @@ func claimDueRows(ctx context.Context, db *sql.DB, limit, maxAttempts int, now, 
 	return out, nil
 }
 
-func forward(ctx context.Context, raw string, opts Options) (string, int, string) {
+func forward(ctx context.Context, raw string, opts Options) (string, int, string, bool) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return "invalid_url", 0, "invalid callback URL"
+		return "invalid_url", 0, "invalid callback URL", false
 	}
 	if err := safehttp.ValidateCallbackURL(ctx, raw); err != nil {
-		return "invalid_url", 0, err.Error()
+		return "invalid_url", 0, err.Error(), false
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, raw, nil)
 	if err != nil {
-		return "request_error", 0, err.Error()
+		return "request_error", 0, err.Error(), false
 	}
 	client := safehttp.NewCallbackClient(opts.Client)
 	resp, err := client.Do(req)
 	if err != nil {
-		return "error", 0, err.Error()
+		return "error", 0, err.Error(), true
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "http_error", resp.StatusCode, resp.Status
+		return "http_error", resp.StatusCode, resp.Status, true
 	}
-	return "ok", resp.StatusCode, ""
+	return "ok", resp.StatusCode, "", true
 }
 
 func markSucceeded(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int) error {
-	_, err := db.ExecContext(ctx, `
+	result, err := db.ExecContext(ctx, `
 	UPDATE mid_callback_retry
 	SET status='Succeeded', attempts=?, claimed_at=NULL, last_http_status=?, last_error=NULL, updated=NOW()
 	WHERE retry_id=? AND status='Processing'`, attempts, nullableHTTPStatus(code), retryID)
-	return err
+	return requireSingleStateTransition(result, err)
 }
 
 func markRetrying(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int, lastErr string, next time.Time) error {
-	_, err := db.ExecContext(ctx, `
+	result, err := db.ExecContext(ctx, `
 	UPDATE mid_callback_retry
 	SET status='Retrying', attempts=?, next_attempt_at=?, claimed_at=NULL, last_http_status=?, last_error=?, updated=NOW()
 	WHERE retry_id=? AND status='Processing'`, attempts, next.UTC(), nullableHTTPStatus(code), nullableError(lastErr), retryID)
-	return err
+	return requireSingleStateTransition(result, err)
 }
 
 func markAbandoned(ctx context.Context, db *sql.DB, retryID uint64, attempts, code int, lastErr string) error {
-	_, err := db.ExecContext(ctx, `
+	result, err := db.ExecContext(ctx, `
 	UPDATE mid_callback_retry
 	SET status='Abandoned', attempts=?, claimed_at=NULL, last_http_status=?, last_error=?, updated=NOW()
 	WHERE retry_id=? AND status='Processing'`, attempts, nullableHTTPStatus(code), nullableError(lastErr), retryID)
-	return err
+	return requireSingleStateTransition(result, err)
+}
+
+func requireSingleStateTransition(result sql.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("callback state transition affected %d rows, want 1", rows)
+	}
+	return nil
 }
 
 func (opts Options) withDefaults() Options {

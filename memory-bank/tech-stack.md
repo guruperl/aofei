@@ -548,7 +548,7 @@ Run `cmd/mid-callback-retry` as a singleton operations job for retryable
 downstream middleman callback forwarding failures. It forwards downstream only
 and does not republish win/loss records. Its output includes due and stale
 processing backlog counts for operator alerting; use `-json` for stable
-automation fields.
+automation fields, including `forwarded` and post-forward `state_errors`.
 Mutating cache, ledger, callback-retry, and simulator commands use renewable
 token-owned Redis leases. Transient renewal errors retry inside the last
 confirmed TTL; token mismatch or an exhausted uncertainty window cancels the
@@ -558,7 +558,11 @@ worker idempotency remains required because Redis cannot prove ownership across
 every partition. `scripts/aofei-recovery-drill.sh` uses only uniquely named
 disposable MySQL/Redis containers to checksum and restore the complete schema,
 A01/R01/R02 evidence, immutable triggers, ledger/report identities, experiment
-outcome retention/erasure, and derived cache. `scripts/aofei-reporting-benchmark.sh` similarly
+outcome retention/erasure, derived cache, and read-only recovery visibility for
+a stale callback claim. Fixed-key expvar maps instrument singleton lease,
+cache/spread publication, filesystem, and callback forward/state outcomes;
+they are process-local, so operations binaries also require private journal and
+exit-status collection. `scripts/aofei-reporting-benchmark.sh` similarly
 uses a disposable MySQL 8.0.41 container and synthetic interval facts. The
 2026-08-01 P02-expanded 100,000-row/five-run baseline measured advertiser
 100/119 ms, publisher 105/118 ms, and operator 1684/1830 ms median/max on

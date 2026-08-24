@@ -19,6 +19,7 @@ import (
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/guruperl/aofei/internal/cmdboot"
+	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
 	"github.com/nats-io/nats.go"
@@ -87,7 +88,10 @@ func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Lo
 		return err
 	}
 	if err := bootstrapSpreadFromRedis(ctx, c, top); err != nil {
+		opsmetrics.RecordSpread("bootstrap_failed")
 		logger.Printf("spread bootstrap skipped: %v", err)
+	} else {
+		opsmetrics.RecordSpread("bootstrap_succeeded")
 	}
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
@@ -149,18 +153,25 @@ func (r *spreadGenerationReceiver) handle(m *nats.Msg) (bool, error) {
 	case spreadcache.BeginSubject:
 		manifest, err := spreadcache.ParseManifest(m.Data)
 		if err != nil {
+			opsmetrics.RecordSpread("generation_rejected")
 			return true, err
 		}
 		return true, r.begin(manifest)
 	case spreadcache.DataSubject:
 		sequence, err := spreadcache.ParseSequence(m.Header.Get(spreadcache.GenerationHeader))
 		if err != nil {
+			opsmetrics.RecordSpread("generation_rejected")
 			return true, err
 		}
-		return true, r.put(sequence, m.Header.Get(spreadcache.OriginalSubjectHeader), m.Data)
+		err = r.put(sequence, m.Header.Get(spreadcache.OriginalSubjectHeader), m.Data)
+		if err != nil {
+			opsmetrics.RecordSpread("generation_rejected")
+		}
+		return true, err
 	case spreadcache.CommitSubject:
 		sequence, err := spreadcache.ParseSequence(string(m.Data))
 		if err != nil {
+			opsmetrics.RecordSpread("generation_rejected")
 			return true, err
 		}
 		return true, r.commit(sequence)
@@ -170,37 +181,52 @@ func (r *spreadGenerationReceiver) handle(m *nats.Msg) (bool, error) {
 				return false, nil
 			}
 		}
-		return handleSpreadMessage(r.top, m)
+		handled, err := handleSpreadMessage(r.top, m)
+		if handled {
+			outcome := "legacy_write_succeeded"
+			if err != nil {
+				outcome = "legacy_write_failed"
+			}
+			opsmetrics.RecordSpread(outcome)
+		}
+		return handled, err
 	}
 }
 
 func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
 	if manifest.Sequence <= r.committed || manifest.Sequence < r.active {
+		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
 	if manifest.Sequence == r.active {
 		if r.expected != manifest {
+			opsmetrics.RecordSpread("generation_rejected")
 			return fmt.Errorf("spread generation %d manifest changed", manifest.Sequence)
 		}
+		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
 	if r.active != 0 {
 		if err := os.RemoveAll(spreadcache.GenerationRoot(r.top, r.active)); err != nil {
+			opsmetrics.RecordSpread("generation_rejected")
 			return err
 		}
 	}
 	root := spreadcache.GenerationRoot(r.top, manifest.Sequence)
 	if err := os.RemoveAll(root); err != nil {
+		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
 	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
 		if err := atomicfile.EnsureDir(filepath.Join(root, family), 0750); err != nil {
+			opsmetrics.RecordSpread("generation_rejected")
 			return err
 		}
 	}
 	r.active = manifest.Sequence
 	r.expected = manifest
 	r.seen = make(map[string]string)
+	opsmetrics.RecordSpread("generation_started")
 	return nil
 }
 
@@ -225,27 +251,34 @@ func (r *spreadGenerationReceiver) put(sequence uint64, subject string, data []b
 
 func (r *spreadGenerationReceiver) commit(sequence uint64) error {
 	if sequence <= r.committed {
+		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
 	if sequence != r.active {
+		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
 	if len(r.seen) != r.expected.EntryCount {
+		opsmetrics.RecordSpread("generation_incomplete")
 		return fmt.Errorf("spread generation %d is incomplete: received %d of %d entries", sequence, len(r.seen), r.expected.EntryCount)
 	}
 	if digest := spreadcache.ManifestDigest(r.seen); digest != r.expected.SHA256 {
+		opsmetrics.RecordSpread("generation_rejected")
 		return fmt.Errorf("spread generation %d manifest digest mismatch", sequence)
 	}
 	if err := cleanupSpreadGenerations(r.top, r.committed, sequence); err != nil {
+		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
 	if err := spreadcache.Commit(r.top, sequence); err != nil {
+		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
 	r.committed = sequence
 	r.active = 0
 	r.expected = spreadcache.Manifest{}
 	r.seen = nil
+	opsmetrics.RecordSpread("generation_committed")
 	return nil
 }
 

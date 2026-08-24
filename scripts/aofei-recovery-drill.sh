@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# O02 clean-room recovery drill. This script creates only uniquely named,
+# O02/O03 clean-room recovery drill. This script creates only uniquely named,
 # disposable containers and an owner-only temporary directory. It never reads
 # the configured local/production containers and is not a production backup
 # implementation; production dumps must be encrypted before leaving MySQL.
@@ -134,6 +134,11 @@ VALUES (1,1,1,100,100,'Yes',UTC_TIMESTAMP());
 INSERT INTO mid_route_target
   (target_id,group_id,priority,active,created)
 VALUES (1,1,100,'Yes',UTC_TIMESTAMP());
+INSERT INTO mid_callback_retry
+  (token,source,callback_url,attempts,next_attempt_at,status,claimed_at,created,updated)
+VALUES ('o03-drill-token','win','https://callback.example/o03-recovery',1,
+        DATE_SUB(UTC_TIMESTAMP(),INTERVAL 20 MINUTE),'Processing',
+        DATE_SUB(UTC_TIMESTAMP(),INTERVAL 20 MINUTE),UTC_TIMESTAMP(),UTC_TIMESTAMP());
 " >/dev/null
 
 DUMP_FILE="$DRILL_DIR/aofei.sql"
@@ -154,6 +159,7 @@ SELECT CONCAT(
  (SELECT COUNT(*) FROM report_delivery),':',(SELECT COUNT(*) FROM report_experiment),':',
  (SELECT COUNT(*) FROM report_exposure),':',(SELECT COUNT(*) FROM report_experiment_outcome),':',
  (SELECT COUNT(*) FROM adv_bidder),':',(SELECT COUNT(*) FROM mid_route_group),':',(SELECT COUNT(*) FROM mid_route_bidder),':',(SELECT COUNT(*) FROM mid_route_target),':',
+ (SELECT CONCAT(COUNT(*),'-',SUM(status='Processing')) FROM mid_callback_retry),':',
  (SELECT unit_version FROM acct_contract WHERE contract_id=1));")
 
 docker stop "$SOURCE_CONTAINER" >/dev/null
@@ -170,6 +176,7 @@ SELECT CONCAT(
  (SELECT COUNT(*) FROM report_delivery),':',(SELECT COUNT(*) FROM report_experiment),':',
  (SELECT COUNT(*) FROM report_exposure),':',(SELECT COUNT(*) FROM report_experiment_outcome),':',
  (SELECT COUNT(*) FROM adv_bidder),':',(SELECT COUNT(*) FROM mid_route_group),':',(SELECT COUNT(*) FROM mid_route_bidder),':',(SELECT COUNT(*) FROM mid_route_target),':',
+ (SELECT CONCAT(COUNT(*),'-',SUM(status='Processing')) FROM mid_callback_retry),':',
  (SELECT unit_version FROM acct_contract WHERE contract_id=1));")
 if [[ "$RESTORED_FACTS" != "$SOURCE_FACTS" ]]; then
 	echo "restored inventory mismatch: source=$SOURCE_FACTS restored=$RESTORED_FACTS" >&2
@@ -269,7 +276,14 @@ if [[ "$CACHE_KEYS" -lt 1 ]]; then
 	echo "restored MySQL did not rebuild Redis cache" >&2
 	exit 1
 fi
+CALLBACK_RECOVERY=$(GOWORK=off GOTOOLCHAIN=go1.23.5 AOFEI="$DRILL_CONFIG" \
+	go run ./cmd/mid-callback-retry -read -json)
+EXPECTED_CALLBACK_RECOVERY='{"due":0,"stale_processing":1,"selected":1,"forwarded":0,"succeeded":0,"retrying":0,"abandoned":0,"state_errors":0}'
+if [[ "$CALLBACK_RECOVERY" != "$EXPECTED_CALLBACK_RECOVERY" ]]; then
+	echo "restored callback retry evidence returned unexpected summary: $CALLBACK_RECOVERY" >&2
+	exit 1
+fi
 
 FINISHED_AT=$(date +%s)
 ELAPSED=$((FINISHED_AT - STARTED_AT))
-echo "recovery_drill=passed elapsed_seconds=$ELAPSED inventory=$RESTORED_FACTS redis_keys=$CACHE_KEYS middleman_preflight=fallback dump_sha256=$(cut -d' ' -f1 "$CHECKSUM_FILE")"
+echo "recovery_drill=passed elapsed_seconds=$ELAPSED inventory=$RESTORED_FACTS redis_keys=$CACHE_KEYS middleman_preflight=fallback callback_stale_processing=1 dump_sha256=$(cut -d' ' -f1 "$CHECKSUM_FILE")"

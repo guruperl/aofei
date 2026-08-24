@@ -512,9 +512,11 @@ AOFEI=/etc/aofei/aofei.json \
   /opt/aofei/bin/mid-callback-retry -limit=100 -max-attempts=5 -timeout=2s
 ```
 
-稳定字段为 `due`、`stale_processing`、`selected`、`succeeded`、`retrying` 和 `abandoned`。持续非零的 `stale_processing` 或增长快于处理速度的 `due` 需要告警。
+稳定字段为 `due`、`stale_processing`、`selected`、`forwarded`、`succeeded`、`retrying`、`abandoned` 和 `state_errors`。即使转发后的数据库状态更新失败，命令也会先输出摘要再以非零状态退出。`state_errors` 一旦非零就应立即告警；持续非零的 `stale_processing` 或增长快于处理速度的 `due` 也需要告警。
 
-只对网络错误、HTTP 429 和 5xx 等可重试的 win/loss/bill 下游转发失败入队。非法/缺失 URL、重复通知和除 429 外的 4xx 不入队。重试任务会拒绝环回、私网、链路本地、未指定、多播和 DNS 重绑定目标。
+只对网络错误、HTTP 429 和 5xx 等可重试的 win/loss/bill 下游转发失败入队。非法/缺失 URL、重复通知和除 429 外的 4xx 不入队。重试任务会拒绝环回、私网、链路本地、未指定、多播和 DNS 重绑定目标，并始终保留受控代理/TLS、重定向凭据剥离和响应读取上限。
+
+`forwarded=1 state_errors=1` 表示下游请求已发生，但单行 `Processing` 状态转换没有得到持久确认。这是至少一次投递的不确定状态：记录可能稍后以 stale `Processing` 被再次发送，下游必须按回调身份幂等。立即暂停重复定时执行并修复 MySQL；只保留固定摘要和依赖日志，不能把 URL、token 或载荷复制到工单，也不能仅凭本地推断手工改成 `Succeeded`。依赖恢复后先用只读 JSON 确认 stale 记录，再恢复一个单例任务并与下游的幂等记录核对可能的重复。
 
 ### 8.6 账单与人工结算
 

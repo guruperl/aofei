@@ -2,8 +2,11 @@ package midcallback
 
 import (
 	"context"
+	"database/sql/driver"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,12 +58,15 @@ func TestForwardRejectsPrivateTargetBeforeInjectedClient(t *testing.T) {
 		calls++
 		w.WriteHeader(http.StatusNoContent)
 	})}}
-	status, _, _ := forward(context.Background(), "http://127.0.0.1/callback", Options{
+	status, _, _, forwarded := forward(context.Background(), "http://127.0.0.1/callback", Options{
 		Timeout: time.Second,
 		Client:  client,
 	})
 	if status != "invalid_url" {
 		t.Fatalf("status = %q, want invalid_url", status)
+	}
+	if forwarded {
+		t.Fatal("rejected callback was reported as forwarded")
 	}
 	if calls != 0 {
 		t.Fatalf("injected client calls = %d, want zero", calls)
@@ -116,6 +122,139 @@ func TestRunClaimsDueRowsBeforeForwarding(t *testing.T) {
 	}
 	if result.Selected != 1 || result.Succeeded != 1 {
 		t.Fatalf("result = %#v, want one selected and succeeded", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunReportsPostForwardStateFailureWithoutIdentifiers(t *testing.T) {
+	tests := []struct {
+		name   string
+		result driver.Result
+		err    error
+	}{
+		{name: "database error", err: errors.New("database unavailable")},
+		{name: "lost claim", result: sqlmock.NewResult(0, 0)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			const token = "sensitive-token"
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*FOR UPDATE`).
+				WithArgs(5, sqlmock.AnyArg(), sqlmock.AnyArg(), 10).
+				WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
+					AddRow(uint64(71), token, "win", safeRetryOrigin+"/credential", 0))
+			mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
+				WithArgs(sqlmock.AnyArg(), uint64(71)).
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectCommit()
+			expect := mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Succeeded', attempts=\?, claimed_at=NULL, last_http_status=\?, last_error=NULL, updated=NOW\(\)\s+WHERE retry_id=\? AND status='Processing'`).
+				WithArgs(1, http.StatusNoContent, uint64(71))
+			if test.err != nil {
+				expect.WillReturnError(test.err)
+			} else {
+				expect.WillReturnResult(test.result)
+			}
+
+			result, err := Run(context.Background(), db, Options{
+				Limit: 10, MaxAttempts: 5, Timeout: time.Second,
+				Client: &http.Client{Transport: safeRetryRoundTripper{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})}},
+			})
+			if result.Selected != 1 || result.Forwarded != 1 || result.Succeeded != 0 || result.StateErrors != 1 {
+				t.Fatalf("result = %#v, want one forwarded row and one state error", result)
+			}
+			var stateErr *PostForwardStateError
+			if !errors.As(err, &stateErr) {
+				t.Fatalf("error = %v, want PostForwardStateError", err)
+			}
+			if stateErr.ForwardOutcome != "ok" || stateErr.TargetState != StatusSucceeded || !stateErr.Forwarded {
+				t.Fatalf("state error = %#v", stateErr)
+			}
+			for _, secret := range []string{token, safeRetryOrigin, "credential", "71"} {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("identifier %q leaked in error %q", secret, err)
+				}
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestRunRejectsPartialClaimBeforeForwarding(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*FOR UPDATE`).
+		WithArgs(5, sqlmock.AnyArg(), sqlmock.AnyArg(), 10).
+		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
+			AddRow(uint64(72), "secret", "win", "https://callback.example/secret", 0))
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
+		WithArgs(sqlmock.AnyArg(), uint64(72)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	result, err := Run(context.Background(), db, Options{Limit: 10, MaxAttempts: 5})
+	if err == nil || !strings.Contains(err.Error(), "callback claim affected 0 rows, want 1") {
+		t.Fatalf("error = %v", err)
+	}
+	if result != (Result{}) {
+		t.Fatalf("result = %#v, want empty pre-forward result", result)
+	}
+	for _, secret := range []string{"secret", "callback.example", "72"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("identifier %q leaked in error %q", secret, err)
+		}
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunDistinguishesStateFailureBeforeForward(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT retry_id, token, source, callback_url, attempts\s+FROM mid_callback_retry.*FOR UPDATE`).
+		WithArgs(5, sqlmock.AnyArg(), sqlmock.AnyArg(), 10).
+		WillReturnRows(sqlmock.NewRows([]string{"retry_id", "token", "source", "callback_url", "attempts"}).
+			AddRow(uint64(73), "secret", "win", "http://127.0.0.1/secret", 0))
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Processing', claimed_at=\?, updated=NOW\(\)\s+WHERE retry_id IN \(\?\)`).
+		WithArgs(sqlmock.AnyArg(), uint64(73)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec(`UPDATE mid_callback_retry\s+SET status='Abandoned'.*WHERE retry_id=\? AND status='Processing'`).
+		WithArgs(1, nil, sqlmock.AnyArg(), uint64(73)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	result, err := Run(context.Background(), db, Options{Limit: 10, MaxAttempts: 5})
+	if result.Selected != 1 || result.Forwarded != 0 || result.StateErrors != 1 {
+		t.Fatalf("result = %#v, want local rejection and state error", result)
+	}
+	var stateErr *PostForwardStateError
+	if !errors.As(err, &stateErr) || stateErr.Forwarded || stateErr.ForwardOutcome != "invalid_url" {
+		t.Fatalf("state error = %#v, err = %v", stateErr, err)
+	}
+	for _, secret := range []string{"secret", "127.0.0.1", "73"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("identifier %q leaked in error %q", secret, err)
+		}
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

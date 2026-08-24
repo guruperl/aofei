@@ -517,10 +517,13 @@ Outputs:
 - Loopback, private, link-local, unspecified, multicast, and DNS-rebinding
   callback targets are rejected before forwarding.
 - Retry rows marked `Succeeded`, `Retrying`, or `Abandoned`.
-- One summary line with `due`, `stale_processing`, `selected`, `succeeded`,
-  `retrying`, and `abandoned` counts. Alert when `stale_processing` remains
-  non-zero across runs or when `due` grows faster than the singleton job drains.
-  Use `-json` for automation; the default text output is for humans.
+- One summary line with `due`, `stale_processing`, `selected`, `forwarded`,
+  `succeeded`, `retrying`, `abandoned`, and `state_errors` counts. The summary
+  is written even when a post-forward state transition fails and the command
+  exits non-zero. Alert immediately on `state_errors`, when
+  `stale_processing` remains non-zero across runs, or when `due` grows faster
+  than the singleton job drains. Use `-json` for automation; the default text
+  output is for humans.
 
 Notes:
 
@@ -531,6 +534,21 @@ Notes:
   than 429 are not queued.
 - The retry command forwards downstream only. It does not republish delivery,
   win, loss, or billable records, so ledger counts remain idempotent.
+- Every forward still uses the guarded callback client: request-time and
+  dial-time address checks, proxy prohibition, reviewed TLS settings, redirect
+  credential stripping, and bounded response draining cannot be bypassed by an
+  injected client.
+- `forwarded=1 state_errors=1` means the guarded downstream attempt completed
+  but the exact one-row `Processing` transition was not durably confirmed.
+  Delivery is therefore uncertain under the at-least-once contract. The row
+  remains or becomes stale `Processing` and may be sent again; the downstream
+  endpoint must be idempotent for its callback identity.
+- On a state error, stop repeated timer invocations, preserve only the fixed
+  summary and dependency logs, repair MySQL, and use `-read -json` until the
+  stale row is visible. Do not paste callback URLs/tokens into tickets and do
+  not manually mark a row `Succeeded` without independently retained partner
+  acknowledgement. Resume the singleton and reconcile the downstream result;
+  a resend is expected and must not republish Aofei ledger events.
 - Run this command as a singleton cron or systemd timer. Do not run it on every
   HTTP worker.
 
@@ -664,10 +682,11 @@ configured local stack:
 
 It creates uniquely named disposable MySQL source/restore and Redis containers,
 loads a synthetic fixture, checksums a logical dump, restores routines and
-triggers, proves A01 immutability plus interval/day uniqueness, and rebuilds
-derived Redis cache. The owner-only temporary directory and unencrypted local
-dump are destroyed on exit. Production backups must instead be encrypted and
-stored off Git under the retention/RPO/RTO contract in
+triggers, proves A01 immutability plus interval/day uniqueness, rebuilds
+derived Redis cache, and confirms that a restored stale callback claim appears
+in the read-only retry summary without forwarding it. The owner-only temporary
+directory and unencrypted local dump are destroyed on exit. Production backups
+must instead be encrypted and stored off Git under the retention/RPO/RTO contract in
 [single-region-availability.md](single-region-availability.md).
 
 Build and focused package tests:

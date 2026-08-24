@@ -136,6 +136,27 @@ All map keys below are fixed source/outcome/reason categories:
   dispositions, plus newly recorded unresolved reconciliations. Provider,
   object, account, statement, event, operation, and token ids never become
   metric labels; inspect only authorized opaque details through the payment UI.
+- O03 operation counters are fixed-key expvar maps:
+  `aofei_singleton_lease_outcomes_total` distinguishes acquire/held/error,
+  recovery after renewal error, renewal error, confirmed ownership loss,
+  uncertainty expiry, and token-checked release outcomes;
+  `aofei_cache_publication_outcomes_total` distinguishes Redis, spread, all,
+  and route success/failure; `aofei_spread_generation_outcomes_total`
+  distinguishes bootstrap, start, commit, incomplete, rejected, stale, and
+  legacy-write outcomes; and `aofei_filesystem_outcomes_total` distinguishes
+  directory/write success/failure and directory-sync failure.
+  `aofei_callback_retry_outcomes_total` separates forward success/retry/
+  abandonment/rejection from confirmed terminal state and state error before
+  or after a downstream attempt.
+  None admits a lock key, cache key, subject, generation, path, callback URL,
+  token, payload, address, or auction identifier.
+
+Expvar counters are process-local. `/debug/vars` shows only work performed in
+that process; the unified endpoint does not aggregate counters from separate
+timer or `spread` processes. Collect those process exit states and private
+systemd journal records alongside the stable callback JSON summary. Never
+expose a new command metrics listener merely to bypass the protected unified
+metrics boundary.
 
 `compressed` records gzip decode work. A zero middleman/cap/compressed shape
 means that request mix has not occurred, not that its latency is zero.
@@ -170,8 +191,10 @@ OpenRTB, consent, endpoint or callback URLs, credentials, or creative markup.
 - Audit: queue depth sustained above 75% of configured capacity, any growing
   dropped total, or recurring publish errors is actionable.
 - Callback retry: run `cmd/mid-callback-retry -read -json`; alert when `due`
-  grows for two intervals, `stale_processing` is non-zero twice, or any row is
-  abandoned.
+  grows for two intervals, `stale_processing` is non-zero twice, any row is
+  abandoned, or `state_errors` is non-zero. A state error after `forwarded`
+  means downstream delivery occurred or may have occurred but the one-row
+  terminal database transition was not confirmed.
 - Ledger: count unprocessed `winloss.<stamp>` intervals and compare the newest
   completed `ledger_log` interval with UTC time. Alert at two missed intervals.
 - Files/disk: monitor the four configured log directories and spread root;
@@ -179,7 +202,15 @@ OpenRTB, consent, endpoint or callback URLs, credentials, or creative markup.
 - Singleton locks: inspect TTL/existence for `aofei:redis-cache`,
   `aofei:ledger`, `aofei:mid-callback-retry`, and `aofei:winloss`. A held lock
   beyond its owner timer plus grace is stale-owner evidence, not permission to
-  delete it without checking the process.
+  delete it without checking the process. Alert on confirmed
+  `ownership_lost`, `uncertainty_expired`, or repeated renewal/release errors;
+  a `renewed_after_error` is recovery evidence, not proof the dependency is
+  healthy.
+- Cache/spread/filesystem: fail the timer on any cache publication failure;
+  investigate incomplete/rejected generations, bootstrap failures, and any
+  directory/write/sync failure. Keep serving the last committed generation,
+  repair Redis/NATS/storage, run one singleton rebuild, and verify a committed
+  pointer before deleting retained prior generations.
 - Hosted payments: run `cmd/hosted-payment -action=health`; alert on any
   approved operation whose statement is Held, stale `Submitting` or
   `Submitted` work, or an unresolved exception beyond the configured policy.
@@ -251,6 +282,16 @@ the failing partner; preserve redacted metrics/log evidence; roll back; then
 replay only documented retry/ledger workflows. Escalation owner is the on-call
 system operator, with DSP maintainer support for bid-path defects and the
 commercial owner notified for partner-specific throttling.
+
+For callback post-forward state uncertainty, pause the retry timer before
+repairing MySQL. Assume the partner may already have accepted the event; do not
+edit the row to `Succeeded` from local inference and do not copy its URL or
+token into incident evidence. After dependency recovery, inspect the bounded
+read-only summary, allow the stale `Processing` lease to be reclaimed, resume
+one singleton, and reconcile the possible duplicate with the partner's
+idempotent callback record. The guarded client, destination policy, redirect
+credential stripping, proxy/TLS restrictions, and response bound remain
+mandatory during recovery.
 
 Regional availability, `/healthz` and `/readyz`, N-1 sizing, error-budget burn
 rates, dependency-loss semantics, and recovery objectives are defined in

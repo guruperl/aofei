@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -47,16 +48,20 @@ func AcquireLock(ctx context.Context, client radix.Client, key string, ttl time.
 	}
 	token, err := randomToken()
 	if err != nil {
+		opsmetrics.RecordLease("acquire_error")
 		return nil, err
 	}
 	confirmedAt := time.Now()
 	var reply string
 	if err := client.Do(ctx, radix.Cmd(&reply, "SET", key, token, "NX", "PX", fmt.Sprintf("%d", lockTTLMillis(ttl)))); err != nil {
+		opsmetrics.RecordLease("acquire_error")
 		return nil, err
 	}
 	if reply != "OK" {
+		opsmetrics.RecordLease("held")
 		return nil, ErrLockHeld
 	}
+	opsmetrics.RecordLease("acquired")
 	leaseCtx, cancel := context.WithCancel(ctx)
 	lock := &Lock{
 		client: client, key: key, token: token, ttl: ttl,
@@ -109,9 +114,18 @@ func (l *Lock) Release(ctx context.Context) error {
 if redis.call("GET", KEYS[1]) == ARGV[1] then
   return redis.call("DEL", KEYS[1])
 end
-return 0`)
+	return 0`)
 	var deleted int
-	return l.client.Do(ctx, script.Cmd(&deleted, []string{l.key}, l.token))
+	if err := l.client.Do(ctx, script.Cmd(&deleted, []string{l.key}, l.token)); err != nil {
+		opsmetrics.RecordLease("release_error")
+		return err
+	}
+	if deleted == 1 {
+		opsmetrics.RecordLease("released")
+	} else {
+		opsmetrics.RecordLease("release_not_owner")
+	}
+	return nil
 }
 
 // Err reports a lease-renewal failure. Mutating commands check it before
@@ -161,6 +175,7 @@ return 0`)
 		deadline := confirmedAt.Add(l.ttl)
 		started := now()
 		if !started.Before(deadline) {
+			opsmetrics.RecordLease("uncertainty_expired")
 			l.recordLeaseFailure(fmt.Errorf("%w after renewal deadline", ErrLeaseUncertain))
 			return
 		}
@@ -172,18 +187,24 @@ return 0`)
 			return
 		}
 		if err == nil && renewed == 1 {
+			if transientFailures > 0 {
+				opsmetrics.RecordLease("renewed_after_error")
+			}
 			confirmedAt = started
 			transientFailures = 0
 			delay = interval
 			continue
 		}
 		if err == nil {
+			opsmetrics.RecordLease("ownership_lost")
 			l.recordLeaseFailure(ErrLockHeld)
 			return
 		}
+		opsmetrics.RecordLease("renewal_error")
 		transientFailures++
 		remaining := deadline.Sub(now())
 		if remaining <= 0 {
+			opsmetrics.RecordLease("uncertainty_expired")
 			l.recordLeaseFailure(fmt.Errorf("%w after renewal failure: %v", ErrLeaseUncertain, err))
 			return
 		}

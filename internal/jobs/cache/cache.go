@@ -15,6 +15,8 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/atomicfile"
+	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/managementapi"
 	"github.com/guruperl/aofei/match"
@@ -54,15 +56,20 @@ func ValidateMode(mode string) error {
 	}
 }
 
-func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc *nats.Conn, opts Options) error {
+func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc *nats.Conn, opts Options) (err error) {
 	if err := ValidateMode(opts.Mode); err != nil {
 		return err
+	}
+	if opts.Mode == ModeAll {
+		defer func() { opsmetrics.RecordCache(ModeAll, err == nil) }()
 	}
 	if opts.UpdateInterval <= 0 {
 		return fmt.Errorf("cache update interval must be positive")
 	}
 	if opts.Mode == ModeRoutes {
-		return match.DBGetMiddlemanRoutesToRedis(ctx, redis, db)
+		err := match.DBGetMiddlemanRoutesToRedis(ctx, redis, db)
+		opsmetrics.RecordCache(ModeRoutes, err == nil)
+		return err
 	}
 	if c == nil {
 		return fmt.Errorf("cache configuration is nil")
@@ -74,7 +81,7 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 		if c.Spread == "" {
 			return fmt.Errorf("cache mode %q requires spread directory", opts.Mode)
 		}
-		if err := os.MkdirAll(c.Spread, 0755); err != nil {
+		if err := atomicfile.EnsureDir(c.Spread, 0750); err != nil {
 			return err
 		}
 	}
@@ -509,7 +516,8 @@ func RedisRead(ctx context.Context, out io.Writer, redis radix.Client, sizeIDs [
 
 // PublishRedisGeneration builds every static family under isolated shadow keys
 // and atomically replaces the complete live generation.
-func PublishRedisGeneration(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
+func PublishRedisGeneration(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) (err error) {
+	defer func() { opsmetrics.RecordCache(ModeRedis, err == nil) }()
 	if err := cleanupRedisShadowCaches(ctx, redis); err != nil {
 		return err
 	}
@@ -775,7 +783,8 @@ func buildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, s
 // PublishSpreadGeneration compiles the complete static snapshot before sending
 // a fenced, checksummed generation. Receivers expose it only after every
 // declared entry arrives and the commit control message is flushed.
-func PublishSpreadGeneration(ctx context.Context, redis radix.Client, nc spreadPublisher, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
+func PublishSpreadGeneration(ctx context.Context, redis radix.Client, nc spreadPublisher, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) (err error) {
+	defer func() { opsmetrics.RecordCache(ModeSpread, err == nil) }()
 	if nc == nil {
 		return fmt.Errorf("NATS connection is nil")
 	}

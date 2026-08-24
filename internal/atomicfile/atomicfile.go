@@ -8,12 +8,21 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/guruperl/aofei/internal/opsmetrics"
 )
 
 // EnsureDir creates path and any missing parents, syncing each new directory
 // entry before returning. An existing final directory is tightened to at most
 // perm, but a more restrictive mode is preserved.
-func EnsureDir(path string, perm fs.FileMode) error {
+func EnsureDir(path string, perm fs.FileMode) (err error) {
+	defer func() {
+		outcome := "directory_succeeded"
+		if err != nil {
+			outcome = "directory_failed"
+		}
+		opsmetrics.RecordFilesystem(outcome)
+	}()
 	if path == "" {
 		return errors.New("directory path is empty")
 	}
@@ -76,7 +85,14 @@ func EnsureDir(path string, perm fs.FileMode) error {
 // Write replaces filename only after write succeeds and the temporary file is
 // flushed and closed. It then syncs the containing directory so the rename is
 // durable. The caller must create the containing directory first.
-func Write(filename string, perm fs.FileMode, write func(io.Writer) error) error {
+func Write(filename string, perm fs.FileMode, write func(io.Writer) error) (err error) {
+	defer func() {
+		outcome := "write_succeeded"
+		if err != nil {
+			outcome = "write_failed"
+		}
+		opsmetrics.RecordFilesystem(outcome)
+	}()
 	if filename == "" {
 		return errors.New("file path is empty")
 	}
@@ -123,7 +139,12 @@ func Write(filename string, perm fs.FileMode, write func(io.Writer) error) error
 }
 
 // SyncDir flushes directory metadata and closes the directory handle.
-func SyncDir(path string) error {
+func SyncDir(path string) (err error) {
+	defer func() {
+		if err != nil {
+			opsmetrics.RecordFilesystem("sync_failed")
+		}
+	}()
 	dir, err := os.Open(path)
 	if err != nil {
 		return err

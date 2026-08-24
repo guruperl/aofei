@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -75,10 +76,8 @@ func main() {
 			return err
 		}
 		result, err := midcallback.Run(runCtx, db, opts)
-		if err != nil {
-			return err
-		}
-		return writeRetryReport(os.Stdout, jsonOutput, backlog, result)
+		reportErr := writeRetryReport(os.Stdout, jsonOutput, backlog, result)
+		return errors.Join(err, reportErr)
 	}
 	if dryRun || readOnly {
 		err = run(ctx)
@@ -94,9 +93,11 @@ type retryReport struct {
 	Due             int `json:"due"`
 	StaleProcessing int `json:"stale_processing"`
 	Selected        int `json:"selected"`
+	Forwarded       int `json:"forwarded"`
 	Succeeded       int `json:"succeeded"`
 	Retrying        int `json:"retrying"`
 	Abandoned       int `json:"abandoned"`
+	StateErrors     int `json:"state_errors"`
 }
 
 func newRetryReport(backlog midcallback.BacklogStats, result midcallback.Result) retryReport {
@@ -104,9 +105,11 @@ func newRetryReport(backlog midcallback.BacklogStats, result midcallback.Result)
 		Due:             backlog.Due,
 		StaleProcessing: backlog.StaleProcessing,
 		Selected:        result.Selected,
+		Forwarded:       result.Forwarded,
 		Succeeded:       result.Succeeded,
 		Retrying:        result.Retrying,
 		Abandoned:       result.Abandoned,
+		StateErrors:     result.StateErrors,
 	}
 }
 
@@ -116,7 +119,7 @@ func writeRetryReport(w io.Writer, asJSON bool, backlog midcallback.BacklogStats
 		enc := json.NewEncoder(w)
 		return enc.Encode(report)
 	}
-	_, err := fmt.Fprintf(w, "due=%d stale_processing=%d selected=%d succeeded=%d retrying=%d abandoned=%d\n",
-		report.Due, report.StaleProcessing, report.Selected, report.Succeeded, report.Retrying, report.Abandoned)
+	_, err := fmt.Fprintf(w, "due=%d stale_processing=%d selected=%d forwarded=%d succeeded=%d retrying=%d abandoned=%d state_errors=%d\n",
+		report.Due, report.StaleProcessing, report.Selected, report.Forwarded, report.Succeeded, report.Retrying, report.Abandoned, report.StateErrors)
 	return err
 }
