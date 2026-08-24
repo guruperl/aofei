@@ -36,7 +36,7 @@ var activationStage string
 var cacheMode string
 var lockTTL time.Duration
 
-const redisCacheMutationLockKey = "aofei:redis-cache"
+const redisCacheMutationLockKey = cachejob.MutationLockKey
 
 func init() {
 	flag.Usage = usage

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,9 +20,11 @@ import (
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/guruperl/aofei/internal/cmdboot"
+	cachejob "github.com/guruperl/aofei/internal/jobs/cache"
 	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
+	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -87,12 +90,6 @@ func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Lo
 	if err := atomicfile.EnsureDir(top, 0750); err != nil {
 		return err
 	}
-	if err := bootstrapSpreadFromRedis(ctx, c, top); err != nil {
-		opsmetrics.RecordSpread("bootstrap_failed")
-		logger.Printf("spread bootstrap skipped: %v", err)
-	} else {
-		opsmetrics.RecordSpread("bootstrap_succeeded")
-	}
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		return err
@@ -115,6 +112,19 @@ func runSpread(ctx context.Context, c *dsp.Config, nc spreadConn, logger *log.Lo
 		return err
 	}
 	logger.Printf("Listening on [%s]", nc.ConnectedUrl())
+
+	// Install and flush the subscription before best-effort bootstrap so a
+	// publication cannot disappear in the startup gap. Existing disk state or a
+	// generation received during the flush is already a complete snapshot and
+	// must not be overwritten by a sequential Redis reconstruction.
+	if !receiver.hasCommittedGeneration() {
+		if err := bootstrapSpreadFromRedis(ctx, c, receiver); err != nil {
+			opsmetrics.RecordSpread("bootstrap_failed")
+			logger.Printf("spread bootstrap skipped: %v", err)
+		} else {
+			opsmetrics.RecordSpread("bootstrap_succeeded")
+		}
+	}
 
 	<-ctx.Done()
 	if err := nc.Drain(); err != nil {
@@ -141,6 +151,34 @@ func newSpreadGenerationReceiver(top string) (*spreadGenerationReceiver, error) 
 		committed = 0
 	}
 	return &spreadGenerationReceiver{top: top, committed: committed}, nil
+}
+
+func (r *spreadGenerationReceiver) hasCommittedGeneration() bool {
+	return r.committedSequence() != 0
+}
+
+func (r *spreadGenerationReceiver) committedSequence() uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.committed
+}
+
+func (r *spreadGenerationReceiver) install(sequence uint64, messages []spreadcache.Message) error {
+	manifest, err := spreadcache.NewManifest(sequence, messages)
+	if err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.begin(manifest); err != nil {
+		return err
+	}
+	for _, message := range messages {
+		if err := r.put(sequence, message.Subject, message.Data); err != nil {
+			return err
+		}
+	}
+	return r.commit(sequence)
 }
 
 func (r *spreadGenerationReceiver) handle(m *nats.Msg) (bool, error) {
@@ -361,18 +399,22 @@ func resetSpreadDir(top, family string) error {
 	return os.RemoveAll(filepath.Join(top, family))
 }
 
-func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) error {
+func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, receiver *spreadGenerationReceiver) error {
+	if receiver == nil {
+		return errors.New("spread generation receiver is nil")
+	}
 	redis, db, err := c.GetRedisDB(ctx)
 	if err != nil {
 		return err
 	}
 	defer redis.Close()
 	defer db.Close()
+	return cmdboot.WithLock(ctx, redis, cachejob.MutationLockKey, 30*time.Minute, func(leaseCtx context.Context) error {
+		return bootstrapSpreadSnapshot(leaseCtx, redis, db, receiver)
+	})
+}
 
-	receiver, err := newSpreadGenerationReceiver(top)
-	if err != nil {
-		return err
-	}
+func bootstrapSpreadSnapshot(ctx context.Context, redis radix.Client, db *sql.DB, receiver *spreadGenerationReceiver) error {
 	messages := make([]spreadcache.Message, 0)
 	pubmap, err := acl.PubMapFromRedis(ctx, redis)
 	if err != nil {
@@ -439,23 +481,11 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, top string) er
 			messages = append(messages, spreadcache.Message{Subject: subject, Data: data})
 		}
 	}
-	sequence, err := spreadcache.NextSequence(ctx, redis, receiver.committed)
+	sequence, err := spreadcache.NextSequence(ctx, redis, receiver.committedSequence())
 	if err != nil {
 		return err
 	}
-	manifest, err := spreadcache.NewManifest(sequence, messages)
-	if err != nil {
-		return err
-	}
-	if err := receiver.begin(manifest); err != nil {
-		return err
-	}
-	for _, message := range messages {
-		if err := receiver.put(sequence, message.Subject, message.Data); err != nil {
-			return err
-		}
-	}
-	return receiver.commit(sequence)
+	return receiver.install(sequence, messages)
 }
 
 func writeSnapshot(filename string, data []byte) error {

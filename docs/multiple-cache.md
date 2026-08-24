@@ -80,8 +80,9 @@ static lookups from memory.
   `pubmap:example.com` are received.
 - It writes snapshots by temp file, fsync, atomic rename, and directory fsync.
 - It handles full-family reset subjects and slot cleanup subjects explicitly.
-- On startup, it best-effort bootstraps static spread files from Redis when
-  Redis and MySQL are reachable.
+- On a fresh node, it flushes the subscription first, then best-effort
+  bootstraps static spread files from Redis under the shared cache-mutation
+  lease. Existing or newly received complete generations skip bootstrap.
 
 `dsp.Controller` local/spread mode now uses an in-process static cache:
 

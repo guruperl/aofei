@@ -89,8 +89,9 @@ atomic generation publication with partial live writes.
     rejects a successful Redis response at or after the conservative deadline,
     and token-checks release before returning `ErrLeaseUncertain`. Delayed-
     acknowledgement repetition, race, and real-Redis ownership tests pass.
-  - P2: `cmd/spread` bootstraps before installing/flushing its subscription and
-    reads Redis families without the cache writer lease, so startup can miss a
-    publication or select a mixed old/new snapshot.
+  - P2 resolved: `cmd/spread` now creates and flushes the generation receiver
+    before fresh-node bootstrap, skips bootstrap when disk or subscribed state
+    is already complete, and reconstructs Redis only while holding the exported
+    cache-mutation lease used by every publisher. Ordering and race tests pass.
   - P3: the legacy `.dat` exporter records only each range's starting `/8`
     prefix, causing valid cross-prefix ranges to miss lookups in later `/8`s.

@@ -301,9 +301,12 @@ publisher; legacy direct subjects are ignored after the first pointer exists.
 Spread directories are created or tightened to at most `0750`, files use
 `0640`, and durable replacement syncs each file and containing directory.
 
-On startup, `cmd/spread` also attempts to bootstrap static spread files from
-Redis. This is best effort: if Redis or MySQL is unavailable, the receiver still
-starts and consumes live NATS cache messages.
+On a fresh node, `cmd/spread` flushes its NATS subscription before attempting to
+bootstrap static spread files from Redis, and the bootstrap holds the same
+`aofei:redis-cache` lease as all cache publishers while reading the families.
+An existing or newly received complete disk generation skips bootstrap. The
+bootstrap remains best effort: if Redis, MySQL, or the lease is unavailable,
+the receiver still consumes live NATS cache messages.
 
 ## Direct SSP `/pz`
 

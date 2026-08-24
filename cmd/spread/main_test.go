@@ -551,6 +551,7 @@ type fakeSpreadConn struct {
 	handler nats.MsgHandler
 	drained bool
 	flushed bool
+	onFlush func(nats.MsgHandler) error
 }
 
 func (f *fakeSpreadConn) ConnectedUrl() string { return "fake://spread" }
@@ -562,6 +563,9 @@ func (f *fakeSpreadConn) Subscribe(_ string, handler nats.MsgHandler) (*nats.Sub
 
 func (f *fakeSpreadConn) FlushTimeout(time.Duration) error {
 	f.flushed = true
+	if f.onFlush != nil {
+		return f.onFlush(f.handler)
+	}
 	return nil
 }
 
@@ -601,6 +605,53 @@ func TestRunSpreadExitsOnContextCancelAndDrains(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "spread bootstrap skipped") {
 		t.Fatalf("logs = %q, want bootstrap skip note", logs.String())
+	}
+}
+
+func TestRunSpreadFlushesSubscriptionBeforeBootstrap(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	top := t.TempDir()
+	messages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("subscribed")}}
+	conn := &fakeSpreadConn{onFlush: func(handler nats.MsgHandler) error {
+		if handler == nil {
+			return errors.New("subscription was not installed before flush")
+		}
+		manifest, err := spreadcache.NewManifest(7, messages)
+		if err != nil {
+			return err
+		}
+		begin, err := manifest.Marshal()
+		if err != nil {
+			return err
+		}
+		handler(&nats.Msg{Subject: spreadcache.BeginSubject, Data: begin})
+		handler(spreadDataMessage(7, messages[0]))
+		handler(&nats.Msg{Subject: spreadcache.CommitSubject, Data: []byte("7")})
+		return nil
+	}}
+	var logs bytes.Buffer
+	cfg := &dsp.Config{
+		Spread:                      top,
+		ConnectArray:                []string{"mysql", "missing"},
+		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
+		TrackingSignatureTTLSeconds: 86400,
+		CapStateTTLSeconds:          90 * 24 * 60 * 60,
+		MiddlemanCallbackTTLSeconds: 86700,
+		MiddlemanCallbackTimeoutMS:  1000,
+		MiddlemanRouteCacheTTLMS:    5000,
+		MiddlemanCallbackBaseURL:    "http://localhost",
+	}
+
+	if err := runSpread(ctx, cfg, conn, log.New(&logs, "", 0)); err != nil {
+		t.Fatal(err)
+	}
+	sequence, ok, err := spreadcache.CurrentSequence(top)
+	if err != nil || !ok || sequence != 7 {
+		t.Fatalf("committed sequence = %d, %t, %v; want flushed generation 7", sequence, ok, err)
+	}
+	if strings.Contains(logs.String(), "spread bootstrap skipped") {
+		t.Fatalf("existing subscribed generation still attempted bootstrap: %q", logs.String())
 	}
 }
 

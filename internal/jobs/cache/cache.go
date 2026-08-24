@@ -35,6 +35,10 @@ const (
 	ModeAll    = "all"
 	ModeRoutes = "routes"
 
+	// MutationLockKey serializes every supported static-cache mutation and the
+	// spread receiver's fresh-node Redis bootstrap snapshot.
+	MutationLockKey = "aofei:redis-cache"
+
 	MiddlemanStagePreflight = "preflight"
 	MiddlemanStageFallback  = "fallback"
 	MiddlemanStageAlways    = "always"
