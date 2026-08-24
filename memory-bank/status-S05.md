@@ -1,6 +1,6 @@
 # Status S05 - Runtime Trust-Boundary Hardening
 
-State: `[ ]` Planned
+State: `[~]` In progress
 
 ## Goal
 
@@ -19,7 +19,7 @@ container and legitimate third-party advertising behavior.
 
 | Item | State | Notes |
 |---|---:|---|
-| Outbound address policy | `[ ]` | Replace implicit `IsGlobalUnicast` assumptions with one reviewed IPv4/IPv6 special-use deny policy covering private, loopback, link-local, unspecified, multicast, CGNAT, benchmarking, documentation, reserved, and future non-public ranges. Apply it before and during every dial. |
+| Outbound address policy | `[+]` | `internal/safehttp` now normalizes IPv4-mapped addresses and applies one `net/netip` prefix policy to URL validation and every dial. It rejects private, loopback, link-local, unspecified, multicast, CGNAT, benchmarking, documentation, protocol-transition, reserved, and future non-public ranges; IPv6 is limited to public `2000::/3` after reviewed exclusions. Mixed DNS answers fail closed. Boundary fixtures cover public neighbors and every denied class, and the operator contract links the authoritative IANA IPv4/IPv6 registries. |
 | Injected-client safety | `[ ]` | Preserve test/custom-client injection without bypassing DNS re-resolution, redirect-hop validation, proxy policy, TLS constraints, body/time limits, or credential stripping. Middleman bidding and callback forwarding must use the same safe transport contract. |
 | Creative rendering boundary | `[ ]` | Inventory every first-party HTML/JSON/OpenRTB/SDK consumer. Prove the browser renderer uses an opaque-origin sandbox without `allow-same-origin`; specify equivalent WebView/navigation/storage/bridge isolation for native consumers. Strengthen URL/tag/event/CSP checks where compatible, but do not deploy a script-stripping sanitizer that breaks the approved ad contract without measured evidence and a migration. |
 | Principal provenance | `[ ]` | Prove HTTP actors, permissions, scopes, and recent-MFA state originate only from verified Genelet sessions. Bind maintenance identities to an authenticated OS/service principal or an explicitly restricted, audited launcher instead of treating a supplied actor label as authentication. Preserve maker/checker separation at service and entry-point boundaries. |

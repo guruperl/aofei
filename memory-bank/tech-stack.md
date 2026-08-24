@@ -141,6 +141,12 @@ controlled by `middleman_callback_ttl_seconds`, `middleman_callback_timeout_ms`,
 and `middleman_callback_base_url`; it requires `tracking_secret` and Redis.
 Bidder `credential_ref` values name environment variables containing JSON
 outbound header maps for downstream OpenRTB calls.
+`internal/safehttp` uses `net/netip` and reviewed IANA special-purpose prefix
+tables for both bidder and callback targets. Do not replace that policy with
+`net.IP.IsGlobalUnicast`: CGNAT, benchmarking, documentation, transition, and
+reserved addresses may otherwise pass. Direct URL checks and dial-time DNS
+checks both reject a mixed result set, and IPv4-mapped addresses are evaluated
+under the IPv4 policy.
 
 OpenRTB partner interoperability uses exact version `2.5`. Public auction
 traffic accepts only identity or one gzip content coding; traffic policies set

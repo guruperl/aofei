@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -134,11 +135,61 @@ func isAllowedCallbackIP(ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
-	return ip.IsGlobalUnicast() &&
-		!ip.IsPrivate() &&
-		!ip.IsLoopback() &&
-		!ip.IsLinkLocalUnicast() &&
-		!ip.IsLinkLocalMulticast() &&
-		!ip.IsUnspecified() &&
-		!ip.IsMulticast()
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	addr = addr.Unmap()
+	if !addr.IsValid() || !addr.IsGlobalUnicast() {
+		return false
+	}
+	if addr.Is4() {
+		return !prefixContains(callbackDeniedIPv4, addr)
+	}
+	// Only the currently assignable global-unicast block is eligible. This
+	// rejects reserved/future IPv6 space without assuming IsGlobalUnicast means
+	// publicly routable, then removes special-purpose subranges within it.
+	if !callbackPublicIPv6.Contains(addr) {
+		return false
+	}
+	return !prefixContains(callbackDeniedIPv6, addr)
+}
+
+var (
+	callbackPublicIPv6 = netip.MustParsePrefix("2000::/3")
+	callbackDeniedIPv4 = []netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/8"),     // current network / unspecified
+		netip.MustParsePrefix("10.0.0.0/8"),    // private use
+		netip.MustParsePrefix("100.64.0.0/10"), // shared address space / CGNAT
+		netip.MustParsePrefix("127.0.0.0/8"),   // loopback
+		netip.MustParsePrefix("169.254.0.0/16"),
+		netip.MustParsePrefix("172.16.0.0/12"),
+		netip.MustParsePrefix("192.0.0.0/24"),
+		netip.MustParsePrefix("192.0.2.0/24"),
+		netip.MustParsePrefix("192.88.99.0/24"),
+		netip.MustParsePrefix("192.168.0.0/16"),
+		netip.MustParsePrefix("198.18.0.0/15"),
+		netip.MustParsePrefix("198.51.100.0/24"),
+		netip.MustParsePrefix("203.0.113.0/24"),
+		netip.MustParsePrefix("224.0.0.0/4"),
+		netip.MustParsePrefix("240.0.0.0/4"),
+	}
+	callbackDeniedIPv6 = []netip.Prefix{
+		netip.MustParsePrefix("2001::/32"),    // Teredo
+		netip.MustParsePrefix("2001:2::/48"),  // benchmarking
+		netip.MustParsePrefix("2001:10::/28"), // deprecated ORCHID
+		netip.MustParsePrefix("2001:20::/28"), // ORCHIDv2
+		netip.MustParsePrefix("2001:db8::/32"),
+		netip.MustParsePrefix("2002::/16"), // 6to4
+		netip.MustParsePrefix("3fff::/20"), // documentation
+	}
+)
+
+func prefixContains(prefixes []netip.Prefix, addr netip.Addr) bool {
+	for _, prefix := range prefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }

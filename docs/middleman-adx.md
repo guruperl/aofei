@@ -321,9 +321,18 @@ callback context expires. Missing URLs, invalid URLs, duplicate notifications,
 and HTTP 4xx responses other than 429 are not queued.
 
 M26 signs middleman proxy URLs with `sig_ts` and rejects expired callbacks.
-Downstream callback forwarding validates expanded callback URLs before the HTTP
-request and rejects loopback, private, link-local, unspecified, multicast, and
-DNS-rebinding targets. The retry command applies the same URL guard.
+Bidder fanout and downstream callback forwarding share the `internal/safehttp`
+address policy before requests and again on every dial. It rejects private,
+loopback, link-local, unspecified, multicast, CGNAT, benchmarking,
+documentation, protocol-transition, reserved, and future non-public ranges;
+IPv4-mapped IPv6 addresses follow the IPv4 policy. A DNS answer containing any
+denied address fails closed, including after re-resolution, so a mixed answer
+cannot select only its public member. The retry command applies the same guard.
+The reviewed prefix policy follows the IANA
+[IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/) and
+[IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/)
+special-purpose registries; registry changes require a code and test review,
+not an implicit expansion through `net.IP.IsGlobalUnicast`.
 
 The singleton `cmd/mid-callback-retry` command claims due rows as `Processing`
 before forwarding, then marks them `Succeeded`, `Retrying`, or `Abandoned` with

@@ -89,7 +89,7 @@ acceptance criteria recorded in the corresponding status files.
 | S02 | Completed; disabled by default | [status-S02.md](status-S02.md) | Identity, two-factor authentication, and RBAC. |
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
-| S05 | Planned | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
+| S05 | In progress | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
@@ -1636,7 +1636,7 @@ intentional stored-markup previews, and centralize the narrow sanitized
 safe-HTML boundary without weakening contextual `html/template` escaping.
 Detailed tasks are in [status-S04.md](status-S04.md).
 
-## S05 - Runtime Trust-Boundary Hardening `[ ]`
+## S05 - Runtime Trust-Boundary Hardening `[~]`
 
 Harden special-use address rejection, injected HTTP clients, creative consumers,
 principal provenance, quality-rule version selection, and protected database
