@@ -321,7 +321,7 @@ func TestSwapRedisStaticCachesReplacesOneCompleteGeneration(t *testing.T) {
 	}
 }
 
-func TestWriteToRedisBuildFailureLeavesLiveGeneration(t *testing.T) {
+func TestPublishRedisGenerationBuildFailureLeavesLiveGeneration(t *testing.T) {
 	server := miniredis.RunT(t)
 	ctx := context.Background()
 	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
@@ -338,8 +338,8 @@ func TestWriteToRedisBuildFailureLeavesLiveGeneration(t *testing.T) {
 	}
 	defer db.Close()
 	mock.ExpectQuery("SELECT t.slot_id").WillReturnError(errors.New("build failed"))
-	if err := WriteToRedis(ctx, client, db, nil, []uint32{1}); err == nil {
-		t.Fatal("WriteToRedis error = nil, want build failure")
+	if err := PublishRedisGeneration(ctx, client, db, nil, []uint32{1}); err == nil {
+		t.Fatal("PublishRedisGeneration error = nil, want build failure")
 	}
 	var got string
 	if err := client.Do(ctx, radix.Cmd(&got, "HGET", acl.HashNamePubmap, "value")); err != nil {

@@ -61,6 +61,10 @@ static lookups from memory.
   shadows over live keys and deletes empty or obsolete live families, so a
   build failure leaves the old generation intact and readers never observe the
   former delete-then-repopulate window.
+  The reusable Go entry point is `cache.PublishRedisGeneration`. Generation
+  sinks require a non-empty key namespace; live item sinks reject family reset,
+  so a raw Redis client cannot make the RAdv family compiler incrementally
+  replace a live hash.
 - Spread mode publishes `__reset__` family subjects before publishing new
   snapshots.
 - Item-level RAdv refreshes recompute affected creative sizes from MySQL slot

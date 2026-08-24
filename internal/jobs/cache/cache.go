@@ -111,12 +111,12 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 	case ModeSpread:
 		publicationErr = WriteToSpread(ctx, nc, db, pubmap, sizeIDs)
 	case ModeRedis:
-		publicationErr = WriteToRedis(ctx, redis, db, pubmap, sizeIDs)
+		publicationErr = PublishRedisGeneration(ctx, redis, db, pubmap, sizeIDs)
 	case ModeAll:
 		if err := WriteToSpread(ctx, nc, db, pubmap, sizeIDs); err != nil {
 			return err
 		}
-		publicationErr = WriteToRedis(ctx, redis, db, pubmap, sizeIDs)
+		publicationErr = PublishRedisGeneration(ctx, redis, db, pubmap, sizeIDs)
 	default:
 		return ValidateMode(opts.Mode)
 	}
@@ -506,7 +506,9 @@ func RedisRead(ctx context.Context, out io.Writer, redis radix.Client, sizeIDs [
 	return nil
 }
 
-func WriteToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
+// PublishRedisGeneration builds every static family under isolated shadow keys
+// and atomically replaces the complete live generation.
+func PublishRedisGeneration(ctx context.Context, redis radix.Client, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) error {
 	if err := cleanupRedisShadowCaches(ctx, redis); err != nil {
 		return err
 	}
@@ -521,7 +523,10 @@ func WriteToRedis(ctx context.Context, redis radix.Client, db *sql.DB, pubmap ac
 		return err
 	}
 
-	sink := match.RedisCacheSink{Client: redis, KeySuffix: redisShadowSuffix}
+	sink, err := match.NewRedisCacheGenerationSink(redis, redisShadowSuffix)
+	if err != nil {
+		return err
+	}
 	for _, sizeID := range sizeIDs {
 		if err := match.DBGetRAdvsToRedisSpreadBySizeID(ctx, sink, db, sizeID); err != nil {
 			return err

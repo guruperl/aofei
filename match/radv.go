@@ -639,7 +639,7 @@ func HashIONameRAdvs(slotID uint32) string {
 func (self RAdvs) ToRedis(ctx context.Context, conn radix.Client, slotID, sizeID uint32) error {
 	data, err := self.Pack()
 	if err == nil {
-		err = RedisCacheSink{Client: conn}.PutRAdvs(ctx, sizeID, slotID, data, false)
+		err = newRedisCacheSink(conn).PutRAdvs(ctx, sizeID, slotID, data, false)
 	}
 	return err
 }

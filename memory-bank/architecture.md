@@ -483,7 +483,11 @@ publication, ownership, or cap mutation. Redis access control remains an
 availability and integrity prerequisite.
 Full Redis static refreshes build shadow families and replace all live hashes
 in one transaction, including empty-family and obsolete-slot deletion. A build
-failure leaves the previous live generation untouched.
+failure leaves the previous live generation untouched. The reusable bulk API is
+`cache.PublishRedisGeneration`; its `match.RedisCacheSink` is constructed only
+through an explicit non-empty generation namespace. Internal live item sinks
+reject family reset, so a raw Redis adapter cannot recreate the former
+`DEL`-then-`HSET` partial-family window.
 Direct SSP uses an additive `pubmap:by-id` Redis hash derived from `pubmap`.
 The value includes publisher domain, the active publisher object, reverse
 active site/slot metadata, site type, slot size, and configured USD CPM floor so

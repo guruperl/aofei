@@ -277,7 +277,7 @@ func (self *Creative) ToRedis(ctx context.Context, conn radix.Client, creativeID
 	if err != nil {
 		return err
 	}
-	return RedisCacheSink{Client: conn}.PutCreative(ctx, creativeID, data)
+	return newRedisCacheSink(conn).PutCreative(ctx, creativeID, data)
 }
 
 // ToSpread publishes creative to nats.
