@@ -140,9 +140,10 @@ atomic generation publication with partial live writes.
     removed and its generic deletion helper is private and used only for
     isolated shadow cleanup. The generation publisher remains the sole
     supported full-family replacement boundary.
-  - P2 open: complete spread publication serializes inactive or impression-
-    capped publishers even though Redis publication and legacy spread updates
-    omit/delete them, retaining stale data and breaking backend parity.
+  - P2 resolved: complete spread publication now omits inactive and impression-
+    capped publishers, matching Redis publication and legacy deletion
+    semantics. A focused generation-builder test proves only publishable
+    inventory is serialized.
   - P2 open: republishing the currently selected MaxMind content keeps only
     that digest and prunes the prior rollback generation despite no new
     generation having been selected.

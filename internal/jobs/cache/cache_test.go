@@ -115,6 +115,21 @@ func TestPublishSpreadMessagesFailureCannotEmitCommit(t *testing.T) {
 	}
 }
 
+func TestBuildSpreadPublisherMessagesOmitsUnpublishableInventory(t *testing.T) {
+	pubmap := acl.PubMap{
+		"active.example":   {PubID: 1, Active: true},
+		"inactive.example": {PubID: 2},
+		"capped.example":   {PubID: 3, Active: true, LimitImps: 10, CurrentImps: 10},
+	}
+	messages, err := buildSpreadPublisherMessages(pubmap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 || messages[0].Subject != acl.HashNamePubmap+":active.example" {
+		t.Fatalf("publisher messages = %#v, want active inventory only", messages)
+	}
+}
+
 func TestPublicationActivatesOnlyConfiguredServingBackend(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -764,16 +764,9 @@ func (s spreadMessageSink) append(subject string, data []byte) {
 }
 
 func buildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) ([]spreadcache.Message, error) {
-	messages := make([]spreadcache.Message, 0, len(pubmap))
-	for domain, pub := range pubmap {
-		if pub == nil {
-			return nil, fmt.Errorf("publisher %q is nil", domain)
-		}
-		data, err := pub.Pack()
-		if err != nil {
-			return nil, err
-		}
-		messages = append(messages, spreadcache.Message{Subject: acl.HashNamePubmap + ":" + domain, Data: data})
+	messages, err := buildSpreadPublisherMessages(pubmap)
+	if err != nil {
+		return nil, err
 	}
 	sink := spreadMessageSink{messages: &messages}
 	for _, sizeID := range sizeIDs {
@@ -788,6 +781,24 @@ func buildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, s
 		return nil, err
 	}
 	sort.Slice(messages, func(i, j int) bool { return messages[i].Subject < messages[j].Subject })
+	return messages, nil
+}
+
+func buildSpreadPublisherMessages(pubmap acl.PubMap) ([]spreadcache.Message, error) {
+	messages := make([]spreadcache.Message, 0, len(pubmap))
+	for domain, pub := range pubmap {
+		if pub == nil {
+			return nil, fmt.Errorf("publisher %q is nil", domain)
+		}
+		if !pub.Active || (pub.LimitImps != 0 && pub.CurrentImps >= pub.LimitImps) {
+			continue
+		}
+		data, err := pub.Pack()
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, spreadcache.Message{Subject: acl.HashNamePubmap + ":" + domain, Data: data})
+	}
 	return messages, nil
 }
 
