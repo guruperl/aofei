@@ -94,6 +94,65 @@ func TestRequestProofRejectsStaleSnapshotExpiredCredentialAndMalformedHeaders(t 
 	}
 }
 
+func TestSnapshotReloadCannotUndoConcurrentLifecycleMutation(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	publicID := "00112233445566778899aabbccddeeff"
+	publicKey := bytes.Repeat([]byte{0x31}, ed25519.PublicKeySize)
+	service := &Service{db: db, now: func() time.Time { return now }}
+	service.snapshot.Store(&verifierSnapshot{generatedAt: now, records: map[string]verifierRecord{
+		publicID: {
+			principal: Principal{CredentialID: 7, PublisherID: 42, SiteID: 11, PublicID: publicID},
+			publicKey: publicKey, validUntil: now.Add(time.Hour),
+		},
+	}})
+	mock.ExpectQuery("SELECT c.credential_id, c.pub_id, c.site_id").
+		WithArgs(now, now).
+		WillDelayFor(200 * time.Millisecond).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"credential_id", "pub_id", "site_id", "public_id", "public_key",
+			"expires_at", "rotated_at", "overlap_until",
+		}).AddRow(7, 42, 11, publicID, publicKey, now.Add(time.Hour), nil, nil))
+
+	reloadDone := make(chan error, 1)
+	go func() { reloadDone <- service.ReloadSnapshot(context.Background()) }()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	for {
+		if err := mock.ExpectationsWereMet(); err == nil {
+			break
+		}
+		select {
+		case <-deadline.C:
+			t.Fatal("snapshot reload did not begin its MySQL query")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+
+	mutationDone := make(chan struct{})
+	go func() {
+		service.mutateSnapshot(func(records map[string]verifierRecord) { delete(records, publicID) })
+		close(mutationDone)
+	}()
+	select {
+	case <-mutationDone:
+		t.Fatal("lifecycle snapshot mutation bypassed an in-flight reload")
+	case <-time.After(25 * time.Millisecond):
+	}
+	if err := <-reloadDone; err != nil {
+		t.Fatal(err)
+	}
+	<-mutationDone
+	if _, ok := service.snapshot.Load().records[publicID]; ok {
+		t.Fatal("stale reload undid the lifecycle snapshot mutation")
+	}
+}
+
 func TestRequestProofConcurrentReplayHasOneWinner(t *testing.T) {
 	service, privateCredential, now := requestTestService(t, 7, 42, 11)
 	body := []byte(`{"platform":"sdk","id":"concurrent"}`)

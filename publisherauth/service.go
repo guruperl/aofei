@@ -84,6 +84,13 @@ func (s *Service) ReloadSnapshot(ctx context.Context) error {
 	if s == nil || s.db == nil {
 		return ErrUnavailable
 	}
+	// Serialize the entire MySQL read/build/install sequence with local
+	// lifecycle mutations. Otherwise a reload that observed pre-commit state
+	// could install that stale generation after IssueCredential,
+	// RotateCredential, or RevokeCredential had already updated the local
+	// snapshot.
+	s.snapMu.Lock()
+	defer s.snapMu.Unlock()
 	now := s.currentTime()
 	rows, err := s.db.QueryContext(ctx, `
 SELECT c.credential_id, c.pub_id, c.site_id, c.public_id, c.public_key,
@@ -134,14 +141,8 @@ ORDER BY c.credential_id`, now, now)
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	s.installSnapshot(&verifierSnapshot{generatedAt: s.currentTime(), records: records})
+	s.snapshot.Store(&verifierSnapshot{generatedAt: s.currentTime(), records: records})
 	return nil
-}
-
-func (s *Service) installSnapshot(snapshot *verifierSnapshot) {
-	s.snapMu.Lock()
-	s.snapshot.Store(snapshot)
-	s.snapMu.Unlock()
 }
 
 // SnapshotGeneratedAt reports only snapshot freshness metadata.

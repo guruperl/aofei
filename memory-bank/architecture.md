@@ -184,8 +184,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   shared Redis after exact active-cache scope validation. The `/pz` hot path
 	   never queries MySQL. S02-scoped lifecycle methods show the private seed
 	   once, keep only the public verifier, and transactionally append immutable
-	   security audits; rotation/revocation mutate the local snapshot immediately
-	   and background refresh bounds cross-node convergence. Signing-key rotation, scoped
+	   security audits; rotation/revocation mutate the local snapshot immediately,
+	   while full reload query/build/install is serialized with lifecycle snapshot
+	   mutation so a pre-commit read cannot overwrite the local change. Background
+	   refresh bounds cross-node convergence. Signing-key rotation, scoped
 	   credential revocation, and inventory/cache withdrawal are separate
 	   containment paths; S02 sessions, I03 advertiser credentials, and browser
 	   identity cannot cross into this runtime credential boundary. Valid proofs

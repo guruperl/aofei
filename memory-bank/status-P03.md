@@ -31,6 +31,16 @@ traffic origin.
 | Portal, API, and cache integration | `[+]` | One narrow controller-owned issuer now drives `/pz`, publisher Web/App samples, and the read-only readiness manifest: disabled config emits v1, enabled config emits current-epoch v2, and output contains only safe token/auth lifecycle metadata. Summer resolves an active publisher/site tuple before generation; App samples show four signing-header placeholders without private material. Existing S02 lifecycle scope still rejects cross-account display/issue/rotation/revocation/audit access, and I03/Summer credentials remain distinct. |
 | Rollout and abuse evidence | `[+]` | Fixed token and publisher-auth outcome maps expose no dynamic identity/key/proof labels; the repository proof covers 32 concurrent replay claims with one winner, bounded credential lifecycle, migration failures, and the existing O01 `ssp` rate/concurrency gate. The cache-first runbook requires dual readers/current cache before v2 emitters, current/previous key order, named publisher/support/rollback ownership, legacy-zero withdrawal evidence, and App cache withdrawal before any auth rollback. No production cutover was performed. |
 
+## Deep Review
+
+- Iteration 1 (2026-08-24): P2, resolved — credential snapshot reload built its
+  replacement outside the lifecycle mutation lock, so a reload that read
+  pre-commit MySQL state could install it after a local issue, rotation, or
+  revocation mutation and temporarily undo that local snapshot change. The
+  complete reload query/build/install sequence is now serialized with snapshot
+  mutation, and a deterministic race regression plus `publisherauth` test,
+  race, vet, and static analysis checks pass.
+
 ## Acceptance Criteria
 
 - An unauthenticated party cannot mint a new accepted publisher/site/slot/size
