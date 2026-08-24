@@ -675,11 +675,12 @@ func redisLiveSlotKeys(ctx context.Context, redis radix.Client) ([]string, error
 }
 
 func SpreadRead(out io.Writer, top string, sizeIDs []uint32) error {
-	var err error
-	top, err = spreadcache.Resolve(top)
-	if err != nil {
-		return err
-	}
+	return spreadcache.WithResolved(top, func(root string) error {
+		return spreadReadResolved(out, root, sizeIDs)
+	})
+}
+
+func spreadReadResolved(out io.Writer, top string, sizeIDs []uint32) error {
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
 		return err

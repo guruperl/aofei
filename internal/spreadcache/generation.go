@@ -179,6 +179,27 @@ func GenerationRoot(top string, sequence uint64) string {
 	return filepath.Join(top, generationsDir, SequenceString(sequence))
 }
 
+// NewStagingRoot creates a private generation tree that cannot collide with a
+// second receiver staging the same published sequence.
+func NewStagingRoot(top string, sequence uint64) (string, error) {
+	if sequence == 0 {
+		return "", errors.New("spread generation sequence is zero")
+	}
+	root := filepath.Join(top, generationsDir)
+	if err := atomicfile.EnsureDir(root, 0750); err != nil {
+		return "", err
+	}
+	staging, err := os.MkdirTemp(root, "."+SequenceString(sequence)+"-staging-")
+	if err != nil {
+		return "", err
+	}
+	if err := os.Chmod(staging, 0750); err != nil {
+		_ = os.RemoveAll(staging)
+		return "", err
+	}
+	return staging, nil
+}
+
 func CurrentSequence(top string) (uint64, bool, error) {
 	data, err := os.ReadFile(filepath.Join(top, currentFile))
 	if errors.Is(err, os.ErrNotExist) {
@@ -210,6 +231,31 @@ func Resolve(top string) (string, error) {
 	return root, nil
 }
 
+// WithResolved holds the shared side of the generation-selection lock for one
+// complete read. Cleanup and pointer replacement cannot prune or supersede the
+// resolved root until read returns.
+func WithResolved(top string, read func(string) error) error {
+	return WithResolvedContext(context.Background(), top, read)
+}
+
+// WithResolvedContext is WithResolved with cancellation while waiting for the
+// shared selection lock.
+func WithResolvedContext(ctx context.Context, top string, read func(string) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if read == nil {
+		return errors.New("spread generation reader is nil")
+	}
+	return withSelectionLock(ctx, top, false, func() error {
+		root, err := Resolve(top)
+		if err != nil {
+			return err
+		}
+		return read(root)
+	})
+}
+
 func Commit(top string, sequence uint64) error {
 	return CommitContext(context.Background(), top, sequence)
 }
@@ -218,46 +264,73 @@ func Commit(top string, sequence uint64) error {
 // operation remains valid. Selection is serialized across processes and never
 // moves the pointer backward.
 func CommitContext(ctx context.Context, top string, sequence uint64) error {
-	_, err := selectContext(ctx, top, sequence, false)
-	return err
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if sequence == 0 {
+		return errors.New("spread generation sequence is zero")
+	}
+	if err := atomicfile.EnsureDir(top, 0750); err != nil {
+		return err
+	}
+	return withSelectionLock(ctx, top, true, func() error {
+		current, ok, err := CurrentSequence(top)
+		if err != nil {
+			return err
+		}
+		if ok && current >= sequence {
+			return nil
+		}
+		return writeCurrentContext(ctx, top, sequence)
+	})
 }
 
-// SelectContext switches the selected generation and removes superseded older
-// generations while holding the same cross-process lock. It returns the
-// sequence that is selected when the operation completes; that can be higher
-// than sequence when another process won the race first.
-func SelectContext(ctx context.Context, top string, sequence uint64) (uint64, error) {
-	return selectContext(ctx, top, sequence, true)
-}
-
-func selectContext(ctx context.Context, top string, sequence uint64, cleanup bool) (selected uint64, err error) {
+// InstallContext atomically installs one private staging tree and selects it.
+// It returns the sequence selected at completion, which can be higher than the
+// candidate when another process won the race first.
+func InstallContext(ctx context.Context, top string, sequence uint64, staging string) (selected uint64, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if sequence == 0 {
 		return 0, errors.New("spread generation sequence is zero")
 	}
+	if err := validateStagingRoot(top, sequence, staging); err != nil {
+		return 0, err
+	}
 	if err := atomicfile.EnsureDir(top, 0750); err != nil {
 		return 0, err
 	}
-	err = withSelectionLock(ctx, top, func() error {
+	err = withSelectionLock(ctx, top, true, func() error {
 		current, ok, err := CurrentSequence(top)
 		if err != nil {
 			return err
 		}
 		if ok && current >= sequence {
 			selected = current
-			return nil
+			return os.RemoveAll(staging)
 		}
-		if cleanup {
-			if err := cleanupOlderGenerations(ctx, top, current, sequence); err != nil {
-				return err
-			}
-		}
-		if err := atomicfile.WriteContext(ctx, filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
-			_, err := fmt.Fprintf(out, "%d\n", sequence)
+		info, err := os.Stat(staging)
+		if err != nil {
 			return err
-		}); err != nil {
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("spread generation staging path %q is not a directory", staging)
+		}
+		root := GenerationRoot(top, sequence)
+		if err := os.RemoveAll(root); err != nil {
+			return err
+		}
+		if err := os.Rename(staging, root); err != nil {
+			return err
+		}
+		if err := atomicfile.SyncDir(filepath.Dir(root)); err != nil {
+			return err
+		}
+		if err := cleanupOlderGenerations(ctx, top, current, sequence); err != nil {
+			return err
+		}
+		if err := writeCurrentContext(ctx, top, sequence); err != nil {
 			return err
 		}
 		selected = sequence
@@ -266,7 +339,27 @@ func selectContext(ctx context.Context, top string, sequence uint64, cleanup boo
 	return selected, err
 }
 
-func withSelectionLock(ctx context.Context, top string, selectGeneration func() error) (err error) {
+func writeCurrentContext(ctx context.Context, top string, sequence uint64) error {
+	return atomicfile.WriteContext(ctx, filepath.Join(top, currentFile), 0640, func(out io.Writer) error {
+		_, err := fmt.Fprintf(out, "%d\n", sequence)
+		return err
+	})
+}
+
+func validateStagingRoot(top string, sequence uint64, staging string) error {
+	root := filepath.Clean(filepath.Join(top, generationsDir))
+	clean := filepath.Clean(staging)
+	if filepath.Dir(clean) != root {
+		return fmt.Errorf("spread generation staging path %q is outside %q", staging, root)
+	}
+	prefix := "." + SequenceString(sequence) + "-staging-"
+	if base := filepath.Base(clean); !strings.HasPrefix(base, prefix) || len(base) == len(prefix) {
+		return fmt.Errorf("spread generation staging path %q does not match sequence %d", staging, sequence)
+	}
+	return nil
+}
+
+func withSelectionLock(ctx context.Context, top string, exclusive bool, selectGeneration func() error) (err error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -287,8 +380,12 @@ func withSelectionLock(ctx context.Context, top string, selectGeneration func() 
 	}
 
 	const retryDelay = 10 * time.Millisecond
+	operation := syscall.LOCK_SH
+	if exclusive {
+		operation = syscall.LOCK_EX
+	}
 	for {
-		err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err := syscall.Flock(int(lock.Fd()), operation|syscall.LOCK_NB)
 		if err == nil {
 			locked = true
 			break
@@ -341,11 +438,11 @@ func cleanupOlderGenerations(ctx context.Context, top string, keep ...uint64) er
 		if !entry.IsDir() {
 			continue
 		}
-		sequence, err := strconv.ParseUint(entry.Name(), 10, 64)
-		if err != nil || sequence == 0 || sequence > ceiling {
+		sequence, staging, ok := generationEntrySequence(entry.Name())
+		if !ok || sequence > ceiling {
 			continue
 		}
-		if _, ok := kept[sequence]; ok {
+		if _, ok := kept[sequence]; ok && !staging {
 			continue
 		}
 		if err := os.RemoveAll(filepath.Join(root, entry.Name())); err != nil {
@@ -356,6 +453,24 @@ func cleanupOlderGenerations(ctx context.Context, top string, keep ...uint64) er
 		}
 	}
 	return nil
+}
+
+func generationEntrySequence(name string) (sequence uint64, staging bool, ok bool) {
+	if parsed, err := strconv.ParseUint(name, 10, 64); err == nil && parsed != 0 {
+		return parsed, false, true
+	}
+	if !strings.HasPrefix(name, ".") {
+		return 0, false, false
+	}
+	sequencePart, suffix, found := strings.Cut(strings.TrimPrefix(name, "."), "-staging-")
+	if !found || suffix == "" {
+		return 0, false, false
+	}
+	parsed, err := strconv.ParseUint(sequencePart, 10, 64)
+	if err != nil || parsed == 0 {
+		return 0, false, false
+	}
+	return parsed, true, true
 }
 
 func canonicalUint32(value string) bool {

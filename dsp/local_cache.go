@@ -217,11 +217,16 @@ func (self *Controller) stopLocalStaticCacheReload() {
 }
 
 func (c *localStaticCache) load(top string) (int, error) {
-	var err error
-	top, err = spreadcache.Resolve(top)
-	if err != nil {
-		return 0, err
-	}
+	var count int
+	err := spreadcache.WithResolved(top, func(root string) error {
+		var err error
+		count, err = c.loadResolved(root)
+		return err
+	})
+	return count, err
+}
+
+func (c *localStaticCache) loadResolved(top string) (int, error) {
 	pubmap, err := acl.PubMapFromIO(top)
 	if err != nil {
 		return 0, err

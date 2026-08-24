@@ -114,7 +114,7 @@ func TestCommitNeverMovesSelectionBackward(t *testing.T) {
 
 func TestSelectRemovesOnlySupersededGenerations(t *testing.T) {
 	top := t.TempDir()
-	for _, sequence := range []uint64{7, 8, 9, 10} {
+	for _, sequence := range []uint64{7, 8, 10} {
 		if err := os.MkdirAll(GenerationRoot(top, sequence), 0750); err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,11 @@ func TestSelectRemovesOnlySupersededGenerations(t *testing.T) {
 	if err := Commit(top, 8); err != nil {
 		t.Fatal(err)
 	}
-	selected, err := SelectContext(context.Background(), top, 9)
+	staging, err := NewStagingRoot(top, 9)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected, err := InstallContext(context.Background(), top, 9, staging)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,6 +140,56 @@ func TestSelectRemovesOnlySupersededGenerations(t *testing.T) {
 		if _, err := os.Stat(GenerationRoot(top, sequence)); err != nil {
 			t.Fatalf("retained generation %d: %v", sequence, err)
 		}
+	}
+}
+
+func TestWithResolvedRetainsRootUntilReadCompletes(t *testing.T) {
+	top := t.TempDir()
+	root := GenerationRoot(top, 1)
+	if err := os.MkdirAll(root, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := Commit(top, 1); err != nil {
+		t.Fatal(err)
+	}
+	reading := make(chan struct{})
+	release := make(chan struct{})
+	readDone := make(chan error, 1)
+	go func() {
+		readDone <- WithResolved(top, func(resolved string) error {
+			if resolved != root {
+				return errors.New("resolved unexpected generation")
+			}
+			close(reading)
+			<-release
+			return nil
+		})
+	}()
+	<-reading
+
+	staging, err := NewStagingRoot(top, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installDone := make(chan error, 1)
+	go func() {
+		_, err := InstallContext(context.Background(), top, 2, staging)
+		installDone <- err
+	}()
+	select {
+	case err := <-installDone:
+		t.Fatalf("generation selection completed during retained read: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	if _, err := os.Stat(root); err != nil {
+		t.Fatalf("resolved root was pruned during read: %v", err)
+	}
+	close(release)
+	if err := <-readDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-installDone; err != nil {
+		t.Fatal(err)
 	}
 }
 

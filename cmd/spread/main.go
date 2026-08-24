@@ -136,6 +136,7 @@ type spreadGenerationReceiver struct {
 	mu        sync.Mutex
 	top       string
 	active    uint64
+	staging   string
 	committed uint64
 	selected  bool
 	expected  spreadcache.Manifest
@@ -281,23 +282,29 @@ func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
 		opsmetrics.RecordSpread("generation_stale")
 		return nil
 	}
-	root := spreadcache.GenerationRoot(r.top, manifest.Sequence)
+	root, err := spreadcache.NewStagingRoot(r.top, manifest.Sequence)
+	if err != nil {
+		opsmetrics.RecordSpread("generation_rejected")
+		return err
+	}
 	prepare := r.prepare
 	if prepare == nil {
 		prepare = prepareSpreadGenerationRoot
 	}
 	if err := prepare(root); err != nil {
+		_ = os.RemoveAll(root)
 		opsmetrics.RecordSpread("generation_rejected")
 		return err
 	}
 	if r.active != 0 {
-		if err := os.RemoveAll(spreadcache.GenerationRoot(r.top, r.active)); err != nil {
+		if err := os.RemoveAll(r.staging); err != nil {
 			_ = os.RemoveAll(root)
 			opsmetrics.RecordSpread("generation_rejected")
 			return err
 		}
 	}
 	r.active = manifest.Sequence
+	r.staging = root
 	r.expected = manifest
 	r.seen = make(map[string]string)
 	opsmetrics.RecordSpread("generation_started")
@@ -305,9 +312,6 @@ func (r *spreadGenerationReceiver) begin(manifest spreadcache.Manifest) error {
 }
 
 func prepareSpreadGenerationRoot(root string) error {
-	if err := os.RemoveAll(root); err != nil {
-		return err
-	}
 	for _, family := range []string{acl.HashNamePubmap, match.HashNameAudience, match.HashNameCreative, match.HashNameSlot} {
 		if err := atomicfile.EnsureDir(filepath.Join(root, family), 0750); err != nil {
 			return err
@@ -332,7 +336,10 @@ func (r *spreadGenerationReceiver) put(sequence uint64, subject string, data []b
 	if write == nil {
 		write = writeSnapshot
 	}
-	if err := write(filepath.Join(spreadcache.GenerationRoot(r.top, sequence), relative), data); err != nil {
+	if r.staging == "" {
+		return fmt.Errorf("spread generation %d has no staging directory", sequence)
+	}
+	if err := write(filepath.Join(r.staging, relative), data); err != nil {
 		return err
 	}
 	r.seen[subject] = digest
@@ -363,7 +370,7 @@ func (r *spreadGenerationReceiver) commitContext(ctx context.Context, sequence u
 		opsmetrics.RecordSpread("generation_rejected")
 		return fmt.Errorf("spread generation %d manifest digest mismatch", sequence)
 	}
-	selected, err := spreadcache.SelectContext(ctx, r.top, sequence)
+	selected, err := spreadcache.InstallContext(ctx, r.top, sequence, r.staging)
 	if err != nil {
 		opsmetrics.RecordSpread("generation_rejected")
 		return err
@@ -371,6 +378,7 @@ func (r *spreadGenerationReceiver) commitContext(ctx context.Context, sequence u
 	r.committed = selected
 	r.selected = true
 	r.active = 0
+	r.staging = ""
 	r.expected = spreadcache.Manifest{}
 	r.seen = nil
 	if selected != sequence {

@@ -274,7 +274,7 @@ func TestBootstrapInstallCancellationStopsFilesAndPointerCommit(t *testing.T) {
 	if writes != 1 {
 		t.Fatalf("snapshot writes = %d, want 1", writes)
 	}
-	root := spreadcache.GenerationRoot(top, 10)
+	root := receiver.staging
 	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "first")
 	if _, err := os.Stat(filepath.Join(root, "creative", "8")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("later snapshot stat error = %v, want not exist", err)
@@ -366,7 +366,7 @@ func TestSpreadFailedHigherBeginPreservesActiveStaging(t *testing.T) {
 	if receiver.active != 1 {
 		t.Fatalf("active generation = %d, want 1", receiver.active)
 	}
-	assertSpreadFile(t, filepath.Join(spreadcache.GenerationRoot(top, 1), "creative", "7"), "active")
+	assertSpreadFile(t, filepath.Join(receiver.staging, "creative", "7"), "active")
 	receiver.prepare = nil
 	if err := receiver.commit(1); err != nil {
 		t.Fatal(err)
@@ -503,6 +503,52 @@ func TestSpreadGenerationStaleProcessAdoptsNewerDiskSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "newer")
+}
+
+func TestSpreadGenerationSameSequenceUsesPrivateStaging(t *testing.T) {
+	top := t.TempDir()
+	first, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("complete")}}
+	manifest, err := spreadcache.NewManifest(10, messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.begin(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.put(10, messages[0].Subject, messages[0].Data); err != nil {
+		t.Fatal(err)
+	}
+	firstStaging := first.staging
+	if err := second.begin(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if firstStaging == second.staging {
+		t.Fatal("overlapping receivers shared a staging directory")
+	}
+	assertSpreadFile(t, filepath.Join(firstStaging, "creative", "7"), "complete")
+	if err := first.commit(10); err != nil {
+		t.Fatal(err)
+	}
+	root, err := spreadcache.Resolve(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "complete")
+	if err := second.put(10, messages[0].Subject, messages[0].Data); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.commit(10); err != nil {
+		t.Fatal(err)
+	}
+	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "complete")
 }
 
 func TestSpreadGenerationIgnoresLegacyMutationAfterActivation(t *testing.T) {
