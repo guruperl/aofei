@@ -67,18 +67,26 @@ At the freeze:
 1. Remove auction nodes from admission and stop cache publication, callback,
    interval/daily ledger, accounting, hosted-payment execution, and all
    management writers. Preserve read access only.
-2. Take a consistent encrypted MySQL dump with routines/triggers and a Redis
-   snapshot in access-controlled storage outside Git. Record checksums, sizes,
-   source commit/config, `acct_contract`, schema inventory, cache generation,
-   last admitted request time, and all singleton high-water marks.
-3. Restore the same frozen dump twice in isolation. One untouched restore is
+2. Take a consistent encrypted physical MySQL backup plus a Redis snapshot in
+   access-controlled storage outside Git. The chosen MySQL backup must preserve
+   the legacy IEEE-754 payloads exactly; a default logical `mysqldump` is not
+   sufficient because its rendered `FLOAT` text can restore to different
+   target-scale values. Record checksums, sizes, backup-tool/version and restore
+   procedure, source commit/config, `acct_contract`, schema inventory, cache
+   generation, last admitted request time, and all singleton high-water marks.
+3. Restore the same frozen backup twice in isolation. One untouched restore is
    the rollback proof. Run `etc/a03_exact_money_migration.sql` only on the
-   comparison restore.
+   comparison restore. Its executable preflight requires the exact v2
+   singleton, report default, 21 historical float columns, two already-exact
+   four-place route minimums, and no prior evidence table; a partial or v3
+   source fails before durable mutation.
 4. Compare every primary-key/column tuple in the authority inventory, not only
    table sums. Compare the old database-rendered value at the target scale to
    the migrated decimal and retain a digest plus row counts. Review every
    `money_migration_evidence` row and require zero `Quarantined` rows before
-   activation.
+   activation. Values outside signed 64-bit nano-USD or supported CPM range are
+   quarantined and stop the script before column or contract promotion. Restore
+   the frozen source and resolve them; do not retry the partial database.
 
 Tolerance is source-specific and applies only to an
 `LegacyRenderedHalfAway` row recovered from pre-v3 IEEE-754 storage:
@@ -90,21 +98,26 @@ Tolerance is source-specific and applies only to an
 - `AlreadyExact`, every new v3 mutation, cross-table totals, statements, and
   provider cents have zero tolerance. A tolerance is never permission to
   rewrite an exact source or make totals balance.
+- The pre-v3 `mid_route_group.min_margin_cpm` and
+  `mid_route_bidder.min_margin_cpm` columns were already exact
+  `DECIMAL(10,4)` values. Their evidence is `AlreadyExact` with zero
+  discrepancy even though v3 widens their supported scale to six places.
 
 `scripts/aofei-exact-money-drill.sh` rehearses this contract using only
 synthetic data and three uniquely named disposable MySQL containers. It creates
-a deterministic pre-v3 fixture, takes and checksum-verifies one frozen dump,
-proves an untouched restore, migrates a second restore, compares all affected
+a deterministic pre-v3 fixture, takes and checksum-verifies one stopped
+physical data-directory backup, proves an untouched restore, migrates a second
+restore, compares all affected
 source tuples, validates evidence/tolerances/schema/contract, and exercises the
 duplicate reservation, ledger, statement, and provider-event guards. Its
-owner-only temporary dump is deleted on exit and is not production evidence:
+owner-only temporary backup is deleted on exit and is not production evidence:
 
 ```bash
 ./scripts/aofei-exact-money-drill.sh
 ```
 
 Archive the production comparison manifest in the approved financial change
-record. Store no customer rows, dump fragments, provider tokens, or Redis keys
+record. Store no customer rows, backup fragments, provider tokens, or Redis keys
 in Git, chat, logs, or tickets.
 
 ## Canary and activation

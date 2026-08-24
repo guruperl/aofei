@@ -735,7 +735,9 @@ untouched rollback restore, and one migrated restore. The drill hashes every
 affected primary-key/column value at its target scale, checks all migration
 evidence and legacy-only discrepancy bounds, asserts the active v3 schema and
 contract, and runs focused duplicate reservation/ledger/statement/provider
-tests. Its owner-only synthetic dump is checksum-verified and deleted on exit;
+tests. Its owner-only stopped physical backup is checksum-verified and deleted
+on exit; a default logical `mysqldump` is intentionally not used because it can
+change restored legacy `FLOAT` values at A03's target scale. The
 production comparison and backups remain external operator evidence.
 
 Schema baseline verification:

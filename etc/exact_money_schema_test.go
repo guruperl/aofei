@@ -45,3 +45,30 @@ func TestA03AuthoritativeMoneyColumnsAreExact(t *testing.T) {
 		}
 	}
 }
+
+func TestA03OfflineMigrationFailsClosedBeforePromotion(t *testing.T) {
+	data, err := os.ReadFile("a03_exact_money_migration.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	migration := string(data)
+	for _, required := range []string{
+		"a03_exact_money_migration_requires_an_unmodified_frozen_v2_source",
+		"unit_version='usd-cpm-impression-v2'",
+		"table_name='money_migration_evidence'",
+		"9223372036.854775807",
+		"-9223372036.854775808",
+		"source_already_exact",
+		"a03_exact_money_migration_requires_zero_quarantined_sources",
+	} {
+		if !strings.Contains(migration, required) {
+			t.Errorf("offline migration is missing fail-closed contract %q", required)
+		}
+	}
+	if strings.Index(migration, "a03_exact_money_migration_requires_an_unmodified_frozen_v2_source") > strings.Index(migration, "CREATE TABLE IF NOT EXISTS `money_migration_evidence`") {
+		t.Fatal("offline migration mutates durable evidence before its v2 preflight")
+	}
+	if strings.Index(migration, "a03_exact_money_migration_requires_zero_quarantined_sources") > strings.Index(migration, "ALTER TABLE adv_item MODIFY cost") {
+		t.Fatal("offline migration alters authoritative columns before its quarantine gate")
+	}
+}

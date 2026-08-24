@@ -3,7 +3,7 @@ set -euo pipefail
 
 # A03 frozen-backup migration and rollback rehearsal. It creates only uniquely
 # named disposable MySQL containers and an owner-only temporary directory. It
-# never reads configured or production databases, and its synthetic dump is
+# never reads configured or production databases, and its synthetic backup is
 # destroyed on exit.
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -12,13 +12,17 @@ DRILL_ID="${RANDOM}-$$"
 LEGACY_CONTAINER="aofei-a03-legacy-$DRILL_ID"
 ROLLBACK_CONTAINER="aofei-a03-rollback-$DRILL_ID"
 MIGRATED_CONTAINER="aofei-a03-migrated-$DRILL_ID"
-DRILL_DIR=$(mktemp -d /tmp/aofei-a03-money.XXXXXX)
+DRILL_DIR=$(mktemp -d /var/tmp/aofei-a03-money.XXXXXX)
 MYSQL_PASSWORD=a03_drill_password
 
 cleanup_exact_money_drill() {
-	docker stop "$LEGACY_CONTAINER" "$ROLLBACK_CONTAINER" "$MIGRATED_CONTAINER" >/dev/null 2>&1 || true
-	if [[ "$DRILL_DIR" == /tmp/aofei-a03-money.* && -d "$DRILL_DIR" ]]; then
-		find "$DRILL_DIR" -depth -mindepth 1 -delete
+	docker rm -f "$LEGACY_CONTAINER" "$ROLLBACK_CONTAINER" "$MIGRATED_CONTAINER" >/dev/null 2>&1 || true
+	if [[ "$DRILL_DIR" == /var/tmp/aofei-a03-money.* && -d "$DRILL_DIR" ]]; then
+		# MySQL changes restored data ownership to its container uid. Remove only
+		# this validated disposable mount as container root, then remove the now
+		# empty owner directory on the host.
+		docker run --rm --entrypoint find -v "$DRILL_DIR:/cleanup" mysql:8.0.41 \
+			/cleanup -depth -mindepth 1 -delete >/dev/null 2>&1 || true
 		rmdir "$DRILL_DIR"
 	fi
 }
@@ -46,10 +50,18 @@ wait_for_mysql() {
 
 start_mysql() {
 	local container_name=$1
-	docker run --rm -d --name "$container_name" \
-		-e MYSQL_ROOT_PASSWORD="$MYSQL_PASSWORD" \
-		-e MYSQL_DATABASE=aofei \
-		mysql:8.0.41 >/dev/null
+	local data_dir=${2:-}
+	if [[ -n "$data_dir" ]]; then
+		docker run -d --name "$container_name" \
+			-v "$data_dir:/var/lib/mysql" \
+			-e MYSQL_ROOT_PASSWORD="$MYSQL_PASSWORD" \
+			mysql:8.0.41 >/dev/null
+	else
+		docker run -d --name "$container_name" \
+			-e MYSQL_ROOT_PASSWORD="$MYSQL_PASSWORD" \
+			-e MYSQL_DATABASE=aofei \
+			mysql:8.0.41 >/dev/null
+	fi
 	wait_for_mysql "$container_name"
 }
 
@@ -108,21 +120,21 @@ DROP TABLE money_migration_evidence;
 UPDATE acct_contract SET unit_version='usd-cpm-impression-v2',effective_at='2026-08-01 00:00:00',
  notes='A03 synthetic legacy source' WHERE contract_id=1;
 ALTER TABLE adv_item MODIFY cost DOUBLE NULL;
-ALTER TABLE pub_slot MODIFY bidfloor DOUBLE NULL DEFAULT 0;
-ALTER TABLE adv_balance MODIFY limit_spend DOUBLE NULL,MODIFY current_spend DOUBLE NULL DEFAULT 0;
-ALTER TABLE his_balance MODIFY budget_old DOUBLE NOT NULL,MODIFY budget_add DOUBLE NOT NULL,MODIFY budget_new DOUBLE NOT NULL;
-ALTER TABLE ledger_log MODIFY spend DOUBLE NULL;
-ALTER TABLE ledger_adv MODIFY spend DOUBLE NULL;
-ALTER TABLE ledger_pub MODIFY spend DOUBLE NULL;
-ALTER TABLE ledger_pub_adv MODIFY spend DOUBLE NULL;
-ALTER TABLE ledger_mid MODIFY charge_spend DOUBLE NULL DEFAULT 0,MODIFY pay_spend DOUBLE NULL DEFAULT 0,MODIFY margin_spend DOUBLE NULL DEFAULT 0;
-ALTER TABLE daily_log MODIFY spend DOUBLE NULL;
-ALTER TABLE daily_adv MODIFY spend DOUBLE NULL;
-ALTER TABLE daily_pub MODIFY spend DOUBLE NULL;
-ALTER TABLE daily_pub_adv MODIFY spend DOUBLE NULL;
-ALTER TABLE daily_mid MODIFY charge_spend DOUBLE NULL DEFAULT 0,MODIFY pay_spend DOUBLE NULL DEFAULT 0,MODIFY margin_spend DOUBLE NULL DEFAULT 0;
-ALTER TABLE mid_route_group MODIFY min_margin_cpm DOUBLE NOT NULL DEFAULT 0;
-ALTER TABLE mid_route_bidder MODIFY min_margin_cpm DOUBLE NULL;
+ALTER TABLE pub_slot MODIFY bidfloor FLOAT NULL DEFAULT 0;
+ALTER TABLE adv_balance MODIFY limit_spend FLOAT NULL,MODIFY current_spend FLOAT NULL DEFAULT 0;
+ALTER TABLE his_balance MODIFY budget_old FLOAT NOT NULL,MODIFY budget_add FLOAT NOT NULL,MODIFY budget_new FLOAT NOT NULL;
+ALTER TABLE ledger_log MODIFY spend FLOAT NULL;
+ALTER TABLE ledger_adv MODIFY spend FLOAT NULL;
+ALTER TABLE ledger_pub MODIFY spend FLOAT NULL;
+ALTER TABLE ledger_pub_adv MODIFY spend FLOAT NULL;
+ALTER TABLE ledger_mid MODIFY charge_spend FLOAT NULL DEFAULT 0,MODIFY pay_spend FLOAT NULL DEFAULT 0,MODIFY margin_spend FLOAT NULL DEFAULT 0;
+ALTER TABLE daily_log MODIFY spend FLOAT NULL;
+ALTER TABLE daily_adv MODIFY spend FLOAT NULL;
+ALTER TABLE daily_pub MODIFY spend FLOAT NULL;
+ALTER TABLE daily_pub_adv MODIFY spend FLOAT NULL;
+ALTER TABLE daily_mid MODIFY charge_spend FLOAT NULL DEFAULT 0,MODIFY pay_spend FLOAT NULL DEFAULT 0,MODIFY margin_spend FLOAT NULL DEFAULT 0;
+ALTER TABLE mid_route_group MODIFY min_margin_cpm DECIMAL(10,4) NOT NULL DEFAULT 0.0000;
+ALTER TABLE mid_route_bidder MODIFY min_margin_cpm DECIMAL(10,4) NULL;
 ALTER TABLE report_delivery ALTER accounting_version SET DEFAULT 'usd-cpm-impression-v2';
 
 UPDATE adv_item SET cost=1.234567 WHERE item_id=1;
@@ -136,10 +148,10 @@ INSERT INTO adv_bidder (adv_id,bidder_name,endpoint_url,credential_status,active
 VALUES (1,'A03 comparison bidder','https://bidder.example.test/openrtb','Active','No',UTC_TIMESTAMP());
 SET @bidder_id=LAST_INSERT_ID();
 INSERT INTO mid_route_group (group_name,trigger_mode,total_timeout_ms,margin_pct,min_margin_cpm,active,created)
-VALUES ('A03 comparison route','Fallback',100,0.1000,0.012345,'No',UTC_TIMESTAMP());
+VALUES ('A03 comparison route','Fallback',100,0.1000,0.0123,'No',UTC_TIMESTAMP());
 SET @group_id=LAST_INSERT_ID();
 INSERT INTO mid_route_bidder (group_id,bidder_id,priority,min_margin_cpm,active,created)
-VALUES (@group_id,@bidder_id,100,0.006789,'No',UTC_TIMESTAMP());
+VALUES (@group_id,@bidder_id,100,0.0068,'No',UTC_TIMESTAMP());
 SET @route_bidder_id=LAST_INSERT_ID();
 
 INSERT INTO ledger_log (timely,spend,imps,clis,created)
@@ -183,19 +195,27 @@ VALUES ('a03-double-proof','advertiser',1,'daily','2026-08-24','2026-08-24','USD
 SQL
 
 LEGACY_DIGEST=$(comparison_digest "$LEGACY_CONTAINER")
-DUMP_FILE="$DRILL_DIR/aofei-v2.sql"
-CHECKSUM_FILE="$DRILL_DIR/aofei-v2.sql.sha256"
-docker exec "$LEGACY_CONTAINER" mysqldump -uroot -p"$MYSQL_PASSWORD" \
-	--single-transaction --routines --triggers --events --hex-blob --skip-comments aofei > "$DUMP_FILE"
+LEGACY_DEBUG=$(mysql_exec "$LEGACY_CONTAINER" "SELECT CONCAT('item=',CAST(cost AS DECIMAL(12,6)),' floor=',CAST(bidfloor AS DECIMAL(12,6))) FROM adv_item CROSS JOIN pub_slot WHERE item_id=1 AND slot_id=1; SELECT CONCAT('balance=',CAST(limit_spend AS DECIMAL(20,9)),'/',CAST(current_spend AS DECIMAL(20,9))) FROM adv_balance ORDER BY balance_id DESC LIMIT 1; SELECT CONCAT('history=',CAST(budget_old AS DECIMAL(20,9)),'/',CAST(budget_add AS DECIMAL(20,9)),'/',CAST(budget_new AS DECIMAL(20,9))) FROM his_balance ORDER BY his_balance_id DESC LIMIT 1; SELECT CONCAT('ledger=',CAST(spend AS DECIMAL(20,9))) FROM ledger_log ORDER BY log_id DESC LIMIT 1; SELECT CONCAT('daily=',CAST(spend AS DECIMAL(20,9))) FROM daily_log ORDER BY log_id DESC LIMIT 1;")
+DUMP_FILE="$DRILL_DIR/aofei-v2-physical.tar"
+CHECKSUM_FILE="$DRILL_DIR/aofei-v2-physical.tar.sha256"
+SOURCE_DATA="$DRILL_DIR/source-data"
+ROLLBACK_DATA="$DRILL_DIR/rollback-data"
+MIGRATED_DATA="$DRILL_DIR/migrated-data"
+docker stop "$LEGACY_CONTAINER" >/dev/null
+mkdir -p "$SOURCE_DATA" "$ROLLBACK_DATA" "$MIGRATED_DATA"
+docker cp "$LEGACY_CONTAINER:/var/lib/mysql/." "$SOURCE_DATA"
+tar -C "$SOURCE_DATA" -cf "$DUMP_FILE" .
 test -s "$DUMP_FILE"
 sha256sum "$DUMP_FILE" > "$CHECKSUM_FILE"
 (cd "$DRILL_DIR" && sha256sum --check "$(basename "$CHECKSUM_FILE")") >/dev/null
 
-docker stop "$LEGACY_CONTAINER" >/dev/null
-start_mysql "$ROLLBACK_CONTAINER"
-docker exec -i "$ROLLBACK_CONTAINER" mysql -uroot -p"$MYSQL_PASSWORD" aofei < "$DUMP_FILE"
+tar -C "$ROLLBACK_DATA" -xf "$DUMP_FILE"
+tar -C "$MIGRATED_DATA" -xf "$DUMP_FILE"
+start_mysql "$ROLLBACK_CONTAINER" "$ROLLBACK_DATA"
 if [[ $(comparison_digest "$ROLLBACK_CONTAINER") != "$LEGACY_DIGEST" ]]; then
-	echo "frozen-backup rollback changed legacy monetary sources" >&2
+	echo "frozen-backup rollback changed legacy monetary sources: source=$LEGACY_DIGEST restore=$(comparison_digest "$ROLLBACK_CONTAINER")" >&2
+	echo "legacy_money_debug source=$LEGACY_DEBUG" >&2
+	echo "legacy_money_debug restore=$(mysql_exec "$ROLLBACK_CONTAINER" "SELECT CONCAT('item=',CAST(cost AS DECIMAL(12,6)),' floor=',CAST(bidfloor AS DECIMAL(12,6))) FROM adv_item CROSS JOIN pub_slot WHERE item_id=1 AND slot_id=1; SELECT CONCAT('balance=',CAST(limit_spend AS DECIMAL(20,9)),'/',CAST(current_spend AS DECIMAL(20,9))) FROM adv_balance ORDER BY balance_id DESC LIMIT 1; SELECT CONCAT('history=',CAST(budget_old AS DECIMAL(20,9)),'/',CAST(budget_add AS DECIMAL(20,9)),'/',CAST(budget_new AS DECIMAL(20,9))) FROM his_balance ORDER BY his_balance_id DESC LIMIT 1; SELECT CONCAT('ledger=',CAST(spend AS DECIMAL(20,9))) FROM ledger_log ORDER BY log_id DESC LIMIT 1; SELECT CONCAT('daily=',CAST(spend AS DECIMAL(20,9))) FROM daily_log ORDER BY log_id DESC LIMIT 1;")" >&2
 	exit 1
 fi
 if [[ $(mysql_exec "$ROLLBACK_CONTAINER" "SELECT unit_version FROM acct_contract WHERE contract_id=1") != "usd-cpm-impression-v2" ]]; then
@@ -203,8 +223,7 @@ if [[ $(mysql_exec "$ROLLBACK_CONTAINER" "SELECT unit_version FROM acct_contract
 	exit 1
 fi
 
-start_mysql "$MIGRATED_CONTAINER"
-docker exec -i "$MIGRATED_CONTAINER" mysql -uroot -p"$MYSQL_PASSWORD" aofei < "$DUMP_FILE"
+start_mysql "$MIGRATED_CONTAINER" "$MIGRATED_DATA"
 docker exec -i "$MIGRATED_CONTAINER" mysql -uroot -p"$MYSQL_PASSWORD" aofei < etc/a03_exact_money_migration.sql
 MIGRATED_DIGEST=$(comparison_digest "$MIGRATED_CONTAINER")
 if [[ "$MIGRATED_DIGEST" != "$LEGACY_DIGEST" ]]; then
@@ -234,18 +253,17 @@ EVIDENCE_RESULT=$(mysql_exec "$MIGRATED_CONTAINER" "
 SELECT CONCAT(COUNT(*),':',SUM(conversion_rule='Quarantined'),':',
  COALESCE(MAX(CASE WHEN conversion_rule='LegacyRenderedHalfAway' AND
    ((source_table='adv_item' AND source_column='cost') OR
-    (source_table='pub_slot' AND source_column='bidfloor') OR
-    (source_table IN ('mid_route_group','mid_route_bidder') AND source_column='min_margin_cpm'))
+    (source_table='pub_slot' AND source_column='bidfloor'))
    THEN ABS(discrepancy) ELSE 0 END),0),':',
  COALESCE(MAX(CASE WHEN conversion_rule='LegacyRenderedHalfAway' AND NOT
    ((source_table='adv_item' AND source_column='cost') OR
-    (source_table='pub_slot' AND source_column='bidfloor') OR
-    (source_table IN ('mid_route_group','mid_route_bidder') AND source_column='min_margin_cpm'))
+    (source_table='pub_slot' AND source_column='bidfloor'))
    THEN ABS(discrepancy) ELSE 0 END),0),':',
- SUM(conversion_rule<>'LegacyRenderedHalfAway' AND COALESCE(discrepancy,0)<>0))
+ SUM(conversion_rule<>'LegacyRenderedHalfAway' AND COALESCE(discrepancy,0)<>0),':',
+ SUM(source_table IN ('mid_route_group','mid_route_bidder') AND source_column='min_margin_cpm' AND conversion_rule='AlreadyExact'))
 FROM money_migration_evidence;" )
-IFS=: read -r evidence_count quarantined max_legacy_cpm_discrepancy max_legacy_amount_discrepancy nonlegacy_discrepancy <<<"$EVIDENCE_RESULT"
-if [[ "$evidence_count" != 26 || "$quarantined" != 0 || "$nonlegacy_discrepancy" != 0 ]]; then
+IFS=: read -r evidence_count quarantined max_legacy_cpm_discrepancy max_legacy_amount_discrepancy nonlegacy_discrepancy exact_route_evidence <<<"$EVIDENCE_RESULT"
+if [[ "$evidence_count" != 26 || "$quarantined" != 0 || "$nonlegacy_discrepancy" != 0 || "$exact_route_evidence" != 2 ]]; then
 	echo "migration evidence mismatch: $EVIDENCE_RESULT" >&2
 	exit 1
 fi
@@ -255,6 +273,14 @@ if [[ $(mysql_exec "$MIGRATED_CONTAINER" "SELECT $max_legacy_cpm_discrepancy <= 
 fi
 if [[ $(mysql_exec "$MIGRATED_CONTAINER" "SELECT $max_legacy_amount_discrepancy <= 0.000000001") != 1 ]]; then
 	echo "legacy amount discrepancy exceeded one nano-USD target unit: $max_legacy_amount_discrepancy" >&2
+	exit 1
+fi
+if docker exec -i "$MIGRATED_CONTAINER" mysql -uroot -p"$MYSQL_PASSWORD" aofei < etc/a03_exact_money_migration.sql >/dev/null 2>&1; then
+	echo "v3 database accepted a second migration run" >&2
+	exit 1
+fi
+if [[ $(comparison_digest "$MIGRATED_CONTAINER") != "$MIGRATED_DIGEST" ]]; then
+	echo "failed migration preflight changed exact monetary sources" >&2
 	exit 1
 fi
 if mysql_exec "$MIGRATED_CONTAINER" "INSERT INTO ledger_log (timely,created) VALUES ('2026-08-24 12:00:00',UTC_TIMESTAMP())" >/dev/null 2>&1; then
@@ -275,4 +301,4 @@ GOWORK=off go test ./internal/jobs/ledger -run 'TestStatisticsAggregatesMinimumC
 GOWORK=off go test ./accounting -run 'TestCreateStatementIdempotentRetryDoesNotDuplicateAudit|TestNanoAggregateOverflowAndStatementRounding'
 GOWORK=off go test ./hostedpayment -run 'TestDuplicateWebhookDoesNotRepeatSideEffects|TestProviderRetriesOnlySanitizedRetryableErrorsWithSameKey'
 
-echo "exact_money_drill=passed source_digest=$LEGACY_DIGEST evidence_rows=$evidence_count quarantined=$quarantined max_legacy_cpm_discrepancy=$max_legacy_cpm_discrepancy max_legacy_amount_discrepancy=$max_legacy_amount_discrepancy contract=usd-cpm-impression-v3 dump_sha256=$(cut -d' ' -f1 "$CHECKSUM_FILE")"
+echo "exact_money_drill=passed source_digest=$LEGACY_DIGEST evidence_rows=$evidence_count quarantined=$quarantined max_legacy_cpm_discrepancy=$max_legacy_cpm_discrepancy max_legacy_amount_discrepancy=$max_legacy_amount_discrepancy contract=usd-cpm-impression-v3 backup_sha256=$(cut -d' ' -f1 "$CHECKSUM_FILE")"

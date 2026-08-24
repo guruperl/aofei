@@ -5,6 +5,40 @@
 -- not DROP the evidence table on retry. MySQL DDL is not transactional; a
 -- failed run must be restored from the frozen backup before retry.
 
+-- Fail before any durable mutation unless this is the one reviewed v2 source
+-- shape. A rerun against v3, a partial prior attempt, or a different legacy
+-- schema must be restored/reviewed instead of guessed through.
+SELECT COUNT(*)=23 AND SUM(CASE
+  WHEN table_name='adv_item' AND column_name='cost' AND data_type='double' THEN 1
+  WHEN table_name='pub_slot' AND column_name='bidfloor' AND data_type='float' THEN 1
+  WHEN table_name='adv_balance' AND column_name IN ('limit_spend','current_spend') AND data_type='float' THEN 1
+  WHEN table_name='his_balance' AND column_name IN ('budget_old','budget_add','budget_new') AND data_type='float' THEN 1
+  WHEN table_name IN ('ledger_log','ledger_adv','ledger_pub','ledger_pub_adv','daily_log','daily_adv','daily_pub','daily_pub_adv') AND column_name='spend' AND data_type='float' THEN 1
+  WHEN table_name IN ('ledger_mid','daily_mid') AND column_name IN ('charge_spend','pay_spend','margin_spend') AND data_type='float' THEN 1
+  WHEN table_name IN ('mid_route_group','mid_route_bidder') AND column_name='min_margin_cpm'
+       AND data_type='decimal' AND numeric_precision=10 AND numeric_scale=4 THEN 1
+  ELSE 0 END)=23 INTO @a03_source_types_ok
+FROM information_schema.columns
+WHERE table_schema=DATABASE() AND (
+  (table_name='adv_item' AND column_name='cost') OR
+  (table_name='pub_slot' AND column_name='bidfloor') OR
+  (table_name='adv_balance' AND column_name IN ('limit_spend','current_spend')) OR
+  (table_name='his_balance' AND column_name IN ('budget_old','budget_add','budget_new')) OR
+  (table_name IN ('ledger_log','ledger_adv','ledger_pub','ledger_pub_adv','daily_log','daily_adv','daily_pub','daily_pub_adv') AND column_name='spend') OR
+  (table_name IN ('ledger_mid','daily_mid') AND column_name IN ('charge_spend','pay_spend','margin_spend')) OR
+  (table_name IN ('mid_route_group','mid_route_bidder') AND column_name='min_margin_cpm'));
+SET @a03_preflight_ok =
+  @a03_source_types_ok AND
+  (SELECT COUNT(*) FROM acct_contract WHERE contract_id=1 AND unit_version='usd-cpm-impression-v2')=1 AND
+  (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='money_migration_evidence')=0 AND
+  (SELECT column_default='usd-cpm-impression-v2' FROM information_schema.columns
+    WHERE table_schema=DATABASE() AND table_name='report_delivery' AND column_name='accounting_version');
+SET @a03_preflight_sql = IF(@a03_preflight_ok, 'DO 0',
+  'SELECT a03_exact_money_migration_requires_an_unmodified_frozen_v2_source');
+PREPARE a03_preflight_statement FROM @a03_preflight_sql;
+EXECUTE a03_preflight_statement;
+DEALLOCATE PREPARE a03_preflight_statement;
+
 CREATE TABLE IF NOT EXISTS `money_migration_evidence` (
   `evidence_id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `contract_version` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -33,7 +67,8 @@ CREATE PROCEDURE a03_capture_legacy_money(
   IN source_pk_name VARCHAR(64),
   IN source_column_name VARCHAR(64),
   IN target_scale TINYINT UNSIGNED,
-  IN require_nonnegative BOOLEAN
+  IN require_nonnegative BOOLEAN,
+  IN source_already_exact BOOLEAN
 )
 BEGIN
   IF source_table_name NOT REGEXP '^[a-z0-9_]+$' OR
@@ -43,8 +78,11 @@ BEGIN
   THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='invalid A03 evidence source'; END IF;
   SET @a03_target_type = IF(target_scale=6, 'DECIMAL(12,6)', 'DECIMAL(20,9)');
   SET @a03_source = CONCAT('`',source_column_name,'`');
-  SET @a03_invalid = IF(require_nonnegative,
-    CONCAT(@a03_source,' < 0'), 'FALSE');
+  SET @a03_minimum = IF(require_nonnegative, '0',
+    IF(target_scale=9, '-9223372036.854775808', '-999999.999999'));
+  SET @a03_maximum = IF(target_scale=9, '9223372036.854775807', '999999.999999');
+  SET @a03_invalid = CONCAT(@a03_source,' < ',@a03_minimum,
+    ' OR ',@a03_source,' > ',@a03_maximum);
   SET @a03_evidence_sql = CONCAT(
     'INSERT INTO money_migration_evidence ',
     '(contract_version,source_table,source_pk,source_column,legacy_value,',
@@ -56,8 +94,10 @@ BEGIN
       @a03_source,' AS ',@a03_target_type,') END,',
     'CASE WHEN ',@a03_source,' IS NULL THEN ',QUOTE('AlreadyExact'),
       ' WHEN ',@a03_invalid,' THEN ',QUOTE('Quarantined'),
+      ' WHEN ',IF(source_already_exact,'TRUE','FALSE'),' THEN ',QUOTE('AlreadyExact'),
       ' ELSE ',QUOTE('LegacyRenderedHalfAway'),' END,',
-    'CASE WHEN ',@a03_source,' IS NULL OR ',@a03_invalid,' THEN NULL ELSE CAST(CAST(',
+    'CASE WHEN ',@a03_source,' IS NULL OR ',@a03_invalid,' THEN NULL WHEN ',
+      IF(source_already_exact,'TRUE','FALSE'),' THEN 0 ELSE CAST(CAST(',
       @a03_source,' AS ',@a03_target_type,')-',@a03_source,' AS DECIMAL(20,9)) END,NOW(6) ',
     'FROM `',source_table_name,'` ON DUPLICATE KEY UPDATE evidence_id=evidence_id');
   PREPARE a03_evidence_statement FROM @a03_evidence_sql;
@@ -81,13 +121,6 @@ SELECT 'usd-cpm-impression-v3', 'adv_item', CAST(item_id AS CHAR), 'cost',
 FROM adv_item
 ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
 
--- Unsupported commercial models remain excluded and cannot enter the v3
--- active cache. Their rendered legacy value is retained above.
-UPDATE adv_item
-SET active='Pause'
-WHERE active IN ('Yes','New','Pass2')
-  AND (cost_type <> 'CPM' OR cost IS NULL OR cost < 0.000001 OR cost > 999999.999999);
-
 INSERT INTO money_migration_evidence
   (contract_version, source_table, source_pk, source_column, legacy_value,
    converted_value, conversion_rule, discrepancy, created_at)
@@ -103,28 +136,38 @@ SELECT 'usd-cpm-impression-v3', 'pub_slot', CAST(slot_id AS CHAR), 'bidfloor',
 FROM pub_slot
 ON DUPLICATE KEY UPDATE evidence_id=evidence_id;
 
-CALL a03_capture_legacy_money('adv_balance','balance_id','limit_spend',9,TRUE);
-CALL a03_capture_legacy_money('adv_balance','balance_id','current_spend',9,TRUE);
-CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_old',9,TRUE);
-CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_add',9,FALSE);
-CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_new',9,TRUE);
-CALL a03_capture_legacy_money('ledger_log','log_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('ledger_adv','la_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('ledger_pub','lp_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('ledger_pub_adv','lpa_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('ledger_mid','lm_id','charge_spend',9,TRUE);
-CALL a03_capture_legacy_money('ledger_mid','lm_id','pay_spend',9,TRUE);
-CALL a03_capture_legacy_money('ledger_mid','lm_id','margin_spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_log','log_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_adv','la_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_pub','lp_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_pub_adv','lpa_id','spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_mid','lm_id','charge_spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_mid','lm_id','pay_spend',9,TRUE);
-CALL a03_capture_legacy_money('daily_mid','lm_id','margin_spend',9,TRUE);
-CALL a03_capture_legacy_money('mid_route_group','group_id','min_margin_cpm',6,TRUE);
-CALL a03_capture_legacy_money('mid_route_bidder','route_bidder_id','min_margin_cpm',6,TRUE);
+CALL a03_capture_legacy_money('adv_balance','balance_id','limit_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('adv_balance','balance_id','current_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_old',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_add',9,FALSE,FALSE);
+CALL a03_capture_legacy_money('his_balance','his_balance_id','budget_new',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_log','log_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_adv','la_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_pub','lp_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_pub_adv','lpa_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_mid','lm_id','charge_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_mid','lm_id','pay_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('ledger_mid','lm_id','margin_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_log','log_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_adv','la_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_pub','lp_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_pub_adv','lpa_id','spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_mid','lm_id','charge_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_mid','lm_id','pay_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('daily_mid','lm_id','margin_spend',9,TRUE,FALSE);
+CALL a03_capture_legacy_money('mid_route_group','group_id','min_margin_cpm',6,TRUE,TRUE);
+CALL a03_capture_legacy_money('mid_route_bidder','route_bidder_id','min_margin_cpm',6,TRUE,TRUE);
 DROP PROCEDURE a03_capture_legacy_money;
+
+-- Evidence is deliberately durable, but a quarantined source cannot be
+-- converted, paused, or promoted to v3. Restore the frozen backup, resolve the
+-- source, and start the reviewed migration again.
+SET @a03_quarantine_sql = IF(
+  (SELECT COUNT(*) FROM money_migration_evidence WHERE contract_version='usd-cpm-impression-v3' AND conversion_rule='Quarantined')=0,
+  'DO 0', 'SELECT a03_exact_money_migration_requires_zero_quarantined_sources');
+PREPARE a03_quarantine_statement FROM @a03_quarantine_sql;
+EXECUTE a03_quarantine_statement;
+DEALLOCATE PREPARE a03_quarantine_statement;
 
 ALTER TABLE adv_item MODIFY cost DECIMAL(12,6) NULL;
 ALTER TABLE pub_slot MODIFY bidfloor DECIMAL(12,6) NULL DEFAULT 0.000000;
