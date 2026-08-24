@@ -156,3 +156,16 @@ atomic generation publication with partial live writes.
     canonical publisher subject grammar and uses the shared durable writer with
     a `0750` parent and `0640` snapshot. Focused tests cover mode, content, and
     traversal rejection.
+
+- Iteration 7 (2026-08-24): three P2 findings remain open.
+  - P2 open: `begin` removes the prior active staging directory before the
+    higher generation is prepared. If preparation fails, the old manifest and
+    `seen` map remain active and a later commit can select a missing or partial
+    directory.
+  - P2 open: fresh-node bootstrap snapshots Redis after only a pre-bootstrap
+    committed-state check. A spread-only publisher can complete while bootstrap
+    waits for the shared lease, after which older Redis content is assigned a
+    higher sequence and replaces the fresher subscribed generation.
+  - P2 open: the supported route-only cache refresh writes the legacy and v2
+    live route keys in separate commands, exposing mixed route generations to
+    old and current consumers despite the atomic static-publication contract.
