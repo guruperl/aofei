@@ -27,6 +27,7 @@ import (
 	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/maxmind"
+	"github.com/guruperl/aofei/publisherauth"
 	"github.com/guruperl/aofei/trafficquality"
 )
 
@@ -40,44 +41,48 @@ const (
 )
 
 type Controller struct {
-	C                      *Config
-	Ips                    *maxmind.IPSearch
-	Redis                  radix.Client
-	DB                     *sql.DB
-	Nc                     *nats.Conn
-	Logger                 *zap.Logger
-	IsLocal                bool
-	localMu                sync.Mutex
-	local                  *localStaticCache
-	localReloadMu          sync.Mutex
-	localReloadCancel      context.CancelFunc
-	localReloadDone        chan struct{}
-	localReloadInterval    time.Duration
-	auditMu                sync.Mutex
-	audit                  *auditPublisher
-	auditClosed            bool
-	auditFactory           func(*nats.Conn, int) *auditPublisher
-	client                 *http.Client
-	middlemanStore         middlemanCallbackStore
-	callbackURLGuard       func(context.Context, string) error
-	middlemanRuntime       middlemanRuntime
-	middlemanRoute         atomic.Pointer[middlemanRouteState]
-	middlemanRouteMu       sync.Mutex
-	middlemanRouteWait     chan struct{}
-	middlemanRouteLoad     func(context.Context) (*match.MiddlemanRouteCache, error)
-	middlemanRouteNow      func() time.Time
-	middlemanRouteWaitHook func()
-	trackingEventOnce      func(context.Context, Status, url.Values, time.Duration) (bool, error)
-	publishWinLossFunc     func([]byte) error
-	qualityService         *trafficquality.Service
-	qualitySnapshot        atomic.Pointer[trafficquality.Snapshot]
-	qualityReloadMu        sync.Mutex
-	qualityReloadCancel    context.CancelFunc
-	qualityReloadDone      chan struct{}
-	directTokens           *acl.DirectTokenCodec
-	ownRedis               bool
-	ownDB                  bool
-	ownNATS                bool
+	C                       *Config
+	Ips                     *maxmind.IPSearch
+	Redis                   radix.Client
+	DB                      *sql.DB
+	Nc                      *nats.Conn
+	Logger                  *zap.Logger
+	IsLocal                 bool
+	localMu                 sync.Mutex
+	local                   *localStaticCache
+	localReloadMu           sync.Mutex
+	localReloadCancel       context.CancelFunc
+	localReloadDone         chan struct{}
+	localReloadInterval     time.Duration
+	auditMu                 sync.Mutex
+	audit                   *auditPublisher
+	auditClosed             bool
+	auditFactory            func(*nats.Conn, int) *auditPublisher
+	client                  *http.Client
+	middlemanStore          middlemanCallbackStore
+	callbackURLGuard        func(context.Context, string) error
+	middlemanRuntime        middlemanRuntime
+	middlemanRoute          atomic.Pointer[middlemanRouteState]
+	middlemanRouteMu        sync.Mutex
+	middlemanRouteWait      chan struct{}
+	middlemanRouteLoad      func(context.Context) (*match.MiddlemanRouteCache, error)
+	middlemanRouteNow       func() time.Time
+	middlemanRouteWaitHook  func()
+	trackingEventOnce       func(context.Context, Status, url.Values, time.Duration) (bool, error)
+	publishWinLossFunc      func([]byte) error
+	qualityService          *trafficquality.Service
+	qualitySnapshot         atomic.Pointer[trafficquality.Snapshot]
+	qualityReloadMu         sync.Mutex
+	qualityReloadCancel     context.CancelFunc
+	qualityReloadDone       chan struct{}
+	directTokens            *acl.DirectTokenCodec
+	publisherAuth           *publisherauth.Service
+	publisherAuthReloadMu   sync.Mutex
+	publisherAuthCancel     context.CancelFunc
+	publisherAuthReloadDone chan struct{}
+	ownRedis                bool
+	ownDB                   bool
+	ownNATS                 bool
 }
 
 type controllerOptions struct {
@@ -295,6 +300,15 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 		ownRedis:       ownRedis,
 		ownDB:          ownDB,
 	}
+	publisherAuthService, err := publisherauth.NewService(c.DirectSSPAuth, db, redis)
+	if err != nil {
+		closeOwnedControllerStores(redis, db, ownRedis, ownDB)
+		return nil, fmt.Errorf("initialize direct SSP authentication: %w", err)
+	}
+	controller.publisherAuth = publisherAuthService
+	if publisherAuthService != nil {
+		metricSSPPublisherAuthLoadedAt.Set(publisherAuthService.SnapshotGeneratedAt().Unix())
+	}
 	qualityService := options.qualityService
 	if qualityService == nil {
 		qualityService, err = trafficquality.NewService(c.TrafficQuality, db)
@@ -354,6 +368,7 @@ func NewControllerWithOptions(ctx context.Context, filename string, opts ...Cont
 	}
 	controller.StartLocalStaticCacheReload()
 	controller.startQualityEnforcementRefresh()
+	controller.startPublisherAuthRefresh()
 
 	return controller, nil
 }
@@ -377,6 +392,7 @@ func applyControllerOptions(opts ...ControllerOption) controllerOptions {
 
 // Close closes the Controller.
 func (self *Controller) Close() {
+	self.stopPublisherAuthRefresh()
 	self.stopQualityEnforcementRefresh()
 	self.stopLocalStaticCacheReload()
 	self.auditMu.Lock()

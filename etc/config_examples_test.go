@@ -81,6 +81,13 @@ func TestAofeiExampleKeepsManagementAPIDisabledAndKeyOutOfJSON(t *testing.T) {
 			Enabled bool   `json:"enabled"`
 			KeyEnv  string `json:"key_env"`
 		} `json:"management_api"`
+		DirectSSPAuth struct {
+			Enabled                   bool `json:"enabled"`
+			RequestSkewSeconds        int  `json:"request_skew_seconds"`
+			CredentialRefreshSeconds  int  `json:"credential_refresh_seconds"`
+			CredentialMaxAgeSeconds   int  `json:"credential_max_age_seconds"`
+			RotationMaxOverlapSeconds int  `json:"rotation_max_overlap_seconds"`
+		} `json:"direct_ssp_auth"`
 		TrafficQuality struct {
 			Enabled                   bool   `json:"enabled"`
 			DigestKeyEnv              string `json:"digest_key_env"`
@@ -96,6 +103,14 @@ func TestAofeiExampleKeepsManagementAPIDisabledAndKeyOutOfJSON(t *testing.T) {
 	}
 	if strings.Contains(string(data), "w8m_v1_") {
 		t.Fatal("management API example contains a bearer credential")
+	}
+	if config.DirectSSPAuth.Enabled || config.DirectSSPAuth.RequestSkewSeconds != 300 ||
+		config.DirectSSPAuth.CredentialRefreshSeconds != 30 || config.DirectSSPAuth.CredentialMaxAgeSeconds != 120 ||
+		config.DirectSSPAuth.RotationMaxOverlapSeconds != 86400 {
+		t.Fatalf("direct SSP request authentication must remain default-off and bounded: %#v", config.DirectSSPAuth)
+	}
+	if strings.Contains(string(data), "w8m_pz_v1_") {
+		t.Fatal("direct SSP example contains a private publisher credential")
 	}
 	if config.TrafficQuality.Enabled || config.TrafficQuality.DigestKeyEnv != "TRAFFIC_QUALITY_DIGEST_KEY" ||
 		config.TrafficQuality.EnforcementRefreshSeconds != 30 || config.TrafficQuality.EnforcementMaxAgeSeconds != 120 {

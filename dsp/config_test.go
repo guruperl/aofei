@@ -52,6 +52,10 @@ func TestConfig(t *testing.T) {
 	if c.DirectSSPTokens.Enabled || c.DirectSSPTokens.LegacyReadMode != directSSPLegacyAllow {
 		t.Errorf("DirectSSPTokens defaults = enabled:%t legacy:%q", c.DirectSSPTokens.Enabled, c.DirectSSPTokens.LegacyReadMode)
 	}
+	if c.DirectSSPAuth.Enabled || c.DirectSSPAuth.RequestSkewSeconds != 300 ||
+		c.DirectSSPAuth.CredentialRefreshSeconds != 30 || c.DirectSSPAuth.CredentialMaxAgeSeconds != 120 {
+		t.Errorf("DirectSSPAuth defaults = %#v", c.DirectSSPAuth)
+	}
 	if c.CapStateTTLSeconds != 90*24*60*60 {
 		t.Errorf("CapStateTTLSeconds = %d, want 90 days", c.CapStateTTLSeconds)
 	}

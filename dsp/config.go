@@ -14,6 +14,7 @@ import (
 
 	"github.com/guruperl/aofei/hostedpayment"
 	"github.com/guruperl/aofei/managementapi"
+	"github.com/guruperl/aofei/publisherauth"
 	"github.com/guruperl/aofei/trafficquality"
 	"github.com/mediocregopher/radix/v4"
 )
@@ -36,6 +37,7 @@ type Config struct {
 	TrackingSecret              string                   `json:"tracking_secret,omitempty"`
 	TrackingSignatureTTLSeconds int                      `json:"tracking_signature_ttl_seconds,omitempty"`
 	DirectSSPTokens             DirectSSPTokenConfig     `json:"direct_ssp_tokens,omitempty"`
+	DirectSSPAuth               publisherauth.Config     `json:"direct_ssp_auth,omitempty"`
 	CapStateTTLSeconds          int                      `json:"cap_state_ttl_seconds,omitempty"`
 	ConnectArray                []string                 `json:"connect_array,omitempty"`
 	Spread                      string                   `json:"spread,omitempty"`
@@ -248,6 +250,7 @@ func NewConfig(filename string) (*Config, error) {
 	parsed.TrafficQuality = parsed.TrafficQuality.WithDefaults()
 	parsed.HostedPayments = parsed.HostedPayments.WithDefaults()
 	parsed.DirectSSPTokens = parsed.DirectSSPTokens.withDefaults()
+	parsed.DirectSSPAuth = parsed.DirectSSPAuth.WithDefaults()
 
 	if err := parsed.Validate(); err != nil {
 		return nil, err
@@ -403,6 +406,9 @@ func (self *Config) Validate(modes ...ConfigMode) error {
 		return err
 	}
 	if err := self.DirectSSPTokens.withDefaults().validate(); err != nil {
+		return err
+	}
+	if err := self.DirectSSPAuth.WithDefaults().Validate(); err != nil {
 		return err
 	}
 

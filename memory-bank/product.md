@@ -148,9 +148,10 @@ operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
 and quota-script work. D05 and S06 are now complete. P03 is in progress: its
-threat contract and default-off versioned locator codec/runtime dual reader are
-complete, while SDK/server authentication, enforcement, portal/cache
-integration, and rollout remain pending.
+threat contract, default-off versioned locator codec/runtime dual reader, and
+default-off SDK/server authentication are complete, while cross-path
+enforcement, client-claim review, portal/cache integration, and rollout remain
+pending.
 I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
 are complete and a named integration defines supported platforms and lifecycle
 requirements. Lane state and strict dependency order live in
@@ -234,8 +235,11 @@ The established runtime direction remains:
 	  legacy-disable gate. It prevents minting or modification but remains
 	  observable and replayable; exact browser
 	  Origin/Referer policy is provenance, not publisher proof. SDK/server
-	  traffic instead requires a publisher/App-scoped, body-bound, fresh,
-	  replay-protected credential. Both paths continue to fail closed against
+	  traffic can now require a publisher/App-scoped Ed25519 credential with an
+	  exact-body signature, bounded timestamp, and shared one-use Redis nonce.
+	  S02-scoped issue/rotation/revocation shows the private seed once, stores
+	  only the public verifier, and writes immutable lifecycle audits. The gate
+	  stays off until the remaining P03 rollout work. Both paths continue to fail closed against
 	  active cached inventory, and S02 sessions, I03 advertiser credentials, and
 	  `aofei_pz_uid` cannot substitute for runtime publisher authentication.
 - Root documentation should be short, current, and operational.

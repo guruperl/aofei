@@ -2,8 +2,10 @@
 
 本手册面向 Aofei / Winter DSP 的系统运维人员、值班人员和代码维护者。它把生产部署、日常任务、缓存、日志账务、监控、故障处理和变更验证汇总成一个中文入口。生产环境的主机清单、域名、证书、凭据、备份平台和告警系统仍由具体部署维护。
 
-原有 D/P/R/I/S/A/O 基线截至 A02 已完成；当前新增的评审整改顺序为 D04、P03、
-S05、O03、R03、A03。I02 原生 Android/iOS SDK 仍未实现，且须在 P03、S05
+原有 D/P/R/I/S/A/O 基线截至 A02 已完成；D04、D05 与 S06 已完成，当前评审
+整改从 P03 继续到 S05、O03、R03、A03。P03 的威胁契约、默认关闭的 v2 定位符
+读取器及 SDK/服务端请求认证已完成，其余执行与灰度任务仍未完成。I02 原生
+Android/iOS SDK 仍未实现，且须在 P03、S05
 完成并出现具名移动端集成需求后才可启动。D03 已实现但真实外部需求方流量须
 单独灰度；I03、S02、S03、A02 均为默认关闭的独立功能。任何生产启用都必须
 结合尚未完成的整改项评估风险。O02 定义了单区域目标和证据格式，但在没有命名
@@ -704,6 +706,7 @@ AOFEI=/etc/aofei/aofei.json \
 | 外部需求方回调转发结果与 retry `due` | 检查下游端点、网络、429/5xx 和任务吞吐。 |
 | `aofei_local_cache_loaded_at_unix`、`aofei_local_cache_age_seconds`、`aofei_local_cache_stale` | 本地静态缓存年龄；stale 时重载或重启。 |
 | `aofei_ssp_policy_rejections_total` | `/pz` 来源策略拒绝；结合 403 访问日志检查站点主机和代理。 |
+| `aofei_ssp_publisher_auth_snapshot_refreshes_total`、`aofei_ssp_publisher_auth_snapshot_refresh_errors_total`、`aofei_ssp_publisher_auth_snapshot_loaded_at_unix` | P03 SDK 公钥快照刷新和年龄；启用后刷新失败或超过最大年龄会让 SDK 请求以 `503` 关闭。 |
 
 基础设施还应监控 MySQL 连接/慢查询/磁盘、Redis 内存/淘汰/错误/客户端、NATS 可用性/订阅/丢消息、日志磁盘容量、systemd 重启次数、HTTP 延迟和错误率、证书有效期及节点时钟偏差。
 
@@ -718,12 +721,13 @@ AOFEI=/etc/aofei/aofei.json \
 5. 外部需求方流量检查总开关、Always 开关、路由健康、凭据引用、路由缓存生成时间和刷新错误。
 6. local/spread 模式检查缓存年龄及节点是否完成重载。
 
-### 12.2 `/pz` 大量 `400` 或 `403`
+### 12.2 `/pz` 大量 `400`、`401`、`403` 或 `503`
 
 - `400`：检查 JSON、体积、`site`/`slot` 令牌、Web/App 类型、尺寸、非负底价、必填且安全唯一的 `code`、唯一媒体类型和缓存是否更新；
 - `403`：检查实际 `Origin`/`Referer` 是否存在且主机与缓存站点完全一致，包括子域差异；
 - SDK 可以不带来源，但带了错误来源仍会失败；
 - 策略拒绝发生在 Cookie、竞价和审计之前，因此不能只查 NATS 审计。
+- 启用 `direct_ssp_auth` 后，`401` 表示 SDK 证明缺失、非法、过期、重放或范围不符；`503` 表示公钥快照或 Redis 重放依赖不可用。不得临时关闭认证来绕过故障。
 
 ### 12.3 Redis 故障
 

@@ -33,11 +33,12 @@ P03 is now in progress. Its accepted
 [authenticity contract](direct-ssp-authenticity.md) records that the current
 packed browser values are enumerable and that HMAC-protected browser locators
 remain public and replayable. The v2 codec, bounded current/previous key ring,
-runtime dual reader, fixed-cardinality migration counter, and explicit legacy
-gate are implemented but disabled by default. Publisher pages and the cache
-readiness manifest still emit v1 until the later integration row, and the SDK
-path remains unauthenticated. This document therefore describes the currently
-generated v1 contract; the P03 contract governs the staged security boundary.
+runtime dual reader, fixed-cardinality migration counter, explicit legacy gate,
+and SDK/server request-authentication service are implemented but disabled by
+default. Publisher pages and the cache readiness manifest still emit v1 until
+the later integration row. This document therefore describes the currently
+generated v1 contract plus the opt-in authenticated SDK contract; the P03
+contract governs the staged security boundary.
 
 ## V1 Browser Contract
 
@@ -221,7 +222,9 @@ or `Referer`, and every present `Origin` or `Referer` must be an absolute URL
 whose host equals the validated cached site string exactly. `Origin: null`,
 malformed URLs, missing browser headers, mismatched hosts, and subdomain
 variants return `403`. SDK requests may omit both headers, but if they include
-either header it must still match. Policy rejections do not set
+either header it must still match. With `direct_ssp_auth.enabled:true`, omission
+of browser provenance is accepted only after the separate SDK proof described
+below. Policy rejections do not set
 `aofei_pz_uid`, do not bid, and do not publish request, response, or attribute
 audits.
 
@@ -275,7 +278,9 @@ binary rollout order.
 
 No MySQL read is required on the `/pz` request path. Redis mode reads
 `pubmap:by-id`; local/static mode reads the derived in-memory by-id lookup from
-the loaded `pubmap` snapshot.
+the loaded `pubmap` snapshot. When SDK authentication is enabled, a background
+loader supplies an immutable public-key verifier snapshot; stale or unavailable
+snapshot state fails closed rather than querying MySQL from the request.
 
 ## Runtime Adapter
 
@@ -336,10 +341,22 @@ serving; IP and UA may describe the HTTP request, but are removed before
 contextual matching and are not combined into a fallback identity.
 
 SDK and in-app requests are represented by `platform:"sdk"` in the v1 `/pz`
-contract. They are currently credentialless and cookie-free. This pre-P03
-compatibility path does not authenticate a publisher or App and must not be
-described as doing so. SDK requests may include
-OpenRTB-like `app`, `device`, `user`, and `regs` objects. The adapter synthesizes
+body contract and are always cookie-free. The checked-in
+`direct_ssp_auth.enabled:false` state retains the credentialless compatibility
+path and must not be described as authenticated. When enabled, the caller must
+sign the exact decompressed JSON body with its one-time-issued, publisher/App-
+scoped Ed25519 credential and supply `X-W8M-PZ-Credential`,
+`X-W8M-PZ-Timestamp`, `X-W8M-PZ-Nonce`, and `X-W8M-PZ-Signature`. The default
+clock window is 300 seconds and Redis provides the cross-node one-use nonce
+claim. A proof is accepted only for the exact cached publisher/App tuple.
+Proof failures return generic `401`; stale verifier state or unavailable Redis
+replay state returns generic `503`, all before privacy, matching, middleman, or
+audit side effects. The browser CORS allow-header list does not include these
+SDK headers because this proof is for native/server clients, not browser tags.
+
+The canonical signature and credential lifecycle are documented in
+[direct-ssp-authenticity.md](direct-ssp-authenticity.md). SDK requests may
+include OpenRTB-like `app`, `device`, `user`, and `regs` objects. The adapter synthesizes
 OpenRTB `app` and leaves `site` empty. The validated cache-derived site string
 is authoritative for app identity; any supplied `app.id`, `app.bundle`, or
 `app.domain` must be empty or exactly match it. Body `device` IDs such as `ifa`,

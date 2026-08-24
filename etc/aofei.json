@@ -15,6 +15,13 @@
 			"key_env": "DIRECT_SSP_TOKEN_KEY"
 		}
 	},
+	"direct_ssp_auth": {
+		"enabled": false,
+		"request_skew_seconds": 300,
+		"credential_refresh_seconds": 30,
+		"credential_max_age_seconds": 120,
+		"rotation_max_overlap_seconds": 86400
+	},
 	"cap_state_ttl_seconds": 7776000,
 	"delivery_cache_max_age_seconds": 900,
 	"delivery_reservation_ttl_seconds": 86700,

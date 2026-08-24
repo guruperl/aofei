@@ -78,7 +78,7 @@ acceptance criteria recorded in the corresponding status files.
 | D05 | Completed | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
-| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract and versioned locator codec/runtime reader complete. |
+| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract, versioned locator codec/runtime reader, and SDK/server request authentication complete. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
 | R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
@@ -1557,6 +1557,12 @@ and inventory revocation while preserving active-cache authority.
 The default-off `pz2` codec now binds complete inventory identity under an
 epoch-selected current/previous HMAC key ring, supports measured dual reads,
 and exposes an explicit legacy-disable gate without changing generated tags.
+The independent default-off SDK/server gate now requires an App-scoped Ed25519
+signature over the exact body and canonical request context, bounded freshness,
+an immutable public-key snapshot, exact active-cache publisher/App scope, and a
+shared one-use Redis nonce claim. S02-scoped lifecycle controls issue the
+private value once, store only the public verifier, require named permissions
+and recent MFA, and transactionally audit issue, rotation, and revocation.
 Detailed tasks and verification are in [status-P03.md](status-P03.md).
 
 ## R01 - Conversion, Action, And Attribution Measurement `[+]`
@@ -1660,8 +1666,8 @@ mandatory independently approved opaque bindings, maker/checker operation
 states, stable provider idempotency, signed replay/order-safe webhooks,
 connected-account isolation, exact Balance Transaction reconciliation, explicit
 refund/dispute/payout exceptions, restricted maintenance, fixed-cardinality
-metrics, and the A01 manual outage fallback. The clean baseline is 94 tables, 6
-routines, and 55 triggers. Recorded/disposable verification is complete; live
+metrics, and the A01 manual outage fallback. At A02 closeout the clean baseline
+was 94 tables, 6 routines, and 55 triggers. Recorded/disposable verification is complete; live
 provider sandbox, migration, governance, and production enablement remain
 external go-live gates rather than repository completion claims.
 

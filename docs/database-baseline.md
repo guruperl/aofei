@@ -89,13 +89,14 @@ After `reset && load`, the expected inventory is:
 
 | Object/data | Count |
 |---|---:|
-| Base tables | 94 |
+| Base tables | 95 |
 | Views | 0 |
 | Stored routines | 6 |
 | Triggers | 55 |
 | Events | 0 |
 | Advertisers | 0 |
 | Publishers | 0 |
+| Publisher request credentials | 0 |
 | Advertiser bidder endpoints | 0 |
 | Accounting statements/adjustments/audits | 0 |
 | Action measurement touches/facts | 0 |
@@ -223,6 +224,18 @@ retention command a separate maintenance principal/configuration. A populated
 system must apply a reviewed online migration before enabling Summer
 `Identity`; replaying the baseline is not a production migration. See
 [identity-access-security.md](identity-access-security.md).
+
+P03 adds `pub_request_credential` for SDK/server request authentication. Each
+row belongs to one existing publisher and one approved App site, stores a
+32-byte Ed25519 public verifier plus expiry/rotation/revocation metadata, and
+never stores the private seed, raw signature, request body, or replay nonce.
+The composite site/publisher foreign key prevents a cross-account scope; the
+existing immutable `auth_security_audit` table records issue, rotation, and
+revocation with a domain-separated object hash. A populated deployment must
+apply the reviewed additive table, composite `pub_site` owner key, and exact
+S02 permission grants before enabling `direct_ssp_auth`; never replay the clean
+baseline as a production migration. See
+[direct-ssp-authenticity.md](direct-ssp-authenticity.md).
 
 I03 adds `api_credential`, `api_idempotency`, `api_operation`, and `api_audit`,
 plus an `api_version` column and before-update version trigger on

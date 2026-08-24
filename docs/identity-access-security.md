@@ -44,6 +44,16 @@ checker, and executor separations remain enforced inside the A02 service even
 when an administrator has `*`. See
 [hosted-funding-payout.md](hosted-funding-payout.md).
 
+P03 publisher/App request credentials use the distinct
+`publisher.credential.read`, `.issue`, `.rotate`, and `.revoke` permissions.
+The publisher resource tuple is exact; a `pub` actor is always forced to its
+verified session account id, while an administrator must pass the component's
+publisher resource check. Issue, rotate, and revoke require recent MFA and
+append their lifecycle event directly to immutable `auth_security_audit` in the
+same transaction as the credential state. The private Ed25519 value is shown
+once and is not audit data. See
+[direct-ssp-authenticity.md](direct-ssp-authenticity.md).
+
 Do not infer authorization from a hidden link or an HTML template. Server-side
 component rules and database grants are authoritative for HTML and JSON.
 
@@ -221,10 +231,11 @@ database, common key, clocks, and mail path are healthy.
 
 ## Verification
 
-The current clean baseline after A02 contains 94 tables, 6 routines, and 55
-triggers. At S02 closeout it contained 75 tables, 6 routines, and 28 triggers;
+The current clean baseline contains 95 tables, 6 routines, and 55 triggers.
+At S02 closeout it contained 75 tables, 6 routines, and 28 triggers;
 I03 subsequently brought the inventory to 79 tables and 33 triggers, S03 added
-nine tables and ten triggers, and A02 added six tables and twelve triggers. S03
+nine tables and ten triggers, A02 added six tables and twelve triggers, and P03
+added one request-credential table without a trigger. S03
 evidence reads use exact account/resource grants; rule rollout, review
 resolution, enforcement, rollback, and billing recommendations require named
 permissions and recent MFA. The S02 verification gate includes:

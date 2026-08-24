@@ -7,8 +7,9 @@ Local Docker development remains documented separately in
 The current lane baseline is summarized in the
 [documentation and milestone index](README.md). The original D/P/R/I/S/A/O
 sequence through A02 plus D04, D05, and S06 is implemented. P03 is in progress
-with its threat contract and default-off v2 locator codec/runtime dual reader
-complete; S05, O03, R03, and A03 remain planned, and I02 remains demand-gated.
+with its threat contract, default-off v2 locator codec/runtime dual reader, and
+default-off SDK/server authentication boundary complete; S05, O03, R03, and
+A03 remain planned, and I02 remains demand-gated.
 D03 remains partner activation-gated; I03, S02, S03, and A02 remain
 independently disabled by default. Operators must assess open remediation
 against any activation scope.
@@ -156,6 +157,20 @@ Keep current and previous keys distinct, consistent across accepting nodes, and
 out of config, logs, cache payloads, database rows, tags, and publisher-visible
 output. The current default-off codec does not by itself authorize production
 activation.
+The separate default-off `direct_ssp_auth` block controls publisher/App request
+credentials. Before a later P03 rollout authorizes it, apply the additive
+`pub_request_credential` migration, enable S02 identity with exact
+`publisher.credential.read|issue|rotate|revoke` permissions and recent MFA for
+mutations, and prove MySQL/Redis availability on every HTTP node. The defaults
+allow 300 seconds of request clock skew, refresh the immutable public-key
+snapshot every 30 seconds, fail it closed after 120 seconds, and cap requested
+rotation overlap at one day. No deployment signing secret is required:
+issuance returns the Ed25519 private seed once to the authorized publisher,
+while MySQL retains only the public verifier. The caller must keep that private
+value in an approved secret manager and generate a new nonce per request; never
+place it in configuration samples, logs, Redis, backups, browser tags, or
+mobile source. Do not enable this gate until the remaining P03 enforcement,
+sample/cache integration, and canary/rollback rows are complete.
 Frequency-cap payload version 2 is rolling-compatible: upgrade readers/writers
 normally, monitor cap decode/refresh errors, and keep the rollout bounded to the
 callback TTL. New workers read legacy-only values and version-2 values; old
@@ -368,8 +383,12 @@ validation, browser requests must include `Origin` or `Referer` with a host that
 exactly matches the cached publisher site host. `Origin: null`, malformed URLs,
 missing browser headers, mismatched hosts, and subdomain variants return `403`
 before cookies, bidding, or audit publishing. `platform:"sdk"` may omit both
-headers, but any supplied `Origin` or `Referer` must also match. The
-`aofei_pz_uid` cookie is browser-only; SDK/in-app requests do not read or set it
+headers, but any supplied `Origin` or `Referer` must also match. When
+`direct_ssp_auth` is enabled, SDK omission is accepted only with the App-scoped,
+body-bound, fresh proof and shared Redis replay claim; generic `401` denotes
+proof rejection and generic `503` denotes unavailable or stale verifier/replay
+state. Browser CORS and cookie behavior remain unchanged. The `aofei_pz_uid`
+cookie is browser-only; SDK/in-app requests do not read or set it
 and never join IP/User-Agent as a fallback identity. `/pz` uses
 `RemoteAddr` for OpenRTB `device.ip` unless the peer address is in
 `trusted_proxy_cidrs`; only trusted proxies may supply `X-Forwarded-For` or

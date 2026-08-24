@@ -8,11 +8,12 @@ the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
 order, D04, D05, and S06 are complete. P03 is in progress with its threat
-contract and default-off versioned locator codec/runtime dual reader complete;
-the remaining review order continues through P03, S05, O03, R03, and A03. I02
+contract, default-off versioned locator codec/runtime dual reader, and
+default-off SDK/server request authentication complete; the remaining review
+order continues through P03, S05, O03, R03, and A03. I02
 remains separately demand-gated until P03/S05 are complete and a named Android
 or iOS integration defines supported platforms and lifecycle requirements. The
-active MySQL baseline remains 94 tables, 0 views, 6 routines, and 55 triggers;
+active MySQL baseline is 95 tables, 0 views, 6 routines, and 55 triggers;
 planned milestones do not imply schema or runtime activation.
 
 ## Start By Audience

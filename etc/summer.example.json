@@ -98,7 +98,7 @@
             "Surface": "gpub",
             "Duration": 86400,
             "MaxAge": 86400,
-	    "Permissions": ["account.security.*", "account.password.change", "pub.*", "ac.*", "address.*", "balance.*", "chac.*", "item.*", "site.*", "slot.*", "weight.*", "supply.propose", "report.publisher.*", "report.marketplace.read", "report.marketplace.export", "quality.evidence.read", "quality.appeal.submit", "payment.read", "payment.payout.bind"],
+	    "Permissions": ["account.security.*", "account.password.change", "publisher.credential.*", "pub.*", "ac.*", "address.*", "balance.*", "chac.*", "item.*", "site.*", "slot.*", "weight.*", "supply.propose", "report.publisher.*", "report.marketplace.read", "report.marketplace.export", "quality.evidence.read", "quality.appeal.submit", "payment.read", "payment.payout.bind"],
             "Logout": "/",
             "Issuers": {
                 "db": {

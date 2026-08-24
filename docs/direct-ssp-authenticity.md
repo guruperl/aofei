@@ -5,10 +5,11 @@ It separates public browser inventory locators from publisher/App request
 authentication and defines the invariants that the remaining P03 work must
 preserve.
 
-The threat contract and versioned browser-token codec/runtime reader are now
-implemented. SDK/server credentials, final enforcement, portal/cache
-integration, and production rollout remain pending. Current publisher pages
-still emit the v1 values documented in
+The threat contract, versioned browser-token codec/runtime reader, and
+default-off SDK/server request-authentication boundary are now implemented.
+Final cross-path enforcement, client-claim review, sample/cache integration,
+and production rollout remain pending. Current publisher pages still emit the
+v1 values documented in
 [ssp-direct-traffic.md](ssp-direct-traffic.md), so the checked-in v2 block stays
 disabled and legacy reads stay allowed.
 
@@ -27,11 +28,13 @@ useful browser provenance policy, but it is not publisher authentication: a
 non-browser client can set those headers, and a valid tag copied from an
 approved page remains observable and replayable.
 
-Current `platform:"sdk"` requests may omit both headers and have no request
-credential or replay proof. App identity and inventory are checked against the
-active cache, but those checks do not prove which publisher application sent
-the request. This credentialless behavior is a pre-P03 compatibility state,
-not an authenticated production contract.
+The checked-in `direct_ssp_auth.enabled:false` compatibility state still lets
+`platform:"sdk"` requests omit both headers without a request proof. When that
+gate is enabled, every SDK/server request must pass the implemented scoped,
+body-bound, fresh, one-use proof before entering auction side effects. App
+identity and active inventory remain independent checks in both states. Do not
+treat the default-off compatibility behavior as an authenticated production
+contract.
 
 The browser `aofei_pz_uid` cookie is privacy-gated cap/tracking identity. It is
 not a publisher credential, inventory capability, request signature, or
@@ -129,30 +132,59 @@ deny legacy reads in production merely because the codec exists. The migration
 must first generate v2 samples, measure both read paths, name rollback
 ownership, and retain a reversible compatibility interval.
 
-## SDK And Server Authentication Target
+## SDK And Server Authentication
 
-Non-browser traffic needs a credential class distinct from browser locators,
+Non-browser traffic uses a credential class distinct from browser locators,
 Summer sessions, I03 advertiser tokens, consent identifiers, and browser
-cookies. Each credential is owned by one existing `pub` account and scoped to
-one approved App identity or a narrower integration scope.
+cookies. Each credential belongs to one existing `pub` account and one active,
+approved App site whose environment is `App` and integration mode is `SDK` or
+`ServerAPI`.
 
-The later authentication task must bind the proof to the exact bounded request
-body and enough canonical request context to prevent substitution across
-requests. It must enforce a bounded clock window and one-use request evidence
-through shared state across all accepting HTTP nodes. Credential lookup,
-freshness, and replay dependencies fail closed; a process-local replay cache is
-not sufficient for a multi-node deployment.
+Issue and rotation generate an Ed25519 keypair. Summer shows the private value
+once in the form `w8m_pz_v1_<public-id>_<private-seed>` after a verified S02
+session, named `publisher.credential.*` permission, exact publisher scope, and
+recent MFA. MySQL stores only the public id, 32-byte Ed25519 public key, scope,
+expiry, rotation/revocation metadata, and actor metadata. The private seed is
+not recoverable from MySQL and is never written to Redis or security audit.
+Issue, rotation, and revocation write hashed-object lifecycle events to the
+existing immutable `auth_security_audit` table in the same transaction.
 
-Only a one-time generated secret may be shown to an authorized publisher. The
-server retains a non-reversible verifier or a deployment-encrypted value only
-where the chosen proof algorithm strictly requires it. Credential identifiers,
-scopes, creation, last-use class, rotation, and revocation state may be stored
-and audited; the secret and raw proof may not.
+An SDK/server caller sends these four headers:
+
+```text
+X-W8M-PZ-Credential: w8m_pz_v1_<public-id>
+X-W8M-PZ-Timestamp: <canonical Unix seconds>
+X-W8M-PZ-Nonce: <canonical unpadded base64url, 16-32 bytes>
+X-W8M-PZ-Signature: <canonical unpadded base64url Ed25519 signature>
+```
+
+The signature covers this newline-separated canonical message:
+
+```text
+w8m-pz-request-v1
+POST
+/pz
+<credential reference>
+<timestamp>
+<nonce>
+<base64url SHA-256 of the exact decompressed JSON body>
+```
+
+The default freshness window is 300 seconds. A complete immutable verifier
+snapshot is loaded from MySQL before an enabled HTTP process starts, refreshed
+every 30 seconds, and rejected after 120 seconds without a successful refresh.
+The request path never queries MySQL. After signature and exact publisher/site
+scope checks, Redis atomically claims a hash of the public id and nonce through
+`SET NX EX`; no raw nonce or signature is retained. Duplicate concurrent
+requests have exactly one winner. Missing, malformed, stale, body-mismatched,
+unknown, expired, revoked, or cross-App proof returns generic `401`; stale
+verifier state or unavailable replay storage returns generic `503`.
 
 A caller can always select the public browser path for active Web inventory if
 it satisfies that path's rules. It cannot use the browser path for App
-inventory or use `platform:"sdk"` to bypass browser provenance without the
-SDK/server proof.
+inventory. When `direct_ssp_auth` is enabled, it also cannot use
+`platform:"sdk"` to bypass browser provenance without the SDK/server proof;
+the disabled compatibility state remains explicitly unauthenticated.
 
 ## Rotation And Revocation
 
@@ -162,9 +194,12 @@ Browser signing keys and publisher/App credentials have separate lifecycles:
   regenerated public locators. A bounded current/previous overlap supports
   rollback; new output never uses the previous key after rotation.
 - Publisher/App credential rotation creates a new scoped credential, exposes
-  its secret once, permits only an explicitly bounded overlap when migration
-  needs it, and then revokes the predecessor. A revocation does not require
-  regenerating public browser tags.
+  its private value once, and either revokes the predecessor immediately or
+  permits an explicit bounded overlap. The configured default maximum overlap
+  is one day. A revocation removes the credential from the local verifier
+  snapshot immediately; other nodes converge on their bounded refresh, and a
+  stale snapshot fails closed. Revocation does not require regenerating public
+  browser tags.
 - Inventory revocation is semantic and independent: deactivate the publisher,
   site, or slot and publish a complete cache generation. All locators and
   credentials continue to fail against the withdrawn tuple even if their own
@@ -180,16 +215,17 @@ condition that ends compatibility.
 
 ## Enforcement And Side-Effect Order
 
-The final enforcement implementation must retain a deterministic pre-auction
-boundary:
+The implemented SDK authentication and remaining enforcement work retain this
+deterministic pre-auction boundary:
 
 1. apply request-method, encoding, body-size, and bounded JSON checks;
 2. classify browser versus SDK behavior without accepting that claim as
    identity;
-3. validate browser locator integrity, or authenticate SDK/server body,
-   freshness, scope, and replay before using App/inventory claims;
-4. resolve the complete tuple from the active publisher cache and enforce
-   Web/App, media, size, floor, and exact browser host policy;
+3. verify SDK/server body and freshness, then resolve the complete tuple from
+   the active publisher cache and enforce the exact credential publisher/App
+   scope and shared replay claim; browser traffic instead validates locator
+   integrity;
+4. enforce Web/App, media, size, floor, and exact browser host policy;
 5. apply privacy and independent admission/traffic-quality policy; then
 6. enter matching, reservations/caps, middleman fanout, response
    materialization, and audit publication.
@@ -197,8 +233,9 @@ boundary:
 Any failure before step 6 must not set or rotate `aofei_pz_uid`, mutate caps or
 reservations, contact middleman bidders, publish request/response/attribute
 audits, or disclose account existence through raw ids or credential details.
-Exact HTTP status and public error families belong to the enforcement row, but
-they must be deterministic and non-oracular.
+The SDK authentication boundary uses generic `401` for proof failures and
+generic `503` for unavailable verifier/replay dependencies; later enforcement
+work must preserve deterministic, non-oracular failures across both paths.
 
 ## Compatibility Invariants
 
@@ -221,6 +258,6 @@ approved migration says otherwise:
 
 See [publisher-activation.md](publisher-activation.md) for the current rollout
 gate. Production authenticity is not established until the later P03 tasks
-implement and verify SDK/server authentication, portal and cache integration,
-final enforcement, observability, rotation/rollback operations, and a named
-publisher canary.
+complete cross-path enforcement and client-claim review, integrate generated
+samples/cache metadata, finish observability and rotation/rollback operations,
+and pass a named publisher canary.

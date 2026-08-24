@@ -8,15 +8,15 @@ approved privacy and support owner.
 
 P03 is in progress. Its
 [direct SSP authenticity contract](direct-ssp-authenticity.md) is accepted,
-and the default-off v2 token codec/runtime dual reader is implemented. The
-publisher UI and readiness manifest still emit public enumerable v1 locators;
-no production tag migration or legacy withdrawal has occurred, and the current
-`platform:"sdk"` path remains credentialless. Therefore the checks below
-establish current P01/P02 compatibility, inventory ownership, and commercial
-correctness; they do not establish P03 request authenticity. Do not enable v2,
-deny legacy reads, or approve a new App integration as authenticated production
-traffic until all later P03 rows and their named canary/rollback evidence are
-complete.
+and the default-off v2 token reader plus SDK/server request-authentication
+boundary are implemented. The publisher UI and readiness manifest still emit
+public enumerable v1 locators; no production tag migration or legacy
+withdrawal has occurred, and checked-in SDK authentication remains off.
+Therefore the checks below establish current P01/P02 compatibility, inventory
+ownership, and commercial correctness; they do not establish complete P03
+request authenticity. Do not enable either P03 gate, deny legacy reads, or
+approve a new App integration as authenticated production traffic until all
+later P03 rows and their named canary/rollback evidence are complete.
 
 ## 1. Inventory readiness
 
@@ -145,18 +145,33 @@ as a fallback identity.
 Use only an `App` site. Its slot page produces an SDK/API request and does not
 produce a browser tag.
 
-1. Send `platform:"sdk"` with `responseFormat:"json"` and repeat with
+1. After P03 authorizes the gate, enable `direct_ssp_auth` consistently on all
+   accepting nodes. Through the S02-protected **Publisher request credentials**
+   page, use the exact publisher scope and approved App site to issue a
+   credential after recent MFA. Copy its private value once into the
+   integration's approved secret manager; it cannot be recovered later and
+   must never be embedded in a public sample or mobile source tree.
+2. Send `platform:"sdk"` with `responseFormat:"json"` and repeat with
    `responseFormat:"openrtb"`.
-2. Use the current packed tokens and the exact approved App identity. Supplied
+3. Sign the exact decompressed JSON bytes and canonical `POST /pz` context with
+   a fresh timestamp and one-use nonce. Supply all four `X-W8M-PZ-*` headers.
+   Prove missing, stale, replayed, body-mismatched, revoked, and cross-App
+   requests fail before auction or audit side effects, including a concurrent
+   replay with one winner.
+4. Use the current packed tokens and the exact approved App identity. Supplied
    `app.id`, `app.bundle`, or `app.domain` must match; a mismatch returns `400`
    before auction side effects.
-3. Verify fill, no-fill, timeout/error handling, impression, click, and tracker
+5. Verify fill, no-fill, timeout/error handling, impression, click, and tracker
    ownership. Do not retry ordinary no-fill as a network error.
-4. Confirm the SDK request never reads or sets the browser cookie and never
+6. Confirm the SDK request never reads or sets the browser cookie and never
    relies on IP/User-Agent fallback identity.
-5. Prove the approved consent/regulatory matrix and identifier-free contextual
+7. Prove the approved consent/regulatory matrix and identifier-free contextual
    default. Exact coordinates are removed; no sample or fixture value is
    consent evidence.
+8. Exercise immediate rotation, an explicitly bounded overlap when required,
+   and revocation across every HTTP node. A stale verifier snapshot or
+   unavailable Redis replay dependency must return generic `503`, not admit the
+   request. Retain only redacted audit/metric evidence.
 
 Native platform libraries remain demand-gated under I02. Until a named mobile
 integration exists, this is an HTTP contract acceptance test, not a promise of

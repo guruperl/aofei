@@ -19,6 +19,7 @@ import (
 
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
+	"github.com/guruperl/aofei/publisherauth"
 )
 
 const (
@@ -61,6 +62,18 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	var requestProof *publisherauth.RequestProof
+	if sspPlatformIsSDK(sspReq.Platform) && self.directSSPAuthRequired() {
+		if self.publisherAuth == nil {
+			writeSSPPublisherAuthError(w, publisherauth.ErrUnavailable)
+			return
+		}
+		requestProof, err = self.publisherAuth.VerifyRequest(r, rawRequest)
+		if err != nil {
+			writeSSPPublisherAuthError(w, err)
+			return
+		}
+	}
 
 	pub, units, tokenVersion, err := self.validateSSPSupplyWithVersion(ctx, sspReq)
 	recordSSPInventoryTokenOutcome(sspInventoryTokenOutcome(tokenVersion, err))
@@ -69,10 +82,23 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if requestProof != nil {
+		unit := units[0].RPub
+		if err := requestProof.AuthorizeScope(uint64(unit.PubID), uint64(unit.SiteID)); err != nil {
+			writeSSPPublisherAuthError(w, err)
+			return
+		}
+	}
 	if err := validateSSPRequestPolicy(r, sspReq, units); err != nil {
 		metricSSPPolicyRejections.Add(1)
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
+	}
+	if requestProof != nil {
+		if err := self.publisherAuth.ClaimReplay(ctx, requestProof); err != nil {
+			writeSSPPublisherAuthError(w, err)
+			return
+		}
 	}
 	privacy := self.privacyDecision(r, sspReq.Regs, sspReq.User, sspReq.Device)
 	recordPrivacyDecision(privacy)
@@ -140,6 +166,15 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 			_ = self.publishSSPBidAuditsWithPrivacy(privacyAuditRequest, privacyAuditResponse, audits, privacy)
 		}
 	}
+}
+
+func writeSSPPublisherAuthError(w http.ResponseWriter, err error) {
+	metricSSPValidationErrors.Add(1)
+	status := http.StatusUnauthorized
+	if errors.Is(err, publisherauth.ErrUnavailable) {
+		status = http.StatusServiceUnavailable
+	}
+	http.Error(w, http.StatusText(status), status)
 }
 
 func (self *Controller) openRTBFromSSP(ctx context.Context, r *http.Request, req *SSPRequest, cookieUserID ...string) (*openrtb2.BidRequest, *acl.DirectPub, []SSPValidatedUnit, error) {

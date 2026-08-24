@@ -440,6 +440,17 @@ slot `(pub_id,site_id,slot_id,size_id)` under domain-separated HMAC-SHA-256;
 they remain public and replayable. The publisher UI/readiness manifest still
 emit v1, so the checked-in block remains disabled until later P03 integration
 and rollout work.
+`direct_ssp_auth` is an independent default-off SDK/server boundary implemented
+by `publisherauth`. It uses Ed25519 signatures over canonical `POST`, `/pz`,
+credential reference, Unix timestamp, nonce, and the SHA-256 digest of the exact
+decompressed request body. MySQL stores one public verifier per publisher/App
+credential in `pub_request_credential`; the private seed is returned once by
+the S02-protected Summer lifecycle surface. Enabled workers load an immutable
+snapshot at startup, refresh it every 30 seconds by default, and reject it after
+120 seconds without a successful refresh. The request path uses shared Redis
+`EVALSHA`/`SET NX EX` replay claims over hashed public-id/nonce material and
+performs no MySQL query. Default request skew is 300 seconds and default maximum
+rotation overlap is one day.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX keeps its OpenRTB envelope shape, but both sources are
 privacy-scrubbed before NATS. Attribute logs remove identity and precise
@@ -555,7 +566,7 @@ Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
 completed original lane set and S06, the remaining
 P03/S05/O03/R03/A03 remediation horizon, demand-gated I02, and the bounded
 `GOAL.md` review-fix contract; checks
-the 94/0/6/55 schema inventory; and rejects attempts to test the removed
+the 95/0/6/55 schema inventory; and rejects attempts to test the removed
 `./genelet` package path from inside pzdesign. Historical status and
 legacy-operation evidence may retain commands and counts that were accurate at
 their recorded closeout.
@@ -580,12 +591,25 @@ Admin compatibility verification:
 (cd ../genelet && GOWORK=off go test ./...)
 ```
 
+P03 publisher-auth verification adds `go test ./publisherauth ./dsp ./etc` and
+the opt-in disposable MySQL lifecycle gate:
+
+```bash
+PUBLISHER_AUTH_INTEGRATION_DSN='<disposable-mysql-dsn>' \
+  GOWORK=off go test ./publisherauth -run TestMySQLPublisherCredentialLifecycle
+```
+
+The integration test creates and removes only its reserved synthetic
+publisher/App rows, proves public-verifier storage, signed request/replay,
+rotation/revocation, and immutable lifecycle audit, and skips when the DSN is
+unset.
+
 S02 identity verification also runs the external Genelet suite and the full
 Pzdesign/template gates. `../pzdesign/cmd/identity-admin` is the restricted
 operator CLI for analyst creation, exact grant/revoke, TOTP reset, and bounded
 security-audit retention. It reads `SUMMER`, the environment key named by
 `Identity.KeyEnv`, and new passwords only from `IDENTITY_NEW_PASSWORD`.
-Disposable MySQL verification restores the current clean baseline, expects 94
+Disposable MySQL verification restores the current clean baseline, expects 95
 tables, 6 routines, and 55 triggers, proves `auth_security_audit` update/delete fails,
 and exercises analyst creation/grant without touching the configured local
 stack. Operational details are in
@@ -604,7 +628,7 @@ S03 focused gates cover closed signal/overflow fixtures, incomplete-evidence
 actions and billing, exact canary-review activation, scope authorization,
 appeal and maker/checker transitions, immutable snapshots, false-positive
 rollback, detached serving refresh, and the strict aggregate command. The
-disposable MySQL lifecycle restores the current 94 tables/6 routines/55 triggers and proves
+disposable MySQL lifecycle restores the current 95 tables/6 routines/55 triggers and proves
 rule/decision immutability, review/appeal, enforcement/rollback, A01 hold, and
 fresh-context retention cleanup.
 

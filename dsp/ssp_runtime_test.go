@@ -3,6 +3,8 @@ package dsp
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -10,11 +12,16 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
+	"github.com/guruperl/aofei/publisherauth"
+	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
@@ -325,6 +332,93 @@ func TestServeSSPPolicyAllowsSDKWithoutBrowserHeaders(t *testing.T) {
 	}
 	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
 		t.Fatalf("cookies = %#v, want none for sdk traffic", cookies)
+	}
+}
+
+func TestServeSSPAuthenticatedSDKRequiresFreshOneUseBodyProof(t *testing.T) {
+	controller := newLocalBidPathController(t)
+	service, privateCredential, now, closeRedis := publisherAuthRuntimeService(t, 1, 11)
+	defer closeRedis()
+	controller.C.DirectSSPAuth = publisherauth.Config{Enabled: true}.WithDefaults()
+	controller.publisherAuth = service
+	body := sspRequestBodyWithPlatform(t, "sdk", 1, 11, []sspAdUnitSpec{
+		{Code: "authenticated-sdk", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+	headers := signedPublisherAuthHeaders(t, privateCredential, now, 0x61, body)
+
+	first := serveSSPWithHeaders(t, controller, body, headers)
+	if first.Code != http.StatusOK {
+		t.Fatalf("authenticated SDK status = %d: %s", first.Code, first.Body.String())
+	}
+	if cookies := first.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("authenticated SDK cookies = %#v", cookies)
+	}
+	second := serveSSPWithHeaders(t, controller, body, headers)
+	if second.Code != http.StatusUnauthorized || strings.Contains(second.Body.String(), "replay") {
+		t.Fatalf("replay response = %d %q", second.Code, second.Body.String())
+	}
+}
+
+func TestServeSSPAuthenticationFailuresPrecedeAuctionSideEffects(t *testing.T) {
+	body := sspRequestBodyWithPlatform(t, "sdk", 1, 11, []sspAdUnitSpec{
+		{Code: "authenticated-sdk", SlotID: 100, SizeID: match.SizeID2To1(300, 250), Banner: true, Floor: 1},
+	})
+	tests := []struct {
+		name           string
+		credentialSite uint64
+		headers        func(*testing.T, string, time.Time) map[string]string
+		mutateBody     bool
+		closeRedis     bool
+		wantStatus     int
+	}{
+		{name: "missing proof", credentialSite: 11, wantStatus: http.StatusUnauthorized},
+		{name: "stale proof", credentialSite: 11, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
+			return signedPublisherAuthHeaders(t, credential, now.Add(-301*time.Second), 0x62, body)
+		}, wantStatus: http.StatusUnauthorized},
+		{name: "body mismatch", credentialSite: 11, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
+			return signedPublisherAuthHeaders(t, credential, now, 0x63, body)
+		}, mutateBody: true, wantStatus: http.StatusUnauthorized},
+		{name: "cross App scope", credentialSite: 12, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
+			return signedPublisherAuthHeaders(t, credential, now, 0x64, body)
+		}, wantStatus: http.StatusUnauthorized},
+		{name: "replay store unavailable", credentialSite: 11, headers: func(t *testing.T, credential string, now time.Time) map[string]string {
+			return signedPublisherAuthHeaders(t, credential, now, 0x65, body)
+		}, closeRedis: true, wantStatus: http.StatusServiceUnavailable},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			controller := newLocalBidPathController(t)
+			service, privateCredential, now, closeRedis := publisherAuthRuntimeService(t, 1, test.credentialSite)
+			controller.C.DirectSSPAuth = publisherauth.Config{Enabled: true}.WithDefaults()
+			controller.publisherAuth = service
+			runtime := &recordingMiddlemanRuntime{}
+			enableSSPMiddleman(controller, true, runtime)
+			controller.audit = newAuditPublisher(nil, 10)
+			headers := map[string]string(nil)
+			if test.headers != nil {
+				headers = test.headers(t, privateCredential, now)
+			}
+			requestBody := body
+			if test.mutateBody {
+				requestBody = bytes.Replace(body, []byte("authenticated-sdk"), []byte("authenticated-bad"), 1)
+			}
+			if test.closeRedis {
+				closeRedis()
+			}
+			rr := serveSSPWithHeaders(t, controller, requestBody, headers)
+			if !test.closeRedis {
+				closeRedis()
+			}
+			if rr.Code != test.wantStatus || strings.Contains(strings.ToLower(rr.Body.String()), "credential") {
+				t.Fatalf("auth failure = %d %q, want %d generic", rr.Code, rr.Body.String(), test.wantStatus)
+			}
+			if runtime.calls != 0 {
+				t.Fatalf("middleman calls = %d", runtime.calls)
+			}
+			if messages := drainAuditMessages(controller.audit); len(messages) != 0 {
+				t.Fatalf("audit messages = %#v", messages)
+			}
+		})
 	}
 }
 
@@ -1245,6 +1339,63 @@ func directTokenV2TestCodec(t testing.TB, allowLegacy bool) *acl.DirectTokenCode
 		t.Fatal(err)
 	}
 	return codec
+}
+
+func publisherAuthRuntimeService(t *testing.T, pubID, siteID uint64) (*publisherauth.Service, string, time.Time, func()) {
+	t.Helper()
+	server := miniredis.RunT(t)
+	redis, err := (radix.PoolConfig{Size: 4}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		redis.Close()
+		t.Fatal(err)
+	}
+	seed := bytes.Repeat([]byte{0x72}, ed25519.SeedSize)
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	publicID := "102132435465768798a9bacbdcedfe0f"
+	now := time.Now().UTC().Truncate(time.Second)
+	mock.ExpectQuery("SELECT c.credential_id, c.pub_id, c.site_id").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"credential_id", "pub_id", "site_id", "public_id", "public_key", "expires_at", "rotated_at", "overlap_until",
+		}).AddRow(7, pubID, siteID, publicID, privateKey.Public().(ed25519.PublicKey), now.Add(time.Hour), nil, nil))
+	service, err := publisherauth.NewService(publisherauth.Config{Enabled: true}.WithDefaults(), db, redis)
+	if err != nil {
+		redis.Close()
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		redis.Close()
+		db.Close()
+		t.Fatal(err)
+	}
+	privateCredential := "w8m_pz_v1_" + publicID + "_" + base64.RawURLEncoding.EncodeToString(seed)
+	var once sync.Once
+	closeStores := func() {
+		once.Do(func() {
+			redis.Close()
+			db.Close()
+		})
+	}
+	return service, privateCredential, now, closeStores
+}
+
+func signedPublisherAuthHeaders(t testing.TB, privateCredential string, timestamp time.Time, nonceFill byte, body []byte) map[string]string {
+	t.Helper()
+	nonce := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{nonceFill}, 16))
+	headers, err := publisherauth.SignRequest(privateCredential, timestamp, nonce, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make(map[string]string, len(headers))
+	for name := range headers {
+		out[name] = headers.Get(name)
+	}
+	return out
 }
 
 func tamperSSPSlotToken(t testing.TB, body []byte) []byte {

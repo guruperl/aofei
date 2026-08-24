@@ -3131,6 +3131,7 @@ CREATE TABLE `pub_site` (
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`site_id`),
   KEY `pub_id` (`pub_id`),
+  UNIQUE KEY `pub_site_owner` (`site_id`,`pub_id`),
   CONSTRAINT `pub_site_ibfk_1` FOREIGN KEY (`pub_id`) REFERENCES `pub` (`pub_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -3175,6 +3176,50 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+
+--
+-- P03 publisher/App request credentials. Private Ed25519 seeds and request
+-- proofs are never stored; public verifier and scoped lifecycle metadata only.
+-- Lifecycle events are written transactionally to auth_security_audit.
+--
+
+DROP TABLE IF EXISTS `pub_request_credential`;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pub_request_credential` (
+  `credential_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `pub_id` int unsigned NOT NULL,
+  `site_id` int unsigned NOT NULL,
+  `credential_name` varchar(128) NOT NULL,
+  `public_id` char(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `public_key` binary(32) NOT NULL,
+  `algorithm` enum('Ed25519-v1') NOT NULL DEFAULT 'Ed25519-v1',
+  `expires_at` datetime(6) NOT NULL,
+  `rotated_at` datetime(6) DEFAULT NULL,
+  `overlap_until` datetime(6) DEFAULT NULL,
+  `revoked_at` datetime(6) DEFAULT NULL,
+  `replaces_credential_id` bigint unsigned DEFAULT NULL,
+  `created_by_role` enum('admin','pub') NOT NULL,
+  `created_by_id` bigint unsigned NOT NULL,
+  `created_at` datetime(6) NOT NULL,
+  PRIMARY KEY (`credential_id`),
+  UNIQUE KEY `pub_request_credential_public` (`public_id`),
+  UNIQUE KEY `pub_request_credential_verifier` (`public_key`),
+  KEY `pub_request_credential_scope` (`pub_id`,`site_id`,`revoked_at`,`expires_at`),
+  KEY `pub_request_credential_expiry` (`expires_at`),
+  KEY `pub_request_credential_replaces` (`replaces_credential_id`),
+  CONSTRAINT `pub_request_credential_scope_fk` FOREIGN KEY (`site_id`,`pub_id`) REFERENCES `pub_site` (`site_id`,`pub_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `pub_request_credential_replaces_fk` FOREIGN KEY (`replaces_credential_id`) REFERENCES `pub_request_credential` (`credential_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `pub_request_credential_rotation_chk` CHECK (((`rotated_at` IS NULL) AND (`overlap_until` IS NULL)) OR ((`rotated_at` IS NOT NULL) AND (`overlap_until` IS NOT NULL) AND (`overlap_until` >= `rotated_at`)))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `pub_request_credential`
+--
+
+LOCK TABLES `pub_request_credential` WRITE;
+/*!40000 ALTER TABLE `pub_request_credential` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pub_request_credential` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `pub_slot`

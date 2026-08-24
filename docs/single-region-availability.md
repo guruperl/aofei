@@ -121,7 +121,7 @@ Restore order is fixed:
 disposable MySQL/Redis containers, loads the baseline and synthetic fixture,
 adds accounting/action evidence, takes a checksummed logical dump with routines
 and triggers, restores it into a clean MySQL instance, proves accounting
-immutability, ledger uniqueness, current 94-table/6-routine/55-trigger inventory,
+immutability, ledger uniqueness, current 95-table/6-routine/55-trigger inventory,
 reporting/experiment/security/quality/API/hosted-payment evidence, a restored
 D03 route and credential-safe fallback preflight, and rebuilt Redis. Its
 ephemeral unencrypted dump never leaves an owner-only temporary directory and

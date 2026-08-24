@@ -170,9 +170,15 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   not authenticate the caller; the active publisher cache remains
 	   authoritative after verification.
 	   Browser Origin/Referer checks and active-cache validation remain
-	   independent. SDK/server traffic instead requires a publisher/App-scoped
-	   credential with exact-body binding, bounded freshness, and shared replay
-	   detection before App/inventory use. Signing-key rotation, scoped
+	   independent. The default-off `publisherauth.Service` gives SDK/server
+	   traffic a publisher/App-scoped Ed25519 credential. It verifies an exact-
+	   body signature and bounded timestamp from an immutable MySQL-derived
+	   public-key snapshot, then atomically claims a hashed one-use nonce in
+	   shared Redis after exact active-cache scope validation. The `/pz` hot path
+	   never queries MySQL. S02-scoped lifecycle methods show the private seed
+	   once, keep only the public verifier, and transactionally append immutable
+	   security audits; rotation/revocation mutate the local snapshot immediately
+	   and background refresh bounds cross-node convergence. Signing-key rotation, scoped
 	   credential revocation, and inventory/cache withdrawal are separate
 	   containment paths; S02 sessions, I03 advertiser credentials, and browser
 	   identity cannot cross into this runtime credential boundary.
