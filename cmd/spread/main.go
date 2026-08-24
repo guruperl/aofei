@@ -138,6 +138,7 @@ type spreadGenerationReceiver struct {
 	top       string
 	active    uint64
 	committed uint64
+	selected  bool
 	expected  spreadcache.Manifest
 	seen      map[string]string
 }
@@ -150,11 +151,28 @@ func newSpreadGenerationReceiver(top string) (*spreadGenerationReceiver, error) 
 	if !ok {
 		committed = 0
 	}
-	return &spreadGenerationReceiver{top: top, committed: committed}, nil
+	selected := false
+	if committed != 0 {
+		info, statErr := os.Stat(spreadcache.GenerationRoot(top, committed))
+		switch {
+		case statErr == nil && info.IsDir():
+			selected = true
+		case statErr == nil:
+			return nil, fmt.Errorf("spread generation %d is not a directory", committed)
+		case errors.Is(statErr, os.ErrNotExist):
+			// Preserve the numeric floor but allow bootstrap to repair the
+			// missing selected directory.
+		case statErr != nil:
+			return nil, statErr
+		}
+	}
+	return &spreadGenerationReceiver{top: top, committed: committed, selected: selected}, nil
 }
 
 func (r *spreadGenerationReceiver) hasCommittedGeneration() bool {
-	return r.committedSequence() != 0
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.selected
 }
 
 func (r *spreadGenerationReceiver) committedSequence() uint64 {
@@ -313,6 +331,7 @@ func (r *spreadGenerationReceiver) commit(sequence uint64) error {
 		return err
 	}
 	r.committed = sequence
+	r.selected = true
 	r.active = 0
 	r.expected = spreadcache.Manifest{}
 	r.seen = nil

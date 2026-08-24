@@ -101,6 +101,7 @@ atomic generation publication with partial live writes.
   - P2 resolved: the lease maintainer now derives its first renewal solely from
     the exact server TTL, with a nanosecond zero guard rather than a 10 ms
     floor. A short-lease test proves the first delay remains inside ownership.
-  - P2: a parseable `.aofei-current` pointer is treated as committed without
-    verifying that its generation directory exists, so a recoverable missing
-    generation incorrectly suppresses fresh-node bootstrap.
+  - P2 resolved: receiver startup now verifies that the pointed generation is
+    a directory. A missing directory preserves its numeric sequence as the
+    monotonic floor but remains unselected so bootstrap or a newer subscribed
+    generation can repair it; a focused repair test passes.

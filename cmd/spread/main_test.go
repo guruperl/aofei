@@ -205,6 +205,35 @@ func TestSpreadGenerationPublishesOnlyCompleteOrderedSnapshot(t *testing.T) {
 	assertSpreadFile(t, filepath.Join(root, "slot", "4194368", "10"), "slot")
 }
 
+func TestSpreadReceiverRepairsMissingSelectedGeneration(t *testing.T) {
+	top := t.TempDir()
+	if err := spreadcache.Commit(top, 9); err != nil {
+		t.Fatal(err)
+	}
+	receiver, err := newSpreadGenerationReceiver(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receiver.hasCommittedGeneration() {
+		t.Fatal("missing selected generation was treated as complete")
+	}
+	if floor := receiver.committedSequence(); floor != 9 {
+		t.Fatalf("committed floor = %d, want 9", floor)
+	}
+	messages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("repaired")}}
+	if err := receiver.install(10, messages); err != nil {
+		t.Fatal(err)
+	}
+	if !receiver.hasCommittedGeneration() {
+		t.Fatal("repaired generation was not selected")
+	}
+	root, err := spreadcache.Resolve(top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "repaired")
+}
+
 func TestSpreadGenerationReconnectGapPreservesCommittedSnapshot(t *testing.T) {
 	top := t.TempDir()
 	receiver, err := newSpreadGenerationReceiver(top)
