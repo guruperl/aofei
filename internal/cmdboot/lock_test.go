@@ -205,16 +205,27 @@ func TestLockInitialRenewalDelayStaysInsideShortLease(t *testing.T) {
 	}
 }
 
-func TestLockCapsRenewalWaitAtConfirmedDeadline(t *testing.T) {
+func TestLockKeepsRenewalWaitInsideConfirmedDeadline(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := lockTestClient(t, server.Addr())
+	if err := client.Do(context.Background(), radix.Cmd(nil, "SET", "late", "owner", "PX", "60000")); err != nil {
+		t.Fatal(err)
+	}
 	base := time.Now()
 	current := base.Add(80 * time.Millisecond)
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var waited time.Duration
+	waits := 1
 	lock := &Lock{
-		key: "late", ttl: 90 * time.Millisecond, ctx: ctx, cancel: cancel,
+		client: client, key: "late", token: "owner", ttl: 90 * time.Millisecond, ctx: ctx, cancel: cancel,
 		done: make(chan struct{}), confirmedAt: base,
 		now: func() time.Time { return current },
 		wait: func(_ context.Context, delay time.Duration) bool {
+			if waits == 0 {
+				return false
+			}
+			waits--
 			waited = delay
 			current = current.Add(delay)
 			return true
@@ -223,14 +234,14 @@ func TestLockCapsRenewalWaitAtConfirmedDeadline(t *testing.T) {
 
 	lock.maintain(ctx)
 
-	if waited != 10*time.Millisecond {
-		t.Fatalf("renewal wait = %s, want remaining 10ms", waited)
+	if waited != 5*time.Millisecond {
+		t.Fatalf("renewal wait = %s, want half of remaining 10ms", waited)
 	}
-	if current.After(base.Add(lock.ttl)) {
-		t.Fatalf("work canceled at %s after deadline %s", current, base.Add(lock.ttl))
+	if !current.Before(base.Add(lock.ttl)) {
+		t.Fatalf("renewal started at %s, want before deadline %s", current, base.Add(lock.ttl))
 	}
-	if !errors.Is(lock.Err(), ErrLeaseUncertain) || ctx.Err() == nil {
-		t.Fatalf("lease error = %v context error = %v, want uncertain cancellation", lock.Err(), ctx.Err())
+	if lock.Err() != nil || ctx.Err() != nil {
+		t.Fatalf("lease error = %v context error = %v, want successful final renewal", lock.Err(), ctx.Err())
 	}
 }
 
@@ -311,12 +322,12 @@ func TestLockCancelsImmediatelyOnConfirmedTokenMismatch(t *testing.T) {
 func TestLockStopsAtLastConfirmedDeadlineAfterUncertainty(t *testing.T) {
 	server := miniredis.RunT(t)
 	base := lockTestClient(t, server.Addr())
-	client := &transientLockClient{Client: base, errors: make([]error, 20)}
+	client := &transientLockClient{Client: base, errors: make([]error, 128)}
 	for i := range client.errors {
 		client.errors[i] = errors.New("redis unavailable")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	now, wait := scriptedLockTime(time.Now(), 20)
+	now, wait := scriptedLockTime(time.Now(), 128)
 	lock := &Lock{
 		client: client, key: "job", token: "owner", ttl: 90 * time.Millisecond,
 		ctx: ctx, cancel: cancel, done: make(chan struct{}), now: now, wait: wait,

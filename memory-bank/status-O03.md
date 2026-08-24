@@ -132,9 +132,10 @@ atomic generation publication with partial live writes.
     stored only as `callback request failed`.
 
 - Iteration 6 (2026-08-24): six P2 findings remain open.
-  - P2 open: when a normal renewal delay or retry backoff reaches the remaining
-    confirmed window, the maintainer sleeps exactly to expiry and therefore
-    guarantees cancellation instead of making a final pre-deadline attempt.
+  - P2 resolved: when a normal renewal delay or retry backoff reaches the
+    remaining confirmed window, the maintainer now waits for only half that
+    window. A scripted slow-response test proves it makes a final successful
+    attempt strictly before expiry instead of guaranteeing cancellation.
   - P2 open: the unused but exported `ResetRedisStaticCaches` and generic
     deletion helper still expose sequential live-family deletion outside the
     atomic generation publisher.

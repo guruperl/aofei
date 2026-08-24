@@ -194,10 +194,7 @@ return 0`)
 			l.recordLeaseFailure(fmt.Errorf("%w after renewal deadline", ErrLeaseUncertain))
 			return
 		}
-		waitDelay := delay
-		if waitDelay > remaining {
-			waitDelay = remaining
-		}
+		waitDelay := lockWaitDelay(delay, remaining)
 		if !wait(ctx, waitDelay) {
 			return
 		}
@@ -273,6 +270,22 @@ func waitForLockDelay(ctx context.Context, delay time.Duration) bool {
 	case <-timer.C:
 		return true
 	}
+}
+
+func lockWaitDelay(delay, remaining time.Duration) time.Duration {
+	if delay < 0 || remaining <= 0 {
+		return 0
+	}
+	if delay < remaining {
+		return delay
+	}
+	if remaining <= time.Nanosecond {
+		return remaining
+	}
+	// Never schedule the next attempt exactly at the conservative deadline.
+	// Half of the remaining window preserves a final bounded opportunity to
+	// renew after a slow success response or transient dependency failure.
+	return remaining / 2
 }
 
 func lockRenewalRetryDelay(ttl, remaining time.Duration, failures int) time.Duration {
