@@ -3,6 +3,7 @@ package maxmind
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -11,16 +12,25 @@ import (
 	"time"
 
 	"github.com/IncSW/geoip2"
+	legacyip "github.com/guruperl/aofei/maxmind/ipsearch"
 )
 
 type IPSearch struct {
 	CityFile   string                       `json:"city_file"`
 	Reader     *geoip2.CityReader           `json:"-"`
+	Legacy     *legacyip.IPSearch           `json:"-"`
 	CountryMap map[string]uint32            `json:"country_map,omitempty"`
 	StateMap   map[uint32]map[string]uint32 `json:"state_map,omitempty"`
 }
 
 func LoadIPData(fn string) (*IPSearch, error) {
+	if strings.EqualFold(filepath.Ext(fn), ".dat") {
+		legacy, err := legacyip.LoadIPData(fn)
+		if err != nil {
+			return nil, err
+		}
+		return &IPSearch{Legacy: legacy}, nil
+	}
 	bs, err := os.ReadFile(fn)
 	if err != nil {
 		return nil, err
@@ -30,12 +40,12 @@ func LoadIPData(fn string) (*IPSearch, error) {
 	if err != nil {
 		return nil, err
 	}
-	cityFile, err := resolveCityFile(fn, ipSearch.CityFile)
+	cityFile, err := ResolveCityFilePath(fn, ipSearch.CityFile)
 	if err != nil {
 		return nil, err
 	}
 
-	reader, err := geoip2.NewCityReaderFromFile(cityFile)
+	reader, err := newCityReaderFromFile(cityFile)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +55,9 @@ func LoadIPData(fn string) (*IPSearch, error) {
 	return ipSearch, nil
 }
 
-func resolveCityFile(configFile, cityFile string) (string, error) {
+// ResolveCityFilePath resolves a validated City database path relative to its
+// runtime JSON. Relative paths cannot escape the JSON directory.
+func ResolveCityFilePath(configFile, cityFile string) (string, error) {
 	if err := ValidateCityFilePath(cityFile); err != nil {
 		return "", err
 	}
@@ -54,6 +66,36 @@ func resolveCityFile(configFile, cityFile string) (string, error) {
 		return clean, nil
 	}
 	return filepath.Join(filepath.Dir(configFile), clean), nil
+}
+
+// ValidateCityDatabase parses the database metadata without retaining a file
+// descriptor. Panics from malformed third-party decoder input are converted to
+// ordinary validation errors.
+func ValidateCityDatabase(filename string) error {
+	reader, err := newCityReaderFromFile(filename)
+	if err != nil {
+		return err
+	}
+	for _, ip := range []string{"0.0.0.0", "127.0.0.1", "255.255.255.255"} {
+		if _, err := lookupCity(reader, net.ParseIP(ip)); err != nil && !errors.Is(err, geoip2.ErrNotFound) {
+			return fmt.Errorf("validate MaxMind City lookup for %s: %w", ip, err)
+		}
+	}
+	return nil
+}
+
+func newCityReaderFromFile(filename string) (reader *geoip2.CityReader, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			reader = nil
+			err = fmt.Errorf("malformed MaxMind City database: %v", recovered)
+		}
+	}()
+	reader, err = geoip2.NewCityReaderFromFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("load MaxMind City database: %w", err)
+	}
+	return reader, nil
 }
 
 // ValidateCityFilePath rejects ambiguous or unsafe City database paths. A
@@ -79,7 +121,39 @@ func ValidateCityFilePath(cityFile string) error {
 }
 
 func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
-	r, err := self.Reader.Lookup(net.ParseIP(ip))
+	if self != nil && self.Legacy != nil {
+		legacy, err := self.Legacy.CreatePzGeo(ip)
+		if err != nil {
+			return nil, err
+		}
+		return &PzGeo{
+			Geo: Geo{
+				ContinentID: legacy.ContinentID,
+				CountryID:   uint32(legacy.CountryID),
+				StateID:     uint32(legacy.StateID),
+				DmaID:       uint32(legacy.DmaID),
+				CityID:      legacy.CityID,
+				IspID:       legacy.IspID,
+				ZipID:       legacy.ZipID,
+				Location:    Location{Lat: legacy.Lat, Lon: legacy.Lon},
+			},
+			Continent: legacy.Continent,
+			Country:   legacy.Country,
+			State:     legacy.State,
+			Metro:     legacy.Metro,
+			City:      legacy.City,
+			Zip:       legacy.Zip,
+			Isp:       legacy.Isp,
+		}, nil
+	}
+	if self == nil || self.Reader == nil {
+		return nil, fmt.Errorf("MaxMind City reader is not loaded")
+	}
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return nil, fmt.Errorf("invalid IP address %q", ip)
+	}
+	r, err := lookupCity(self.Reader, parsedIP)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +189,16 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 	}
 	pzg.Geo = g
 	return pzg, nil
+}
+
+func lookupCity(reader *geoip2.CityReader, ip net.IP) (result *geoip2.CityResult, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = nil
+			err = fmt.Errorf("malformed MaxMind City lookup data: %v", recovered)
+		}
+	}()
+	return reader.Lookup(ip)
 }
 
 func timezoneOffsetMinutes(name string) int64 {

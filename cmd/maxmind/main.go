@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/guruperl/aofei/dsp"
@@ -43,6 +46,10 @@ func main() {
 }
 
 func run(ctx context.Context, configPath, cityPath string) error {
+	return runWithCityValidator(ctx, configPath, cityPath, maxmind.ValidateCityDatabase)
+}
+
+func runWithCityValidator(ctx context.Context, configPath, cityPath string, validate func(string) error) error {
 	if configPath == "" {
 		return errors.New("DSP config path is required; set AOFEI or pass -s")
 	}
@@ -77,8 +84,8 @@ func run(ctx context.Context, configPath, cityPath string) error {
 	}
 
 	log.Printf("Writing country and state maps to %s", c.Ips)
-	if err := writeIPSearchAtomic(c.Ips, ipSearch); err != nil {
-		return fmt.Errorf("write MaxMind config %q: %w", c.Ips, err)
+	if err := publishIPSearchGeneration(c.Ips, ipSearch, validate); err != nil {
+		return fmt.Errorf("publish MaxMind generation %q: %w", c.Ips, err)
 	}
 	return nil
 }
@@ -156,4 +163,187 @@ func writeIPSearchAtomic(filename string, ipSearch *maxmind.IPSearch) error {
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(ipSearch)
 	})
+}
+
+func publishIPSearchGeneration(filename string, ipSearch *maxmind.IPSearch, validate func(string) error) error {
+	return withCityPublicationLock(filename, func() error {
+		return publishIPSearchGenerationLocked(filename, ipSearch, validate)
+	})
+}
+
+func publishIPSearchGenerationLocked(filename string, ipSearch *maxmind.IPSearch, validate func(string) error) error {
+	if ipSearch == nil {
+		return errors.New("MaxMind config is nil")
+	}
+	if validate == nil {
+		return errors.New("MaxMind City validator is nil")
+	}
+	source, err := maxmind.ResolveCityFilePath(filename, ipSearch.CityFile)
+	if err != nil {
+		return err
+	}
+	digest, err := hashFile(source)
+	if err != nil {
+		return fmt.Errorf("hash City database: %w", err)
+	}
+	assetRoot := cityAssetRoot(filename)
+	generationRoot := filepath.Join(assetRoot, digest)
+	if err := atomicfile.EnsureDir(generationRoot, 0750); err != nil {
+		return fmt.Errorf("create City generation: %w", err)
+	}
+	assetPath := filepath.Join(generationRoot, "GeoLite2-City.mmdb")
+	if err := copyHashedFile(source, assetPath, digest); err != nil {
+		return fmt.Errorf("stage City database: %w", err)
+	}
+	if err := validate(assetPath); err != nil {
+		return fmt.Errorf("validate staged City database: %w", err)
+	}
+
+	prior := selectedCityGeneration(filename, assetRoot)
+	if err := pruneCityGenerations(assetRoot, digest, prior); err != nil {
+		return fmt.Errorf("prune City generations: %w", err)
+	}
+	relativeAsset, err := filepath.Rel(filepath.Dir(filename), assetPath)
+	if err != nil {
+		return err
+	}
+	if err := maxmind.ValidateCityFilePath(relativeAsset); err != nil {
+		return err
+	}
+	published := *ipSearch
+	published.CityFile = relativeAsset
+	return writeIPSearchAtomic(filename, &published)
+}
+
+func withCityPublicationLock(configPath string, publish func() error) (err error) {
+	if publish == nil {
+		return errors.New("MaxMind publisher is nil")
+	}
+	lockPath := filepath.Join(filepath.Dir(configPath), "."+filepath.Base(configPath)+".lock")
+	lock, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	locked := false
+	defer func() {
+		var unlockErr error
+		if locked {
+			unlockErr = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		}
+		err = errors.Join(err, unlockErr, lock.Close())
+	}()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	locked = true
+	return publish()
+}
+
+func cityAssetRoot(configPath string) string {
+	return filepath.Join(filepath.Dir(configPath), "."+filepath.Base(configPath)+".generations")
+}
+
+func hashFile(filename string) (digest string, err error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, file)
+	closeErr := file.Close()
+	if copyErr != nil {
+		return "", copyErr
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func copyHashedFile(source, target, expectedDigest string) error {
+	return atomicfile.Write(target, 0640, func(out io.Writer) error {
+		in, err := os.Open(source)
+		if err != nil {
+			return err
+		}
+		hash := sha256.New()
+		_, copyErr := io.Copy(io.MultiWriter(out, hash), in)
+		closeErr := in.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if got := fmt.Sprintf("%x", hash.Sum(nil)); got != expectedDigest {
+			return errors.New("City database changed while it was staged")
+		}
+		return nil
+	})
+}
+
+func selectedCityGeneration(configPath, assetRoot string) string {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+	var current maxmind.IPSearch
+	if err := json.Unmarshal(data, &current); err != nil {
+		return ""
+	}
+	cityPath, err := maxmind.ResolveCityFilePath(configPath, current.CityFile)
+	if err != nil {
+		return ""
+	}
+	relative, err := filepath.Rel(assetRoot, cityPath)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(filepath.ToSlash(relative), "/")
+	if len(parts) != 2 || parts[1] != "GeoLite2-City.mmdb" || !validGenerationDigest(parts[0]) {
+		return ""
+	}
+	return parts[0]
+}
+
+func pruneCityGenerations(assetRoot string, keep ...string) error {
+	kept := make(map[string]struct{}, len(keep))
+	for _, generation := range keep {
+		if generation != "" {
+			kept[generation] = struct{}{}
+		}
+	}
+	entries, err := os.ReadDir(assetRoot)
+	if err != nil {
+		return err
+	}
+	removed := false
+	for _, entry := range entries {
+		if !entry.IsDir() || !validGenerationDigest(entry.Name()) {
+			continue
+		}
+		if _, ok := kept[entry.Name()]; ok {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(assetRoot, entry.Name())); err != nil {
+			return err
+		}
+		removed = true
+	}
+	if removed {
+		return atomicfile.SyncDir(assetRoot)
+	}
+	return nil
+}
+
+func validGenerationDigest(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
 }

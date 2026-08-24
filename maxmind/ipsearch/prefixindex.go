@@ -6,6 +6,9 @@ type prefixIndex struct {
 }
 
 func GetPrefixIndex(indexBuffer []byte, i uint32) *prefixIndex {
+	if uint64(i)+9 > uint64(len(indexBuffer)) {
+		return nil
+	}
 	startIndex := bytesToLong(indexBuffer[i+1], indexBuffer[i+2], indexBuffer[i+3], indexBuffer[i+4])
 	endIndex := bytesToLong(indexBuffer[i+5], indexBuffer[i+6], indexBuffer[i+7], indexBuffer[i+8])
 	return &prefixIndex{startIndex, endIndex}

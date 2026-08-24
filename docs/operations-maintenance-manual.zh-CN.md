@@ -639,7 +639,7 @@ AOFEI=/etc/aofei/aofei.json \
   /opt/aofei/bin/maxmind -city=/var/lib/aofei/maxmind/GeoLite2-City.mmdb
 ```
 
-命令从 MySQL 读取国家/地区 ID 映射，并原子替换配置的 `ips` JSON；它只记录 `.mmdb` 路径，不复制文件，也不验证数据文件内容。上线前应额外检查文件存在、服务用户可读，并用实际 IP 做地理查找 smoke。
+命令从 MySQL 读取国家/地区 ID 映射，在稳定的本地锁下把 `.mmdb` 复制到按 SHA-256 命名的同级代目录，验证复制结果后才原子替换配置的 `ips` JSON。复制、校验或清理失败时旧 JSON 仍然生效；保留当前和上一代以便回滚。上线前仍应检查源文件存在、服务用户可读，并用实际 IP 做地理查找 smoke。
 
 ## 10. 安全检查
 

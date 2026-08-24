@@ -571,9 +571,12 @@ Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_winloss/`. `cmd/nats-client` creates or tightens these
 directories to `0750` and generated interval files to `0640`; ledger input logs
 should not be world-readable or group/world-writable. `cmd/maxmind` reads MySQL
-country/state tables and atomically writes the configured MaxMind JSON path,
-normally `etc/maxmind.json`. The shared local-file primitive writes mode `0640`,
-syncs the temporary file, renames it, and syncs the containing directory. Spread
+country/state tables, stages and validates a content-addressed City MMDB, and
+atomically selects it through the configured MaxMind JSON path, normally
+`etc/maxmind.json`. A stable sibling lock serializes generation retention; the
+current and immediately prior MMDB generations remain available. The shared
+local-file primitive writes mode `0640`, syncs the temporary file, renames it,
+and syncs the containing directory. Spread
 directories are created or tightened to at most `0750`; its snapshots and
 generation pointer also use the shared primitive. Current geodata readers load
 their files into Go-managed memory and retain neither mmap nor file handles.
@@ -584,7 +587,10 @@ their files into Go-managed memory and retain neither mmap nor file handles.
 `city_file` points to `etc/GeoLite2-City.mmdb`; the loader resolves relative
 values against the JSON directory. `cmd/maxmind` has no environment-specific
 absolute default: pass `-city`, set `AOFEI_GEOLITE_CITY_FILE`, or configure an
-explicit production path.
+explicit production source path. Generated JSON selects the validated sibling
+generation rather than the external source directly. JSON plus MMDB is the
+preferred runtime; an `ips` path ending in `.dat` remains an explicit, strictly
+validated legacy fallback and never masks a malformed preferred format.
 
 Ignored optional local assets:
 

@@ -629,20 +629,28 @@ Inputs:
 
 Outputs:
 
+- A validated content-addressed City MMDB beneath
+  `.<ips-base>.generations/<sha256>/`.
 - JSON written atomically to the configured `ips` path, normally
-  `etc/maxmind.json`.
+  `etc/maxmind.json`, selecting that staged generation by relative path.
 
 Notes:
 
-- The command reads database country/state tables without loading the existing
-  MaxMind runtime JSON first.
-- The `-city` value (or `AOFEI_GEOLITE_CITY_FILE`) is recorded as `city_file`;
-  the `.mmdb` payload remains an external asset and is not copied into the
-  repository. Relative values resolve against the generated JSON directory;
-  use an explicit absolute value for an asset stored elsewhere.
+- The command reads database country/state tables and reads the existing JSON
+  only to retain the currently selected City generation for rollback.
+- The `-city` value (or `AOFEI_GEOLITE_CITY_FILE`) identifies the external
+  source asset. Relative values resolve against the generated JSON directory;
+  use an explicit absolute source value for an asset stored elsewhere.
+- A stable sibling file lock serializes publishers. The source is hashed,
+  copied atomically, checked for change during copy, and parsed as a supported
+  City MMDB before JSON selection. Failure leaves the prior JSON selected; the
+  selected and immediately prior City generations are retained.
 - The configured `ips` target rejects root/current-directory/parent-traversal
   values. JSON replacement uses mode `0640` and syncs both the file and its
   containing directory before success.
+- Runtime loading prefers JSON plus MMDB. An `ips` path ending in `.dat` invokes
+  the strict legacy compatibility reader; malformed files fail without panic
+  and are never used as an implicit fallback for malformed JSON/MMDB.
 - See [maxmind-runtime.md](maxmind-runtime.md) for asset and test details.
 
 ## Verification

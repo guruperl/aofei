@@ -341,9 +341,11 @@ GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/winloss win
 GOWORK=off AOFEI="$PWD/etc/aofei.local.json" go run ./cmd/maxmind -city=GeoLite2-City.mmdb
 ```
 
-`cmd/maxmind` reads Docker MySQL country/state tables and atomically writes the
-configured `ips` JSON path, normally `etc/maxmind.json`. The external City
-`.mmdb` payload is referenced by path only. Relative `city_file` values resolve
-against the JSON directory; use an explicit absolute path when the asset lives
-elsewhere. See
+`cmd/maxmind` reads Docker MySQL country/state tables, copies and validates the
+external City source into a content-addressed sibling generation, then
+atomically selects it through the configured `ips` JSON, normally
+`etc/maxmind.json`. Relative source values resolve against the JSON directory;
+use an explicit absolute source path when the asset lives elsewhere. The old
+JSON remains selected on staging/validation failure and current/prior
+generations are retained. See
 [maxmind-runtime.md](maxmind-runtime.md) for geodata asset and test details.

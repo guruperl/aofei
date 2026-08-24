@@ -11,5 +11,7 @@ etc/GeoLite2-City.mmdb
 etc/qq-pz.dat
 etc/aofei.local.json
 etc/summer.local.json
+etc/.maxmind.json.lock
+etc/.maxmind.json.generations/
 .local/
 docs/*.docx

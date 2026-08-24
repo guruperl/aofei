@@ -3,37 +3,16 @@ package ipsearch
 import (
 	"encoding/binary"
 	"fmt"
-	"strconv"
-	"strings"
+	"net/netip"
 )
 
 func IPToLong(ip string) (uint32, error) {
-	quads := strings.Split(ip, ".")
-	if len(quads) != 4 {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || !addr.Is4() {
 		return 0, fmt.Errorf("invalid IP address: %s", ip)
 	}
-	var result uint32 = 0
-	a, err := strconv.ParseUint(quads[3], 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result += uint32(a)
-	b, err := strconv.ParseUint(quads[2], 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result += uint32(b) << 8
-	c, err := strconv.ParseUint(quads[1], 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result += uint32(c) << 16
-	d, err := strconv.ParseUint(quads[0], 10, 32)
-	if err != nil {
-		return 0, err
-	}
-	result += uint32(d) << 24
-	return result, nil
+	quads := addr.As4()
+	return binary.BigEndian.Uint32(quads[:]), nil
 }
 
 /*

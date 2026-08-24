@@ -1,11 +1,15 @@
 package maxmind
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	legacyip "github.com/guruperl/aofei/maxmind/ipsearch"
 	//"pzutil"
 	//"database/sql"
 	//_ "github.com/go-sql-driver/mysql"
@@ -46,7 +50,7 @@ func TestIpsearch(t *testing.T) {
 
 func TestResolveCityFile(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "maxmind.json")
-	got, err := resolveCityFile(config, "GeoLite2-City.mmdb")
+	got, err := ResolveCityFilePath(config, "GeoLite2-City.mmdb")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +60,7 @@ func TestResolveCityFile(t *testing.T) {
 	}
 
 	absolute := filepath.Join(t.TempDir(), "GeoLite2-City.mmdb")
-	got, err = resolveCityFile(config, absolute)
+	got, err = ResolveCityFilePath(config, absolute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,9 +69,96 @@ func TestResolveCityFile(t *testing.T) {
 	}
 
 	for _, path := range []string{"", ".", "..", "../GeoLite2-City.mmdb", "/", " GeoLite2-City.mmdb"} {
-		if _, err := resolveCityFile(config, path); err == nil {
+		if _, err := ResolveCityFilePath(config, path); err == nil {
 			t.Errorf("resolveCityFile(%q) error = nil", path)
 		}
+	}
+}
+
+func TestMalformedCityDatabaseReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	cityFile := filepath.Join(dir, "broken.mmdb")
+	if err := os.WriteFile(cityFile, []byte("not an mmdb"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateCityDatabase(cityFile); err == nil {
+		t.Fatal("ValidateCityDatabase() error = nil")
+	}
+	configFile := filepath.Join(dir, "maxmind.json")
+	data, err := json.Marshal(IPSearch{CityFile: "broken.mmdb"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configFile, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadIPData(configFile); err == nil {
+		t.Fatal("LoadIPData() error = nil")
+	}
+}
+
+func TestLoadIPDataUsesStrictLegacyDatFallback(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy.dat")
+	writeLegacyDatFixture(t, path)
+	search, err := LoadIPData(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if search.Reader != nil || search.Legacy == nil {
+		t.Fatalf("legacy search = %+v", search)
+	}
+	geo, err := search.CreatePzGeo("1.2.3.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if geo.CountryID != 2 || geo.StateID != 3 || geo.CityID != 5 || geo.Country != "country" {
+		t.Fatalf("legacy geo = %+v", geo)
+	}
+
+	if err := os.WriteFile(path, []byte{1, 2, 3}, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadIPData(path); err == nil {
+		t.Fatal("malformed legacy LoadIPData() error = nil")
+	}
+}
+
+func writeLegacyDatFixture(t *testing.T, path string) {
+	t.Helper()
+	var location bytes.Buffer
+	if err := binary.Write(&location, binary.LittleEndian, legacyip.Geo{
+		ContinentID: 1,
+		CountryID:   2,
+		StateID:     3,
+		DmaID:       4,
+		CityID:      5,
+		IspID:       6,
+		ZipID:       7,
+		Lat:         8.5,
+		Lon:         9.5,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	location.WriteString("continent|country|state|metro|city|zip|isp")
+	firstOffset := uint32(16 + location.Len())
+	prefixStart := firstOffset + 12
+	data := make([]byte, 16, int(prefixStart)+9)
+	binary.LittleEndian.PutUint32(data[0:4], firstOffset)
+	binary.LittleEndian.PutUint32(data[4:8], firstOffset)
+	binary.LittleEndian.PutUint32(data[8:12], prefixStart)
+	binary.LittleEndian.PutUint32(data[12:16], prefixStart)
+	data = append(data, location.Bytes()...)
+	index := make([]byte, 12)
+	binary.LittleEndian.PutUint32(index[0:4], 0x01020300)
+	binary.LittleEndian.PutUint32(index[4:8], 0x010203ff)
+	index[8], index[9], index[10] = 16, 0, 0
+	index[11] = byte(location.Len())
+	data = append(data, index...)
+	prefix := make([]byte, 9)
+	prefix[0] = 1
+	data = append(data, prefix...)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
 	}
 }
 

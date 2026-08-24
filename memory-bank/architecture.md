@@ -280,9 +280,11 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    absolute VAST resource URLs and Native version/asset compatibility, before
    markup and competition. Response failure or a selected middleman replacement
    idempotently releases the displaced local reservation.
-8. `cmd/maxmind` reads country and state IDs from Docker MySQL and atomically
-   regenerates the configured MaxMind runtime JSON without loading the existing
-   geodata file first.
+8. `cmd/maxmind` reads country and state IDs from Docker MySQL, serializes local
+   publishers on a stable sibling lock, stages the supplied City MMDB under a
+   content-addressed sibling generation, validates it, retains current/prior
+   generations, and atomically replaces the runtime JSON as the final pointer.
+   A copy, validation, or prune failure leaves the old JSON selected.
 
 Middleman fallback is active behind `middleman_enabled` for ADX `/bid` and
 validated direct SSP `/pz` auctions. Advertiser-owned
@@ -421,6 +423,10 @@ The source/runtime boundary and populated-data rollout are specified in
   host-specific absolute default is embedded in the command or checked-in JSON.
 - Real geodata payloads are external runtime/test assets. `etc/GeoLite2-City.mmdb`
   and `etc/qq-pz.dat` are ignored and must not be committed.
+- Runtime loading prefers the JSON-plus-MMDB contract. A configured `.dat`
+  `ips` path is an explicit compatibility fallback through the strict legacy
+  reader; it validates all header/index/prefix/location bounds before lookup
+  and never masks a malformed JSON or MMDB.
 - The retired root config directory is no longer active and should not be
   recreated.
 - Operational commands use the generated `AOFEI` config. `cmd/ledger`,

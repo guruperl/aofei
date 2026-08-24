@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -10,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/guruperl/aofei/maxmind"
 )
@@ -25,20 +28,171 @@ func TestRunWritesGeneratedConfig(t *testing.T) {
 	dir := t.TempDir()
 	outputPath := filepath.Join(dir, "maxmind.json")
 	configPath := writeTestConfig(t, dir, outputPath, maxmindTestDriverName, "ok")
+	cityPath := filepath.Join(dir, "GeoLite2-City.mmdb")
+	if err := os.WriteFile(cityPath, []byte("city fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
-	if err := run(context.Background(), configPath, "GeoLite2-City.mmdb"); err != nil {
+	if err := runWithCityValidator(context.Background(), configPath, "GeoLite2-City.mmdb", func(staged string) error {
+		data, err := os.ReadFile(staged)
+		if err != nil {
+			return err
+		}
+		if string(data) != "city fixture" {
+			return errors.New("unexpected staged City data")
+		}
+		return nil
+	}); err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
 
 	got := readIPSearchConfig(t, outputPath)
-	if got.CityFile != "GeoLite2-City.mmdb" {
-		t.Fatalf("CityFile = %q", got.CityFile)
+	if !strings.HasPrefix(filepath.ToSlash(got.CityFile), ".maxmind.json.generations/") {
+		t.Fatalf("CityFile = %q, want managed relative generation", got.CityFile)
+	}
+	managedCity, err := maxmind.ResolveCityFilePath(outputPath, got.CityFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(managedCity); err != nil || string(data) != "city fixture" {
+		t.Fatalf("managed City data = %q, %v", data, err)
 	}
 	if got.CountryMap["CAN"] != 6251999 {
 		t.Fatalf("CountryMap[CAN] = %d", got.CountryMap["CAN"])
 	}
 	if got.StateMap[6251999]["ON"] != 6093943 {
 		t.Fatalf("StateMap[6251999][ON] = %d", got.StateMap[6251999]["ON"])
+	}
+}
+
+func TestPublishIPSearchGenerationPreservesCurrentAndPrior(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "maxmind.json")
+	validate := func(path string) error {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if string(data) == "invalid" {
+			return errors.New("invalid City database")
+		}
+		return nil
+	}
+	publish := func(name, data string) error {
+		source := filepath.Join(dir, name)
+		if err := os.WriteFile(source, []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return publishIPSearchGeneration(configPath, &maxmind.IPSearch{
+			CityFile:   name,
+			CountryMap: map[string]uint32{"CAN": uint32(len(data))},
+		}, validate)
+	}
+
+	if err := publish("first.mmdb", "first"); err != nil {
+		t.Fatal(err)
+	}
+	firstConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := readIPSearchConfig(t, configPath)
+	firstAsset, err := maxmind.ResolveCityFilePath(configPath, first.CityFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := publish("invalid.mmdb", "invalid"); err == nil || !strings.Contains(err.Error(), "validate staged") {
+		t.Fatalf("invalid publish error = %v", err)
+	}
+	stillCurrent, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stillCurrent, firstConfig) {
+		t.Fatal("failed validation replaced the selected config")
+	}
+	if _, err := os.Stat(firstAsset); err != nil {
+		t.Fatalf("current asset after failed validation: %v", err)
+	}
+
+	if err := publish("second.mmdb", "second"); err != nil {
+		t.Fatal(err)
+	}
+	second := readIPSearchConfig(t, configPath)
+	if second.CityFile == first.CityFile {
+		t.Fatal("second generation did not change City asset")
+	}
+	assertGenerationCount(t, cityAssetRoot(configPath), 2)
+	if _, err := os.Stat(firstAsset); err != nil {
+		t.Fatalf("prior asset after second publish: %v", err)
+	}
+
+	if err := publish("third.mmdb", "third"); err != nil {
+		t.Fatal(err)
+	}
+	assertGenerationCount(t, cityAssetRoot(configPath), 2)
+	if _, err := os.Stat(firstAsset); !os.IsNotExist(err) {
+		t.Fatalf("oldest generation still present, stat error = %v", err)
+	}
+}
+
+func TestCityPublicationLockSerializesPublishers(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "maxmind.json")
+	firstEntered := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	secondStarted := make(chan struct{})
+	secondEntered := make(chan struct{})
+	var active atomic.Int32
+	var overlap atomic.Bool
+	done := make(chan error, 2)
+
+	go func() {
+		done <- withCityPublicationLock(configPath, func() error {
+			if active.Add(1) != 1 {
+				overlap.Store(true)
+			}
+			close(firstEntered)
+			<-releaseFirst
+			active.Add(-1)
+			return nil
+		})
+	}()
+	select {
+	case <-firstEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first publisher did not acquire lock")
+	}
+	go func() {
+		close(secondStarted)
+		done <- withCityPublicationLock(configPath, func() error {
+			if active.Add(1) != 1 {
+				overlap.Store(true)
+			}
+			active.Add(-1)
+			close(secondEntered)
+			return nil
+		})
+	}()
+	<-secondStarted
+	select {
+	case <-secondEntered:
+		t.Fatal("second publisher entered before first released the lock")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(releaseFirst)
+	select {
+	case <-secondEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second publisher did not acquire released lock")
+	}
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if overlap.Load() {
+		t.Fatal("publishers overlapped inside the file lock")
 	}
 }
 
@@ -140,6 +294,45 @@ func TestWriteIPSearchAtomicReturnsWritePathError(t *testing.T) {
 	err := writeIPSearchAtomic(filepath.Join(t.TempDir(), "missing", "maxmind.json"), &maxmind.IPSearch{})
 	if err == nil {
 		t.Fatal("writeIPSearchAtomic() error = nil")
+	}
+}
+
+func TestCopyHashedFileMismatchPreservesTarget(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "source.mmdb")
+	target := filepath.Join(dir, "target.mmdb")
+	if err := os.WriteFile(source, []byte("new"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := copyHashedFile(source, target, strings.Repeat("0", 64)); err == nil || !strings.Contains(err.Error(), "changed while it was staged") {
+		t.Fatalf("copyHashedFile() error = %v", err)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "old" {
+		t.Fatalf("target = %q, want old", data)
+	}
+}
+
+func assertGenerationCount(t *testing.T, root string, want int) {
+	t.Helper()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if entry.IsDir() && validGenerationDigest(entry.Name()) {
+			count++
+		}
+	}
+	if count != want {
+		t.Fatalf("generation count = %d, want %d", count, want)
 	}
 }
 

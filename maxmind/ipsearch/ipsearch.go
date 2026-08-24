@@ -4,10 +4,24 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/guruperl/aofei/internal/atomicfile"
+)
+
+const (
+	datHeaderSize   = uint32(16)
+	datGeoSize      = uint32(33)
+	datIndexSize    = uint32(12)
+	datPrefixSize   = uint32(9)
+	maxDataOffset   = uint32(1<<24 - 1)
+	maxRecordLength = uint32(254)
 )
 
 type IPSearch struct {
@@ -17,30 +31,120 @@ type IPSearch struct {
 	prefixStartOffset  uint32
 	prefixEndOffset    uint32
 	prefixCount        uint32
+	indexCount         uint32
 }
 
 func LoadIPData(fn string) (*IPSearch, error) {
-	//加载ip地址库信息
 	data, err := os.ReadFile(fn)
 	if err != nil {
 		return nil, err
 	}
-
-	firstOffset := bytesToLong(data[0], data[1], data[2], data[3])
-	preStart := bytesToLong(data[8], data[9], data[10], data[11])
-	preEnd := bytesToLong(data[12], data[13], data[14], data[15])
-	count := (preEnd-preStart)/9 + 1 // 前缀区块每组
-
-	// 初始化前缀对应索引区区间
-	prefixMap := make(map[uint32]*prefixIndex)
-	indexBuffer := data[preStart:(preEnd + 9)]
-	for k := uint32(0); k < count; k++ {
-		i := k * 9
-		prefix := uint32(indexBuffer[i] & 0xFF)
-		prefixMap[prefix] = GetPrefixIndex(indexBuffer, i)
-
+	search, err := parseIPData(data)
+	if err != nil {
+		return nil, fmt.Errorf("load legacy IP data %q: %w", fn, err)
 	}
-	return &IPSearch{data, prefixMap, firstOffset, preStart, preEnd, count}, nil
+	return search, nil
+}
+
+func parseIPData(data []byte) (*IPSearch, error) {
+	if uint64(len(data)) < uint64(datHeaderSize) {
+		return nil, fmt.Errorf("header is truncated: got %d bytes, need %d", len(data), datHeaderSize)
+	}
+	firstOffset := binary.LittleEndian.Uint32(data[0:4])
+	indexEnd := binary.LittleEndian.Uint32(data[4:8])
+	preStart := binary.LittleEndian.Uint32(data[8:12])
+	preEnd := binary.LittleEndian.Uint32(data[12:16])
+	dataLength := uint64(len(data))
+
+	if firstOffset < datHeaderSize || uint64(firstOffset) > dataLength {
+		return nil, fmt.Errorf("first index offset %d is outside [%d,%d]", firstOffset, datHeaderSize, len(data))
+	}
+	if preStart < firstOffset || uint64(preStart) > dataLength {
+		return nil, fmt.Errorf("prefix start offset %d precedes the index or exceeds the file", preStart)
+	}
+	indexBytes := preStart - firstOffset
+	if indexBytes == 0 || indexBytes%datIndexSize != 0 {
+		return nil, fmt.Errorf("index region length %d is not a non-empty multiple of %d", indexBytes, datIndexSize)
+	}
+	indexCount := indexBytes / datIndexSize
+	wantIndexEnd := uint64(firstOffset) + uint64(indexCount-1)*uint64(datIndexSize)
+	if uint64(indexEnd) != wantIndexEnd {
+		return nil, fmt.Errorf("index end offset %d does not match %d entries ending at %d", indexEnd, indexCount, wantIndexEnd)
+	}
+	if preEnd < preStart || (preEnd-preStart)%datPrefixSize != 0 {
+		return nil, fmt.Errorf("prefix end offset %d does not align with prefix start %d", preEnd, preStart)
+	}
+	prefixEndExclusive := uint64(preEnd) + uint64(datPrefixSize)
+	if prefixEndExclusive != dataLength {
+		return nil, fmt.Errorf("prefix region ends at %d, file length is %d", prefixEndExclusive, len(data))
+	}
+	prefixCount := (preEnd-preStart)/datPrefixSize + 1
+
+	search := &IPSearch{
+		data:               data,
+		prefixMap:          make(map[uint32]*prefixIndex, prefixCount),
+		firstStartIPOffset: firstOffset,
+		prefixStartOffset:  preStart,
+		prefixEndOffset:    preEnd,
+		prefixCount:        prefixCount,
+		indexCount:         indexCount,
+	}
+	if err := search.validateIndexes(); err != nil {
+		return nil, err
+	}
+	if err := search.loadPrefixes(); err != nil {
+		return nil, err
+	}
+	return search, nil
+}
+
+func (self *IPSearch) validateIndexes() error {
+	var priorEnd uint32
+	for index := uint32(0); index < self.indexCount; index++ {
+		record, err := self.indexRecord(index)
+		if err != nil {
+			return err
+		}
+		startIP := binary.LittleEndian.Uint32(record[0:4])
+		endIP := binary.LittleEndian.Uint32(record[4:8])
+		if startIP > endIP {
+			return fmt.Errorf("index %d has descending IP range %d-%d", index, startIP, endIP)
+		}
+		if index != 0 && startIP <= priorEnd {
+			return fmt.Errorf("index %d overlaps or is out of order", index)
+		}
+		priorEnd = endIP
+
+		localOffset := uint32(record[8]) | uint32(record[9])<<8 | uint32(record[10])<<16
+		localLength := uint32(record[11])
+		if localLength < datGeoSize {
+			return fmt.Errorf("index %d location length %d is shorter than geo record %d", index, localLength, datGeoSize)
+		}
+		if localOffset < datHeaderSize || uint64(localOffset)+uint64(localLength) > uint64(self.firstStartIPOffset) {
+			return fmt.Errorf("index %d location range [%d,%d) is outside the data region [%d,%d)", index, localOffset, uint64(localOffset)+uint64(localLength), datHeaderSize, self.firstStartIPOffset)
+		}
+	}
+	return nil
+}
+
+func (self *IPSearch) loadPrefixes() error {
+	for index := uint32(0); index < self.prefixCount; index++ {
+		offset := uint64(self.prefixStartOffset) + uint64(index)*uint64(datPrefixSize)
+		record, err := boundedSlice(self.data, offset, uint64(datPrefixSize))
+		if err != nil {
+			return fmt.Errorf("prefix index %d: %w", index, err)
+		}
+		prefix := uint32(record[0])
+		if _, duplicate := self.prefixMap[prefix]; duplicate {
+			return fmt.Errorf("prefix %d is duplicated", prefix)
+		}
+		bounds := GetPrefixIndex(record, 0)
+		if bounds == nil || bounds.StartIndex > bounds.EndIndex || bounds.EndIndex >= self.indexCount {
+			return fmt.Errorf("prefix %d has invalid index range", prefix)
+		}
+		self.prefixMap[prefix] = bounds
+	}
+	return nil
 }
 
 func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
@@ -61,143 +165,156 @@ func (self *IPSearch) CreatePzGeo(ip string) (*PzGeo, error) {
 }
 
 func (self *IPSearch) getIPIndex(ip string) (*ipIndex, error) {
-	data := self.data
 	leftOffset, localOffset, localLength, err := self.getLocation(ip)
-	if err != nil {
+	if err != nil || leftOffset == 0 {
 		return nil, err
 	}
-	if leftOffset == 0 {
-		return nil, nil
+	record, err := boundedSlice(self.data, uint64(localOffset), uint64(localLength))
+	if err != nil {
+		return nil, fmt.Errorf("location record: %w", err)
 	}
-
 	geo := new(Geo)
-	buf := bytes.NewReader(data[localOffset : localOffset+33])
-	err = binary.Read(buf, binary.LittleEndian, geo)
-	if err != nil {
+	if err := binary.Read(bytes.NewReader(record[:datGeoSize]), binary.LittleEndian, geo); err != nil {
 		return nil, err
 	}
-
+	index, err := boundedSlice(self.data, uint64(leftOffset), uint64(datIndexSize))
+	if err != nil {
+		return nil, fmt.Errorf("IP index: %w", err)
+	}
 	return &ipIndex{
-		bytesToLong(data[leftOffset], data[1+leftOffset], data[2+leftOffset], data[3+leftOffset]),
-		bytesToLong(data[4+leftOffset], data[5+leftOffset], data[6+leftOffset], data[7+leftOffset]),
-		localOffset,
-		localLength,
-		*geo,
-		data[localOffset+33 : localOffset+localLength]}, nil
+		StartIP:     binary.LittleEndian.Uint32(index[0:4]),
+		EndIP:       binary.LittleEndian.Uint32(index[4:8]),
+		LocalOffset: localOffset,
+		LocalLength: localLength,
+		Geo:         *geo,
+		LocalString: record[datGeoSize:],
+	}, nil
 }
 
 func (self *IPSearch) Get(ip string) (string, error) {
 	leftOffset, localOffset, localLength, err := self.getLocation(ip)
+	if err != nil || leftOffset == 0 {
+		return "", err
+	}
+	record, err := boundedSlice(self.data, uint64(localOffset), uint64(localLength))
 	if err != nil {
 		return "", err
 	}
-	if leftOffset == 0 {
-		return "", nil
-	}
-	return string(self.data[localOffset+33 : localOffset+localLength]), nil
+	return string(record[datGeoSize:]), nil
 }
 
 func (self *IPSearch) GetSimple(ip string) (string, error) {
 	leftOffset, localOffset, localLength, err := self.getLocation(ip)
+	if err != nil || leftOffset == 0 {
+		return "", err
+	}
+	record, err := boundedSlice(self.data, uint64(localOffset), uint64(localLength))
 	if err != nil {
 		return "", err
 	}
-	if leftOffset == 0 {
-		return "", nil
-	}
-	return string(self.data[localOffset : localOffset+localLength]), nil
+	return string(record), nil
 }
 
 func (self *IPSearch) getLocation(ip string) (uint32, uint32, uint32, error) {
-	ips := strings.Split(ip, ".")
-	x, err := strconv.ParseUint(ips[0], 10, 32)
-	if err != nil {
-		return 0, 0, 0, err
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || !addr.Is4() {
+		return 0, 0, 0, fmt.Errorf("invalid IPv4 address %q", ip)
 	}
-	prefix := uint32(x)
-	intIP, err := IPToLong(ip)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
-	var high uint32 = 0
-	var low uint32 = 0
-
-	if _, ok := self.prefixMap[prefix]; ok {
-		low = self.prefixMap[prefix].StartIndex
-		high = self.prefixMap[prefix].EndIndex
-	} else {
+	quads := addr.As4()
+	prefix := uint32(quads[0])
+	intIP := binary.BigEndian.Uint32(quads[:])
+	bounds, ok := self.prefixMap[prefix]
+	if !ok {
 		return 0, 0, 0, nil
 	}
 
-	left := self.binarySearch(low, high, intIP)
-	if left == 0 {
-		return 0, 0, 0, nil
+	left, found, err := self.binarySearch(bounds.StartIndex, bounds.EndIndex, intIP)
+	if err != nil || !found {
+		return 0, 0, 0, err
 	}
-
-	leftOffset := self.firstStartIPOffset + left*12
-	localOffset := bytesToLong3(self.data[8+leftOffset], self.data[9+leftOffset], self.data[10+leftOffset])
-	localLength := uint32(self.data[11+leftOffset])
-
+	record, err := self.indexRecord(left)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	leftOffset := self.firstStartIPOffset + left*datIndexSize
+	localOffset := uint32(record[8]) | uint32(record[9])<<8 | uint32(record[10])<<16
+	localLength := uint32(record[11])
+	if _, err := boundedSlice(self.data, uint64(localOffset), uint64(localLength)); err != nil {
+		return 0, 0, 0, fmt.Errorf("index %d location: %w", left, err)
+	}
 	return leftOffset, localOffset, localLength, nil
 }
 
-// 二分逼近算法
-func (self *IPSearch) binarySearch(l uint32, h uint32, ip uint32) uint32 {
-	if l == h {
-		return l
+func (self *IPSearch) binarySearch(low, high, ip uint32) (uint32, bool, error) {
+	if low > high || high >= self.indexCount {
+		return 0, false, fmt.Errorf("search range [%d,%d] exceeds %d indexes", low, high, self.indexCount)
 	}
-	mid := (l + h) / 2
-	for l < h {
-		startipNum, endipNum := self.getStartEndIP(mid)
-		if ip == startipNum || ip == endipNum || (ip > startipNum && ip < endipNum) {
-			return mid
-		} else if ip < startipNum {
-			h = mid
-		} else if ip > endipNum {
-			l = mid
+	for low <= high {
+		mid := low + (high-low)/2
+		startIP, endIP, err := self.getStartEndIP(mid)
+		if err != nil {
+			return 0, false, err
 		}
-
-		if (h - l) == 1 {
-			startipNum, endipNum = self.getStartEndIP(l)
-			if ip == startipNum || ip == endipNum || (ip > startipNum && ip < endipNum) {
-				return l
+		switch {
+		case ip < startIP:
+			if mid == 0 {
+				return 0, false, nil
 			}
-			startipNum, endipNum = self.getStartEndIP(h)
-			if ip == startipNum || ip == endipNum || (ip > startipNum && ip < endipNum) {
-				return h
-			}
-			return 0
+			high = mid - 1
+		case ip > endIP:
+			low = mid + 1
+		default:
+			return mid, true, nil
 		}
-		mid = (l + h) / 2
 	}
-	return mid
+	return 0, false, nil
 }
 
-// 只获取结束ip的数值
-// 索引区第left个索引
-// 返回结束ip的数值
-func (self *IPSearch) getStartEndIP(left uint32) (uint32, uint32) {
-	leftOffset := self.firstStartIPOffset + left*12
-	return bytesToLong(self.data[0+leftOffset], self.data[1+leftOffset], self.data[2+leftOffset], self.data[3+leftOffset]), bytesToLong(self.data[4+leftOffset], self.data[5+leftOffset], self.data[6+leftOffset], self.data[7+leftOffset])
+func (self *IPSearch) getStartEndIP(index uint32) (uint32, uint32, error) {
+	record, err := self.indexRecord(index)
+	if err != nil {
+		return 0, 0, err
+	}
+	return binary.LittleEndian.Uint32(record[0:4]), binary.LittleEndian.Uint32(record[4:8]), nil
+}
+
+func (self *IPSearch) indexRecord(index uint32) ([]byte, error) {
+	if index >= self.indexCount {
+		return nil, fmt.Errorf("index %d exceeds count %d", index, self.indexCount)
+	}
+	offset := uint64(self.firstStartIPOffset) + uint64(index)*uint64(datIndexSize)
+	record, err := boundedSlice(self.data, offset, uint64(datIndexSize))
+	if err != nil {
+		return nil, fmt.Errorf("index %d: %w", index, err)
+	}
+	return record, nil
+}
+
+func boundedSlice(data []byte, offset, length uint64) ([]byte, error) {
+	if offset > uint64(len(data)) || length > uint64(len(data))-offset {
+		return nil, fmt.Errorf("range [%d,%d) exceeds %d bytes", offset, offset+length, len(data))
+	}
+	return data[offset : offset+length], nil
 }
 
 func DatabaseToDat(db *sql.DB, outfile string) error {
-	_, err := db.Exec("SET NAMES 'utf8mb4'")
-	if err != nil {
+	if db == nil {
+		return errors.New("IP database is nil")
+	}
+	if _, err := db.Exec("SET NAMES 'utf8mb4'"); err != nil {
 		return err
 	}
-	rows, err := db.Query(`SELECT ip_start, ip_end, ip_start_num, ip_end_num, IFNULL(CONCAT(continent, "|", country, "|", province, "|", city, "|", district, "|", area_code, "|", isp),"") AS geo, IFNULL(continent_id,0), IFNULL(country_id,0), IFNULL(state_id,0), IFNULL(dma_id,0), IFNULL(city_id, 0), IFNULL(isp_id,0), IFNULL(area_code,"") AS zip, IFNULL(latitude,""), IFNULL(longitude,"") FROM ip`)
+	rows, err := db.Query(`SELECT ip_start, ip_end, ip_start_num, ip_end_num, IFNULL(CONCAT(continent, "|", country, "|", province, "|", city, "|", district, "|", area_code, "|", isp),"") AS geo, IFNULL(continent_id,0), IFNULL(country_id,0), IFNULL(state_id,0), IFNULL(dma_id,0), IFNULL(city_id, 0), IFNULL(isp_id,0), IFNULL(area_code,"") AS zip, IFNULL(latitude,""), IFNULL(longitude,"") FROM ip ORDER BY ip_start_num`)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	total := 16
-	n := 0
+	total := uint64(datHeaderSize)
 	ind := make([]*ipIndex, 0)
 	keys := make([]uint32, 0)
 	pre := make(map[uint32]*prefixIndex)
+	var priorEnd uint32
 
 	for rows.Next() {
 		var ipStart, ipEnd string
@@ -210,137 +327,91 @@ func DatabaseToDat(db *sql.DB, outfile string) error {
 		if err := rows.Scan(&ipStart, &ipEnd, &ipStartNum, &ipEndNum, &geo, &continentID, &countryID, &stateID, &dmaID, &cityID, &ispID, &zip, &latitude, &longitude); err != nil {
 			return err
 		}
+		parsedStart, err := IPToLong(ipStart)
+		if err != nil || parsedStart != ipStartNum {
+			return fmt.Errorf("invalid start IP row %q", ipStart)
+		}
+		parsedEnd, err := IPToLong(ipEnd)
+		if err != nil || parsedEnd != ipEndNum || ipStartNum > ipEndNum {
+			return fmt.Errorf("invalid end IP row %q", ipEnd)
+		}
+		if len(ind) != 0 && ipStartNum <= priorEnd {
+			return fmt.Errorf("IP row %q overlaps or is out of order", ipStart)
+		}
+		priorEnd = ipEndNum
 
-		ll := len(latitude)
-		if ll > 0 && latitude[ll-1] == '\x0d' {
-			latitude = latitude[:ll-1]
-		}
-
-		clean := make([]byte, 0)
-		for _, c := range geo {
-			if c != '\x0d' {
-				clean = append(clean, c)
-			}
-		}
-		length := len(clean)
-
-		zip32, err := strconv.ParseUint(zip, 10, 32)
-		if err != nil {
-			zip32 = 0
-		}
-		lat64, err := strconv.ParseFloat(latitude, 64)
-		if err != nil {
-			lat64 = 0.0
-		}
-		lon64, err := strconv.ParseFloat(longitude, 64)
-		if err != nil {
-			lon64 = 0.0
-		}
-
-		ids := Geo{continentID, countryID, stateID, dmaID, cityID, ispID, uint32(zip32), lat64, lon64}
-		length += 33 // 1+2+2+2+4+2
-		if length >= 255 {
+		latitude = strings.TrimSuffix(latitude, "\r")
+		clean := bytes.ReplaceAll(geo, []byte{'\r'}, nil)
+		length := uint32(len(clean)) + datGeoSize
+		if length > maxRecordLength {
 			return fmt.Errorf("ip location record for %s is too long: %d bytes", ipStart, length)
 		}
-		ind = append(ind, &ipIndex{ipStartNum, ipEndNum, uint32(total), uint32(length), ids, clean})
-
-		ips := strings.Split(ipStart, ".")
-		x, _ := strconv.ParseUint(ips[0], 10, 32)
-		prefix := uint32(x)
-
-		if _, ok := pre[prefix]; ok {
-			pre[prefix].EndIndex = uint32(n)
-		} else {
-			keys = append(keys, prefix)
-			pre[prefix] = &prefixIndex{uint32(n), uint32(n)}
+		if total > uint64(maxDataOffset) {
+			return errors.New("legacy IP data region exceeds 24-bit offsets")
 		}
 
-		n++
-		total += length
+		zip32, _ := strconv.ParseUint(zip, 10, 32)
+		lat64, _ := strconv.ParseFloat(latitude, 64)
+		lon64, _ := strconv.ParseFloat(longitude, 64)
+		ids := Geo{continentID, countryID, stateID, dmaID, cityID, ispID, uint32(zip32), lat64, lon64}
+		ind = append(ind, &ipIndex{ipStartNum, ipEndNum, uint32(total), length, ids, clean})
+
+		prefix := uint32(netip.MustParseAddr(ipStart).As4()[0])
+		index := uint32(len(ind) - 1)
+		if existing, ok := pre[prefix]; ok {
+			existing.EndIndex = index
+		} else {
+			keys = append(keys, prefix)
+			pre[prefix] = &prefixIndex{index, index}
+		}
+		total += uint64(length)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-
-	a0 := uint32(total)
-	total += 12 * n
-	a1 := uint32(total - 12)
-	a2 := uint32(total)
-	total += 9 * len(keys)
-	a3 := uint32(total - 9)
-
-	out, err := os.Create(outfile)
-	if err != nil {
-		return err
+	if len(ind) == 0 {
+		return errors.New("legacy IP database contains no rows")
 	}
-	defer out.Close()
-
-	_, err = out.Write(get4(a0))
-	if err != nil {
-		return err
-	}
-	_, err = out.Write(get4(a1))
-	if err != nil {
-		return err
-	}
-	_, err = out.Write(get4(a2))
-	if err != nil {
-		return err
-	}
-	_, err = out.Write(get4(a3))
-	if err != nil {
-		return err
+	if total+uint64(len(ind))*uint64(datIndexSize)+uint64(len(keys))*uint64(datPrefixSize) > uint64(^uint32(0)) {
+		return errors.New("legacy IP database output exceeds 32-bit offsets")
 	}
 
-	for i := 0; i < n; i++ {
-		buf := new(bytes.Buffer)
-		err = binary.Write(buf, binary.LittleEndian, &ind[i].Geo)
-		if err != nil {
-			return err
-		}
-		_, err = out.Write(buf.Bytes())
-		if err != nil {
-			return err
-		}
-		_, err = out.Write(ind[i].LocalString)
-		if err != nil {
+	return atomicfile.Write(outfile, 0640, func(out io.Writer) error {
+		return writeDat(out, ind, keys, pre, uint32(total))
+	})
+}
+
+func writeDat(out io.Writer, indexes []*ipIndex, keys []uint32, prefixes map[uint32]*prefixIndex, firstIndexOffset uint32) error {
+	indexEnd := firstIndexOffset + uint32(len(indexes)-1)*datIndexSize
+	prefixStart := firstIndexOffset + uint32(len(indexes))*datIndexSize
+	prefixEnd := prefixStart + uint32(len(keys)-1)*datPrefixSize
+	for _, value := range []uint32{firstIndexOffset, indexEnd, prefixStart, prefixEnd} {
+		if _, err := out.Write(get4(value)); err != nil {
 			return err
 		}
 	}
-
-	for i := 0; i < n; i++ {
-		_, err = out.Write(get4(ind[i].StartIP))
-		if err != nil {
+	for _, index := range indexes {
+		if err := binary.Write(out, binary.LittleEndian, &index.Geo); err != nil {
 			return err
 		}
-		_, err = out.Write(get4(ind[i].EndIP))
-		if err != nil {
-			return err
-		}
-		_, err = out.Write(get3(ind[i].LocalOffset))
-		if err != nil {
-			return err
-		}
-		_, err = out.Write([]byte{byte(ind[i].LocalLength)})
-		if err != nil {
+		if _, err := out.Write(index.LocalString); err != nil {
 			return err
 		}
 	}
-
-	for _, k := range keys {
-		_, err = out.Write([]byte{byte(k)})
-		if err != nil {
-			return err
-		}
-		_, err = out.Write(get4(pre[k].StartIndex))
-		if err != nil {
-			return err
-		}
-		_, err = out.Write(get4(pre[k].EndIndex))
-		if err != nil {
-			return err
+	for _, index := range indexes {
+		for _, data := range [][]byte{get4(index.StartIP), get4(index.EndIP), get3(index.LocalOffset), {byte(index.LocalLength)}} {
+			if _, err := out.Write(data); err != nil {
+				return err
+			}
 		}
 	}
-
+	for _, key := range keys {
+		prefix := prefixes[key]
+		for _, data := range [][]byte{{byte(key)}, get4(prefix.StartIndex), get4(prefix.EndIndex)} {
+			if _, err := out.Write(data); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
