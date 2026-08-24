@@ -1,6 +1,6 @@
 # Status O03 - Job, Cache, And Filesystem Reliability
 
-State: `[!]` Blocked at authorized review iteration 15
+State: `[~]` In progress at authorized review iteration 16
 
 ## Goal
 
@@ -21,7 +21,7 @@ atomic generation publication with partial live writes.
 | Item | State | Notes |
 |---|---:|---|
 | Renewable singleton liveness | `[+]` | Renewable locks now retry transient Redis errors with bounded exponential backoff only inside the last confirmed TTL, cancel the lease-owned work context immediately on token mismatch or at the conservative uncertainty deadline, and expose distinct confirmed-loss/uncertain errors. `WithLock` releases through a bounded independent context before returning work or lease failures; cache, ledger, callback-retry, and simulator commands all use it. Ledger SQL/file aggregation and simulator delays now honor the lease context. Scripted-clock tests cover recovery, mismatch, deadline stop, and explicit release; miniredis failure tests and disposable real-Redis renewal/exclusion/reacquisition pass. |
-| Redis cache primitive safety | `[+]` | Directly constructed Redis sinks no longer expose client/key fields; the reusable family constructor requires a non-empty generation namespace, while internal live item sinks reject family reset before Redis mutation. Raw-client RAdv compilation therefore cannot recreate the `DEL`-then-`HSET` window. Production now calls the explicit `PublishRedisGeneration` API and retains one-transaction shadow-family replacement. Miniredis guards prove rejection preserves live data, staged writes remain isolated, empty namespaces fail, build failure preserves the old generation, and complete swaps remove empty/obsolete families atomically. |
+| Redis cache primitive safety | `[+]` | Directly constructed Redis sinks no longer expose client/key fields; the reusable family constructor requires a non-empty generation namespace, while internal live item sinks reject family reset before Redis mutation. Raw-client RAdv compilation therefore cannot recreate the `DEL`-then-`HSET` window. Production calls the explicit `PublishRedisGeneration` API; private hash markers plus one server-side script validate every shadow before replacing the complete live generation. Miniredis guards prove rejection preserves live data, staged writes remain isolated, empty namespaces fail, build failure preserves the old generation, missing or partially recreated shadows preserve every old family, and complete swaps remove empty/obsolete families atomically. |
 | Spread generation proof | `[+]` | The race is real outside the narrow single-connection/singleton assumption: a receiver reconnect can miss reset/data messages, and separate producer connections can interleave. Full snapshots are now compiled before publication, assigned the monotonic Redis `aofei:spread:generation` fence, and sent as a bounded count/SHA-256 manifest, isolated data messages, and a flushed commit. `cmd/spread` stages each sequence, accepts idempotent duplicates, rejects changed entries, ignores stale/overlapping sequences, preserves the selected generation across reconnect gaps, retains current/previous files, and atomically switches `.aofei-current` only after manifest verification. Bootstrap uses the same disk-generation path; readers resolve one pointer before loading. Legacy direct subjects are receiver-first rollout compatibility only and are ignored after activation. Deterministic ordered, missing/reconnect, duplicate, overlap, stale-legacy, retention, publish-failure, counter-floor, pointer, Docker cache-smoke, and real-NATS reconnect tests cover the contract. |
 | Filesystem safety | `[+]` | Spread roots/generation directories are created or tightened to at most `0750`, files use `0640`, and unsafe root/current-directory/relative-parent mutable targets are rejected. The ineffective flock on a process-private temp file is gone. A tested shared writer now performs encode/write, file sync, close, rename, and parent-directory sync; durable directory creation syncs each new entry, and spread pointers/snapshots plus generated MaxMind JSON use it. `city_file` may be explicit absolute but defaults nowhere: the checked-in relative value resolves against its JSON directory, while the generator also accepts `AOFEI_GEOLITE_CITY_FILE`. The audited supported geodata readers are heap-backed and retain neither mmap nor file descriptors; explicit opens remain scoped and closed. Permission, preservation-on-write-failure, temp cleanup, and path validation/resolution tests cover the contract. |
 | Geodata robustness | `[+]` | Legacy `.dat` loading now validates the 16-byte header, 32/24-bit offset arithmetic, complete index/prefix regions, non-overlapping ordered IP ranges, location bounds/minimum Geo size, unique bounded prefix ranges, and strict IPv4 input before lookup. Every slice uses checked 64-bit bounds, index zero is no longer confused with no-match, malformed fixtures/fuzz seeds return errors without panic, and legacy database export is ordered, size-checked, mode `0640`, and atomically replaced. Active JSON/MMDB remains preferred; only an explicit `.dat` `ips` suffix selects the compatibility reader, so malformed preferred data cannot silently fall through. `cmd/maxmind` now serializes on a stable sibling lock, hashes and atomically copies the City source into a content-addressed sibling generation, verifies copy stability and MMDB metadata, retains current/prior assets, then atomically switches JSON. Copy/validation/prune failure preserves the prior selection. |
@@ -243,16 +243,20 @@ atomic generation publication with partial live writes.
     read-only-directory, first-publication retry, serialization, and race tests
     pass, and the operator contract documents the boundary.
 
-- Iteration 15 (2026-08-24): one P2 finding remains open at the user-authorized
-  extension limit; O03 cannot close and downstream reconciliation must not
-  begin without further explicit direction.
-  - P2: `swapRedisStaticCaches` checks shadow-key existence before `MULTI`, then
+- Iteration 15 (2026-08-24): one P2 finding reached the first user-authorized
+  extension limit. On 2026-08-24 the user authorized at most five further O03
+  review iterations (16-20); downstream reconciliation still requires a clean
+  extended pass.
+  - P2 resolved before iteration 16: `swapRedisStaticCaches` checked shadow-key existence before `MULTI`, then
     queues `RENAME` and `DEL` operations based on that stale observation. If an
     expected shadow disappears before `EXEC` (including under an allowed Redis
     eviction policy), its `RENAME` fails at execution time but Redis continues
     later queued operations, exposing a mixed live generation. A disposable
     Redis 7 proof left the first live key at `old1` while replacing the second
     with `new2` after the first queued `RENAME` returned `ERR no such key`; all
-    uniquely named proof keys were removed. Move shadow validation and the
-    complete swap into one server-side atomic boundary that validates every
-    expected presence/absence condition before its first mutation.
+    uniquely named proof keys were removed. Every staged hash now carries a
+    private completeness marker, and one Lua boundary validates all markers and
+    both route keys before its first rename or deletion. Missing, evicted, and
+    partially recreated shadows fail without changing live or obsolete keys;
+    successful publication removes markers atomically so reader payloads remain
+    unchanged.

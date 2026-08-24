@@ -745,7 +745,10 @@ Production Redis and NATS are owned by the deployment platform, not by
 
 Redis requirements:
 
-- Persistence and eviction policy are operational decisions.
+- Persistence and eviction policy are operational decisions. If eviction
+  removes a staged static-cache shadow, completeness validation aborts that
+  publication and preserves the prior live generation; operators must still
+  monitor memory pressure and republish after correcting it.
 - Monitor memory, connected clients, command errors, and key counts.
 - Repopulate static cache after flushes, failover, bidder route changes, or
   schema/data changes when Redis static-cache mode or middleman fallback is

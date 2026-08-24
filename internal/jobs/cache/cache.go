@@ -16,6 +16,7 @@ import (
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/internal/atomicfile"
+	"github.com/guruperl/aofei/internal/cachegeneration"
 	"github.com/guruperl/aofei/internal/opsmetrics"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/managementapi"
@@ -533,6 +534,9 @@ func PublishRedisGeneration(ctx context.Context, redis radix.Client, db *sql.DB,
 		}
 	}()
 
+	if err := initializeRedisHashShadows(ctx, redis); err != nil {
+		return err
+	}
 	if err := pubmap.ToRedisKeys(ctx, redis, acl.HashNamePubmap+redisShadowSuffix, acl.HashNamePubByID+redisShadowSuffix); err != nil {
 		return err
 	}
@@ -565,6 +569,20 @@ func PublishRedisGeneration(ctx context.Context, redis radix.Client, db *sql.DB,
 	return cleanupRedisShadowCaches(ctx, redis)
 }
 
+func initializeRedisHashShadows(ctx context.Context, redis radix.Client) error {
+	for _, key := range []string{
+		acl.HashNamePubmap + redisShadowSuffix,
+		acl.HashNamePubByID + redisShadowSuffix,
+		match.HashNameAudience + redisShadowSuffix,
+		match.HashNameCreative + redisShadowSuffix,
+	} {
+		if err := redis.Do(ctx, radix.Cmd(nil, "HSET", key, cachegeneration.MarkerField, cachegeneration.MarkerValue)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func cleanupRedisShadowCaches(ctx context.Context, redis radix.Client) error {
 	keys := []string{
 		acl.HashNamePubmap + redisShadowSuffix,
@@ -586,19 +604,45 @@ func cleanupRedisShadowCachesWithTimeout(redis radix.Client, timeout time.Durati
 	return cleanupRedisShadowCaches(ctx, redis)
 }
 
+var redisStaticCacheSwapScript = radix.NewEvalScript(`
+local hash_pairs = tonumber(ARGV[1])
+local pair_count = tonumber(ARGV[2])
+local marker_field = ARGV[3]
+local marker_value = ARGV[4]
+
+for i = 1, hash_pairs do
+  if redis.call("HGET", KEYS[i * 2], marker_field) ~= marker_value then
+    return i
+  end
+end
+for i = hash_pairs + 1, pair_count do
+  if redis.call("GET", KEYS[i * 2]) == false then
+    return i
+  end
+end
+
+for i = 1, pair_count do
+  redis.call("RENAME", KEYS[i * 2], KEYS[(i * 2) - 1])
+end
+for i = 1, hash_pairs do
+  redis.call("HDEL", KEYS[(i * 2) - 1], marker_field)
+end
+for i = (pair_count * 2) + 1, #KEYS do
+  redis.call("DEL", KEYS[i])
+end
+return 0
+`)
+
 func swapRedisStaticCaches(ctx context.Context, redis radix.Client, sizeIDs []uint32) error {
 	type keyPair struct {
 		live   string
 		shadow string
-		exists bool
 	}
 	pairs := []keyPair{
 		{live: acl.HashNamePubmap, shadow: acl.HashNamePubmap + redisShadowSuffix},
 		{live: acl.HashNamePubByID, shadow: acl.HashNamePubByID + redisShadowSuffix},
 		{live: match.HashNameAudience, shadow: match.HashNameAudience + redisShadowSuffix},
 		{live: match.HashNameCreative, shadow: match.HashNameCreative + redisShadowSuffix},
-		{live: match.HashNameMiddlemanRoutes, shadow: match.HashNameMiddlemanRoutes + redisShadowSuffix},
-		{live: match.HashNameMiddlemanRoutesV2, shadow: match.HashNameMiddlemanRoutesV2 + redisShadowSuffix},
 	}
 	newSlots := make(map[string]struct{})
 	for _, sizeID := range sizeIDs {
@@ -609,49 +653,40 @@ func swapRedisStaticCaches(ctx context.Context, redis radix.Client, sizeIDs []ui
 		newSlots[live] = struct{}{}
 		pairs = append(pairs, keyPair{live: live, shadow: live + redisShadowSuffix})
 	}
-	for i := range pairs {
-		var exists int
-		if err := redis.Do(ctx, radix.Cmd(&exists, "EXISTS", pairs[i].shadow)); err != nil {
-			return err
-		}
-		pairs[i].exists = exists != 0
-	}
+	hashPairCount := len(pairs)
+	pairs = append(pairs,
+		keyPair{live: match.HashNameMiddlemanRoutes, shadow: match.HashNameMiddlemanRoutes + redisShadowSuffix},
+		keyPair{live: match.HashNameMiddlemanRoutesV2, shadow: match.HashNameMiddlemanRoutesV2 + redisShadowSuffix},
+	)
 	liveSlots, err := redisLiveSlotKeys(ctx, redis)
 	if err != nil {
 		return err
 	}
-	return redis.Do(ctx, radix.WithConn("", func(ctx context.Context, conn radix.Conn) (err error) {
-		if err = conn.Do(ctx, radix.Cmd(nil, "MULTI")); err != nil {
-			return err
+
+	keys := make([]string, 0, len(pairs)*2+len(liveSlots))
+	for _, pair := range pairs {
+		keys = append(keys, pair.live, pair.shadow)
+	}
+	for _, key := range liveSlots {
+		if _, ok := newSlots[key]; !ok {
+			keys = append(keys, key)
 		}
-		inMulti := true
-		defer func() {
-			if err != nil && inMulti {
-				_ = conn.Do(ctx, radix.Cmd(nil, "DISCARD"))
-			}
-		}()
-		for _, pair := range pairs {
-			if pair.exists {
-				err = conn.Do(ctx, radix.Cmd(nil, "RENAME", pair.shadow, pair.live))
-			} else {
-				err = conn.Do(ctx, radix.Cmd(nil, "DEL", pair.live))
-			}
-			if err != nil {
-				return err
-			}
-		}
-		for _, key := range liveSlots {
-			if _, ok := newSlots[key]; ok {
-				continue
-			}
-			if err = conn.Do(ctx, radix.Cmd(nil, "DEL", key)); err != nil {
-				return err
-			}
-		}
-		err = conn.Do(ctx, radix.Cmd(nil, "EXEC"))
-		inMulti = false
+	}
+	var incompletePair int
+	if err := redis.Do(ctx, redisStaticCacheSwapScript.Cmd(
+		&incompletePair,
+		keys,
+		strconv.Itoa(hashPairCount),
+		strconv.Itoa(len(pairs)),
+		cachegeneration.MarkerField,
+		cachegeneration.MarkerValue,
+	)); err != nil {
 		return err
-	}))
+	}
+	if incompletePair != 0 {
+		return fmt.Errorf("redis cache shadow %q is incomplete", pairs[incompletePair-1].shadow)
+	}
+	return nil
 }
 
 func redisLiveSlotKeys(ctx context.Context, redis radix.Client) ([]string, error) {

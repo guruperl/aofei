@@ -413,8 +413,11 @@ fallback-only legacy `middleman:routes`, and
 `.local/spread/.aofei-current`.
 Middleman route caches are Redis-only and are populated by the singleton
 `cmd/redis-cache` job, not by `cmd/unify`.
-Full Redis refreshes build internal `:next` shadows and install all live
-families with one transaction; live key names and payloads are unchanged.
+Full Redis refreshes build internal `:next` shadows with private completeness
+markers, then one server-side script validates every hash marker and route key
+before installing all live families. A missing or partially recreated shadow
+therefore leaves the prior live generation untouched; live key names and
+payloads are unchanged.
 Direct SSP local/static serving derives its by-publisher-id lookup in memory
 from the selected generation's `pubmap/`; it does not add a separate spread
 family. The

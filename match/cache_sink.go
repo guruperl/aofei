@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/guruperl/aofei/internal/cachegeneration"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
@@ -59,7 +60,11 @@ func (s RedisCacheSink) ResetRAdvs(ctx context.Context, sizeID uint32) error {
 	if s.keySuffix == "" {
 		return ErrUnsafeRedisLiveReset
 	}
-	return s.client.Do(ctx, radix.Cmd(nil, "DEL", s.key(HashNameRAdvs(sizeID))))
+	key := s.key(HashNameRAdvs(sizeID))
+	if err := s.client.Do(ctx, radix.Cmd(nil, "DEL", key)); err != nil {
+		return err
+	}
+	return s.client.Do(ctx, radix.Cmd(nil, "HSET", key, cachegeneration.MarkerField, cachegeneration.MarkerValue))
 }
 
 func (s RedisCacheSink) PutRAdvs(ctx context.Context, sizeID, slotID uint32, data []byte, _ bool) error {

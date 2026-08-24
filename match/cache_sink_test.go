@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/internal/cachegeneration"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -111,6 +112,13 @@ func TestRedisCacheGenerationSinkIsolatesFamilyWrites(t *testing.T) {
 	}
 	if staged != "new" {
 		t.Fatalf("staged cache value = %q, want new", staged)
+	}
+	var marker string
+	if err := client.Do(ctx, radix.Cmd(&marker, "HGET", key+suffix, cachegeneration.MarkerField)); err != nil {
+		t.Fatal(err)
+	}
+	if marker != cachegeneration.MarkerValue {
+		t.Fatalf("staged cache marker = %q, want %q", marker, cachegeneration.MarkerValue)
 	}
 }
 

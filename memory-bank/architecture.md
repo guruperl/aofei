@@ -510,9 +510,11 @@ requires the random owner token acquired after signature validation. Tests
 with arbitrary marker contents prove those labels cannot grant authentication,
 publication, ownership, or cap mutation. Redis access control remains an
 availability and integrity prerequisite.
-Full Redis static refreshes build shadow families and replace all live hashes
-in one transaction, including empty-family and obsolete-slot deletion. A build
-failure leaves the previous live generation untouched. The reusable bulk API is
+Full Redis static refreshes build shadow families with private completeness
+markers. One server-side script validates every staged hash marker and both
+route keys before its first mutation, then replaces all live hashes and removes
+empty or obsolete families. A build failure, eviction, or partially recreated
+shadow leaves the previous live generation untouched. The reusable bulk API is
 `cache.PublishRedisGeneration`; its `match.RedisCacheSink` is constructed only
 through an explicit non-empty generation namespace. Internal live item sinks
 reject family reset, so a raw Redis adapter cannot recreate the former

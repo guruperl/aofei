@@ -57,10 +57,12 @@ static lookups from memory.
 
 - Redis mode builds `pubmap`, `pubmap:by-id`, `audience`, `creative`,
   `middleman:routes:v2`, legacy `middleman:routes`, and every active `slot:*`
-  family under internal `:next` keys. One `MULTI/EXEC` renames populated
-  shadows over live keys and deletes empty or obsolete live families, so a
-  build failure leaves the old generation intact and readers never observe the
-  former delete-then-repopulate window.
+  family under internal `:next` keys. Hash shadows carry a private completeness
+  marker. One server-side script validates every hash marker and both route
+  keys before renaming shadows over live keys, removing the markers, and
+  deleting empty or obsolete live families. A build failure or evicted/partly
+  recreated shadow leaves the old generation intact, so readers never observe
+  the former delete-then-repopulate or mixed-generation windows.
   The reusable Go entry point is `cache.PublishRedisGeneration`. Generation
   sinks require a non-empty key namespace; live item sinks reject family reset,
   so a raw Redis client cannot make the RAdv family compiler incrementally

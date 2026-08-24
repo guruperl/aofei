@@ -86,12 +86,13 @@ evidence.
 
 This refresh also compiles `middleman:routes:v2` for M25 middleman routing and
 the fallback-only legacy `middleman:routes` key for M24 rolling-deploy safety.
-Full Redis refreshes build shadow keys and atomically replace all static cache
-families, including removal of obsolete slot-size hashes, only after the new
-generation is complete. Failed builds leave the live generation unchanged. The
-reusable implementation is `cache.PublishRedisGeneration`; direct live cache
-sinks cannot reset a family, and generation sinks require an explicit non-empty
-namespace.
+Full Redis refreshes build completeness-marked shadow keys. One Redis script
+validates every staged hash marker and route key before atomically replacing all
+static cache families and removing obsolete slot-size hashes. Failed builds,
+evicted shadows, and partially recreated shadows leave the live generation
+unchanged. The reusable implementation is `cache.PublishRedisGeneration`;
+direct live cache sinks cannot reset a family, and generation sinks require an
+explicit non-empty namespace.
 Run it only from the dedicated cache-maintenance node; `cmd/unify` does not
 refresh bidder routes itself. After operators edit route groups, route bidders,
 or route targets in Summer, run this refresh before expecting HTTP workers to

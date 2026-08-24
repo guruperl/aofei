@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/internal/cachegeneration"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
@@ -379,7 +381,9 @@ func TestSwapRedisStaticCachesReplacesOneCompleteGeneration(t *testing.T) {
 	}
 	shadowHash := func(key string) {
 		t.Helper()
-		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key+redisShadowSuffix, "value", "new")); err != nil {
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key+redisShadowSuffix,
+			cachegeneration.MarkerField, cachegeneration.MarkerValue,
+			"value", "new")); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -388,6 +392,10 @@ func TestSwapRedisStaticCachesReplacesOneCompleteGeneration(t *testing.T) {
 	}
 	for _, key := range []string{acl.HashNamePubmap, acl.HashNamePubByID, match.HashNameAudience} {
 		shadowHash(key)
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "HSET", match.HashNameCreative+redisShadowSuffix,
+		cachegeneration.MarkerField, cachegeneration.MarkerValue)); err != nil {
+		t.Fatal(err)
 	}
 	for _, key := range []string{match.HashNameMiddlemanRoutes, match.HashNameMiddlemanRoutesV2} {
 		if err := client.Do(ctx, radix.Cmd(nil, "SET", key, "old")); err != nil {
@@ -432,6 +440,180 @@ func TestSwapRedisStaticCachesReplacesOneCompleteGeneration(t *testing.T) {
 		if exists != 0 {
 			t.Fatalf("%s still exists after empty/obsolete swap", key)
 		}
+	}
+}
+
+func TestSwapRedisStaticCachesRejectsPartiallyRecreatedShadow(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	hashKeys := []string{
+		acl.HashNamePubmap,
+		acl.HashNamePubByID,
+		match.HashNameAudience,
+		match.HashNameCreative,
+		match.HashNameRAdvs(1),
+	}
+	for _, key := range hashKeys {
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key, "value", "old")); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key+redisShadowSuffix,
+			cachegeneration.MarkerField, cachegeneration.MarkerValue,
+			"value", "new")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, key := range []string{match.HashNameMiddlemanRoutes, match.HashNameMiddlemanRoutesV2} {
+		if err := client.Do(ctx, radix.Cmd(nil, "SET", key, "old")); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Do(ctx, radix.Cmd(nil, "SET", key+redisShadowSuffix, "new")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	obsoleteSlot := match.HashNameRAdvs(2)
+	if err := client.Do(ctx, radix.Cmd(nil, "HSET", obsoleteSlot, "value", "old")); err != nil {
+		t.Fatal(err)
+	}
+
+	brokenShadow := acl.HashNamePubmap + redisShadowSuffix
+	if err := client.Do(ctx, radix.Cmd(nil, "DEL", brokenShadow)); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "HSET", brokenShadow, "partial", "new")); err != nil {
+		t.Fatal(err)
+	}
+	if err := swapRedisStaticCaches(ctx, client, []uint32{1}); err == nil || !strings.Contains(err.Error(), brokenShadow) {
+		t.Fatalf("swapRedisStaticCaches error = %v, want incomplete shadow", err)
+	}
+
+	for _, key := range append(hashKeys, obsoleteSlot) {
+		var got string
+		if err := client.Do(ctx, radix.Cmd(&got, "HGET", key, "value")); err != nil {
+			t.Fatal(err)
+		}
+		if got != "old" {
+			t.Fatalf("%s value = %q, want old generation", key, got)
+		}
+	}
+	for _, key := range []string{match.HashNameMiddlemanRoutes, match.HashNameMiddlemanRoutesV2} {
+		var got string
+		if err := client.Do(ctx, radix.Cmd(&got, "GET", key)); err != nil {
+			t.Fatal(err)
+		}
+		if got != "old" {
+			t.Fatalf("%s value = %q, want old generation", key, got)
+		}
+	}
+}
+
+func TestSwapRedisStaticCachesRejectsMissingRouteShadow(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	for _, key := range []string{acl.HashNamePubmap, acl.HashNamePubByID, match.HashNameAudience, match.HashNameCreative} {
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key, "value", "old")); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key+redisShadowSuffix,
+			cachegeneration.MarkerField, cachegeneration.MarkerValue)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "SET", match.HashNameMiddlemanRoutes, "old")); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "SET", match.HashNameMiddlemanRoutesV2, "old")); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "SET", match.HashNameMiddlemanRoutes+redisShadowSuffix, "new")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := swapRedisStaticCaches(ctx, client, nil); err == nil || !strings.Contains(err.Error(), match.HashNameMiddlemanRoutesV2+redisShadowSuffix) {
+		t.Fatalf("swapRedisStaticCaches error = %v, want missing route shadow", err)
+	}
+	var got string
+	if err := client.Do(ctx, radix.Cmd(&got, "HGET", acl.HashNamePubmap, "value")); err != nil {
+		t.Fatal(err)
+	}
+	if got != "old" {
+		t.Fatalf("live pubmap value = %q, want old generation", got)
+	}
+}
+
+func TestSwapRedisStaticCachesDisposableRedis(t *testing.T) {
+	addr := os.Getenv("AOFEI_DISPOSABLE_REDIS_ADDR")
+	if addr == "" {
+		t.Skip("AOFEI_DISPOSABLE_REDIS_ADDR is not set")
+	}
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	var size int
+	if err := client.Do(ctx, radix.Cmd(&size, "DBSIZE")); err != nil {
+		t.Fatal(err)
+	}
+	if size != 0 {
+		t.Fatalf("disposable Redis database contains %d keys, want empty", size)
+	}
+	defer func() {
+		if err := client.Do(context.Background(), radix.Cmd(nil, "FLUSHDB")); err != nil {
+			t.Errorf("clean disposable Redis: %v", err)
+		}
+	}()
+
+	for _, key := range []string{acl.HashNamePubmap, acl.HashNamePubByID, match.HashNameAudience, match.HashNameCreative} {
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key, "value", "old")); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Do(ctx, radix.Cmd(nil, "HSET", key+redisShadowSuffix,
+			cachegeneration.MarkerField, cachegeneration.MarkerValue,
+			"value", "new")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, key := range []string{match.HashNameMiddlemanRoutes, match.HashNameMiddlemanRoutesV2} {
+		if err := client.Do(ctx, radix.Cmd(nil, "SET", key, "old")); err != nil {
+			t.Fatal(err)
+		}
+		if err := client.Do(ctx, radix.Cmd(nil, "SET", key+redisShadowSuffix, "new")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := client.Do(ctx, radix.Cmd(nil, "SCRIPT", "FLUSH")); err != nil {
+		t.Fatal(err)
+	}
+	if err := swapRedisStaticCaches(ctx, client, nil); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	if err := client.Do(ctx, radix.Cmd(&got, "HGET", acl.HashNamePubmap, "value")); err != nil {
+		t.Fatal(err)
+	}
+	if got != "new" {
+		t.Fatalf("live pubmap value = %q, want new", got)
+	}
+	var marker string
+	if err := client.Do(ctx, radix.Cmd(&marker, "HGET", acl.HashNamePubmap, cachegeneration.MarkerField)); err != nil {
+		t.Fatal(err)
+	}
+	if marker != "" {
+		t.Fatalf("live pubmap retains private marker %q", marker)
 	}
 }
 
