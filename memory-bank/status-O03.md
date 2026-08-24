@@ -233,3 +233,11 @@ atomic generation publication with partial live writes.
     exclusive side across staging, pruning, and config replacement. A focused
     concurrency test proves publication waits for the selected-asset reader;
     package, vet, static-analysis, and race checks pass.
+
+- Iteration 14 (2026-08-24): one P2 finding remains open.
+  - P2: the new MaxMind read path opens the sibling lock with create/write
+    access and tightens it to `0600`, but the production contract grants the
+    runtime service only read access to configuration. Preserve read-only
+    startup by opening an existing group-readable lock without mutation; when
+    no lock exists yet, load optimistically and retry under a shared lock if a
+    first publisher creates the stable lock during that load.
