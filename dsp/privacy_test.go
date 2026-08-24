@@ -70,6 +70,55 @@ func TestPrivacyDecisionMatrixUsesMostRestrictiveSignal(t *testing.T) {
 	}
 }
 
+func TestSSPClientClaimsRequireAuthenticatedSDKForPersonalization(t *testing.T) {
+	personalized := privacyDecision{
+		Mode: privacyModePersonalized, Reason: "gdpr_tcf_granted",
+		AllowCookie: true, AllowMiddleman: true, AllowIdentity: true,
+	}
+	unauthenticated := sspClientClaimPrivacy("sdk", false, personalized)
+	if unauthenticated.Mode != privacyModeContextual || unauthenticated.Reason != "sdk_unauthenticated" || unauthenticated.AllowCookie || unauthenticated.AllowIdentity || !unauthenticated.AllowMiddleman {
+		t.Fatalf("unauthenticated SDK decision = %+v", unauthenticated)
+	}
+	if got := sspClientClaimPrivacy("sdk", true, personalized); got != personalized {
+		t.Fatalf("authenticated SDK decision = %+v, want %+v", got, personalized)
+	}
+	if got := sspClientClaimPrivacy("browser", false, personalized); got != personalized {
+		t.Fatalf("browser decision = %+v, want %+v", got, personalized)
+	}
+	restricted := privacyDecision{Mode: privacyModeRestricted, Reason: "coppa"}
+	if got := sspClientClaimPrivacy("sdk", false, restricted); got != restricted {
+		t.Fatalf("restrictive SDK decision = %+v, want %+v", got, restricted)
+	}
+
+	lat, lon := 37.7, -122.4
+	claimed := &openrtb2.BidRequest{
+		Device: &openrtb2.Device{IP: "198.51.100.9", IFA: "claimed-ifa", Geo: &openrtb2.Geo{
+			Country: "US", Region: "CA", Lat: &lat, Lon: &lon,
+		}},
+		User: &openrtb2.User{ID: "claimed-user", BuyerUID: "claimed-buyer"},
+	}
+	controller := &Controller{}
+	if err := controller.applyPrivacyPolicy(claimed, unauthenticated); err != nil {
+		t.Fatal(err)
+	}
+	if claimed.User != nil || claimed.Device == nil || claimed.Device.IP != "" || claimed.Device.IFA != "" || claimed.Device.Geo != nil {
+		t.Fatalf("unauthenticated SDK claims survived contextualization: %#v", claimed)
+	}
+
+	claimed = &openrtb2.BidRequest{
+		Device: &openrtb2.Device{IP: "198.51.100.9", IFA: "claimed-ifa", Geo: &openrtb2.Geo{
+			Country: "US", Region: "CA", Lat: &lat, Lon: &lon,
+		}},
+		User: &openrtb2.User{ID: "claimed-user"},
+	}
+	if err := controller.applyPrivacyPolicy(claimed, personalized); err != nil {
+		t.Fatal(err)
+	}
+	if claimed.User == nil || claimed.User.ID != "claimed-user" || claimed.Device.IP != "198.51.100.9" || claimed.Device.Geo == nil || claimed.Device.Geo.Country != "US" || claimed.Device.Geo.Region != "CA" || claimed.Device.Geo.Lat != nil || claimed.Device.Geo.Lon != nil {
+		t.Fatalf("authenticated publisher assertions were not bounded as documented: %#v", claimed)
+	}
+}
+
 func TestPrivacyDecisionRequiresConfiguredContractAndCurrentTCF(t *testing.T) {
 	one := int8(1)
 	consent := testTCFConsent(t, 7, true, []int{1, 3, 4})

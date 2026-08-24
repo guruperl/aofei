@@ -204,7 +204,7 @@ App 签发凭证。私密值只显示一次，应存入服务端或受控密钥�
 
 SDK 请求不读取、设置或传递 `aofei_pz_uid` Cookie。可以提供 OpenRTB 风格的 `app`、`device`、`user` 和 `regs` 对象：
 
-- 只有平台隐私决策确认允许个性化时，`device.ifa`、设备 ID、`user.id` 与 `buyeruid` 才会进入本地匹配；
+- 只有 P03 Publisher/App 请求签名有效，并且平台隐私决策独立确认允许个性化时，`device.ifa`、设备 ID、`user.id` 与 `buyeruid` 才会进入本地匹配；未认证的 SDK 兼容请求即使提交形式有效的同意字符串也会降为上下文模式；
 - 上下文或受限模式会在匹配前删除这些标识、IP、原始 User-Agent、精确位置和人口属性；
 - HTTP 头可用于请求处理和语言等上下文派生，但不能作为上下文身份后备；
 - `app.id`、`app.bundle` 或 `app.domain` 如果提供，必须为空或与平台验证出的流量源身份完全一致。

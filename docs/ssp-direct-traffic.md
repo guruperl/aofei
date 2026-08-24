@@ -216,6 +216,15 @@ A publisher must propagate applicable `regs`, `user.consent`, GPP/US signals,
 and device opt-out fields from its approved consent flow; it must not invent a
 grant or copy the example as consent evidence.
 
+An unauthenticated SDK compatibility request cannot promote its own client
+claims into personalized targeting: even an otherwise valid grant becomes
+contextual `sdk_unauthenticated`, and body identity, geo, demographics, and
+uploaded-audience identifiers are removed before matching. A valid P03
+publisher/App proof still does not prove the device claims are true. With that
+proof and a separate S01 personalization grant, body IP and coarse geo are
+accepted as publisher assertions and take precedence over transport fallback;
+exact coordinates, accuracy, and fix age are always removed.
+
 Malformed JSON returns `400`, oversized bodies return `413`, and invalid direct
 tokens, missing slots, unsupported media, unknown publishers, or site/slot
 mismatches, including size mismatches, return `400`.

@@ -78,7 +78,7 @@ acceptance criteria recorded in the corresponding status files.
 | D05 | Completed | [status-D05.md](status-D05.md) | Post-D04 auction compatibility and hot-path remediation. |
 | P01 | Completed; publisher activation-gated | [status-P01.md](status-P01.md) | Direct SSP commercial readiness and activation. |
 | P02 | Completed | [status-P02.md](status-P02.md) | Supply metadata and seller transparency. |
-| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract, versioned locator codec/runtime reader, SDK/server authentication, and independent browser/App enforcement complete. |
+| P03 | In progress | [status-P03.md](status-P03.md) | Direct SSP request authenticity; threat contract, versioned locator codec/runtime reader, SDK/server authentication, independent enforcement, and client-claim disposition complete. |
 | R01 | Completed | [status-R01.md](status-R01.md) | Conversion, action, and attribution measurement. |
 | R02 | Completed | [status-R02.md](status-R02.md) | Marketplace analytics and experimentation. |
 | R03 | Planned | [status-R03.md](status-R03.md) | Experiment and reporting integrity. |
@@ -1567,6 +1567,10 @@ Valid proofs remain subordinate to Web/App type, active inventory, App
 identity, browser provenance, privacy, admission, media/size/floor, and
 server-owned seller-chain policy. Pre-auction inventory and policy failures are
 generic, and publisher-cache dependency failure is a retryable `503`.
+Unauthenticated SDK compatibility requests are contextual before matching;
+authenticated publisher-asserted body identity and coarse geo still require an
+independent S01 grant. Uploaded-audience writers use a closed canonical marker
+set with bounded legacy read/delete aliases.
 Detailed tasks and verification are in [status-P03.md](status-P03.md).
 
 ## R01 - Conversion, Action, And Attribution Measurement `[+]`

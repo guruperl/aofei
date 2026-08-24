@@ -725,6 +725,9 @@ Redis requirements:
   unified service installs `privacy_audience_ttl_seconds` on writes; verify TTL
   coverage and use the scoped deletion procedures in
   [privacy-data-governance.md](privacy-data-governance.md).
+- New writes canonicalize audience markers to `buyeruid`, `userid`, `ip`,
+  `ifa`, `did`, `dpid`, or `mac`. Readers/deletion retain only the bounded
+  `buyerid`/`user` aliases for older TTL-bound keys; reject any other marker.
 
 NATS requirements:
 

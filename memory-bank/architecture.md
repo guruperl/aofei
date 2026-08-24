@@ -186,6 +186,11 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   identity, browser provenance, media/size/floor, privacy, admission, and
 	   server-owned seller-chain policy. Generic pre-auction responses avoid an
 	   account/host oracle; unavailable publisher cache is retryable `503`.
+	   Unauthenticated SDK compatibility traffic cannot promote body claims into
+	   personalized matching. Authenticated SDK identity and publisher-asserted
+	   IP/coarse geo still require the independent S01 grant and lose exact
+	   coordinates. Uploaded-audience writes use a closed canonical marker set;
+	   reads/deletion retain bounded `buyerid`/`user` aliases for TTL-bound keys.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files, runs under signal-aware shutdown, drains NATS on exit, and
    flushes its queued log messages before closing files. Generated log

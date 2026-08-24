@@ -107,6 +107,7 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	privacy := self.privacyDecision(r, sspReq.Regs, sspReq.User, sspReq.Device)
+	privacy = sspClientClaimPrivacy(sspReq.Platform, requestProof != nil, privacy)
 	recordPrivacyDecision(privacy)
 
 	cookieUserID := ""
@@ -172,6 +173,24 @@ func (self *Controller) ServeSSP(w http.ResponseWriter, r *http.Request) {
 			_ = self.publishSSPBidAuditsWithPrivacy(privacyAuditRequest, privacyAuditResponse, audits, privacy)
 		}
 	}
+}
+
+// sspClientClaimPrivacy prevents an unauthenticated SDK compatibility request
+// from upgrading its own identity, geo, demographic, or uploaded-audience
+// claims into personalized targeting. Restrictive signals are evaluated first
+// and keep their more specific reason; only an otherwise-personalized decision
+// is downgraded. A valid publisher/App proof authenticates the asserting
+// publisher, not the truth of an individual device claim.
+func sspClientClaimPrivacy(platform string, authenticated bool, decision privacyDecision) privacyDecision {
+	decision = decision.normalized()
+	if !sspPlatformIsSDK(platform) || authenticated || decision.Mode != privacyModePersonalized {
+		return decision
+	}
+	decision.Mode = privacyModeContextual
+	decision.Reason = "sdk_unauthenticated"
+	decision.AllowCookie = false
+	decision.AllowIdentity = false
+	return decision
 }
 
 func writeSSPPublisherAuthError(w http.ResponseWriter, err error) {

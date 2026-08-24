@@ -97,16 +97,19 @@ func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client,
 	if marker == "" || target == "" {
 		return false, nil
 	}
-
-	var ok int
-	err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", uploadName(advID, marker), target))
+	canonical, err := NormalizeAudienceMarker(marker)
 	if err != nil {
 		return false, err
 	}
-	if ok == 1 {
-		return true, nil
+	for _, candidate := range audienceMarkerReadNames(canonical) {
+		var ok int
+		if err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", uploadName(advID, candidate), target)); err != nil {
+			return false, err
+		}
+		if ok == 1 {
+			return true, nil
+		}
 	}
-
 	return false, nil
 }
 
@@ -153,6 +156,13 @@ if current_ttl < requested_ttl then
 end
 return 1`)
 
+var deleteAudienceIdentifierScript = radix.NewEvalScript(`
+local removed = 0
+for _, key in ipairs(KEYS) do
+  removed = removed + redis.call("SREM", key, ARGV[1])
+end
+return removed`)
+
 func UploadManyWithTTL(ctx context.Context, conn radix.Client, advID uint32, marker string, data []string, ttl time.Duration) error {
 	if len(data) == 0 {
 		return nil
@@ -160,8 +170,9 @@ func UploadManyWithTTL(ctx context.Context, conn radix.Client, advID uint32, mar
 	if conn == nil {
 		return fmt.Errorf("redis client is nil")
 	}
-	if strings.TrimSpace(marker) == "" {
-		return fmt.Errorf("uploaded audience marker is empty")
+	canonical, err := NormalizeAudienceMarker(marker)
+	if err != nil {
+		return err
 	}
 	if ttl <= 0 {
 		return fmt.Errorf("uploaded audience TTL must be positive")
@@ -175,7 +186,7 @@ func UploadManyWithTTL(ctx context.Context, conn radix.Client, advID uint32, mar
 		}
 		arr = append(arr, d)
 	}
-	return conn.Do(ctx, uploadManyWithTTLScript.Cmd(nil, []string{uploadName(advID, marker)}, arr...))
+	return conn.Do(ctx, uploadManyWithTTLScript.Cmd(nil, []string{uploadName(advID, canonical)}, arr...))
 }
 
 // DeleteAudience removes one advertiser-owned audience source. Operators must
@@ -184,14 +195,20 @@ func DeleteAudience(ctx context.Context, conn radix.Client, advID uint32, marker
 	if conn == nil {
 		return false, fmt.Errorf("redis client is nil")
 	}
-	if strings.TrimSpace(marker) == "" {
-		return false, fmt.Errorf("uploaded audience marker is empty")
-	}
-	var deleted int
-	if err := conn.Do(ctx, radix.Cmd(&deleted, "DEL", uploadName(advID, marker))); err != nil {
+	canonical, err := NormalizeAudienceMarker(marker)
+	if err != nil {
 		return false, err
 	}
-	return deleted == 1, nil
+	var deleted int
+	keys := audienceMarkerReadNames(canonical)
+	args := make([]string, 0, len(keys))
+	for _, candidate := range keys {
+		args = append(args, uploadName(advID, candidate))
+	}
+	if err := conn.Do(ctx, radix.Cmd(&deleted, "DEL", args...)); err != nil {
+		return false, err
+	}
+	return deleted != 0, nil
 }
 
 // DeleteAudienceIdentifier removes a supplied identifier from one
@@ -200,14 +217,47 @@ func DeleteAudienceIdentifier(ctx context.Context, conn radix.Client, advID uint
 	if conn == nil {
 		return false, fmt.Errorf("redis client is nil")
 	}
-	if strings.TrimSpace(marker) == "" || identifier == "" {
+	canonical, err := NormalizeAudienceMarker(marker)
+	if err != nil || identifier == "" {
 		return false, fmt.Errorf("uploaded audience marker and identifier are required")
 	}
+	names := audienceMarkerReadNames(canonical)
+	keys := make([]string, 0, len(names))
+	for _, candidate := range names {
+		keys = append(keys, uploadName(advID, candidate))
+	}
 	var deleted int
-	if err := conn.Do(ctx, radix.Cmd(&deleted, "SREM", uploadName(advID, marker), identifier)); err != nil {
+	if err := conn.Do(ctx, deleteAudienceIdentifierScript.Cmd(&deleted, keys, identifier)); err != nil {
 		return false, err
 	}
-	return deleted == 1, nil
+	return deleted != 0, nil
+}
+
+// NormalizeAudienceMarker returns the bounded Redis marker used by both
+// upload writers and serving readers. buyerid is retained only as a legacy UI
+// alias for buyeruid; user is retained for historical operator tooling.
+func NormalizeAudienceMarker(marker string) (string, error) {
+	switch normalized := strings.ToLower(strings.TrimSpace(marker)); normalized {
+	case "buyeruid", "buyerid":
+		return "buyeruid", nil
+	case "userid", "user":
+		return "userid", nil
+	case "ip", "ifa", "did", "dpid", "mac":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("uploaded audience marker is unsupported")
+	}
+}
+
+func audienceMarkerReadNames(canonical string) []string {
+	switch canonical {
+	case "buyeruid":
+		return []string{"buyeruid", "buyerid"}
+	case "userid":
+		return []string{"userid", "user"}
+	default:
+		return []string{canonical}
+	}
 }
 
 // UploadedResetArgs resets the ARGS to the values in the DemoAudience, ready to be inserted or updated in the database.

@@ -24,6 +24,11 @@ restricted requests. For a configured personalized grant, the transient local
 identity precedence remains `user.buyeruid`, `user.id`, then IFA/device IDs,
 but the resulting IFA and cap user key are domain-separated HMAC pseudonyms.
 IP plus user-agent is no longer a runtime identity fallback.
+For direct SSP, an unauthenticated SDK compatibility request cannot reach this
+personalized path even when it supplies an otherwise valid consent string. A
+valid P03 publisher/App proof plus the independent S01 grant is required before
+SDK body identity, publisher-asserted IP/coarse geo, demographics, or uploaded-
+audience values survive to matching. Exact coordinates are always removed.
 
 ## Audience Sources
 
@@ -39,6 +44,11 @@ IP plus user-agent is no longer a runtime identity fallback.
 - `advice.UaAudience` from OS, OS version, platform/browser, and device
   targeting.
 - `uploaded.UploadAudience` from uploaded user/device identifier sets in Redis.
+
+Uploaded audience keys use only canonical markers `buyeruid`, `userid`, `ip`,
+`ifa`, `did`, `dpid`, and `mac`. Writers normalize case/whitespace plus the
+historical `buyerid` and `user` aliases; readers and scoped deletion retain a
+bounded alias fallback so older TTL-bound sets remain usable and removable.
 
 Nil or empty subaudiences generally mean wildcard targeting. Uploaded audiences
 are different: when upload targeting is configured, every configured identifier

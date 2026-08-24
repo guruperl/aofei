@@ -457,6 +457,13 @@ server-owned seller-chain checks. Public pre-auction failures do not reflect
 cached ids, hostnames, or credential state: invalid inventory/App input is
 generic `400`, browser policy is generic `403`, and publisher-cache dependency
 failure is generic retryable `503`.
+Unauthenticated SDK compatibility traffic is forced contextual before
+matching, including when it supplies an otherwise valid personalization grant.
+Authenticated publisher/App body IP/coarse geo and identity are publisher
+assertions usable only under a separate S01 grant; exact coordinates remain
+removed. Uploaded audience Redis markers are canonical `buyeruid`, `userid`,
+`ip`, `ifa`, `did`, `dpid`, or `mac`, with read/delete-only compatibility for
+the historical `buyerid` and `user` aliases.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX keeps its OpenRTB envelope shape, but both sources are
 privacy-scrubbed before NATS. Attribute logs remove identity and precise

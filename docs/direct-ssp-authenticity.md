@@ -7,8 +7,8 @@ preserve.
 
 The threat contract, versioned browser-token codec/runtime reader, default-off
 SDK/server request-authentication boundary, and independent browser/App
-enforcement are now implemented. Client-claim review, sample/cache integration,
-and production rollout remain pending. Current publisher pages still emit the v1
+enforcement plus client-claim disposition are now implemented. Sample/cache
+integration and production rollout remain pending. Current publisher pages still emit the v1
 values documented in
 [ssp-direct-traffic.md](ssp-direct-traffic.md), so the checked-in v2 block stays
 disabled and legacy reads stay allowed.
@@ -257,11 +257,20 @@ approved migration says otherwise:
 - browser CORS remains endpoint-limited and credentialless; authentication is
   not moved into `aofei_pz_uid`; and
 - request/audit data remains covered by the S01 disclosure and retention
-  contract. Authentication does not make client-supplied geo, audience,
-  consent, seller, or targeting claims trustworthy by itself.
+contract. Authentication does not make client-supplied geo, audience,
+consent, seller, or targeting claims trustworthy by itself.
+
+An unauthenticated `platform:"sdk"` compatibility request can still carry
+restrictive privacy signals, but even a syntactically valid personalization
+grant is downgraded to contextual `sdk_unauthenticated`. Its body identity,
+geo, demographic, and uploaded-audience values are removed before matching.
+After a valid publisher/App proof and an independent S01 personalization grant,
+the publisher may assert bounded `device`/`user` values for local matching:
+body IP/coarse geo takes precedence over transport fallback when supplied, but
+it remains a publisher assertion rather than verified device location, and
+latitude/longitude/accuracy/fix age are always removed.
 
 See [publisher-activation.md](publisher-activation.md) for the current rollout
 gate. Production authenticity is not established until the later P03 tasks
-complete client-claim review, integrate generated samples/cache metadata,
-finish observability and rotation/rollback operations, and pass a named
-publisher canary.
+integrate generated samples/cache metadata, finish observability and
+rotation/rollback operations, and pass a named publisher canary.

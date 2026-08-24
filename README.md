@@ -145,7 +145,7 @@ separately demand-gated. Implementation does not imply production activation:
 | D04 delivery/tracking integrity | Implemented; confirmed ACL, callback, cap-time, bounded-input, and tracking semantic corrections are complete. |
 | D05 post-D04 auction remediation | Implemented; legacy cap migration compatibility, invalid-cap isolation, optional OpenRTB dimensions, and bid hot-path cleanup are complete. |
 | P01 direct SSP, P02 supply transparency | Implemented; each publisher still requires inventory, privacy, cache, reporting, and settlement acceptance. |
-| P03 direct SSP authenticity | In progress; the contract, default-off v2 locator codec/dual reader, SDK/server request authentication, and independent browser/App enforcement are implemented, while client-claim review, integration, and rollout remain pending. |
+| P03 direct SSP authenticity | In progress; the contract, default-off v2 locator codec/dual reader, SDK/server authentication, independent browser/App enforcement, and client-claim disposition are implemented, while portal/cache integration and rollout remain pending. |
 | R01 attribution, R02 analytics/experiments | Implemented; experiments are observational and cannot change bids or budgets. |
 | R03 experiment/report integrity | Planned; will version assignment privacy and strengthen analytical validation. |
 | I01 OpenRTB interoperability | Implemented as a bounded OpenRTB 2.5 profile. |

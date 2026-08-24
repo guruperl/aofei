@@ -245,6 +245,10 @@ The established runtime direction remains:
 	  policy; pre-auction rejections do not reflect cached ids, hostnames, or
 	  credential state. S02 sessions, I03 advertiser credentials, and
 	  `aofei_pz_uid` cannot substitute for runtime publisher authentication.
+	  Unauthenticated SDK compatibility traffic is always contextual before
+	  matching even when it asserts a valid-looking grant. Authenticated SDK
+	  body IP/coarse geo and identity remain publisher assertions usable only
+	  under a separate S01 personalization grant; exact coordinates are removed.
 - Root documentation should be short, current, and operational.
 - Marketplace report roles derive from the authenticated Genelet `_grole` and
   session account identifier. Advertisers and publishers see only their own
