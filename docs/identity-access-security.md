@@ -250,13 +250,14 @@ database, common key, clocks, and mail path are healthy.
 
 ## Verification
 
-The current clean baseline after the S05 database-integrity hardening contains
-95 tables, 6 routines, and 57 triggers.
+The current clean baseline after R03 assignment-compatibility hardening contains
+95 tables, 6 routines, and 60 triggers.
 At S02 closeout it contained 75 tables, 6 routines, and 28 triggers;
 I03 subsequently brought the inventory to 79 tables and 33 triggers, S03 added
 nine tables and ten triggers, A02 added six tables and twelve triggers, P03
-added one request-credential table without a trigger, and S05 added two
-protected-update triggers without adding tables. S03
+added one request-credential table without a trigger, S05 added two
+protected-update triggers without adding tables, and R03 added three experiment
+assignment/variant immutability triggers. S03
 evidence reads use exact account/resource grants; rule rollout, review
 resolution, enforcement, rollback, and billing recommendations require named
 permissions and recent MFA. The S02 verification gate includes:

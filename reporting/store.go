@@ -163,17 +163,18 @@ UPDATE report_experiment SET status=?, stop_reason=? WHERE experiment_id=?`, tar
 }
 
 type ExperimentSummary struct {
-	ID              uint64
-	OwnerType       string
-	AdvID           *uint32
-	Name            string
-	Version         uint32
-	Status          string
-	PrimaryMetric   string
-	GuardrailMetric string
-	RetentionHours  uint32
-	StartsAt        time.Time
-	EndsAt          *time.Time
+	ID                         uint64
+	OwnerType                  string
+	AdvID                      *uint32
+	Name                       string
+	Version                    uint32
+	AssignmentAlgorithmVersion uint16
+	Status                     string
+	PrimaryMetric              string
+	GuardrailMetric            string
+	RetentionHours             uint32
+	StartsAt                   time.Time
+	EndsAt                     *time.Time
 }
 
 // LoadExperiment returns the complete runtime assignment contract for one
@@ -242,7 +243,7 @@ func ListExperiments(ctx context.Context, db *sql.DB) ([]ExperimentSummary, erro
 		return nil, fmt.Errorf("experiment database is nil")
 	}
 	rows, err := db.QueryContext(ctx, `
-SELECT experiment_id, owner_type, adv_id, experiment_name, experiment_version,
+SELECT experiment_id, owner_type, adv_id, experiment_name, experiment_version, assignment_algorithm_version,
        status, primary_metric, guardrail_metric, retention_hours, starts_at, ends_at
 FROM report_experiment
 ORDER BY experiment_id, experiment_version`)
@@ -255,7 +256,7 @@ ORDER BY experiment_id, experiment_version`)
 		var item ExperimentSummary
 		var advID sql.NullInt64
 		var endsAt sql.NullTime
-		if err := rows.Scan(&item.ID, &item.OwnerType, &advID, &item.Name, &item.Version, &item.Status, &item.PrimaryMetric, &item.GuardrailMetric, &item.RetentionHours, &item.StartsAt, &endsAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.OwnerType, &advID, &item.Name, &item.Version, &item.AssignmentAlgorithmVersion, &item.Status, &item.PrimaryMetric, &item.GuardrailMetric, &item.RetentionHours, &item.StartsAt, &endsAt); err != nil {
 			return nil, err
 		}
 		if advID.Valid {

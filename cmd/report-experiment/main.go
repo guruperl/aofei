@@ -125,8 +125,8 @@ func run(ctx context.Context, service experimentService, actor uint64) error {
 			if item.EndsAt != nil {
 				end = item.EndsAt.Format(time.RFC3339)
 			}
-			fmt.Printf("experiment_id=%d version=%d status=%s owner=%s name=%q primary=%s guardrail=%s retention_hours=%d starts_at=%s ends_at=%s\n",
-				item.ID, item.Version, item.Status, ownerText, item.Name, item.PrimaryMetric,
+			fmt.Printf("experiment_id=%d version=%d assignment_algorithm=v%d status=%s owner=%s name=%q primary=%s guardrail=%s retention_hours=%d starts_at=%s ends_at=%s\n",
+				item.ID, item.Version, item.AssignmentAlgorithmVersion, item.Status, ownerText, item.Name, item.PrimaryMetric,
 				item.GuardrailMetric, item.RetentionHours, item.StartsAt.Format(time.RFC3339), end)
 		}
 		return nil

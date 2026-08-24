@@ -128,6 +128,14 @@ is stored. `report_exposure` accepts one append-only variant per experiment
 version and subject hash until its bounded expiry or an exact authorized
 subject deletion.
 
+The schema compatibility default is assignment algorithm v1, reproducing the
+pre-R03 salt/pseudonym/experiment-version hash byte-for-byte while its retained
+exposures expire. Trusted creates explicitly store v2. The algorithm version,
+salt, and experiment version plus all variant keys/allocations are immutable;
+a running experiment is stopped and replaced by a new experiment/version
+instead of changing buckets. List and operator report output disclose the
+algorithm version but never the salt.
+
 `report_experiment_outcome` attaches an append-only observed value to an existing
 exposure. The caller supplies a 32-byte hexadecimal idempotency digest and an
 exact six-decimal `DECIMAL(20,6)` string. Only the experiment's declared

@@ -2241,6 +2241,18 @@ CREATE TABLE `report_experiment_audit` (
 DELIMITER ;;
 CREATE TRIGGER `report_exposure_immutable_update` BEFORE UPDATE ON `report_exposure` FOR EACH ROW
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report exposures are immutable'; END ;;
+CREATE TRIGGER `report_experiment_assignment_immutable_update` BEFORE UPDATE ON `report_experiment` FOR EACH ROW
+BEGIN
+  IF NOT (OLD.experiment_version <=> NEW.experiment_version)
+     OR NOT (OLD.assignment_algorithm_version <=> NEW.assignment_algorithm_version)
+     OR NOT (OLD.assignment_salt <=> NEW.assignment_salt) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment assignment identity is immutable';
+  END IF;
+END ;;
+CREATE TRIGGER `report_experiment_variant_immutable_update` BEFORE UPDATE ON `report_experiment_variant` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment variants are immutable'; END ;;
+CREATE TRIGGER `report_experiment_variant_immutable_delete` BEFORE DELETE ON `report_experiment_variant` FOR EACH ROW
+BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment variants are immutable'; END ;;
 CREATE TRIGGER `report_experiment_outcome_immutable_update` BEFORE UPDATE ON `report_experiment_outcome` FOR EACH ROW
 BEGIN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='report experiment outcomes are immutable'; END ;;
 CREATE TRIGGER `report_experiment_audit_immutable_update` BEFORE UPDATE ON `report_experiment_audit` FOR EACH ROW

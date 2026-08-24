@@ -2,6 +2,7 @@ package reporting
 
 import (
 	"context"
+	"encoding/hex"
 	"regexp"
 	"testing"
 	"time"
@@ -17,6 +18,21 @@ func testExperiment() Experiment {
 		Status:                     "Running", AssignmentSalt: "00112233445566778899aabbccddeeff",
 		PrimaryMetric: "actions", GuardrailMetric: "spend", RetentionHours: 2160, StartsAt: start,
 		Variants: []Variant{{Key: "control", AllocationBasisPts: 5000}, {Key: "treatment", AllocationBasisPts: 5000}},
+	}
+}
+
+func TestAssignV1RetainsLegacyGoldenHash(t *testing.T) {
+	experiment := testExperiment()
+	experiment.AssignmentAlgorithmVersion = AssignmentAlgorithmV1
+	assignment, err := Assign(experiment, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", experiment.StartsAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hex.EncodeToString(assignment.SubjectHash[:]); got != "b0e93894e33027b140179b180397e96fd734abcfa6d7f8f6915884edd4b53944" {
+		t.Fatalf("v1 subject hash = %s, want legacy golden", got)
+	}
+	if assignment.AlgorithmVersion != AssignmentAlgorithmV1 {
+		t.Fatalf("algorithm version = %d, want v1", assignment.AlgorithmVersion)
 	}
 }
 

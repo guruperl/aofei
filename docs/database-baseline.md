@@ -204,7 +204,8 @@ See [marketplace-analytics-experiments.md](marketplace-analytics-experiments.md)
 
 R03 adds `report_experiment.assignment_algorithm_version`. Its compatibility
 default is v1 for pre-R03 rows; trusted new creates always store v2 and generate
-their own salt.
+their own salt. Three triggers freeze assignment identity and variant rows, so
+the active baseline is 95 tables, 6 routines, and 60 triggers.
 
 O02 makes `ledger_log.timely` and `daily_log.daily` unique. The operational
 Redis lease is renewable but cannot prove exclusive ownership during every

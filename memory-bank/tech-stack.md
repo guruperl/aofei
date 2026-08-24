@@ -697,7 +697,7 @@ as compatibility dispatch data and requires the typed principal. The traffic-
 quality and hosted-payment maintenance binaries use `os.Geteuid` directly and
 expose no actor-id flag.
 Disposable MySQL verification restores the current clean baseline, expects 95
-tables, 6 routines, and 57 triggers, proves `auth_security_audit` update/delete fails,
+tables, 6 routines, and 60 triggers, proves `auth_security_audit` update/delete fails,
 and exercises analyst creation/grant without touching the configured local
 stack. Operational details are in
 [docs/identity-access-security.md](../docs/identity-access-security.md).
@@ -715,7 +715,7 @@ S03 focused gates cover closed signal/overflow fixtures, incomplete-evidence
 actions and billing, exact canary-review activation, scope authorization,
 appeal and maker/checker transitions, immutable snapshots, false-positive
 rollback, detached serving refresh, and the strict aggregate command. The
-disposable MySQL lifecycle restores the current 95 tables/6 routines/57 triggers and proves
+disposable MySQL lifecycle restores the current 95 tables/6 routines/60 triggers and proves
 rule/decision immutability, review/appeal, enforcement/rollback, A01 hold, and
 fresh-context retention cleanup.
 

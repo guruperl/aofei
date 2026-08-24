@@ -92,6 +92,29 @@ func TestLoadExperimentReturnsValidatedRuntimeContract(t *testing.T) {
 	}
 }
 
+func TestListExperimentsIncludesAlgorithmWithoutSalt(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT experiment_id, owner_type, adv_id, experiment_name, experiment_version, assignment_algorithm_version,")).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"experiment_id", "owner_type", "adv_id", "experiment_name", "experiment_version", "assignment_algorithm_version",
+			"status", "primary_metric", "guardrail_metric", "retention_hours", "starts_at", "ends_at",
+		}).AddRow(7, "Operator", nil, "copy", 2, AssignmentAlgorithmV2, "Running", "actions", "spend", 2160, time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), nil))
+	items, err := ListExperiments(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].AssignmentAlgorithmVersion != AssignmentAlgorithmV2 {
+		t.Fatalf("experiment summaries = %#v", items)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTransitionExperimentValidatesAllocationBeforeStart(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

@@ -7,13 +7,13 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order, D04, D05, S06, P03, and S05 are complete. P03's authenticity gates
+order, D04, D05, S06, P03, S05, and O03 are complete. P03's authenticity gates
 remain disabled by default until a separately authorized named-publisher
-canary. The remaining review order continues through O03, R03, and A03. I02
+canary. The remaining review order continues through R03 and A03. I02
 remains separately demand-gated; its P03/S05 prerequisites are complete, but a
 named Android or iOS integration still has not defined supported platforms and
 lifecycle requirements. The active MySQL baseline is 95 tables, 0 views, 6
-routines, and 57 triggers;
+routines, and 60 triggers;
 planned milestones do not imply schema or runtime activation.
 
 ## Start By Audience
