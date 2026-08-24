@@ -1,6 +1,6 @@
 # Status O03 - Job, Cache, And Filesystem Reliability
 
-State: `[~]` In progress
+State: `[!]` Blocked at bounded review iteration limit
 
 ## Goal
 
@@ -191,3 +191,15 @@ atomic generation publication with partial live writes.
     sink loops now check the lease context. Focused cancellation tests prove
     those memory-only generation paths stop without packing later entries after
     ownership cancellation.
+
+- Iteration 10 (2026-08-24): one P2 finding remains open; the bounded review
+  limit is reached, so O03 remains incomplete and downstream reconciliation
+  must not start without explicit user direction.
+  - P2 open: fresh-node bootstrap calls `receiver.install` after taking the
+    renewable cache lease, but the full snapshot-write and pointer-commit loop
+    does not accept or check the lease-owned context. Ownership uncertainty
+    during a large or fsync-heavy install can therefore let the old owner keep
+    mutating the spread root after a successor acquires the lease, including a
+    later stale pointer commit. A continuation must make staging and commit
+    cancellation-aware, prove cancellation prevents subsequent files and the
+    pointer switch, then run a new explicitly authorized review cycle.
