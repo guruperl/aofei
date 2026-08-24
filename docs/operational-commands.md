@@ -213,7 +213,8 @@ Inputs:
 - Cache subjects produced by `cmd/redis-cache -cache=spread` or
   `cmd/redis-cache -cache=all`.
 - Optional Redis/MySQL access from the same `AOFEI` config for startup
-  bootstrap from current Redis static cache state.
+  bootstrap: MySQL compiles the snapshot while Redis owns the shared mutation
+  lease and monotonic sequence.
 
 Outputs:
 

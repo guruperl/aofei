@@ -302,8 +302,10 @@ Spread directories are created or tightened to at most `0750`, files use
 `0640`, and durable replacement syncs each file and containing directory.
 
 On a fresh node, `cmd/spread` flushes its NATS subscription before attempting to
-bootstrap static spread files from Redis, and the bootstrap holds the same
-`aofei:redis-cache` lease as all cache publishers while reading the families.
+bootstrap static spread files from MySQL, and the bootstrap holds the same
+`aofei:redis-cache` lease as all cache publishers while compiling the snapshot;
+Redis supplies the lease and monotonic sequence, not potentially older cache
+payloads.
 An existing or newly received complete disk generation skips bootstrap. The
 bootstrap remains best effort: if Redis, MySQL, or the lease is unavailable,
 the receiver still consumes live NATS cache messages.

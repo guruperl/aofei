@@ -441,76 +441,32 @@ func bootstrapSpreadFromRedis(ctx context.Context, c *dsp.Config, receiver *spre
 	defer redis.Close()
 	defer db.Close()
 	return cmdboot.WithLock(ctx, redis, cachejob.MutationLockKey, 30*time.Minute, func(leaseCtx context.Context) error {
+		if receiver.hasCommittedGeneration() {
+			return nil
+		}
 		return bootstrapSpreadSnapshot(leaseCtx, redis, db, receiver)
 	})
 }
 
 func bootstrapSpreadSnapshot(ctx context.Context, redis radix.Client, db *sql.DB, receiver *spreadGenerationReceiver) error {
-	messages := make([]spreadcache.Message, 0)
-	pubmap, err := acl.PubMapFromRedis(ctx, redis)
+	if receiver.hasCommittedGeneration() {
+		return nil
+	}
+	pubmap, err := acl.DBGetPubMapContext(ctx, db)
 	if err != nil {
 		return err
 	}
-	if pubmap != nil {
-		for domain, pub := range pubmap {
-			if unsafePath(domain) {
-				continue
-			}
-			data, err := pub.Pack()
-			if err != nil {
-				return err
-			}
-			messages = append(messages, spreadcache.Message{Subject: acl.HashNamePubmap + ":" + domain, Data: data})
-		}
-	}
-
-	audiences, err := match.AudienceMapFromRedis(ctx, redis)
-	if err != nil {
-		return err
-	}
-	if audiences != nil {
-		for itemID, audience := range audiences {
-			data, err := audience.Pack()
-			if err != nil {
-				return err
-			}
-			name := strconv.FormatUint(uint64(itemID), 10)
-			messages = append(messages, spreadcache.Message{Subject: match.HashNameAudience + ":" + name, Data: data})
-		}
-	}
-
-	creatives, err := match.CreativeMapFromRedis(ctx, redis)
-	if err != nil {
-		return err
-	}
-	if creatives != nil {
-		for creativeID, creative := range creatives {
-			data, err := creative.Pack()
-			if err != nil {
-				return err
-			}
-			name := strconv.FormatUint(uint64(creativeID), 10)
-			messages = append(messages, spreadcache.Message{Subject: match.HashNameCreative + ":" + name, Data: data})
-		}
+	if err := acl.ValidateCommercialPubMap(pubmap); err != nil {
+		return fmt.Errorf("publisher inventory readiness: %w", err)
 	}
 
 	sizeIDs, err := match.DBGetActiveCreativeSizeIDs(ctx, db)
 	if err != nil {
 		return err
 	}
-	for _, sizeID := range sizeIDs {
-		hash, err := match.RAdvsFromRedisBySizeID(ctx, redis, sizeID)
-		if err != nil {
-			return err
-		}
-		for slotID, radvs := range hash {
-			data, err := radvs.Pack()
-			if err != nil {
-				return err
-			}
-			subject := match.HashNameRAdvs(sizeID) + ":" + strconv.FormatUint(uint64(slotID), 10)
-			messages = append(messages, spreadcache.Message{Subject: subject, Data: data})
-		}
+	messages, err := cachejob.BuildSpreadGeneration(ctx, db, pubmap, sizeIDs)
+	if err != nil {
+		return err
 	}
 	sequence, err := spreadcache.NextSequence(ctx, redis, receiver.committedSequence())
 	if err != nil {

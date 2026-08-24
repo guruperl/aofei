@@ -234,6 +234,19 @@ func TestSpreadReceiverRepairsMissingSelectedGeneration(t *testing.T) {
 	assertSpreadFile(t, filepath.Join(root, "creative", "7"), "repaired")
 }
 
+func TestBootstrapRechecksSubscribedGenerationBeforeDependencies(t *testing.T) {
+	receiver, err := newSpreadGenerationReceiver(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := receiver.install(1, []spreadcache.Message{{Subject: "creative:7", Data: []byte("subscribed")}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := bootstrapSpreadSnapshot(context.Background(), nil, nil, receiver); err != nil {
+		t.Fatalf("selected generation still entered bootstrap dependencies: %v", err)
+	}
+}
+
 func TestSpreadGenerationReconnectGapPreservesCommittedSnapshot(t *testing.T) {
 	top := t.TempDir()
 	receiver, err := newSpreadGenerationReceiver(top)

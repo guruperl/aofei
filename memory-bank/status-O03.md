@@ -92,7 +92,9 @@ atomic generation publication with partial live writes.
   - P2 resolved: `cmd/spread` now creates and flushes the generation receiver
     before fresh-node bootstrap, skips bootstrap when disk or subscribed state
     is already complete, and reconstructs Redis only while holding the exported
-    cache-mutation lease used by every publisher. Ordering and race tests pass.
+    cache-mutation lease used by every publisher. Bootstrap now compiles from
+    MySQL rather than potentially older Redis cache payloads. Ordering and race
+    tests pass.
   - P3 resolved: the legacy `.dat` exporter now records every `/8` crossed by
     an ordered IP range and extends each prefix's bounded index interval. A
     round-trip fixture proves lookups on both sides of an octet boundary.
@@ -162,10 +164,11 @@ atomic generation publication with partial live writes.
     removing the prior active staging directory, and cleanup failure discards
     only the new root. An injected preparation-failure test proves the old
     manifest, files, and later commit remain consistent.
-  - P2 open: fresh-node bootstrap snapshots Redis after only a pre-bootstrap
-    committed-state check. A spread-only publisher can complete while bootstrap
-    waits for the shared lease, after which older Redis content is assigned a
-    higher sequence and replaces the fresher subscribed generation.
+  - P2 resolved: fresh-node bootstrap rechecks committed state after acquiring
+    the shared cache lease and compiles through the same MySQL spread-generation
+    builder as publishers; Redis now supplies only the lease and monotonic
+    sequence. A delayed spread-only delivery can therefore no longer be
+    overwritten by older Redis payloads with a higher sequence.
   - P2 open: the supported route-only cache refresh writes the legacy and v2
     live route keys in separate commands, exposing mixed route generations to
     old and current consumers despite the atomic static-publication contract.

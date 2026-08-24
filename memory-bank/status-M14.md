@@ -22,9 +22,10 @@ local file IO, and local-mode bid-path cache reads.
   fsync instead of truncating the live snapshot path.
   - Files: `cmd/spread/main.go`.
 
-- `[+]` `cmd/spread` attempts a best-effort Redis bootstrap on startup. When
-  Redis and MySQL are reachable, static Redis cache families are mirrored into
-  the configured spread directory before live NATS updates are consumed.
+- `[+]` `cmd/spread` originally added a best-effort Redis bootstrap on startup.
+  O03 preserves fresh-node recovery but now compiles the snapshot from MySQL
+  under the shared cache lease; Redis supplies only ownership and the monotonic
+  sequence so older cache payloads cannot displace a spread-only publication.
   - Files: `cmd/spread/main.go`.
 
 - `[+]` Full cache refreshes now clear stale static state.

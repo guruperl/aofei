@@ -431,7 +431,11 @@ func PubMapFromIO(top string) (PubMap, error) {
 
 // DBGetPubMap retrieves the PubMap from the database
 func DBGetPubMap(db *sql.DB) (PubMap, error) {
-	rows, err := db.Query(`
+	return DBGetPubMapContext(context.Background(), db)
+}
+
+func DBGetPubMapContext(ctx context.Context, db *sql.DB) (PubMap, error) {
+	rows, err := db.QueryContext(ctx, `
 	SELECT domain, p.pub_id, p.active, foreign_id, s.site_id, s.site_type,
 	       t.slot_name, t.slot_id, t.size_id, t.bidfloor, b.limit_imp, b.current_imp,
 	       p.seller_id, p.seller_type, p.seller_asi, p.seller_name,

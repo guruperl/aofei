@@ -105,7 +105,7 @@ func Run(ctx context.Context, c *dsp.Config, redis radix.Client, db *sql.DB, nc 
 		return err
 	}
 
-	pubmap, err := acl.DBGetPubMap(db)
+	pubmap, err := acl.DBGetPubMapContext(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -763,7 +763,9 @@ func (s spreadMessageSink) append(subject string, data []byte) {
 	*s.messages = append(*s.messages, spreadcache.Message{Subject: subject, Data: append([]byte(nil), data...)})
 }
 
-func buildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) ([]spreadcache.Message, error) {
+// BuildSpreadGeneration compiles one complete static spread snapshot from
+// MySQL without publishing it.
+func BuildSpreadGeneration(ctx context.Context, db *sql.DB, pubmap acl.PubMap, sizeIDs []uint32) ([]spreadcache.Message, error) {
 	messages, err := buildSpreadPublisherMessages(pubmap)
 	if err != nil {
 		return nil, err
@@ -810,7 +812,7 @@ func PublishSpreadGeneration(ctx context.Context, redis radix.Client, nc spreadP
 	if nc == nil {
 		return fmt.Errorf("NATS connection is nil")
 	}
-	messages, err := buildSpreadGeneration(ctx, db, pubmap, sizeIDs)
+	messages, err := BuildSpreadGeneration(ctx, db, pubmap, sizeIDs)
 	if err != nil {
 		return err
 	}

@@ -42,10 +42,12 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    publication is available through
    `cmd/redis-cache -cache=routes`. `cmd/spread` must be running when spread
    messages should become `.local/spread/` file snapshots; on startup it
-   first flushes its subscription, then on a fresh node best-effort bootstraps
-   an atomic disk generation from Redis while holding the same cache-mutation
-   lease as publishers. Existing or newly received complete generations skip
-   bootstrap. The receiver stages every declared entry below
+   first flushes its subscription, then on a fresh node best-effort compiles an
+   atomic disk generation from MySQL while holding the same cache-mutation lease
+   as publishers; Redis supplies only the lease and monotonic sequence, so an
+   older Redis snapshot cannot replace a just-subscribed spread-only publish.
+   Existing or newly received complete generations skip bootstrap, including
+   after lease acquisition. The receiver stages every declared entry below
    `.aofei-generations/<sequence>/` and atomically replaces `.aofei-current`
    only after the entry count and SHA-256 manifest match. Missing reconnect
    messages, duplicates, and stale or overlapping producer sequences therefore

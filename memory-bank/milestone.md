@@ -538,8 +538,9 @@ Scope:
 - Make spread subscriptions receive cache subjects whose payload keys contain
   dots, especially publisher domains.
 - Replace in-place spread file writes with atomic snapshot replacement.
-- Let `cmd/spread` bootstrap local files from Redis on startup when Redis/DB are
-  available, so a restarted receiver can recover current static cache state.
+- Let `cmd/spread` recover local files on startup when Redis/MySQL are
+  available. O03's successor implementation compiles from MySQL under the
+  shared cache lease and uses Redis only for ownership and sequencing.
 - Make full Redis and spread refreshes remove stale static cache records.
 - Recompute item-level RAdv cache refreshes from MySQL slot state rather than
   merging against local spread files.
