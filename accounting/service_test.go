@@ -87,8 +87,25 @@ func TestTransitionRequiresEvidenceAndEnforcesStateMachine(t *testing.T) {
 	if err := service.Transition(context.Background(), TransitionInput{StatementID: 1, To: StatusSettled, Actor: "admin:1", Reason: "paid", ExternalRef: "payout:1234567890123456"}); err == nil {
 		t.Fatal("card-like reference succeeded")
 	}
+	if err := service.Transition(context.Background(), TransitionInput{StatementID: 1, To: StatusSettled, Actor: "admin:1", Reason: "paid", ExternalRef: "manual:123-456-789"}); err == nil {
+		t.Fatal("formatted account-like reference succeeded")
+	}
 	if transitionAllowed(StatusSettled, StatusDraft) || !transitionAllowed(StatusConfirmed, StatusSettled) {
 		t.Fatal("invalid statement transition table")
+	}
+}
+
+func TestStatementListingRequiresExplicitScope(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	service := Service{DB: db}
+	for _, scope := range []StatementScope{{}, {PartyType: PartyAdvertiser}, {PartyID: 7}, {All: true, PartyType: PartyAdvertiser, PartyID: 7}} {
+		if _, err := service.ListStatements(context.Background(), scope); err == nil {
+			t.Fatalf("statement scope %#v succeeded", scope)
+		}
 	}
 }
 

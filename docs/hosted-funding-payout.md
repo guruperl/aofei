@@ -41,6 +41,9 @@ audits. Hosted page URLs are returned once and never persisted.
 API keys, webhook secrets, raw signatures, raw webhook bodies, provider error
 messages, full payment credentials, and identity documents are prohibited from
 the database, UI, logs, exports, tickets, and Git.
+Audit reasons and idempotency keys reject plausible routing/account/card digit
+groups (including spaces, hyphens, dots, slashes, and parentheses), IBAN-like
+forms, and provider secret prefixes without retaining or echoing the value.
 
 ## Financial State And Authority
 

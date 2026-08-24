@@ -133,6 +133,10 @@ GOWORK=off go run ./cmd/accounting \
 CSV export contains statement metadata and amounts only. It does not export
 addresses, emails, payment credentials, raw events, or bank details. Store
 exports in access-controlled, encrypted operator storage outside Git.
+Statement listing never defaults to all parties: browser callers pass the
+authorized advertiser/publisher scope from their typed principal. An offline
+operator must add `-all-parties` for a cross-party CSV and cannot combine that
+flag with `-party` or `-party-id`.
 
 ## Reconciliation And Finality
 

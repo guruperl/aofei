@@ -179,7 +179,12 @@ func TestFinancialAuditReasonsAreBoundedHumanText(t *testing.T) {
 	if err := validateReason("独立复核通过"); err != nil {
 		t.Fatal(err)
 	}
-	for _, reason := range []string{"", "line one\nline two", string([]byte{0xff}), "card 4242 4242 4242 4242", "copy whsec_example_secret_here"} {
+	for _, reason := range []string{
+		"", "line one\nline two", string([]byte{0xff}),
+		"card 4242 4242 4242 4242", "routing 021000021",
+		"account 123.456.789", "IBAN DE89 3704 0044 0532 0130 00",
+		"copy whsec_example_secret_here",
+	} {
 		if err := validateReason(reason); err == nil {
 			t.Errorf("unsafe reason %q succeeded", reason)
 		}

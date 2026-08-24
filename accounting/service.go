@@ -63,6 +63,20 @@ type Statement struct {
 	UpdatedAt        time.Time
 }
 
+// StatementScope is explicit so a missing party filter cannot accidentally
+// become a cross-account listing. All is reserved for offline operator export.
+type StatementScope struct {
+	PartyType PartyType
+	PartyID   uint64
+	All       bool
+}
+
+func PartyStatementScope(party PartyType, partyID uint64) StatementScope {
+	return StatementScope{PartyType: party, PartyID: partyID}
+}
+
+func AllStatementScope() StatementScope { return StatementScope{All: true} }
+
 type CreateInput struct {
 	RequestKey  string
 	PartyType   PartyType
@@ -117,9 +131,16 @@ type MiddlemanReconciliation struct {
 
 type Service struct{ DB *sql.DB }
 
-func (s Service) ListStatements(ctx context.Context, party PartyType, partyID uint64) ([]Statement, error) {
+func (s Service) ListStatements(ctx context.Context, scope StatementScope) ([]Statement, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("accounting database is nil")
+	}
+	if scope.All {
+		if scope.PartyType != "" || scope.PartyID != 0 {
+			return nil, fmt.Errorf("all-party statement scope cannot include a party")
+		}
+	} else if (scope.PartyType != PartyAdvertiser && scope.PartyType != PartyPublisher) || scope.PartyID == 0 {
+		return nil, fmt.Errorf("an explicit authorized statement party scope is required")
 	}
 	query := `
 SELECT statement_id, request_key, party_type, party_id, cadence, period_start,
@@ -129,12 +150,9 @@ SELECT statement_id, request_key, party_type, party_id, cadence, period_start,
        created_at, updated_at
 FROM acct_statement`
 	var args []any
-	if party != "" || partyID != 0 {
-		if (party != PartyAdvertiser && party != PartyPublisher) || partyID == 0 {
-			return nil, fmt.Errorf("party type and party id must be supplied together")
-		}
+	if !scope.All {
 		query += " WHERE party_type=? AND party_id=?"
-		args = append(args, party, partyID)
+		args = append(args, scope.PartyType, scope.PartyID)
 	}
 	query += " ORDER BY period_start DESC, statement_id DESC"
 	rows, err := s.DB.QueryContext(ctx, query, args...)
@@ -245,7 +263,7 @@ func (s Service) Transition(ctx context.Context, input TransitionInput) error {
 	if input.StatementID == 0 || !validActor(input.Actor) || strings.TrimSpace(input.Reason) == "" || len(input.Reason) > 500 {
 		return fmt.Errorf("statement, actor, and bounded reason are required")
 	}
-	if input.ExternalRef != "" && (!safeReference.MatchString(input.ExternalRef) || longDigitRun.MatchString(input.ExternalRef)) {
+	if input.ExternalRef != "" && (!safeReference.MatchString(input.ExternalRef) || containsAccountNumber(input.ExternalRef)) {
 		return fmt.Errorf("external reference must be an opaque invoice, payout, or manual reference and must not contain account numbers")
 	}
 	if input.To == StatusSettled && input.ExternalRef == "" {
@@ -314,6 +332,26 @@ WHERE statement_id=? AND status=?`, input.To, input.ExternalRef,
 		return err
 	}
 	return tx.Commit()
+}
+
+func containsAccountNumber(value string) bool {
+	if longDigitRun.MatchString(value) {
+		return true
+	}
+	digits := 0
+	for _, r := range value {
+		switch {
+		case r >= '0' && r <= '9':
+			digits++
+			if digits >= 9 {
+				return true
+			}
+		case r == '-' || r == '.' || r == '_':
+		default:
+			digits = 0
+		}
+	}
+	return false
 }
 
 func (s Service) AddAdjustment(ctx context.Context, input AdjustmentInput) error {

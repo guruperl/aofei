@@ -32,6 +32,7 @@ var (
 	actor       string
 	reason      string
 	reference   string
+	allParties  bool
 )
 
 func init() {
@@ -48,6 +49,7 @@ func init() {
 	flag.StringVar(&amount, "amount", "", "signed USD adjustment with at most six decimals")
 	flag.StringVar(&reason, "reason", "", "required audit reason")
 	flag.StringVar(&reference, "reference", "", "opaque invoice:, payout:, or manual: evidence reference")
+	flag.BoolVar(&allParties, "all-parties", false, "explicitly export every party (offline operator only)")
 }
 
 func main() {
@@ -144,7 +146,16 @@ func run(ctx context.Context, service accounting.Service) error {
 			result.ExpectedMargin, result.Difference)
 		return err
 	case "export":
-		statements, err := service.ListStatements(ctx, accounting.PartyType(party), partyID)
+		var scope accounting.StatementScope
+		if allParties {
+			if party != "" || partyID != 0 {
+				return fmt.Errorf("-all-parties cannot be combined with -party or -party-id")
+			}
+			scope = accounting.AllStatementScope()
+		} else {
+			scope = accounting.PartyStatementScope(accounting.PartyType(party), partyID)
+		}
+		statements, err := service.ListStatements(ctx, scope)
 		if err != nil {
 			return err
 		}

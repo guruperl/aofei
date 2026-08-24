@@ -130,7 +130,7 @@ INSERT INTO daily_mid (
 	if err != nil {
 		t.Fatal(err)
 	}
-	statements, err := service.ListStatements(ctx, PartyPublisher, 2)
+	statements, err := service.ListStatements(ctx, PartyStatementScope(PartyPublisher, 2))
 	if err != nil || len(statements) != 1 || statements[0].ID != publisherID || statements[0].SourceAmount != Money(1250000) {
 		t.Fatalf("publisher statements = %#v, %v", statements, err)
 	}

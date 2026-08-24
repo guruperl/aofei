@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,8 @@ import (
 )
 
 type PartyType = accounting.PartyType
+
+var ibanLike = regexp.MustCompile(`(?i)[A-Z]{2}[ -]?[0-9]{2}(?:[ -]?[A-Z0-9]){11,30}`)
 
 const (
 	PartyAdvertiser = accounting.PartyAdvertiser
@@ -1395,16 +1398,19 @@ func containsSensitivePaymentMaterial(value string) bool {
 			return true
 		}
 	}
+	if ibanLike.MatchString(value) {
+		return true
+	}
 	digits := 0
 	for _, r := range value {
 		switch {
 		case r >= '0' && r <= '9':
 			digits++
-			if digits >= 12 {
+			if digits >= 9 {
 				return true
 			}
-		case r == ' ' || r == '-':
-			// Card numbers are commonly grouped with spaces or hyphens.
+		case r == ' ' || r == '-' || r == '.' || r == '/' || r == '(' || r == ')':
+			// Card, routing, and account numbers commonly use these separators.
 		default:
 			digits = 0
 		}
