@@ -64,3 +64,20 @@ atomic generation publication with partial live writes.
   scan, export, persist, or bulk-delete them; dependency failure remains a
   fixed-cardinality retryable authentication outcome rather than a
   credentialless fallback.
+
+## Reconciliation From S05
+
+- Callback retry and any reusable outbound job client must preserve S05's
+  mandatory `safehttp` URL/dial boundary. Injected clients cannot restore a
+  proxy, custom dial path, insecure TLS, HTTPS downgrade, unsafe redirect, or
+  cross-authority credential; an injected redirect hook is checked against an
+  immutable pre-hook history. Socket-free test doubles remain explicitly
+  marked and URL-validated.
+- Retry/recovery evidence may record only fixed-cardinality disposition and
+  dependency state. It must not persist callback URLs, arbitrary headers,
+  request bodies, DNS answers, credential refs, or redirect history in spread
+  files, caches, metrics, or incident artifacts.
+- O03 command/tool cleanup must retain the S05 maintenance boundary: restricted
+  retention work derives its effective Unix principal and exposes no caller-
+  selected actor or wildcard/recent-MFA claim. Reliability retries cannot turn
+  an offline health/retention principal into HTTP or financial authority.

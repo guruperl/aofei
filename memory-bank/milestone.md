@@ -32,13 +32,12 @@ scale. D01 through A02 in the original sequence below, D04, and D05 are
 complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 is now complete. S06 repository
 hardening, managed Cloudflare widget, constrained Free-plan edge rule,
-production deployment, and live proof are also complete. The remaining
-deep-review horizon resumes with S05, O03, R03, and A03 after P03 completion.
-I02 remains demand-gated and must not start until P03/S05
-are complete and a named Android or iOS integration supplies supported
-OS/version and lifecycle requirements. Matching lane status files are the
-authoritative completion record; completed M-lane files retain earlier runtime
-history.
+production deployment, and live proof are also complete. P03 and S05 are
+complete; the remaining deep-review horizon resumes with O03, R03, and A03.
+I02 remains demand-gated and starts only when a named Android or iOS integration
+supplies supported OS/version and lifecycle requirements. Matching lane status
+files are the authoritative completion record; completed M-lane files retain
+earlier runtime history.
 
 Delivery sequence:
 
@@ -48,12 +47,12 @@ Delivery sequence:
 4. Product expansion: R02, P02, S02, and S03, then I03/A02 after S02.
 5. Follow-up review remediation: D04 callback/runtime history, D05
    auction/cap/hot-path fixes, S06 repository plus production activation, and
-   P03 direct-SSP authenticity are complete; the remaining sequence starts with
-   S05 trust boundaries, then O03
+   P03 direct-SSP authenticity and S05 runtime trust boundaries are complete;
+   the remaining sequence starts with O03
    job/cache/filesystem reliability, R03 experiment/report integrity, then A03
    exact monetary sources.
-6. Demand-gated mobile delivery: I02 after P03/S05 and a named mobile
-   integration requires supported native SDKs.
+6. Demand-gated mobile delivery: P03/S05 are complete, but I02 starts only when
+   a named mobile integration supplies supported-platform and lifecycle needs.
 
 The strict serial order is:
 
@@ -89,7 +88,7 @@ acceptance criteria recorded in the corresponding status files.
 | S02 | Completed; disabled by default | [status-S02.md](status-S02.md) | Identity, two-factor authentication, and RBAC. |
 | S03 | Completed; disabled by default | [status-S03.md](status-S03.md) | Traffic quality and anti-fraud. |
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
-| S05 | In progress | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
+| S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
@@ -1636,12 +1635,16 @@ intentional stored-markup previews, and centralize the narrow sanitized
 safe-HTML boundary without weakening contextual `html/template` escaping.
 Detailed tasks are in [status-S04.md](status-S04.md).
 
-## S05 - Runtime Trust-Boundary Hardening `[~]`
+## S05 - Runtime Trust-Boundary Hardening `[+]`
 
 Harden special-use address rejection, injected HTTP clients, creative consumers,
 principal provenance, quality-rule version selection, and protected database
 columns without stripping legitimate sandboxed ad scripts or blocking valid
-state transitions. Detailed tasks are in [status-S05.md](status-S05.md).
+state transitions. The completed result uses one DNS-rebinding-safe outbound
+transport, a closed creative-consumer inventory, typed exact request principals,
+restricted Unix maintenance identities, per-mode quality-rule selection, and
+narrow enforcement/billing triggers. Detailed tasks and review evidence are in
+[status-S05.md](status-S05.md).
 
 ## S06 - Public Account Abuse Protection `[+]`
 

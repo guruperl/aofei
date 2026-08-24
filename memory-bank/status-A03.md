@@ -13,7 +13,9 @@ source while preserving auditable compatibility and hosted-payment safety.
 - A01 manual accounting and A02 hosted funding/payout remain the financial
   authority and outage fallback.
 - D04 must first correct tracking price type and callback/reservation integrity.
-- R02/R03 reporting contracts and O02 backup/restore govern migration evidence.
+- S05's verified-principal and protected quality-billing boundaries remain
+  authoritative. R02/R03 reporting contracts and O02 backup/restore govern
+  migration evidence.
 
 ## Tasks
 
@@ -57,3 +59,23 @@ source while preserving auditable compatibility and hosted-payment safety.
 - Internally operated payment-card storage/processing remains deferred.
 - The migration does not convert CPC, CPA, ROI, or automatic bidding into
   supported commercial models.
+
+## Reconciliation From S05
+
+- Summer money, statement, and hosted-payment actions must continue consuming
+  Genelet's typed exact component/action/permission/resource principal and
+  server-derived recent-MFA deadline. Exact-decimal request fields, account
+  numbers, compatibility `_g*` values, provider metadata, and API credentials
+  cannot become actor or scope evidence.
+- The migration starts from the S05 clean baseline of 95 tables, 6 routines,
+  and 57 triggers. Any exact-column replacement must update and prove the
+  `quality_billing_protected_update` contract in the same versioned migration:
+  decision/statement/digest/disposition/recommender evidence stays immutable,
+  independent review remains mandatory, and valid Hold application continues
+  to compose with A01/A02 state transitions.
+- Restricted retention/health commands retain their exact effective-Unix
+  principals and cannot move money, reconcile, call a provider, or acquire
+  wildcard/recent-MFA authority through retry or compatibility paths.
+- New provider/webhook resolution must not introduce a caller-selected URL or
+  injected transport that bypasses S05 address, DNS-rebinding, TLS, redirect,
+  and credential-forwarding policy.

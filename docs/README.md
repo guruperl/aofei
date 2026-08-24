@@ -7,12 +7,13 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order, D04, D05, S06, and P03 are complete. P03's authenticity gates remain
-disabled by default until a separately authorized named-publisher canary. The
-remaining review order continues through S05, O03, R03, and A03. I02
-remains separately demand-gated until P03/S05 are complete and a named Android
-or iOS integration defines supported platforms and lifecycle requirements. The
-active MySQL baseline is 95 tables, 0 views, 6 routines, and 57 triggers;
+order, D04, D05, S06, P03, and S05 are complete. P03's authenticity gates
+remain disabled by default until a separately authorized named-publisher
+canary. The remaining review order continues through O03, R03, and A03. I02
+remains separately demand-gated; its P03/S05 prerequisites are complete, but a
+named Android or iOS integration still has not defined supported platforms and
+lifecycle requirements. The active MySQL baseline is 95 tables, 0 views, 6
+routines, and 57 triggers;
 planned milestones do not imply schema or runtime activation.
 
 ## Start By Audience
@@ -57,7 +58,7 @@ planned milestones do not imply schema or runtime activation.
 | S02 identity, MFA, and RBAC | Completed; disabled by default | [status-S02.md](../memory-bank/status-S02.md) | [Identity and access security](identity-access-security.md) |
 | S03 traffic quality | Completed; disabled by default | [status-S03.md](../memory-bank/status-S03.md) | [Traffic quality and anti-fraud](traffic-quality-anti-fraud.md) |
 | S04 template/XSS safety | Completed | [status-S04.md](../memory-bank/status-S04.md) | [Template rendering security](template-rendering-security.md) and [pzdesign rendering inventory](../../pzdesign/docs/rendering-security.md) |
-| S05 runtime trust boundaries | In progress | [status-S05.md](../memory-bank/status-S05.md) | [Creative consumer boundary](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
+| S05 runtime trust boundaries | Completed | [status-S05.md](../memory-bank/status-S05.md) | [Creative consumer boundary](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
 | S06 public account abuse protection | Completed; active on W8M | [status-S06.md](../memory-bank/status-S06.md) | [Public account abuse protection](public-account-abuse-protection.md) |
 | A01 accounting and settlement | Completed | [status-A01.md](../memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |

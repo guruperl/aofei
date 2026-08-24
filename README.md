@@ -136,9 +136,9 @@ placement and direct `go install` invocations in
 ## Capability And Activation Status
 
 The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, S06,
-and P03 are complete. P03's authenticity gates remain disabled by default
+P03, and S05 are complete. P03's authenticity gates remain disabled by default
 until a separately authorized named-publisher canary. The remaining
-implementation proceeds through S05, O03, R03, and A03. I02 remains
+implementation proceeds through O03, R03, and A03. I02 remains
 separately demand-gated. Implementation does not imply production activation:
 
 | Area | Current state |
@@ -156,7 +156,7 @@ separately demand-gated. Implementation does not imply production activation:
 | I03 advertiser management API | Implemented but independently disabled by default. |
 | S01 privacy, S04 rendering safety | Implemented core boundaries. |
 | S02 identity/RBAC, S03 traffic quality | Implemented but independently disabled by default pending migration, keys, permissions, and rollout evidence. |
-| S05 runtime trust boundaries | Planned; owns outbound-network, creative-consumer, principal, and quality-version hardening. |
+| S05 runtime trust boundaries | Implemented; safe outbound transport, isolated creative consumers, typed exact principals, per-mode quality versions, and protected quality state are reviewed and verified. |
 | S06 public account abuse protection | Implemented and active on W8M with its scoped Cloudflare widget and Free-plan exact-path rate rule. |
 | A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |

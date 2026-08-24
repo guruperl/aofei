@@ -608,8 +608,8 @@ git diff --check
 
 The documentation guard requires `docs/README.md` to index every active
 Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
-completed original lane set and S06, the remaining
-P03/S05/O03/R03/A03 remediation horizon, demand-gated I02, and the bounded
+completed original lane set plus S06/P03/S05, the remaining O03/R03/A03
+remediation horizon, demand-gated I02, and the bounded
 `GOAL.md` review-fix contract; checks
 the 95/0/6/57 schema inventory; and rejects attempts to test the removed
 `./genelet` package path from inside pzdesign. Historical status and

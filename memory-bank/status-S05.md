@@ -1,6 +1,6 @@
 # Status S05 - Runtime Trust-Boundary Hardening
 
-State: `[~]` In progress
+State: `[+]` Completed
 
 ## Goal
 
@@ -86,6 +86,28 @@ container and legitimate third-party advertising behavior.
   compatibility and consumer discovery, quality-rule precedence, database
   transitions, maintenance authority, tests, and operator documentation. No
   P1, P2, higher-severity, or carry-forward finding remains.
+
+## Closeout Evidence (2026-08-24)
+
+- All seven task rows and both review-fix iterations are complete in focused
+  Aofei, Genelet, and pzdesign commits. Iteration 3 re-reviewed the whole
+  milestone clean; no P1/P2-or-higher or carried finding remains.
+- Aofei passed `GOWORK=off go test ./...`, vet, staticcheck, the complete scoped
+  race suite, documentation guard, SQL guard, schema diff, and diff hygiene.
+  Genelet passed full test/vet/documented-staticcheck/race/diff gates;
+  pzdesign passed full test/vet/documented-staticcheck/race plus template,
+  public-copy, public-data, and diff gates.
+- After a clean local `reset-sample`, the traffic-quality, hosted-payment, and
+  P03 publisher-credential disposable MySQL lifecycles passed against 95 base
+  tables, 0 views, 6 routines, and 57 triggers. The local sample baseline was
+  restored afterward and still matches `etc/step4_init.sql`.
+- Downstream O03, R03, A03, and conditional I02 now inherit the safe outbound
+  transport, typed exact principal, creative-consumer inventory, maintenance
+  authority, and protected quality-billing constraints. I02 remains skipped
+  because no named mobile integration or support contract exists.
+- Evolution result v29 records the material runtime trust-boundary direction.
+  No deployment, production traffic, production schema/data, credential,
+  provider, Cloudflare, or other external system was mutated.
 
 ## Acceptance Criteria
 

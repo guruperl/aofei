@@ -147,15 +147,17 @@ confirmed correctness fixes, request authenticity, trust-boundary hardening,
 operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
-and quota-script work. D05, S06, and P03 are now complete. P03 provides its
+and quota-script work. D05, S06, P03, and S05 are now complete. P03 provides its
 threat contract, default-off versioned locator codec/runtime dual reader,
 default-off SDK/server authentication, independent browser/App enforcement,
 client-claim disposition, portal/cache integration, and repository rollout/
 abuse evidence. Production gates remain default-off and require a separately
-authorized named publisher canary.
-I02 maintained Android/iOS SDKs remains separately demand-gated until P03/S05
-are complete and a named integration defines supported platforms and lifecycle
-requirements. Lane state and strict dependency order live in
+authorized named publisher canary. S05 provides the reviewed outbound,
+creative-consumer, principal, quality-version, and database-integrity boundary.
+I02 maintained Android/iOS SDKs remains separately demand-gated: its P03/S05
+repository prerequisites are complete, but no named integration defines
+supported platforms and lifecycle requirements. Lane state and strict
+dependency order live in
 [milestone.md](milestone.md); the guide-to-lane map is
 [docs/README.md](../docs/README.md). Explicitly deferred investments and their
 reconsideration triggers live in [docs/defer.md](../docs/defer.md).

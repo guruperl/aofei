@@ -12,7 +12,9 @@ bids, delivery, accounting, or settlement.
 
 - R01 attribution identity, R02 metrics/experiments, S01 privacy, and S02 scoped
   authorization.
-- O03 owns maintenance/retention job reliability; A03 owns exact money sources.
+- S05 owns verified request-principal provenance and creative/runtime trust
+  boundaries. O03 owns maintenance/retention job reliability; A03 owns exact
+  money sources.
 
 ## Tasks
 
@@ -50,3 +52,20 @@ bids, delivery, accounting, or settlement.
 - Experiments remain observational. Automatic bidding, pacing, budget, or
   creative optimization remains deferred.
 - Monetary source migration and statement access belong to A03.
+
+## Reconciliation From S05
+
+- Every authenticated report/export or experiment-control action must consume
+  Genelet's typed principal for the exact component, action, permission, and
+  resource, including the server session's MFA deadline where required.
+  Compatibility `_g*` values, report parameters, request-proof headers, and
+  analytics pseudonyms are never authentication or delegated scope.
+- New report/experiment maintenance commands derive only their documented
+  effective-Unix principal and exact health/retention permission, or use the
+  reviewed UID-to-administrator mapping where the existing database schema
+  requires a numeric actor. No actor flag, wildcard grant, or synthesized
+  recent MFA may reappear.
+- Analytical creative fields remain escaped protocol/source data. R03 must not
+  add a preview, raw DOM sink, WebView renderer, or outbound URL fetch; doing so
+  reopens S05's creative-consumer and special-address review before the new
+  surface is implemented.
