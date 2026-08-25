@@ -794,6 +794,12 @@ func (value middlemanCallbackContext) reconciledPrices() middlemanPrices {
 }
 
 func (value middlemanCallbackContext) reconciledPricesExact() (middlemanPrices, error) {
+	switch value.AccountingVersion {
+	case accounting.ExactMoneyContract, "", accounting.LegacyMoneyContract:
+		// Supported current and bounded legacy callback contracts.
+	default:
+		return middlemanPrices{}, fmt.Errorf("unsupported middleman callback accounting version %q", value.AccountingVersion)
+	}
 	if value.AccountingVersion == accounting.ExactMoneyContract {
 		charge, pay := value.UpstreamBidCPM, value.DownstreamBidCPM
 		if charge <= 0 || charge > accounting.MaxCPM || pay < 0 || pay > charge || value.MarginCPMExact != charge-pay {

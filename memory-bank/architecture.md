@@ -254,6 +254,8 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    provenance: v3 reads only the exact map, unmarked legacy gob reads only the
    float map, and direct SSP carries the resolved version through impression
    construction. Unknown or conflicting markers cannot fall back.
+   Middleman callback state follows the same boundary: only exact v3, explicit
+   v2, or an unmarked pre-A03 context can be reconciled into billable prices.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and

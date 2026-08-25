@@ -99,6 +99,18 @@ func TestMiddlemanExactCallbackRejectsTamperedPriceIdentity(t *testing.T) {
 	}
 }
 
+func TestMiddlemanCallbackRejectsUnknownAccountingVersion(t *testing.T) {
+	value := middlemanCallbackContext{
+		AccountingVersion:  "future-version",
+		DownstreamBidPrice: 1.0,
+		UpstreamBidPrice:   1.2,
+		MarginCPM:          0.2,
+	}
+	if _, err := value.reconciledPricesExact(); err == nil {
+		t.Fatal("unknown callback accounting version was accepted")
+	}
+}
+
 func TestRedisMiddlemanStoreSeparatesForwardAndPublishState(t *testing.T) {
 	server := miniredis.RunT(t)
 	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())

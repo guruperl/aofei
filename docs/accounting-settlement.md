@@ -74,6 +74,9 @@ choosing a field: v3 requires the exact floor map, an unmarked legacy gob uses
 only its bounded float map, and unknown or conflicting markers fail closed.
 Direct SSP units retain that resolved v2/v3 provenance instead of relabeling a
 legacy floor conversion as v3.
+Middleman callback reconciliation likewise accepts only v3 exact state,
+explicit v2 state, or an unmarked pre-A03 context; unknown markers fail closed
+before any charge or pay amount is derived.
 
 Local advertiser charge and publisher pay currently use the same gross
 impression fact; no undocumented revenue-share percentage is deducted. A new

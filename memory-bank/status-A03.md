@@ -168,6 +168,16 @@ source while preserving auditable compatibility and hosted-payment safety.
   accounting marker before selecting the corresponding floor field; current
   commercial caches require v3 provenance, and SSP units retain the resolved
   contract instead of relabeling legacy data.
+- Iteration 8: `[x]` One blocking finding was confirmed during the next full
+  review:
+  1. **P2 - callback accounting downgrade:** middleman callback reconciliation
+     sends every non-v3 accounting marker, including an unknown nonempty
+     version, through the legacy float conversion branch. Corrupted or future
+     callback state can therefore be billed under a weaker contract instead of
+     failing closed.
+  Resolution: callback reconciliation now admits only v3, explicit v2, or an
+  unmarked pre-A03 context; every unknown marker is rejected before prices are
+  derived or published.
 
 ## Exclusions
 
