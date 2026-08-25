@@ -64,11 +64,23 @@ func TestExactMoneyJSONRejectsLegacyNumbers(t *testing.T) {
 	if !errors.Is(err, ErrMoneyStringRequired) {
 		t.Fatalf("legacy numeric CPM error = %v", err)
 	}
-	for _, raw := range []string{"0.0000001", "1000000.000000", "NaN", "-0.000000"} {
+	for _, raw := range []string{"0.0000001", "1000000.000000", "NaN", "-0.000000", "1", "1.0", "01.000000", " 1.000000"} {
 		item = itemWrite{Name: "item", LandingURL: "https://example.invalid", PriceCPMUSD: ExactDecimal(raw)}
 		if err := validateItemWrite(&item); err == nil {
 			t.Fatalf("invalid exact CPM %q accepted", raw)
 		}
+	}
+	for _, raw := range []string{"1", "1.0", "01.000000000", " 1.000000000"} {
+		spend := ExactDecimal(raw)
+		policy := DeliveryPolicy{Pacing: "Fast", TotalLimits: Limits{SpendUSD: &spend}}
+		if err := validateDelivery(&policy, true); err == nil {
+			t.Fatalf("noncanonical exact spend %q accepted", raw)
+		}
+	}
+	spend := ExactDecimal("1.000000000")
+	policy := DeliveryPolicy{Pacing: "Fast", TotalLimits: Limits{SpendUSD: &spend}}
+	if err := validateDelivery(&policy, true); err != nil {
+		t.Fatalf("canonical exact spend rejected: %v", err)
 	}
 }
 

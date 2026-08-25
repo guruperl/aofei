@@ -210,7 +210,7 @@ source while preserving auditable compatibility and hosted-payment safety.
   for full-milestone review/fix cycles. Stop at the first clean pass; if
   iteration 15 still has a P1/P2-or-higher finding, return A03 to blocked and do
   not reconcile downstream work.
-- Iteration 11: `[~]` Three blocking findings and one lower-severity contract
+- Iteration 11: `[x]` Three blocking findings and one lower-severity contract
   defect were confirmed during the full extended review:
   1. **P2 - exact constructor downgrade:** exported `NewDSPForImp` always
      reparses its `float32` bid-price argument. When the supplied RAdv already
@@ -230,7 +230,7 @@ source while preserving auditable compatibility and hosted-payment safety.
      numbers but accept and normalize noncanonical exact strings even though
      the public OpenAPI request schema requires exactly six-place CPM and
      nine-place spend strings.
-  Resolution progress: the exported compatibility constructor now treats a
+  Resolution: the exported compatibility constructor now treats a
   present exact CPM as authority, uses the float only as a projection check,
   and fails bid materialization on disagreement without downgrading its audit
   provenance. RAdv packing now constructs and validates the complete v3 wire
@@ -239,8 +239,10 @@ source while preserving auditable compatibility and hosted-payment safety.
   current generations only, validates every exact/compatibility group and route
   term (including pointer and negative-zero parity), and checks the derived
   old-reader generation before its atomic dual-key write; unmarked legacy data
-  remains readable only. The lower-severity management finding remains pending
-  before the next whole-milestone review.
+  remains readable only. Management validation now requires the submitted
+  string itself to equal the canonical six- or nine-place representation rather
+  than normalizing a looser value. Each blocking fix was committed separately;
+  iteration 12 is the next whole-milestone review.
 
 ## Exclusions
 

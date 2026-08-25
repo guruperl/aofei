@@ -107,10 +107,9 @@ func validateItemWrite(input *itemWrite) error {
 		}
 	}
 	cpm, err := accounting.ParseCPM(input.PriceCPMUSD.String())
-	if err != nil || cpm <= 0 {
-		return fmt.Errorf("price_cpm_usd must be an exact decimal string from 0.000001 through %s", accounting.MaxCPM)
+	if err != nil || cpm <= 0 || input.PriceCPMUSD.String() != cpm.String() {
+		return fmt.Errorf("price_cpm_usd must be a canonical six-place exact decimal string from 0.000001 through %s", accounting.MaxCPM)
 	}
-	input.PriceCPMUSD = ExactDecimal(cpm.String())
 	return validateDelivery(&input.Delivery, false)
 }
 
@@ -262,11 +261,9 @@ func validateDelivery(policy *DeliveryPolicy, campaign bool) error {
 	}{{"total_limits", policy.TotalLimits}, {"daily_limits", policy.DailyLimits}} {
 		if field.limits.SpendUSD != nil {
 			amount, err := accounting.ParseNano(field.limits.SpendUSD.String())
-			if err != nil || amount < 0 {
-				return fmt.Errorf("delivery.%s.spend_usd must be a non-negative exact decimal string with at most nine places", field.name)
+			if err != nil || amount < 0 || field.limits.SpendUSD.String() != amount.String() {
+				return fmt.Errorf("delivery.%s.spend_usd must be a canonical nine-place non-negative exact decimal string", field.name)
 			}
-			canonical := ExactDecimal(amount.String())
-			*field.limits.SpendUSD = canonical
 		}
 		if field.limits.Imps != nil && *field.limits.Imps > math.MaxUint32 {
 			return fmt.Errorf("delivery.%s.impressions must fit an unsigned 32-bit limit", field.name)
