@@ -618,6 +618,23 @@ City `.mmdb`; otherwise they fall back to `external/GeoLite2-City.mmdb` and then
 
 ## Verification
 
+Immutable HTTP release build and verification require Bash, Git, Go 1.23.5,
+`jq`, `rsync`, `find`, `install`, and `sha256sum`. The builder refuses dirty,
+unpushed, or upstream-divergent Aofei/Pzdesign/Genelet sources and packages the
+matching Summer components, templates, and static files with `unify`:
+
+```bash
+release_parent=$(mktemp -d)
+./scripts/aofei-release.sh build \
+  --output "$release_parent/w8m-backend"
+./scripts/aofei-release.sh verify "$release_parent/w8m-backend"
+```
+
+Host-specific dependency identities, systemd paths, origins, direct/public
+health checks, rollback selection, and credential-free deployment records are
+owned by the private environment repository. Config and secret contents stay
+only in owner-readable host files.
+
 Package gate:
 
 ```bash
@@ -783,5 +800,8 @@ before a D02 closeout.
 ## External Requirements
 
 - Docker CLI and a working Docker daemon.
+- Immutable release construction also requires `jq`, `rsync`, GNU coreutils
+  (`find`, `install`, and `sha256sum`), and remote-readable Git upstreams for
+  all three source repositories.
 - Internet access only when pulling Docker images or Go modules.
 - No production credentials are required for local development.

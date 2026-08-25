@@ -82,6 +82,19 @@ atomic generation publication with partial live writes.
   selected actor or wildcard/recent-MFA claim. Reliability retries cannot turn
   an offline health/retention principal into HTTP or financial authority.
 
+## Post-Closeout Release Reconciliation
+
+- The 2026-08-25 W8M reload exposed that a standalone `unify` binary can be
+  newer than its deployed Summer component metadata. The generic release
+  boundary now requires one checksum-verified Aofei/Pzdesign/Genelet bundle
+  containing the exact binary, config preflight, registered component JSON,
+  templates, and static assets from clean published commits.
+- Exact host paths, dependency image IDs, systemd scope, origins, health policy,
+  atomic `current`-symlink activation, rollback, and credential-free deployment
+  history are private infrastructure state. Release activation does not imply a
+  schema/cache migration, feature enablement, Cloudflare mutation, or secret
+  transfer.
+
 ## Bounded Review-Fix Gate
 
 - Iteration 1 (2026-08-24): three findings remain open.

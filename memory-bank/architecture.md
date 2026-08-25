@@ -518,6 +518,25 @@ The source/runtime boundary and populated-data rollout are specified in
   runtime state owned by `cmd/unify`, not cache data populated by
   `cmd/redis-cache`.
 
+## Release Boundary
+
+An HTTP release is one immutable Aofei/Pzdesign/Genelet bundle, not a standalone
+`unify` binary. `scripts/aofei-release.sh` requires clean source trees exactly
+equal to their upstream branches, runs all three test suites, and packages the
+binary, production config preflight, registered Summer component definitions,
+templates, and static assets. Its manifest records all three source commits and
+the active database/accounting contract; a checksum inventory covers every
+runtime artifact. Activated releases contain no mutable asset overlay or
+checkout-relative path.
+
+Environment identity remains outside this public source boundary. A private
+infrastructure repository owns canonical origins, host paths, systemd scope,
+dependency image IDs, config/secret-file paths without their contents, direct
+and public health policy, atomic `current`-symlink activation, rollback, and
+credential-free deployment history. A release does not authorize schema/cache
+migration, feature activation, or edge/provider mutation; environment preflight
+must stop when those separately reviewed gates are not already satisfied.
+
 ## Cache Boundary
 
 The multiple-cache split is documented in
@@ -751,8 +770,9 @@ The complete boundary is in
 - The parent `go.work` still does not include this module path, so repository
   package commands require `GOWORK=off` unless that workspace is intentionally
   changed.
-- Production deployment now has a Linux systemd-oriented runbook; local Docker
-  remains the development workflow, not the production ownership model.
+- Production deployment has a generic Linux systemd/release contract. Exact
+  host topology and any deliberate environment-specific Docker dependencies
+  are private infrastructure state rather than source-repository defaults.
 - The single-region topology, recovery objectives, and proposed 99.9% SLO are
   defined, but production achievement remains unclaimed until a named rolling
   measurement window and provider-backed recovery evidence are retained.

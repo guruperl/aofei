@@ -73,7 +73,7 @@ planned milestones do not imply schema or runtime activation.
 |---|---|
 | Runtime and matching | [DSP workflow](dsp-workflow.md), [audience matching](audience-matching.md), [multiple-cache architecture](multiple-cache.md), and [OpenRTB measurement](openrtb-measurement.md) |
 | Local development | [Local Docker runtime](local-docker-runtime.md), [database baseline](database-baseline.md), and [MaxMind assets](maxmind-runtime.md) |
-| Production operations | [Production runbook](production-runbook.md), [operational commands](operational-commands.md), [Chinese operations manual](operations-maintenance-manual.zh-CN.md), and [performance roadmap](performance-roadmap.md) |
+| Production operations | [Production runbook](production-runbook.md), [immutable backend releases](release-deployment.md), [operational commands](operational-commands.md), [Chinese operations manual](operations-maintenance-manual.zh-CN.md), and [performance roadmap](performance-roadmap.md) |
 | Product boundaries | [Creative consumers](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), [deferred investments](defer.md), [Prebid/OpenRTB review](prebid-openrtb-adoption.md), [Cloudflare W8M Free-plan boundary](cloudflare-w8m.md), and [publisher ownership ADRs](adr/) |
 | Moved source-owned docs | [Genelet manual pointer](genelet-manual.md) and [Summer UI pointer](summer-ui-structure.md) |
 | Historical reference only | [Historical DSP architecture note](dsp-architecture.zh.md) and [legacy operations notes](legacy-operations.md) |

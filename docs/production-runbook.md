@@ -640,6 +640,13 @@ its full drain window before the service manager escalates.
 
 ## Build And Rollout
 
+The supported HTTP artifact boundary is the immutable bundle in
+[release-deployment.md](release-deployment.md). It packages `unify` with the
+exact Pzdesign component definitions, templates, and static assets from the
+same clean, published Aofei/Pzdesign/Genelet revisions. Environment-specific
+paths, dependency image identities, health policy, and deployment history stay
+in the private infrastructure repository.
+
 Build artifacts from a reviewed commit:
 
 ```bash
@@ -652,8 +659,17 @@ GOWORK=off go install ./cmd/accounting ./cmd/action-measurement \
 (cd ../genelet && GOWORK=off go test ./...)
 ```
 
-Copy binaries into a versioned release directory, update the active symlink or
-binary paths, then restart services:
+Build and verify the HTTP release before the environment deployer installs it:
+
+```bash
+release_parent=$(mktemp -d)
+./scripts/aofei-release.sh build \
+  --output "$release_parent/w8m-backend"
+./scripts/aofei-release.sh verify "$release_parent/w8m-backend"
+```
+
+Copy complete bundles and worker binaries into versioned release directories,
+atomically update the active symlink or binary paths, then restart services:
 
 ```bash
 sudo systemctl daemon-reload
