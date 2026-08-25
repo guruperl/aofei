@@ -539,7 +539,13 @@ The value includes publisher domain, the active publisher object, reverse
 active site/slot metadata, site type, slot size, and configured USD CPM floor so
 `/pz` can validate commercial packed tokens, enforce platform and floor policy,
 and reconstruct site/slot strings without a MySQL read. Full cache publication
-validates this metadata first. `cmd/redis-cache -validate-publishers` is a
+scans the decimal floor as a fixed-point CPM, carries the v3 accounting marker
+and exact field in both publisher cache shapes, and validates this metadata
+first. Current generations cannot fall back to the float compatibility
+projection; unversioned gob generations retain only a bounded six-place drain
+adapter. Direct SSP parses its request floor to the same type, computes the
+maximum exactly, and local matching compares exact demand/floor values before
+projecting the selected price to OpenRTB. `cmd/redis-cache -validate-publishers` is a
 DB-only, no-mutation readiness mode that emits a deterministic packed-token
 manifest. P01 readers reject pre-P01 publisher entries lacking type/floor;
 older readers decode the additive fields, so operations publish the new cache

@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -110,14 +110,16 @@ type SSPNative struct {
 }
 
 type SSPValidatedUnit struct {
-	Code            string
-	Site            string
-	Slot            string
-	SiteStr         string
-	SlotStr         string
-	SiteType        acl.SiteType
-	ConfiguredFloor float64
-	RPub            match.RPub
+	AccountingVersion  string
+	Code               string
+	Site               string
+	Slot               string
+	SiteStr            string
+	SlotStr            string
+	SiteType           acl.SiteType
+	ConfiguredFloor    float64 // OpenRTB compatibility projection only.
+	ConfiguredFloorCPM accounting.CPM
+	RPub               match.RPub
 }
 
 func ParseSSPRequest(data []byte) (*SSPRequest, error) {
@@ -254,8 +256,8 @@ func (self SSPAdUnit) validateStatic() error {
 	if !validSSPCode(self.Code) {
 		return fmt.Errorf("code must be 1-128 URL/DOM-safe characters")
 	}
-	if self.Floor < 0 || math.IsNaN(self.Floor) || math.IsInf(self.Floor, 0) {
-		return fmt.Errorf("floor must be a finite non-negative USD CPM value")
+	if _, err := protocolCPM(self.Floor); err != nil {
+		return fmt.Errorf("floor must be an exact non-negative USD CPM value with at most six decimal places: %w", err)
 	}
 	return self.EffectiveMediaTypes().Validate()
 }
@@ -332,7 +334,7 @@ func (self *SSPRequest) validateSupplyWithTokens(pub *acl.DirectPub, codec *acl.
 		if slotVersion != version {
 			return nil, acl.DirectTokenUnknown, fmt.Errorf("adUnits[%d] %w", i, errSSPMixedDirectTokenVersions)
 		}
-		siteStr, slotStr, siteType, configuredFloor, ok := pub.CommercialSlot(siteID, slotID, sizeID)
+		siteStr, slotStr, siteType, configuredFloor, ok := pub.CommercialSlotExact(siteID, slotID, sizeID)
 		if !ok {
 			return nil, version, fmt.Errorf("adUnits[%d] inventory is inactive, unapproved, stale, or does not match site/slot/size: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
 		}
@@ -347,13 +349,15 @@ func (self *SSPRequest) validateSupplyWithTokens(pub *acl.DirectPub, codec *acl.
 			return nil, version, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
 		units = append(units, SSPValidatedUnit{
-			Code:            adUnit.Code,
-			Site:            string(self.Site),
-			Slot:            slotToken,
-			SiteStr:         siteStr,
-			SlotStr:         slotStr,
-			SiteType:        siteType,
-			ConfiguredFloor: configuredFloor,
+			AccountingVersion:  accounting.ExactMoneyContract,
+			Code:               adUnit.Code,
+			Site:               string(self.Site),
+			Slot:               slotToken,
+			SiteStr:            siteStr,
+			SlotStr:            slotStr,
+			SiteType:           siteType,
+			ConfiguredFloor:    configuredFloor.Float64(),
+			ConfiguredFloorCPM: configuredFloor,
 			RPub: match.RPub{
 				PubID:  pubID,
 				SiteID: siteID,

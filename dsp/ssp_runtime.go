@@ -17,6 +17,7 @@ import (
 
 	"github.com/prebid/openrtb/v20/openrtb2"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/publisherauth"
@@ -897,10 +898,30 @@ func openRTBImpFromSSPUnit(adUnit SSPAdUnit, unit SSPValidatedUnit, index int) (
 		return openrtb2.Imp{}, fmt.Errorf("slot token has empty size")
 	}
 	wi, hi := int64(w), int64(h)
+	requestFloor, err := protocolCPM(adUnit.Floor)
+	if err != nil {
+		return openrtb2.Imp{}, err
+	}
+	configuredFloor := unit.ConfiguredFloorCPM
+	if unit.AccountingVersion == accounting.ExactMoneyContract {
+		if configuredFloor < 0 || configuredFloor > accounting.MaxCPM {
+			return openrtb2.Imp{}, fmt.Errorf("configured floor is outside the exact USD CPM range")
+		}
+	} else {
+		// Compatibility for callers and old cache generations that predate the
+		// fixed-point field. New validated units always carry the v3 marker.
+		configuredFloor, err = protocolCPM(unit.ConfiguredFloor)
+		if err != nil {
+			return openrtb2.Imp{}, err
+		}
+	}
+	if configuredFloor > requestFloor {
+		requestFloor = configuredFloor
+	}
 	imp := openrtb2.Imp{
 		ID:          adUnit.Code,
 		TagID:       unit.SlotStr,
-		BidFloor:    maxSSPFloor(adUnit.Floor, unit.ConfiguredFloor),
+		BidFloor:    requestFloor.Float64(),
 		BidFloorCur: "USD",
 	}
 	if imp.ID == "" {
@@ -923,13 +944,6 @@ func openRTBImpFromSSPUnit(adUnit SSPAdUnit, unit SSPValidatedUnit, index int) (
 		imp.Banner = &openrtb2.Banner{W: &wi, H: &hi}
 	}
 	return imp, nil
-}
-
-func maxSSPFloor(requestFloor, configuredFloor float64) float64 {
-	if configuredFloor > requestFloor {
-		return configuredFloor
-	}
-	return requestFloor
 }
 
 func nativeRequestFromSSP(native *SSPNative, w, h uint16) (string, error) {

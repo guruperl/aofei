@@ -10,11 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/internal/atomicfile"
 	"github.com/guruperl/aofei/internal/spreadcache"
 	"github.com/mediocregopher/radix/v4"
@@ -22,22 +24,24 @@ import (
 )
 
 type Pub struct {
-	PubID            uint32
-	Active           bool
-	LimitImps        uint32
-	CurrentImps      uint32
-	DefaultWebSiteID uint32
-	DefaultAppSiteID uint32
-	DefaultWebSlotID uint32
-	DefaultAppSlotID uint32
-	Sites            map[string]uint32
-	SiteTypes        map[uint32]SiteType
-	Slots            map[uint32]map[string]uint32
-	SlotSizes        map[uint32]map[uint32]uint32
-	SlotFloors       map[uint32]map[uint32]float64
-	Seller           SellerMetadata
-	SiteSupply       map[uint32]SiteSupplyMetadata
-	SlotSupply       map[uint32]map[uint32]SlotSupplyMetadata
+	AccountingVersion string
+	PubID             uint32
+	Active            bool
+	LimitImps         uint32
+	CurrentImps       uint32
+	DefaultWebSiteID  uint32
+	DefaultAppSiteID  uint32
+	DefaultWebSlotID  uint32
+	DefaultAppSlotID  uint32
+	Sites             map[string]uint32
+	SiteTypes         map[uint32]SiteType
+	Slots             map[uint32]map[string]uint32
+	SlotSizes         map[uint32]map[uint32]uint32
+	SlotFloors        map[uint32]map[uint32]float64
+	SlotFloorCPMs     map[uint32]map[uint32]accounting.CPM
+	Seller            SellerMetadata
+	SiteSupply        map[uint32]SiteSupplyMetadata
+	SlotSupply        map[uint32]map[uint32]SlotSupplyMetadata
 }
 
 type publisherMutationDB interface {
@@ -212,18 +216,20 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	defer rows.Close()
 
 	p := &Pub{
-		Sites:      make(map[string]uint32),
-		SiteTypes:  make(map[uint32]SiteType),
-		Slots:      make(map[uint32]map[string]uint32),
-		SlotSizes:  make(map[uint32]map[uint32]uint32),
-		SlotFloors: make(map[uint32]map[uint32]float64),
-		SiteSupply: make(map[uint32]SiteSupplyMetadata),
-		SlotSupply: make(map[uint32]map[uint32]SlotSupplyMetadata),
+		AccountingVersion: accounting.ExactMoneyContract,
+		Sites:             make(map[string]uint32),
+		SiteTypes:         make(map[uint32]SiteType),
+		Slots:             make(map[uint32]map[string]uint32),
+		SlotSizes:         make(map[uint32]map[uint32]uint32),
+		SlotFloors:        make(map[uint32]map[uint32]float64),
+		SlotFloorCPMs:     make(map[uint32]map[uint32]accounting.CPM),
+		SiteSupply:        make(map[uint32]SiteSupplyMetadata),
+		SlotSupply:        make(map[uint32]map[uint32]SlotSupplyMetadata),
 	}
 	for rows.Next() {
 		var pubID, siteID, slotID, sizeID uint32
 		var limitImps, currentImps sql.NullInt64
-		var bidFloor sql.NullFloat64
+		var bidFloor sql.NullString
 		var slotName, foreignID, siteType string
 		var sellerAuthorized string
 		var seller SellerMetadata
@@ -277,6 +283,9 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 		if _, ok := p.SlotFloors[siteID]; !ok {
 			p.SlotFloors[siteID] = make(map[uint32]float64)
 		}
+		if _, ok := p.SlotFloorCPMs[siteID]; !ok {
+			p.SlotFloorCPMs[siteID] = make(map[uint32]accounting.CPM)
+		}
 		if _, ok := p.SlotSupply[siteID]; !ok {
 			p.SlotSupply[siteID] = make(map[uint32]SlotSupplyMetadata)
 		}
@@ -290,11 +299,15 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 		if _, ok := p.SlotSizes[siteID][slotID]; !ok {
 			p.SlotSizes[siteID][slotID] = sizeID
 		}
+		floor := accounting.CPM(0)
 		if bidFloor.Valid {
-			p.SlotFloors[siteID][slotID] = bidFloor.Float64
-		} else {
-			p.SlotFloors[siteID][slotID] = 0
+			floor, err = accounting.ParseCPM(bidFloor.String)
+			if err != nil {
+				return nil, fmt.Errorf("publisher site %d slot %d bid floor: %w", siteID, slotID, err)
+			}
 		}
+		p.SlotFloorCPMs[siteID][slotID] = floor
+		p.SlotFloors[siteID][slotID] = floor.Float64()
 		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
 			p.DefaultAppSiteID = siteID
 			p.DefaultAppSlotID = slotID
@@ -360,6 +373,37 @@ func (self *Pub) rememberSlot(siteID, slotID uint32, slotStr string) {
 		self.SlotFloors[siteID] = make(map[uint32]float64)
 	}
 	self.SlotFloors[siteID][slotID] = 0
+	if self.SlotFloorCPMs == nil {
+		self.SlotFloorCPMs = make(map[uint32]map[uint32]accounting.CPM)
+	}
+	if self.SlotFloorCPMs[siteID] == nil {
+		self.SlotFloorCPMs[siteID] = make(map[uint32]accounting.CPM)
+	}
+	self.SlotFloorCPMs[siteID][slotID] = 0
+}
+
+// ExactSlotFloor returns the authoritative configured USD CPM floor. Current
+// cache generations require the fixed-point field; legacy gob generations may
+// use their bounded six-place float projection during a rolling drain.
+func (self *Pub) ExactSlotFloor(siteID, slotID uint32) (accounting.CPM, bool) {
+	if self == nil {
+		return 0, false
+	}
+	if floors := self.SlotFloorCPMs[siteID]; floors != nil {
+		if floor, ok := floors[slotID]; ok {
+			return floor, floor >= 0 && floor <= accounting.MaxCPM
+		}
+	}
+	if self.AccountingVersion == accounting.ExactMoneyContract {
+		return 0, false
+	}
+	floors := self.SlotFloors[siteID]
+	floor, ok := floors[slotID]
+	if !ok || floor < 0 || math.IsNaN(floor) || math.IsInf(floor, 0) {
+		return 0, false
+	}
+	parsed, err := accounting.ParseCPM(strconv.FormatFloat(floor, 'f', 6, 64))
+	return parsed, err == nil
 }
 
 func (self *Pub) addSite(db *sql.DB, siteStr string, siteType string) (uint32, error) {
@@ -502,10 +546,13 @@ func AddPubContext(ctx context.Context, db *sql.DB, pubStr string) (*Pub, error)
 		return nil, err
 	}
 	pub := &Pub{
-		PubID:     pubID,
-		Sites:     make(map[string]uint32),
-		Slots:     make(map[uint32]map[string]uint32),
-		SlotSizes: make(map[uint32]map[uint32]uint32),
+		AccountingVersion: accounting.ExactMoneyContract,
+		PubID:             pubID,
+		Sites:             make(map[string]uint32),
+		Slots:             make(map[uint32]map[string]uint32),
+		SlotSizes:         make(map[uint32]map[uint32]uint32),
+		SlotFloors:        make(map[uint32]map[uint32]float64),
+		SlotFloorCPMs:     make(map[uint32]map[uint32]accounting.CPM),
 	}
 
 	if pub.DefaultAppSiteID, err = pub.addSiteContext(ctx, tx, SITEDefaultApp, "App"); err == nil {

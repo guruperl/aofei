@@ -11,6 +11,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/internal/cachegeneration"
@@ -289,13 +290,15 @@ func TestWritePublisherInventoryManifestIsDeterministicAndCredentialFree(t *test
 	}
 	pubmap := acl.PubMap{
 		"pub.example": {
-			PubID:      7,
-			Active:     true,
-			Sites:      map[string]uint32{"example.com": 11},
-			SiteTypes:  map[uint32]acl.SiteType{11: acl.SiteTypeWeb},
-			Slots:      map[uint32]map[string]uint32{11: {"leaderboard": 13}},
-			SlotSizes:  map[uint32]map[uint32]uint32{11: {13: match.SizeID2To1(300, 250)}},
-			SlotFloors: map[uint32]map[uint32]float64{11: {13: 1.25}},
+			AccountingVersion: accounting.ExactMoneyContract,
+			PubID:             7,
+			Active:            true,
+			Sites:             map[string]uint32{"example.com": 11},
+			SiteTypes:         map[uint32]acl.SiteType{11: acl.SiteTypeWeb},
+			Slots:             map[uint32]map[string]uint32{11: {"leaderboard": 13}},
+			SlotSizes:         map[uint32]map[uint32]uint32{11: {13: match.SizeID2To1(300, 250)}},
+			SlotFloors:        map[uint32]map[uint32]float64{11: {13: 9.75}},
+			SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{11: {13: 1_250_000}},
 			Seller: acl.SellerMetadata{
 				ID: "seller-7", Type: "Publisher", ASI: "w8m.com",
 				Name: "Example Media", Domain: "pub.example", Authorized: true,

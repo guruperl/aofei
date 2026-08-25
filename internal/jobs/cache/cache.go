@@ -409,6 +409,10 @@ func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap, issuer *d
 			sort.Strings(slotNames)
 			for _, name := range slotNames {
 				slotID := pub.Slots[siteID][name]
+				floor, ok := pub.ExactSlotFloor(siteID, slotID)
+				if !ok {
+					return fmt.Errorf("publisher %d site %d slot %d has invalid exact USD CPM floor", pub.PubID, siteID, slotID)
+				}
 				supply := pub.SupplyFor(siteID, slotID).Slot
 				sizeID := pub.SlotSizes[siteID][slotID]
 				width, height := match.SizeID1To2(sizeID)
@@ -416,9 +420,9 @@ func WritePublisherInventoryManifest(out io.Writer, pubmap acl.PubMap, issuer *d
 				if err != nil {
 					return err
 				}
-				if err := writef("slot_ready pub_id=%d site_id=%d slot_id=%d name=%q size=%dx%d floor_usd_cpm=%.6f media_intent=%s placement=%s render_context=%s refresh_mode=%s refresh_seconds=%d ad_density=%s traffic_quality=%s source_quality=%s management_control=%s token_version=%s slot_token=%s\n",
+				if err := writef("slot_ready pub_id=%d site_id=%d slot_id=%d name=%q size=%dx%d floor_usd_cpm=%s media_intent=%s placement=%s render_context=%s refresh_mode=%s refresh_seconds=%d ad_density=%s traffic_quality=%s source_quality=%s management_control=%s token_version=%s slot_token=%s\n",
 					pub.PubID, siteID, slotID, name, width, height,
-					pub.SlotFloors[siteID][slotID], supply.MediaIntent, supply.Placement,
+					floor.String(), supply.MediaIntent, supply.Placement,
 					supply.RenderContext, supply.RefreshMode, supply.RefreshSeconds,
 					supply.AdDensity, supply.TrafficQuality, supply.SourceQuality,
 					supply.ManagementControl, metadata.TokenVersion, slotToken); err != nil {

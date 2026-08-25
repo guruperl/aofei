@@ -1035,14 +1035,23 @@ func (self RAdv) ImpressionSpendNano() (accounting.Nano, bool) {
 }
 
 func (self RAdv) GetItemWeight(bidFloor float64, bidFoorCur string) (float32, bool) {
-	if !supportedBidFloorCurrency(bidFoorCur) || math.IsNaN(bidFloor) || math.IsInf(bidFloor, 0) || bidFloor < 0 {
+	floor, ok := exactBidFloor(bidFloor, bidFoorCur)
+	if !ok {
 		return 0.0, false
 	}
-	cpm, ok := self.ECPM()
-	if ok && cpm >= float32(bidFloor) {
-		return cpm, true
+	cpm, ok := self.exactCPM()
+	if ok && cpm >= floor {
+		return cpm.Float32(), true
 	}
 	return 0.0, false
+}
+
+func exactBidFloor(bidFloor float64, currency string) (accounting.CPM, bool) {
+	if !supportedBidFloorCurrency(currency) || math.IsNaN(bidFloor) || math.IsInf(bidFloor, 0) || bidFloor < 0 {
+		return 0, false
+	}
+	floor, err := accounting.ParseCPM(strconv.FormatFloat(bidFloor, 'f', -1, 64))
+	return floor, err == nil
 }
 
 func (self RAdvs) PickIndex(bidFloor float64, bidFoorCur string) int {
@@ -1058,12 +1067,16 @@ func (self RAdvs) PickIndexPrice(bidFloor float64, bidFoorCur string) (int, floa
 // supplied point in [0,1). Price selects the winning demand unit first;
 // creative weight is used only to rotate creatives inside that unit.
 func (self RAdvs) pickIndexPriceAt(bidFloor float64, bidFloorCur string, point float32) (int, float32) {
-	bestPrice := float32(0)
+	floor, ok := exactBidFloor(bidFloor, bidFloorCur)
+	if !ok {
+		return -1, 0
+	}
+	bestPrice := accounting.CPM(0)
 	best := RAdv{}
 	found := false
 	for _, candidate := range self {
-		price, ok := candidate.GetItemWeight(bidFloor, bidFloorCur)
-		if !ok || !finitePositiveFloat32(candidate.Weight) {
+		price, ok := candidate.exactCPM()
+		if !ok || price < floor || !finitePositiveFloat32(candidate.Weight) {
 			continue
 		}
 		if !found || price > bestPrice || (price == bestPrice && demandUnitLess(candidate, best)) {
@@ -1080,8 +1093,8 @@ func (self RAdvs) pickIndexPriceAt(bidFloor float64, bidFloorCur string, point f
 	total := float32(0)
 	lastPositive := -1
 	for i, candidate := range self {
-		price, ok := candidate.GetItemWeight(bidFloor, bidFloorCur)
-		if !ok || price != bestPrice || !sameDemandUnit(candidate, best) || !finitePositiveFloat32(candidate.Weight) {
+		price, ok := candidate.exactCPM()
+		if !ok || price < floor || price != bestPrice || !sameDemandUnit(candidate, best) || !finitePositiveFloat32(candidate.Weight) {
 			continue
 		}
 		weights[i] = candidate.Weight
@@ -1097,7 +1110,7 @@ func (self RAdvs) pickIndexPriceAt(bidFloor float64, bidFloorCur string, point f
 	if point >= 1 {
 		point = math.Nextafter32(1, 0)
 	}
-	return selectOneAt(weights, point*total, lastPositive), bestPrice
+	return selectOneAt(weights, point*total, lastPositive), bestPrice.Float32()
 }
 
 func sameDemandUnit(a, b RAdv) bool {

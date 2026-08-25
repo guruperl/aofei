@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/guruperl/aofei/accounting"
 )
 
 func TestDirectTokenMatchesHistoricalSamples(t *testing.T) {
@@ -370,5 +372,25 @@ func TestValidateCommercialPubMapFailsClosedOnIncompletePolicy(t *testing.T) {
 	second.Sites = map[string]uint32{"other.example": 7}
 	if err := ValidateCommercialPubMap(PubMap{"one.example": valid(), "two.example": second}); err == nil {
 		t.Fatal("duplicate publisher id across domains validated")
+	}
+}
+
+func TestCurrentPublisherFloorRequiresExactAuthority(t *testing.T) {
+	pub := &Pub{
+		AccountingVersion: accounting.ExactMoneyContract,
+		SlotFloors:        map[uint32]map[uint32]float64{7: {99: 9.75}},
+		SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{7: {99: 1_234_567}},
+	}
+	if floor, ok := pub.ExactSlotFloor(7, 99); !ok || floor != 1_234_567 {
+		t.Fatalf("exact floor = %s, %v; want 1.234567, true", floor.String(), ok)
+	}
+	delete(pub.SlotFloorCPMs[7], 99)
+	if floor, ok := pub.ExactSlotFloor(7, 99); ok {
+		t.Fatalf("current generation fell back to float floor %s", floor.String())
+	}
+
+	pub.AccountingVersion = ""
+	if floor, ok := pub.ExactSlotFloor(7, 99); !ok || floor != 9_750_000 {
+		t.Fatalf("legacy floor = %s, %v; want 9.750000, true", floor.String(), ok)
 	}
 }

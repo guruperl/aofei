@@ -18,6 +18,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/publisherauth"
@@ -27,10 +28,12 @@ import (
 
 func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
 	unit := SSPValidatedUnit{
-		Code:            "code",
-		SlotStr:         "slot",
-		ConfiguredFloor: 1.5,
-		RPub:            match.RPub{SizeID: match.SizeID2To1(300, 250)},
+		AccountingVersion:  accounting.ExactMoneyContract,
+		Code:               "code",
+		SlotStr:            "slot",
+		ConfiguredFloor:    9.5,
+		ConfiguredFloorCPM: 1_500_000,
+		RPub:               match.RPub{SizeID: match.SizeID2To1(300, 250)},
 	}
 	tests := []struct {
 		name   string

@@ -92,6 +92,17 @@ func TestParseSSPRequestCurrentPzdesignSample(t *testing.T) {
 	}
 }
 
+func TestParseSSPRequestRejectsOverScaleFloor(t *testing.T) {
+	_, err := ParseSSPRequest([]byte(`{
+		"site":"AAAACAH774AAA",
+		"adUnits":[{"code":"unit","slot":"AAAACAH2AAWAC","floor":1.0000001,
+		"mediaTypes":{"banner":{"size":[300,250]}}}]
+	}`))
+	if err == nil {
+		t.Fatal("seven-place direct SSP floor was accepted")
+	}
+}
+
 func TestParseSSPRequestSDKOpenRTBLikeFields(t *testing.T) {
 	req, err := ParseSSPRequest([]byte(`{
 		"id": "sdk-req",

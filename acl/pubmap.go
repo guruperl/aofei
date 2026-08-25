@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/nats-io/nats.go"
 )
@@ -19,13 +20,15 @@ import (
 type PubMap map[string]*Pub
 
 type DirectPub struct {
-	Domain     string
-	Pub        *Pub
-	Sites      map[uint32]string
-	SiteTypes  map[uint32]SiteType
-	Slots      map[uint32]map[uint32]string
-	SlotSizes  map[uint32]map[uint32]uint32
-	SlotFloors map[uint32]map[uint32]float64
+	AccountingVersion string
+	Domain            string
+	Pub               *Pub
+	Sites             map[uint32]string
+	SiteTypes         map[uint32]SiteType
+	Slots             map[uint32]map[uint32]string
+	SlotSizes         map[uint32]map[uint32]uint32
+	SlotFloors        map[uint32]map[uint32]float64
+	SlotFloorCPMs     map[uint32]map[uint32]accounting.CPM
 }
 
 type DirectPubMap map[uint32]*DirectPub
@@ -120,17 +123,19 @@ var HashNamePubByID = "pubmap:by-id"
 
 func NewDirectPub(domain string, pub *Pub) *DirectPub {
 	direct := &DirectPub{
-		Domain:     domain,
-		Pub:        pub,
-		Sites:      make(map[uint32]string),
-		SiteTypes:  make(map[uint32]SiteType),
-		Slots:      make(map[uint32]map[uint32]string),
-		SlotSizes:  make(map[uint32]map[uint32]uint32),
-		SlotFloors: make(map[uint32]map[uint32]float64),
+		Domain:        domain,
+		Pub:           pub,
+		Sites:         make(map[uint32]string),
+		SiteTypes:     make(map[uint32]SiteType),
+		Slots:         make(map[uint32]map[uint32]string),
+		SlotSizes:     make(map[uint32]map[uint32]uint32),
+		SlotFloors:    make(map[uint32]map[uint32]float64),
+		SlotFloorCPMs: make(map[uint32]map[uint32]accounting.CPM),
 	}
 	if pub == nil {
 		return direct
 	}
+	direct.AccountingVersion = pub.AccountingVersion
 	for siteStr, siteID := range pub.Sites {
 		if _, ok := direct.Sites[siteID]; !ok {
 			direct.Sites[siteID] = siteStr
@@ -165,6 +170,14 @@ func NewDirectPub(domain string, pub *Pub) *DirectPub {
 		}
 		for slotID, floor := range slots {
 			direct.SlotFloors[siteID][slotID] = floor
+		}
+	}
+	for siteID, slots := range pub.SlotFloorCPMs {
+		if direct.SlotFloorCPMs[siteID] == nil {
+			direct.SlotFloorCPMs[siteID] = make(map[uint32]accounting.CPM)
+		}
+		for slotID, floor := range slots {
+			direct.SlotFloorCPMs[siteID][slotID] = floor
 		}
 	}
 	return direct
@@ -247,8 +260,7 @@ func ValidateCommercialPubMap(pubmap PubMap) error {
 				if !ok || w == 0 || h == 0 {
 					return fmt.Errorf("publisher %d site %d slot %d has invalid size", pub.PubID, siteID, slotID)
 				}
-				floor, ok := pub.SlotFloors[siteID][slotID]
-				if !ok || floor < 0 || math.IsNaN(floor) || math.IsInf(floor, 0) {
+				if _, ok := pub.ExactSlotFloor(siteID, slotID); !ok {
 					return fmt.Errorf("publisher %d site %d slot %d has invalid USD CPM floor", pub.PubID, siteID, slotID)
 				}
 			}
@@ -341,6 +353,14 @@ func (self *DirectPub) Validate(siteID, slotID, sizeID uint32) (string, string, 
 // packed site/slot/size tuple. Missing type/floor metadata fails closed so a
 // P01 binary cannot serve from a pre-P01 publisher cache generation.
 func (self *DirectPub) CommercialSlot(siteID, slotID, sizeID uint32) (string, string, SiteType, float64, bool) {
+	siteStr, slotStr, siteType, floor, ok := self.CommercialSlotExact(siteID, slotID, sizeID)
+	return siteStr, slotStr, siteType, floor.Float64(), ok
+}
+
+// CommercialSlotExact returns the authoritative fixed-point direct-supply
+// floor. Current generations fail closed if the exact field is absent; older
+// gob generations retain bounded read compatibility through SlotFloors.
+func (self *DirectPub) CommercialSlotExact(siteID, slotID, sizeID uint32) (string, string, SiteType, accounting.CPM, bool) {
 	siteStr, slotStr, ok := self.Validate(siteID, slotID, sizeID)
 	if !ok {
 		return "", "", SiteTypeUnknown, 0, false
@@ -349,12 +369,28 @@ func (self *DirectPub) CommercialSlot(siteID, slotID, sizeID uint32) (string, st
 	if !ok || siteType == SiteTypeUnknown {
 		return "", "", SiteTypeUnknown, 0, false
 	}
+	if floors := self.SlotFloorCPMs[siteID]; floors != nil {
+		if floor, found := floors[slotID]; found {
+			if floor < 0 || floor > accounting.MaxCPM {
+				return "", "", SiteTypeUnknown, 0, false
+			}
+			return siteStr, slotStr, siteType, floor, true
+		}
+	}
+	if self.AccountingVersion == accounting.ExactMoneyContract ||
+		(self.Pub != nil && self.Pub.AccountingVersion == accounting.ExactMoneyContract) {
+		return "", "", SiteTypeUnknown, 0, false
+	}
 	floors := self.SlotFloors[siteID]
 	floor, ok := floors[slotID]
 	if !ok || floor < 0 || math.IsNaN(floor) || math.IsInf(floor, 0) {
 		return "", "", SiteTypeUnknown, 0, false
 	}
-	return siteStr, slotStr, siteType, floor, true
+	parsed, err := accounting.ParseCPM(strconv.FormatFloat(floor, 'f', 6, 64))
+	if err != nil {
+		return "", "", SiteTypeUnknown, 0, false
+	}
+	return siteStr, slotStr, siteType, parsed, true
 }
 
 func (self DirectPubMap) PubByID(pubID uint32) *DirectPub {
@@ -459,7 +495,7 @@ func DBGetPubMapContext(ctx context.Context, db *sql.DB) (PubMap, error) {
 	for rows.Next() {
 		var pubID, siteID, slotID, sizeID uint32
 		var limitImps, currentImps sql.NullInt64
-		var bidFloor sql.NullFloat64
+		var bidFloor sql.NullString
 		var active sql.NullString
 		var domain, slotName, foreignID, siteType, sellerAuthorized string
 		var seller SellerMetadata
@@ -481,14 +517,16 @@ func DBGetPubMapContext(ctx context.Context, db *sql.DB) (PubMap, error) {
 		}
 		if _, ok := pubMap[domain]; !ok {
 			pubMap[domain] = &Pub{
-				PubID:      pubID,
-				Sites:      make(map[string]uint32),
-				SiteTypes:  make(map[uint32]SiteType),
-				Slots:      make(map[uint32]map[string]uint32),
-				SlotSizes:  make(map[uint32]map[uint32]uint32),
-				SlotFloors: make(map[uint32]map[uint32]float64),
-				SiteSupply: make(map[uint32]SiteSupplyMetadata),
-				SlotSupply: make(map[uint32]map[uint32]SlotSupplyMetadata),
+				AccountingVersion: accounting.ExactMoneyContract,
+				PubID:             pubID,
+				Sites:             make(map[string]uint32),
+				SiteTypes:         make(map[uint32]SiteType),
+				Slots:             make(map[uint32]map[string]uint32),
+				SlotSizes:         make(map[uint32]map[uint32]uint32),
+				SlotFloors:        make(map[uint32]map[uint32]float64),
+				SlotFloorCPMs:     make(map[uint32]map[uint32]accounting.CPM),
+				SiteSupply:        make(map[uint32]SiteSupplyMetadata),
+				SlotSupply:        make(map[uint32]map[uint32]SlotSupplyMetadata),
 			}
 		}
 		seller.Authorized = sellerAuthorized == "Yes"
@@ -523,6 +561,9 @@ func DBGetPubMapContext(ctx context.Context, db *sql.DB) (PubMap, error) {
 		if _, ok := pubMap[domain].SlotFloors[siteID]; !ok {
 			pubMap[domain].SlotFloors[siteID] = make(map[uint32]float64)
 		}
+		if _, ok := pubMap[domain].SlotFloorCPMs[siteID]; !ok {
+			pubMap[domain].SlotFloorCPMs[siteID] = make(map[uint32]accounting.CPM)
+		}
 		if _, ok := pubMap[domain].SlotSupply[siteID]; !ok {
 			pubMap[domain].SlotSupply[siteID] = make(map[uint32]SlotSupplyMetadata)
 		}
@@ -536,11 +577,15 @@ func DBGetPubMapContext(ctx context.Context, db *sql.DB) (PubMap, error) {
 		if _, ok := pubMap[domain].SlotSizes[siteID][slotID]; !ok {
 			pubMap[domain].SlotSizes[siteID][slotID] = sizeID
 		}
+		floor := accounting.CPM(0)
 		if bidFloor.Valid {
-			pubMap[domain].SlotFloors[siteID][slotID] = bidFloor.Float64
-		} else {
-			pubMap[domain].SlotFloors[siteID][slotID] = 0
+			floor, err = accounting.ParseCPM(bidFloor.String)
+			if err != nil {
+				return nil, fmt.Errorf("publisher %d site %d slot %d bid floor: %w", pubID, siteID, slotID, err)
+			}
 		}
+		pubMap[domain].SlotFloorCPMs[siteID][slotID] = floor
+		pubMap[domain].SlotFloors[siteID][slotID] = floor.Float64()
 		if foreignID == SITEDefaultApp && slotName == SLOTDefault {
 			pubMap[domain].DefaultAppSiteID = siteID
 			pubMap[domain].DefaultAppSlotID = slotID

@@ -7,6 +7,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-sql-driver/mysql"
+	"github.com/guruperl/aofei/accounting"
 )
 
 func TestDBAddNewContextRejectsCanceledInventoryMutation(t *testing.T) {
@@ -204,7 +205,8 @@ func TestDBGetPubSetsDefaultAppAndWebSlots(t *testing.T) {
 	if pub.DefaultWebSiteID != 12 || pub.DefaultWebSlotID != 102 {
 		t.Fatalf("web defaults = site %d slot %d, want 12/102", pub.DefaultWebSiteID, pub.DefaultWebSlotID)
 	}
-	if pub.SiteTypes[11] != SiteTypeAPP || pub.SiteTypes[12] != SiteTypeWeb || pub.SlotFloors[12][102] != 2.5 {
+	if pub.AccountingVersion != accounting.ExactMoneyContract || pub.SiteTypes[11] != SiteTypeAPP || pub.SiteTypes[12] != SiteTypeWeb ||
+		pub.SlotFloors[12][102] != 2.5 || pub.SlotFloorCPMs[12][102] != 2_500_000 {
 		t.Fatalf("commercial metadata = types %#v floors %#v", pub.SiteTypes, pub.SlotFloors)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

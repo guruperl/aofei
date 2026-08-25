@@ -56,6 +56,13 @@ bounded drain, but republishing emits v3. Mutable delivery state is isolated
 under `delivery:v3:*`; its spend fields use Redis integer operations and do not
 touch the retired unversioned float family. Win/loss records carry exact local
 or middleman CPM, and ledger aggregation uses checked nano-USD addition.
+Publisher and direct-publisher cache payloads likewise carry the v3 marker and
+fixed-point slot floors. Current generations fail closed when an exact floor is
+missing or invalid; an unversioned legacy gob may be converted once through the
+bounded six-place adapter. Direct SSP request floors reject excess scale before
+auction construction, the configured/request maximum is selected in fixed
+point, and local demand filtering compares exact CPM values before returning an
+OpenRTB float projection.
 
 ## Frozen-backup comparison
 

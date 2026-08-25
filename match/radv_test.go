@@ -227,6 +227,23 @@ func TestRAdvCommercialAuctionTieIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestRAdvCommercialAuctionKeepsSubFloat32CPMOrdering(t *testing.T) {
+	radvs := RAdvs{
+		{Demand: Demand{CampaignID: 1, ItemID: 1}, Weight: 1, CostType: CostTypeCPM, Cost: 100, CostCPM: 100_000_001},
+		{Demand: Demand{CampaignID: 2, ItemID: 2}, Weight: 1, CostType: CostTypeCPM, Cost: 100, CostCPM: 100_000_002},
+	}
+	if radvs[0].CostCPM.Float32() != radvs[1].CostCPM.Float32() {
+		t.Fatal("test values must collide in the float32 compatibility projection")
+	}
+	index, _ := radvs.PickIndexPrice(100.000002, "USD")
+	if index != 1 {
+		t.Fatalf("winner = %d, want exact higher CPM candidate 1", index)
+	}
+	if index, _ := radvs.PickIndexPrice(100.0000001, "USD"); index != -1 {
+		t.Fatalf("over-scale floor selected candidate %d", index)
+	}
+}
+
 func TestRAdvCommercialAuctionRejectsLegacyAndInvalidPrices(t *testing.T) {
 	for _, candidate := range []RAdv{
 		{Weight: 1, CostType: CostTypeROI, Cost: 1},
