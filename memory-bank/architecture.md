@@ -236,8 +236,13 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    `daily_mid` for advertiser pay-side reports and admin settlement views.
    A03 represents six-decimal CPM as integer micro-USD per thousand and one
    impression as the identical integer count of nano-USD. Redis reservations
-   and ledger aggregation use checked integers; OpenRTB wire/tracker prices are
-   compatibility projections and statement conversion rounds only once.
+   and ledger aggregation use checked integers; the authoritative six-place
+   CPM reaches the OpenRTB float64 and signed-tracker boundaries without a
+   float32 round trip, while legacy float fields remain compatibility
+   projections and statement conversion rounds only once. New win/loss facts
+   carry the v3 marker at top level; the ledger explicitly separates v2 drain
+   facts and validates v3 middleman charge/pay/margin/currency identity before
+   aggregation.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and

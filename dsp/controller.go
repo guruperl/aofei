@@ -1391,10 +1391,14 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 	wl := &WinLoss{
 		Current:             current,
 		Status:              status,
+		AccountingVersion:   args.Get("accounting_version"),
 		AuctionID:           args.Get("auction_id"),
 		AuctionBidID:        args.Get("auction_bid_id"),
 		AuctionImpID:        args.Get("auction_imp_id"),
 		DeliveryReservation: args.Get("delivery_reservation"),
+	}
+	if wl.AccountingVersion != "" && wl.AccountingVersion != accounting.LegacyMoneyContract && wl.AccountingVersion != accounting.ExactMoneyContract {
+		return fmt.Errorf("unsupported tracking accounting version %q", wl.AccountingVersion)
 	}
 	if wl.Reporting, err = reportingDimensionsFromTracking(args); err != nil {
 		return err

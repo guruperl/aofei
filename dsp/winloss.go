@@ -32,6 +32,7 @@ const (
 type WinLoss struct {
 	Status              `json:"status,omitempty"`
 	Current             time.Time `json:"current,omitempty"`
+	AccountingVersion   string    `json:"accounting_version,omitempty"`
 	match.RPub          `json:"rpub,omitempty"`
 	match.RAdv          `json:"radv,omitempty"`
 	BothCap             *match.BothCap        `json:"-"`
@@ -105,17 +106,18 @@ func NewWinLoss(
 	seat, auctionID, auctionBidID, auctionImpID, auctionAdID, serverURL string,
 ) *WinLoss {
 	return &WinLoss{
-		Status:       how,
-		Current:      current,
-		RPub:         rpub,
-		RAdv:         radv,
-		BothCap:      bothcap,
-		Seat:         seat,
-		AuctionID:    auctionID,
-		AuctionBidID: auctionBidID,
-		AuctionImpID: auctionImpID,
-		AuctionAdID:  auctionAdID,
-		serverURL:    serverURL,
+		Status:            how,
+		Current:           current,
+		AccountingVersion: accounting.ExactMoneyContract,
+		RPub:              rpub,
+		RAdv:              radv,
+		BothCap:           bothcap,
+		Seat:              seat,
+		AuctionID:         auctionID,
+		AuctionBidID:      auctionBidID,
+		AuctionImpID:      auctionImpID,
+		AuctionAdID:       auctionAdID,
+		serverURL:         serverURL,
 	}
 }
 
@@ -227,6 +229,9 @@ func (self *WinLoss) PackURLString(tracking ...bool) string {
 func (self *WinLoss) packURLValues(tracking bool) (url.Values, error) {
 	status := self.Status
 	args := url.Values{}
+	if self.AccountingVersion != "" {
+		args.Set("accounting_version", self.AccountingVersion)
+	}
 	// seatid and adid are not used in the URL
 	if status == StatusTrackClk || status == StatusTrackImp || tracking {
 		args.Set("auction_id", self.AuctionID)

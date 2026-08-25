@@ -735,16 +735,17 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 		return fmt.Errorf("middleman exact charge/pay CPM is invalid")
 	}
 	wl := &WinLoss{
-		Current:      time.Now(),
-		Status:       status,
-		RPub:         value.RPub,
-		RAdv:         value.RAdv,
-		Seat:         value.DownstreamSeat,
-		AuctionID:    value.RequestID,
-		AuctionBidID: value.ResponseBidID,
-		AuctionImpID: value.ImpID,
-		AuctionAdID:  value.DownstreamAdID,
-		Reporting:    value.Reporting,
+		Current:           time.Now(),
+		Status:            status,
+		AccountingVersion: accounting.ExactMoneyContract,
+		RPub:              value.RPub,
+		RAdv:              value.RAdv,
+		Seat:              value.DownstreamSeat,
+		AuctionID:         value.RequestID,
+		AuctionBidID:      value.ResponseBidID,
+		AuctionImpID:      value.ImpID,
+		AuctionAdID:       value.DownstreamAdID,
+		Reporting:         value.Reporting,
 		Middleman: &MiddlemanWinLossMeta{
 			AccountingVersion:  accounting.ExactMoneyContract,
 			BidderID:           value.BidderID,

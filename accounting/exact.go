@@ -9,6 +9,10 @@ import (
 )
 
 const (
+	// LegacyMoneyContract identifies the bounded float compatibility contract
+	// retained only while pre-A03 win/loss facts drain.
+	LegacyMoneyContract = "usd-cpm-impression-v2"
+
 	// ExactMoneyContract is the version carried by authoritative monetary
 	// caches and operational evidence introduced by A03.
 	ExactMoneyContract = "usd-cpm-impression-v3"

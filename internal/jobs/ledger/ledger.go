@@ -15,6 +15,7 @@ import (
 
 	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/dsp"
+	"github.com/guruperl/aofei/match"
 )
 
 const maxLedgerLogLineBytes = 8 * 1024 * 1024
@@ -95,6 +96,7 @@ type middlemanLedgerStats struct {
 }
 
 type reportingLedgerKey struct {
+	AccountingVersion string
 	DemandSource      string
 	AdvID             uint32
 	CampaignID        uint32
@@ -311,6 +313,9 @@ func (self *Ledger) StatisticsAll() (StatisticsResult, error) {
 		if err := json.Unmarshal(scanner.Bytes(), &wl); err != nil {
 			return StatisticsResult{}, err
 		}
+		if err := normalizeWinLossAccounting(&wl); err != nil {
+			return StatisticsResult{}, err
+		}
 		if err := aggregateMiddlemanLedger(middleman, wl); err != nil {
 			return StatisticsResult{}, err
 		}
@@ -458,8 +463,9 @@ func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, 
 		return nil
 	}
 	key := reportingLedgerKey{
-		DemandSource: "Local",
-		AdvID:        wl.RAdv.AdvID, CampaignID: wl.RAdv.CampaignID,
+		AccountingVersion: wl.AccountingVersion,
+		DemandSource:      "Local",
+		AdvID:             wl.RAdv.AdvID, CampaignID: wl.RAdv.CampaignID,
 		ItemID: wl.RAdv.ItemID, CreativeID: wl.RAdv.CreativeID,
 		PubID: wl.RPub.PubID, SiteID: wl.RPub.SiteID, SlotID: wl.RPub.SlotID,
 		Environment: "Unknown", IntegrationMode: "Unknown", MediaIntent: "Unknown", Placement: "Unknown",
@@ -581,22 +587,33 @@ func exactMiddlemanCPM(meta *dsp.MiddlemanWinLossMeta) (accounting.CPM, accounti
 	if meta == nil {
 		return 0, 0, fmt.Errorf("middleman money metadata is missing")
 	}
-	charge := meta.ChargeCPM
-	pay := meta.PayCPM
-	var err error
-	if charge == 0 && meta.ChargePrice != 0 {
+	var charge, pay accounting.CPM
+	switch meta.AccountingVersion {
+	case accounting.ExactMoneyContract:
+		if meta.Currency != "USD" {
+			return 0, 0, fmt.Errorf("exact middleman currency must be USD")
+		}
+		charge, pay = meta.ChargeCPM, meta.PayCPM
+		if meta.MarginCPMExact != charge-pay {
+			return 0, 0, fmt.Errorf("middleman exact margin does not equal charge minus pay")
+		}
+	case "", accounting.LegacyMoneyContract:
+		if meta.ChargeCPM != 0 || meta.PayCPM != 0 || meta.MarginCPMExact != 0 {
+			return 0, 0, fmt.Errorf("legacy middleman fact mixes unversioned exact CPM fields")
+		}
+		var err error
 		charge, err = accounting.ParseCPM(strconv.FormatFloat(meta.ChargePrice, 'f', 6, 64))
 		if err != nil {
 			return 0, 0, err
 		}
-	}
-	if pay == 0 && meta.PayPrice != 0 {
 		pay, err = accounting.ParseCPM(strconv.FormatFloat(meta.PayPrice, 'f', 6, 64))
 		if err != nil {
 			return 0, 0, err
 		}
+	default:
+		return 0, 0, fmt.Errorf("unsupported middleman accounting version %q", meta.AccountingVersion)
 	}
-	if charge < 0 || charge > accounting.MaxCPM || pay < 0 || pay > accounting.MaxCPM || pay > charge {
+	if charge <= 0 || charge > accounting.MaxCPM || pay < 0 || pay > accounting.MaxCPM || pay > charge {
 		return 0, 0, fmt.Errorf("middleman charge/pay CPM is outside the supported identity")
 	}
 	if _, err := charge.ImpressionNano(); err != nil {
@@ -605,10 +622,53 @@ func exactMiddlemanCPM(meta *dsp.MiddlemanWinLossMeta) (accounting.CPM, accounti
 	if _, err := pay.ImpressionNano(); err != nil {
 		return 0, 0, err
 	}
-	if meta.AccountingVersion == accounting.ExactMoneyContract && meta.MarginCPMExact != charge-pay {
-		return 0, 0, fmt.Errorf("middleman exact margin does not equal charge minus pay")
-	}
 	return charge, pay, nil
+}
+
+func normalizeWinLossAccounting(wl *dsp.WinLoss) error {
+	if wl == nil {
+		return fmt.Errorf("win/loss fact is nil")
+	}
+	version := wl.AccountingVersion
+	if version == "" {
+		switch {
+		case wl.Middleman != nil && wl.Middleman.AccountingVersion != "":
+			version = wl.Middleman.AccountingVersion
+		case wl.RAdv.CostCPM != 0:
+			// A03 produced exact facts before the top-level marker was added.
+			version = accounting.ExactMoneyContract
+		default:
+			version = accounting.LegacyMoneyContract
+		}
+	}
+	if version != accounting.LegacyMoneyContract && version != accounting.ExactMoneyContract {
+		return fmt.Errorf("unsupported win/loss accounting version %q", version)
+	}
+	if wl.Middleman != nil {
+		middlemanVersion := wl.Middleman.AccountingVersion
+		if middlemanVersion == "" {
+			middlemanVersion = accounting.LegacyMoneyContract
+		}
+		if middlemanVersion != version {
+			return fmt.Errorf("win/loss and middleman accounting versions disagree")
+		}
+	}
+	if wl.Status == dsp.StatusTrackImp && version == accounting.ExactMoneyContract {
+		if wl.RAdv.CostType != match.CostTypeCPM || wl.RAdv.CostCPM <= 0 || wl.RAdv.CostCPM > accounting.MaxCPM {
+			return fmt.Errorf("exact billable win/loss fact has no authoritative USD CPM")
+		}
+		if wl.Middleman != nil {
+			charge, _, err := exactMiddlemanCPM(wl.Middleman)
+			if err != nil {
+				return err
+			}
+			if wl.RAdv.CostCPM != charge {
+				return fmt.Errorf("middleman charge does not match billable demand CPM")
+			}
+		}
+	}
+	wl.AccountingVersion = version
+	return nil
 }
 
 func (s *reportingLedgerStats) syncMoneyCompatibility() {
@@ -687,7 +747,7 @@ INSERT INTO ledger_mid (
 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	insReport := `
 INSERT INTO report_delivery (
-	timely, demand_source, adv_id, campaign_id, item_id, creative_id,
+	timely, accounting_version, demand_source, adv_id, campaign_id, item_id, creative_id,
 	bidder_id, group_id, route_bidder_id, target_id, pub_id, site_id, slot_id,
 	country_id, state_id, device_os, device_type,
 	inventory_environment, integration_mode, media_intent, placement,
@@ -695,7 +755,7 @@ INSERT INTO report_delivery (
 	management_control, seller_type, seller_id, dimension_hash,
 	wins, losses, imps, clis, spend_usd, revenue_usd, cost_usd, margin_usd,
 	downstream_cpm_sum, returned_cpm_sum, callback_errors
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	updPub := `UPDATE ledger_pub lp
 INNER JOIN (
 	SELECT pa.lp_id AS lp_id, SUM(pa.imps) AS imps, SUM(pa.clis) AS clis, SUM(pa.spend) AS spend
@@ -789,7 +849,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 
 	for key, value := range stats.Reporting {
 		if _, err = tx.ExecContext(ctx, insReport,
-			myDay, key.DemandSource, key.AdvID, key.CampaignID, key.ItemID, key.CreativeID,
+			myDay, key.AccountingVersion, key.DemandSource, key.AdvID, key.CampaignID, key.ItemID, key.CreativeID,
 			key.BidderID, key.GroupID, key.RouteBidderID, key.TargetID, key.PubID, key.SiteID, key.SlotID,
 			key.CountryID, key.StateID, key.DeviceOS, key.DeviceType,
 			key.Environment, key.IntegrationMode, key.MediaIntent, key.Placement,

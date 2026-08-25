@@ -116,6 +116,19 @@ func TestSignedTrackingPreservesExactCPMInsteadOfFloatProjection(t *testing.T) {
 	if published.RAdv.CostCPM != accounting.CPM(123456123456) {
 		t.Fatalf("published exact CPM = %s, want 123456.123456", published.RAdv.CostCPM)
 	}
+	if published.AccountingVersion != accounting.ExactMoneyContract {
+		t.Fatalf("published accounting version = %q, want %q", published.AccountingVersion, accounting.ExactMoneyContract)
+	}
+}
+
+func TestServeStatusRejectsUnknownAccountingVersion(t *testing.T) {
+	args := trackingTestArgs("unknown-accounting-version", false)
+	args.Set("accounting_version", "future-version")
+	addTrackingSignature("test-secret", "/imp", args)
+	controller := &Controller{C: &Config{TrackingSecret: "test-secret"}}
+	if err := controller.serveStatus(context.Background(), StatusTrackImp, time.Now(), args); err == nil {
+		t.Fatal("unknown accounting version was accepted")
+	}
 }
 
 func TestServeStatusRejectsInvalidCapBeforeRedisAndPublication(t *testing.T) {

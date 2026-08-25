@@ -13,13 +13,20 @@ The active contract is `usd-cpm-impression-v3`, recorded by the singleton
 upstream CPM, impression aggregation, reservation, and ledger path exact:
 
 - OpenRTB bid prices, auction macros, and tracking payload prices remain USD
-  CPM. A price of `2.500000` means USD 2.50 per thousand impressions.
+  CPM. The local auction carries the authoritative six-place value to the wire
+  boundary; a price of `2.500000` means USD 2.50 per thousand impressions.
 - One billable impression contributes `CPM / 1000`; therefore CPM `2.500000`
   contributes USD `0.002500`.
 - Live reservations use integer nano-USD per-impression amounts. Loss or
   publication failure releases the reservation; a successfully published,
   signed impression finalizes it.
 - The ledger counts only idempotently accepted impression trackers as spend.
+- New tracker and win/loss facts carry `usd-cpm-impression-v3` at top level.
+  The ledger labels unmarked float-only drain records as v2, recognizes the
+  bounded pre-marker exact transition by its exact fields, and rejects unknown
+  or mixed versions. V3 middleman facts must bind USD exact charge, pay, and
+  margin to the billable demand CPM; compatibility floats cannot reconstruct a
+  missing v3 value.
 - Statement request/party/cadence/period/currency/source/supersession identity
   is database-immutable. Draft or Held totals may change only when they equal
   the sum of immutable adjustment rows; corrections create a replacement and

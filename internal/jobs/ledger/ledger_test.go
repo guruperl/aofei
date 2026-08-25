@@ -22,9 +22,60 @@ func TestExactMiddlemanCPMRejectsInvalidV3RangeAndIdentity(t *testing.T) {
 		{ChargeCPM: accounting.MaxCPM + 1, PayCPM: 1, ChargePrice: 1},
 		{AccountingVersion: accounting.ExactMoneyContract, ChargeCPM: 2, PayCPM: 1, MarginCPMExact: 2},
 		{ChargeCPM: 1, PayCPM: 2},
+		{AccountingVersion: accounting.ExactMoneyContract, ChargePrice: 2, PayPrice: 1, Currency: "USD"},
+		{AccountingVersion: accounting.ExactMoneyContract, ChargeCPM: 2, PayCPM: 1, MarginCPMExact: 1, Currency: "EUR"},
 	} {
 		if _, _, err := exactMiddlemanCPM(meta); err == nil {
 			t.Fatalf("invalid middleman exact fact was accepted: %+v", meta)
+		}
+	}
+}
+
+func TestNormalizeWinLossAccountingSeparatesLegacyAndExactFacts(t *testing.T) {
+	legacy := dsp.WinLoss{
+		Status: dsp.StatusTrackImp,
+		RAdv:   match.RAdv{CostType: match.CostTypeCPM, Cost: 1.25},
+	}
+	if err := normalizeWinLossAccounting(&legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.AccountingVersion != accounting.LegacyMoneyContract {
+		t.Fatalf("legacy version = %q", legacy.AccountingVersion)
+	}
+
+	exact := dsp.WinLoss{
+		Status: dsp.StatusTrackImp,
+		RAdv:   match.RAdv{CostType: match.CostTypeCPM, CostCPM: 1_250_001},
+	}
+	if err := normalizeWinLossAccounting(&exact); err != nil {
+		t.Fatal(err)
+	}
+	if exact.AccountingVersion != accounting.ExactMoneyContract {
+		t.Fatalf("transitional exact version = %q", exact.AccountingVersion)
+	}
+}
+
+func TestNormalizeWinLossAccountingRejectsBrokenExactMiddlemanIdentity(t *testing.T) {
+	for _, wl := range []dsp.WinLoss{
+		{
+			Status: dsp.StatusTrackImp, AccountingVersion: accounting.ExactMoneyContract,
+			RAdv: match.RAdv{CostType: match.CostTypeCPM, CostCPM: 2},
+			Middleman: &dsp.MiddlemanWinLossMeta{
+				AccountingVersion: accounting.ExactMoneyContract,
+				ChargePrice:       2, PayPrice: 1, Currency: "USD",
+			},
+		},
+		{
+			Status: dsp.StatusTrackImp, AccountingVersion: accounting.ExactMoneyContract,
+			RAdv: match.RAdv{CostType: match.CostTypeCPM, CostCPM: 3},
+			Middleman: &dsp.MiddlemanWinLossMeta{
+				AccountingVersion: accounting.ExactMoneyContract,
+				ChargeCPM:         2, PayCPM: 1, MarginCPMExact: 1, Currency: "USD",
+			},
+		},
+	} {
+		if err := normalizeWinLossAccounting(&wl); err == nil {
+			t.Fatalf("broken exact middleman fact was accepted: %+v", wl)
 		}
 	}
 }
