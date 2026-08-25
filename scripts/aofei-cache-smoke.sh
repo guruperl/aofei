@@ -66,7 +66,7 @@ case "$SPREAD_DIR" in
 		;;
 esac
 rm -rf "$SPREAD_DIR"
-mkdir -p "$SPREAD_DIR"
+(umask 0027; mkdir -p "$SPREAD_DIR")
 
 echo "Populating Redis cache..."
 run_cache -cache=redis

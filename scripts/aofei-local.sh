@@ -290,7 +290,10 @@ SQL
 }
 
 generate_configs() {
-	mkdir -p \
+	# Runtime-owned directories must be born no broader than 0750. A scoped
+	# umask affects only newly created components and never chmods an existing
+	# operator-owned override.
+	(umask 0027; mkdir -p \
 		"$ROOT/etc" \
 		"$(dirname "$AOFEI_CONFIG")" \
 		"$(dirname "$SUMMER_CONFIG")" \
@@ -300,7 +303,7 @@ generate_configs() {
 		"$LOG_DIR/log_winloss" \
 		"$SPREAD_DIR" \
 		"$UPLOAD_DIR" \
-		"/tmp/aofei-www"
+		"/tmp/aofei-www")
 
 	cat >"$AOFEI_CONFIG" <<JSON
 {

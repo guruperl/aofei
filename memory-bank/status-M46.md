@@ -36,7 +36,7 @@ contracts.
 | Review intake and dependency reconciliation | `[x]` | Validated all 15 findings against current code, tests, and operator contracts. Completed source milestones remain closed; M46 precedes conditional I02. |
 | Explicit CPM demand eligibility | `[x]` | `exactCPM` now requires explicit CPM for exact and legacy adapters; headerless/v1/v2 unset records remain readable but cannot bid or bill, and database compilation reports the item and unsupported type before delivery hydration or cache publication. |
 | Middleman margin schema contract | `[x]` | The baseline constrains group and nullable route overrides to exact `0..1` fractions; activation checks active rows, the populated-system migration validates source shape and every row before ALTER without inference, and a disposable MySQL 8.0.41 drill proves failure, installation, enforcement, and rerun behavior. |
-| Existing-directory ownership | `[x]` | `EnsureDir` chmods only a directory successfully created by that call; existing and raced paths are validated without mutation, broader permission bits fail, restrictive modes plus setgid/sticky bits are preserved, and concurrent creation tests cover the ownership boundary. |
+| Existing-directory ownership | `[x]` | `EnsureDir` chmods only a directory successfully created by that call; existing and raced paths are validated without mutation, broader permission bits fail, restrictive modes plus setgid/sticky bits are preserved, and concurrent creation tests cover the ownership boundary. Review iteration 1 also corrected the local-config and cache-smoke helpers to create owned runtime directories under a scoped `0027` umask instead of relying on runtime chmod. |
 | Concurrent experiment exposure | `[x]` | The immutable post-insert exposure check now uses `FOR SHARE` instead of upgrading a duplicate `INSERT IGNORE` record to `FOR UPDATE`; disposable-MySQL coverage runs simultaneous first writes and eight-way idempotent retries and requires one stored row with no caller error. |
 | Audience and callback hot paths | `[x]` | Canonical/legacy audience membership now runs through one bounded cross-key Lua action with one-call canonical-hit, legacy-hit, and miss tests. Controllers reuse their construction-time protected client; retry batches normalize once before the loop, while the full URL/redirect/rebinding suite remains green. |
 | Creative-boundary and validation clarity | `[x]` | Markup validation now names its literal script checks as defense in depth and tests that obfuscated scripts remain supported; docs assign executable containment to the opaque-origin no-top-navigation renderer or an external consumer. Direct-publisher validation now checks its required v3 marker once after the embedded publisher independently passes v3 validation. |
@@ -65,3 +65,14 @@ contracts.
   other external state is mutated by M46 implementation or verification.
 - I02 remains planned and demand-gated because no named mobile integration
   supplies supported platform and lifecycle requirements.
+
+## Deep Review Gate
+
+- Iteration 1: `[x]` One P2 integration finding was confirmed and resolved.
+  `aofei-cache-smoke.sh` and `aofei-local.sh` created owned runtime directories
+  through the process `0002` umask and relied on the former `EnsureDir` chmod,
+  so the required cache smoke rejected a newly recreated `0775` spread root.
+  Both helpers now use a scoped `0027` umask for directory creation without
+  changing an existing operator-owned path; the complete cache smoke passes.
+- Iteration 2: `[ ]` Pending review of the complete M46 fix set after all
+  automated and cross-repository verification.
