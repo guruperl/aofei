@@ -15,6 +15,7 @@ when customer demand justifies their long-term support cost.
 - S01 mobile identity, consent, and disclosure rules.
 - S05 native rendering and runtime trust-boundary hardening.
 - A03 exact monetary source and compatibility contracts.
+- M46 cross-lane correctness and operational-safety remediation.
 - A named Android or iOS integration with supported OS/version requirements.
 
 ## Tasks
@@ -245,3 +246,8 @@ when customer demand justifies their long-term support cost.
   has appeared. A03 adds the server-owned monetary projection boundary above
   but does not trigger SDK implementation. I02 remains planned and is skipped,
   not completed or cancelled, for this goal.
+- 2026-08-25 after M46 closeout: the remaining repository prerequisite is
+  complete, including explicit demand-cost authority and fail-closed cache and
+  operational boundaries. No named Android or iOS integration or lifecycle
+  owner has appeared, so I02 remains planned and is skipped, not completed or
+  cancelled.

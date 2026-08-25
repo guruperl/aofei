@@ -7,13 +7,12 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order, D04, D05, S06, P03, S05, O03, R03, and A03 are complete. P03's authenticity gates
-remain disabled by default until a separately authorized named-publisher
-canary. M46 is the active required cross-lane review remediation milestone.
-I02 remains separately demand-gated; its P03/S05/A03 prerequisites are
-complete, but M46 must close and a
-named Android or iOS integration still has not defined supported platforms and
-lifecycle requirements. The active MySQL baseline is 96 tables, 0 views, 6
+order, D04, D05, S06, P03, S05, O03, R03, A03, and M46 are complete. P03's
+authenticity gates remain disabled by default until a separately authorized
+named-publisher canary. I02 remains separately demand-gated; its repository
+prerequisites are complete, but a named Android or iOS integration still has
+not defined supported platforms and lifecycle requirements. The active MySQL
+baseline is 96 tables, 0 views, 6
 routines, and 65 triggers;
 planned milestones do not imply schema or runtime activation.
 

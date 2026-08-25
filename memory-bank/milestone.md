@@ -33,10 +33,8 @@ complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 is now complete. S06 repository
 hardening, managed Cloudflare widget, constrained Free-plan edge rule,
 production deployment, and live proof are also complete. P03, S05, and O03 are
-complete; R03 and A03 are also complete. A 2026-08-25 cross-lane review opened
-M46 for confirmed exact-money eligibility, schema, filesystem, concurrency,
-hot-path, and static-analysis remediation. I02 remains demand-gated and starts
-only after M46 and when a named Android or iOS
+complete; R03, A03, and the Review3 cross-lane M46 remediation are also
+complete. I02 remains demand-gated and starts only when a named Android or iOS
 integration supplies supported OS/version and lifecycle requirements. Matching
 lane status files are the authoritative completion record; completed M-lane
 files retain earlier runtime history.
@@ -51,10 +49,11 @@ Delivery sequence:
    auction/cap/hot-path fixes, S06 repository plus production activation, and
    P03 direct-SSP authenticity, S05 runtime trust boundaries, and O03
    job/cache/filesystem reliability, R03 experiment/report integrity, and A03
-   exact monetary sources are complete. M46 now owns the confirmed cross-lane
-   follow-up findings without reopening those completed milestones.
-6. Demand-gated mobile delivery: P03/S05 are complete, but I02 starts only when
-   a named mobile integration supplies supported-platform and lifecycle needs.
+   exact monetary sources and M46 cross-lane follow-up remediation are
+   complete without reopening those completed source milestones.
+6. Demand-gated mobile delivery: P03/S05/A03/M46 repository prerequisites are
+   complete, but I02 starts only when a named mobile integration supplies
+   supported-platform and lifecycle needs.
 
 The strict serial order is:
 
@@ -64,7 +63,7 @@ D01 -> S01 -> S04 -> O01 -> A01 -> P01
 -> R02 -> P02 -> S02 -> I03 -> S03 -> A02
 -> D04 -> D05 -> S06 -> P03 -> S05 -> O03 -> R03 -> A03
 -> M46
--> I02 (only after P03/S05 and a named mobile integration)
+-> I02 (only after repository prerequisites and a named mobile integration)
 ```
 
 Controlled direct-SSP and middleman staging may begin with existing runtime
@@ -1499,13 +1498,13 @@ Result:
 - Every branch and tag was rewritten and independently verified before the
   sanitized refs were published.
 
-## M46 - Review3 Cross-Lane Remediation `[~]`
+## M46 - Review3 Cross-Lane Remediation `[+]`
 
-Resolve confirmed exact-money eligibility, middleman schema, filesystem
+Resolved confirmed exact-money eligibility, middleman schema, filesystem
 ownership, experiment concurrency, hot-path, creative-boundary, and
 static-analysis findings without reopening completed source milestones or
-weakening their fail-closed contracts. Detailed tasks and review dispositions
-are in [status-M46.md](status-M46.md).
+weakening their fail-closed contracts. Detailed dispositions, verification,
+and the two-iteration review gate are in [status-M46.md](status-M46.md).
 
 ## D01 - Campaign Delivery Guardrails `[+]`
 

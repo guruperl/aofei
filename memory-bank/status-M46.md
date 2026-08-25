@@ -1,6 +1,6 @@
 # Status M46 - Review3 Cross-Lane Remediation
 
-State: `[~]` In progress
+State: `[+]` Completed
 
 ## Goal
 
@@ -41,7 +41,7 @@ contracts.
 | Audience and callback hot paths | `[x]` | Canonical/legacy audience membership now runs through one bounded cross-key Lua action with one-call canonical-hit, legacy-hit, and miss tests. Controllers reuse their construction-time protected client; retry batches normalize once before the loop, while the full URL/redirect/rebinding suite remains green. |
 | Creative-boundary and validation clarity | `[x]` | Markup validation now names its literal script checks as defense in depth and tests that obfuscated scripts remain supported; docs assign executable containment to the opaque-origin no-top-navigation renderer or an external consumer. Direct-publisher validation now checks its required v3 marker once after the embedded publisher independently passes v3 validation. |
 | Static-analysis hygiene | `[x]` | All 17 pinned-v0.5.1 U1000 findings were removed across ACL, demo, DSP, ledger, management API, matching, MaxMind, and traffic quality. `staticcheck.conf` now runs `U1000` beside `SA*`, and the whole-module pinned check is clean. |
-| Verification and deep review | `[ ]` | Run schema/cache/runtime/full-repository gates, review the complete milestone, and resolve every P1/P2 before closeout. |
+| Verification and deep review | `[x]` | The complete Aofei, Docker/schema/cache/migration/reporting, pzdesign/Summer, and Genelet gates pass. Review iteration 1 found and resolved one P2 local-directory integration defect; iteration 2 was clean. |
 
 ## Acceptance Criteria
 
@@ -74,5 +74,32 @@ contracts.
   so the required cache smoke rejected a newly recreated `0775` spread root.
   Both helpers now use a scoped `0027` umask for directory creation without
   changing an existing operator-owned path; the complete cache smoke passes.
-- Iteration 2: `[ ]` Pending review of the complete M46 fix set after all
-  automated and cross-repository verification.
+- Iteration 2: `[x]` Clean review of the complete M46 fix set after all
+  automated and cross-repository verification; no P1/P2-or-higher finding
+  remains.
+
+## Verification Evidence
+
+- Aofei: full tests, vet, pinned `SA*` plus `U1000` staticcheck, the scoped race
+  suite, capacity baseline, documentation/public-data/diff guards, and focused
+  package tests all pass.
+- Docker/runtime: sample reset, SQL baseline guard, schema diff, full cache
+  smoke, exact-money migration drill, middleman-margin migration drill,
+  database-backed reporting integration, and the 100,000-row reporting
+  benchmark all pass against MySQL 8.0.41.
+- Pzdesign/Summer: full tests and vet, `cmd/unify` race, pinned staticcheck,
+  template/public-copy/public-data guards, and the generated-config
+  database-backed `summer/...` suite all pass.
+- Genelet: full tests, vet, full race, and the pinned `SA*` correctness family
+  pass. Its repository does not define the broader style families as a gate.
+
+## Closeout
+
+- M46 resolves every confirmed Review3 finding at its owning boundary without
+  reopening the completed source milestones.
+- I02 remains planned and is skipped for now, not completed or cancelled: all
+  repository prerequisites are complete, but no named Android or iOS
+  integration supplies supported-platform and lifecycle requirements.
+- No evolution version was added. M46 reinforces the exact-money,
+  fail-closed-authority, containment, and operational-ownership direction
+  already recorded through evolution V29 rather than changing it.
