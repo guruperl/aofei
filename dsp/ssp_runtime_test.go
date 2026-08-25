@@ -83,6 +83,18 @@ func TestOpenRTBImpFromSSPUsesTokenSizeForSupportedMedia(t *testing.T) {
 	}
 }
 
+func TestOpenRTBImpFromSSPRejectsUnknownFloorAccountingVersion(t *testing.T) {
+	unit := SSPValidatedUnit{
+		AccountingVersion: "future-version",
+		ConfiguredFloor:   1.25,
+		RPub:              match.RPub{SizeID: match.SizeID2To1(300, 250)},
+	}
+	adUnit := SSPAdUnit{Code: "banner", MediaTypes: SSPMediaTypes{Banner: &SSPBanner{Size: []uint16{300, 250}}}}
+	if _, err := openRTBImpFromSSPUnit(adUnit, unit, 0); err == nil {
+		t.Fatal("unknown floor accounting version was accepted")
+	}
+}
+
 func TestOpenRTBFromSSPUsesGreaterOfRequestAndConfiguredFloor(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	controller.local.pubByID[1].SlotFloors[10][100] = 1.75

@@ -903,17 +903,20 @@ func openRTBImpFromSSPUnit(adUnit SSPAdUnit, unit SSPValidatedUnit, index int) (
 		return openrtb2.Imp{}, err
 	}
 	configuredFloor := unit.ConfiguredFloorCPM
-	if unit.AccountingVersion == accounting.ExactMoneyContract {
+	switch unit.AccountingVersion {
+	case accounting.ExactMoneyContract:
 		if configuredFloor < 0 || configuredFloor > accounting.MaxCPM {
 			return openrtb2.Imp{}, fmt.Errorf("configured floor is outside the exact USD CPM range")
 		}
-	} else {
+	case "", accounting.LegacyMoneyContract:
 		// Compatibility for callers and old cache generations that predate the
 		// fixed-point field. New validated units always carry the v3 marker.
 		configuredFloor, err = protocolCPM(unit.ConfiguredFloor)
 		if err != nil {
 			return openrtb2.Imp{}, err
 		}
+	default:
+		return openrtb2.Imp{}, fmt.Errorf("unsupported configured-floor accounting version %q", unit.AccountingVersion)
 	}
 	if configuredFloor > requestFloor {
 		requestFloor = configuredFloor

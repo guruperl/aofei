@@ -338,6 +338,10 @@ func (self *SSPRequest) validateSupplyWithTokens(pub *acl.DirectPub, codec *acl.
 		if !ok {
 			return nil, version, fmt.Errorf("adUnits[%d] inventory is inactive, unapproved, stale, or does not match site/slot/size: site_id=%d slot_id=%d size_id=%d", i, siteID, slotID, sizeID)
 		}
+		accountingVersion, ok := pub.AccountingContract()
+		if !ok {
+			return nil, version, fmt.Errorf("adUnits[%d] inventory has unsupported accounting provenance", i)
+		}
 		if (platform == "browser" && siteType != acl.SiteTypeWeb) || (platform == "sdk" && siteType != acl.SiteTypeAPP) {
 			return nil, version, fmt.Errorf("adUnits[%d] platform %q does not match configured site type", i, platform)
 		}
@@ -349,7 +353,7 @@ func (self *SSPRequest) validateSupplyWithTokens(pub *acl.DirectPub, codec *acl.
 			return nil, version, fmt.Errorf("adUnits[%d] %w", i, err)
 		}
 		units = append(units, SSPValidatedUnit{
-			AccountingVersion:  accounting.ExactMoneyContract,
+			AccountingVersion:  accountingVersion,
 			Code:               adUnit.Code,
 			Site:               string(self.Site),
 			Slot:               slotToken,

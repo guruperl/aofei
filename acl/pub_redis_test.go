@@ -9,6 +9,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/mediocregopher/radix/v4"
 )
 
@@ -69,13 +70,15 @@ func TestPubMapRedisRoundTripPreservesCommercialSlotPolicy(t *testing.T) {
 	const sizeID uint32 = 19661050
 	pubmap := PubMap{
 		"pub.example": {
-			PubID:      42,
-			Active:     true,
-			Sites:      map[string]uint32{"example.com": 7},
-			SiteTypes:  map[uint32]SiteType{7: SiteTypeWeb},
-			Slots:      map[uint32]map[string]uint32{7: {"leaderboard": 99}},
-			SlotSizes:  map[uint32]map[uint32]uint32{7: {99: sizeID}},
-			SlotFloors: map[uint32]map[uint32]float64{7: {99: 1.75}},
+			AccountingVersion: accounting.ExactMoneyContract,
+			PubID:             42,
+			Active:            true,
+			Sites:             map[string]uint32{"example.com": 7},
+			SiteTypes:         map[uint32]SiteType{7: SiteTypeWeb},
+			Slots:             map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+			SlotSizes:         map[uint32]map[uint32]uint32{7: {99: sizeID}},
+			SlotFloors:        map[uint32]map[uint32]float64{7: {99: 1.75}},
+			SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{7: {99: 1_750_000}},
 		},
 	}
 	if err := ValidateCommercialPubMap(pubmap); err != nil {

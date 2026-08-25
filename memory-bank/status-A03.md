@@ -147,13 +147,27 @@ source while preserving auditable compatibility and hosted-payment safety.
      authority through public cache write helpers.
   Resolution: v3 RAdv packing now requires a present, valid exact CPM and
   refuses every float-only compatibility record; v2 decoding remains read-only.
-- Iteration 6: `[~]` One blocking finding was confirmed during the next full
+- Iteration 6: `[x]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - current middleman cache downgrade:** a version-2 route cache can be
      written and decoded with entries that omit the v3 accounting marker, and
      unknown nonempty entry markers also fall through to legacy float
      conversion. The current cache can therefore silently lose exact margin
      provenance despite its version and completeness contract.
+  Resolution: current route-cache write, decode, and activation validation
+  require v3 on every entry; legacy entries accept only empty or v3 provenance,
+  and all other markers fail closed.
+- Iteration 7: `[x]` One blocking finding was confirmed during the next full
+  review:
+  1. **P2 - publisher floor provenance:** publisher/direct-publisher floor
+     readers consult an exact field before resolving the cache accounting
+     marker and treat every unknown marker as legacy. A legacy or unknown cache
+     can therefore supply `SlotFloorCPMs`, while direct SSP validation then
+     hardcodes the resulting unit as v3.
+  Resolution: publisher and direct-publisher readers now resolve a recognized
+  accounting marker before selecting the corresponding floor field; current
+  commercial caches require v3 provenance, and SSP units retain the resolved
+  contract instead of relabeling legacy data.
 
 ## Exclusions
 

@@ -389,12 +389,17 @@ func (self *Pub) ExactSlotFloor(siteID, slotID uint32) (accounting.CPM, bool) {
 	if self == nil {
 		return 0, false
 	}
-	if floors := self.SlotFloorCPMs[siteID]; floors != nil {
-		if floor, ok := floors[slotID]; ok {
-			return floor, floor >= 0 && floor <= accounting.MaxCPM
+	switch self.AccountingVersion {
+	case accounting.ExactMoneyContract:
+		if floors := self.SlotFloorCPMs[siteID]; floors != nil {
+			if floor, ok := floors[slotID]; ok {
+				return floor, floor >= 0 && floor <= accounting.MaxCPM
+			}
 		}
-	}
-	if self.AccountingVersion == accounting.ExactMoneyContract {
+		return 0, false
+	case "":
+		// Pre-A03 publisher gob generations carry only the float projection.
+	default:
 		return 0, false
 	}
 	floors := self.SlotFloors[siteID]

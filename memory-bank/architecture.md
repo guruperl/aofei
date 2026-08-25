@@ -250,6 +250,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    Current middleman route cache writes and reads likewise require every entry
    to carry the v3 exact-money marker; only the explicitly legacy route-cache
    version may retain an unmarked bounded-float entry.
+   Publisher-floor lookup first resolves publisher/direct-publisher accounting
+   provenance: v3 reads only the exact map, unmarked legacy gob reads only the
+   float map, and direct SSP carries the resolved version through impression
+   construction. Unknown or conflicting markers cannot fall back.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and

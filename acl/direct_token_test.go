@@ -328,13 +328,15 @@ func TestDirectPubPackRoundTrip(t *testing.T) {
 func TestValidateCommercialPubMapFailsClosedOnIncompletePolicy(t *testing.T) {
 	valid := func() *Pub {
 		return &Pub{
-			PubID:      42,
-			Active:     true,
-			Sites:      map[string]uint32{"example.com": 7},
-			SiteTypes:  map[uint32]SiteType{7: SiteTypeWeb},
-			Slots:      map[uint32]map[string]uint32{7: {"leaderboard": 99}},
-			SlotSizes:  map[uint32]map[uint32]uint32{7: {99: (300 << 16) | 250}},
-			SlotFloors: map[uint32]map[uint32]float64{7: {99: 1.25}},
+			AccountingVersion: accounting.ExactMoneyContract,
+			PubID:             42,
+			Active:            true,
+			Sites:             map[string]uint32{"example.com": 7},
+			SiteTypes:         map[uint32]SiteType{7: SiteTypeWeb},
+			Slots:             map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+			SlotSizes:         map[uint32]map[uint32]uint32{7: {99: (300 << 16) | 250}},
+			SlotFloors:        map[uint32]map[uint32]float64{7: {99: 1.25}},
+			SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{7: {99: 1_250_000}},
 		}
 	}
 	if err := ValidateCommercialPubMap(PubMap{"pub.example": valid()}); err != nil {
@@ -345,9 +347,11 @@ func TestValidateCommercialPubMapFailsClosedOnIncompletePolicy(t *testing.T) {
 		mutate func(*Pub)
 	}{
 		{name: "missing site type", mutate: func(pub *Pub) { pub.SiteTypes = nil }},
-		{name: "missing floor", mutate: func(pub *Pub) { pub.SlotFloors = nil }},
+		{name: "missing exact floor", mutate: func(pub *Pub) { pub.SlotFloorCPMs = nil }},
 		{name: "empty size", mutate: func(pub *Pub) { pub.SlotSizes[7][99] = 0 }},
-		{name: "negative floor", mutate: func(pub *Pub) { pub.SlotFloors[7][99] = -1 }},
+		{name: "negative exact floor", mutate: func(pub *Pub) { pub.SlotFloorCPMs[7][99] = -1 }},
+		{name: "missing accounting marker", mutate: func(pub *Pub) { pub.AccountingVersion = "" }},
+		{name: "unknown accounting marker", mutate: func(pub *Pub) { pub.AccountingVersion = "future-version" }},
 		{name: "unknown site type", mutate: func(pub *Pub) { pub.SiteTypes[7] = SiteType(99) }},
 		{name: "web identity is URL", mutate: func(pub *Pub) { pub.Sites = map[string]uint32{"https://example.com/path": 7} }},
 		{name: "web identity has empty label", mutate: func(pub *Pub) { pub.Sites = map[string]uint32{"www..example.com": 7} }},
@@ -390,7 +394,38 @@ func TestCurrentPublisherFloorRequiresExactAuthority(t *testing.T) {
 	}
 
 	pub.AccountingVersion = ""
+	pub.SlotFloorCPMs[7][99] = 1_234_567
 	if floor, ok := pub.ExactSlotFloor(7, 99); !ok || floor != 9_750_000 {
 		t.Fatalf("legacy floor = %s, %v; want 9.750000, true", floor.String(), ok)
+	}
+	pub.AccountingVersion = "future-version"
+	if floor, ok := pub.ExactSlotFloor(7, 99); ok {
+		t.Fatalf("unknown accounting version supplied floor %s", floor.String())
+	}
+}
+
+func TestDirectPublisherFloorResolvesAccountingProvenanceFirst(t *testing.T) {
+	pub := &Pub{
+		Active:        true,
+		Sites:         map[string]uint32{"example.com": 7},
+		SiteTypes:     map[uint32]SiteType{7: SiteTypeWeb},
+		Slots:         map[uint32]map[string]uint32{7: {"slot": 99}},
+		SlotSizes:     map[uint32]map[uint32]uint32{7: {99: 300250}},
+		SlotFloors:    map[uint32]map[uint32]float64{7: {99: 9.75}},
+		SlotFloorCPMs: map[uint32]map[uint32]accounting.CPM{7: {99: 1_234_567}},
+	}
+	direct := NewDirectPub("pub.example", pub)
+	if version, ok := direct.AccountingContract(); !ok || version != accounting.LegacyMoneyContract {
+		t.Fatalf("legacy direct contract = %q, %v", version, ok)
+	}
+	if _, _, _, floor, ok := direct.CommercialSlotExact(7, 99, 300250); !ok || floor != 9_750_000 {
+		t.Fatalf("legacy direct floor = %s, %v; want float-derived 9.750000", floor.String(), ok)
+	}
+	direct.AccountingVersion = "future-version"
+	if _, ok := direct.AccountingContract(); ok {
+		t.Fatal("unknown direct accounting marker was accepted")
+	}
+	if _, _, _, floor, ok := direct.CommercialSlotExact(7, 99, 300250); ok {
+		t.Fatalf("unknown direct accounting marker supplied floor %s", floor.String())
 	}
 }

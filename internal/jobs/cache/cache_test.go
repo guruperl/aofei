@@ -354,13 +354,15 @@ func TestWritePublisherInventoryManifestReturnsOutputFailure(t *testing.T) {
 	}
 	pubmap := acl.PubMap{
 		"pub.example": {
-			PubID:      7,
-			Active:     true,
-			Sites:      map[string]uint32{"example.com": 11},
-			SiteTypes:  map[uint32]acl.SiteType{11: acl.SiteTypeWeb},
-			Slots:      map[uint32]map[string]uint32{11: {"leaderboard": 13}},
-			SlotSizes:  map[uint32]map[uint32]uint32{11: {13: match.SizeID2To1(300, 250)}},
-			SlotFloors: map[uint32]map[uint32]float64{11: {13: 1.25}},
+			AccountingVersion: accounting.ExactMoneyContract,
+			PubID:             7,
+			Active:            true,
+			Sites:             map[string]uint32{"example.com": 11},
+			SiteTypes:         map[uint32]acl.SiteType{11: acl.SiteTypeWeb},
+			Slots:             map[uint32]map[string]uint32{11: {"leaderboard": 13}},
+			SlotSizes:         map[uint32]map[uint32]uint32{11: {13: match.SizeID2To1(300, 250)}},
+			SlotFloors:        map[uint32]map[uint32]float64{11: {13: 1.25}},
+			SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{11: {13: 1_250_000}},
 		},
 	}
 	if err := WritePublisherInventoryManifest(failingManifestWriter{}, pubmap, issuer); !errors.Is(err, errManifestOutput) {

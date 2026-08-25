@@ -69,6 +69,11 @@ Current version-2 middleman route cache entries must carry the v3 accounting
 marker and exact four-place margin/six-place minimum fields. Writers, runtime
 decode, and activation validation reject a missing or unknown marker; only a
 version-1 cache entry with an empty marker may use the bounded legacy floats.
+Publisher and direct-publisher floor readers resolve the cache marker before
+choosing a field: v3 requires the exact floor map, an unmarked legacy gob uses
+only its bounded float map, and unknown or conflicting markers fail closed.
+Direct SSP units retain that resolved v2/v3 provenance instead of relabeling a
+legacy floor conversion as v3.
 
 Local advertiser charge and publisher pay currently use the same gross
 impression fact; no undocumented revenue-share percentage is deducted. A new

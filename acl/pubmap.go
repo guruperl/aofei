@@ -209,6 +209,9 @@ func ValidateCommercialPubMap(pubmap PubMap) error {
 		if strings.TrimSpace(domain) == "" || pub.PubID == 0 {
 			return fmt.Errorf("active publisher has empty domain or id")
 		}
+		if pub.AccountingVersion != accounting.ExactMoneyContract {
+			return fmt.Errorf("active publisher %d has accounting version %q, want %q", pub.PubID, pub.AccountingVersion, accounting.ExactMoneyContract)
+		}
 		if prior, ok := seenPubIDs[pub.PubID]; ok && prior != domain {
 			return fmt.Errorf("publisher id %d is mapped to both %q and %q", pub.PubID, prior, domain)
 		}
@@ -369,16 +372,19 @@ func (self *DirectPub) CommercialSlotExact(siteID, slotID, sizeID uint32) (strin
 	if !ok || siteType == SiteTypeUnknown {
 		return "", "", SiteTypeUnknown, 0, false
 	}
-	if floors := self.SlotFloorCPMs[siteID]; floors != nil {
-		if floor, found := floors[slotID]; found {
-			if floor < 0 || floor > accounting.MaxCPM {
-				return "", "", SiteTypeUnknown, 0, false
-			}
-			return siteStr, slotStr, siteType, floor, true
-		}
+	accountingVersion, ok := self.AccountingContract()
+	if !ok {
+		return "", "", SiteTypeUnknown, 0, false
 	}
-	if self.AccountingVersion == accounting.ExactMoneyContract ||
-		(self.Pub != nil && self.Pub.AccountingVersion == accounting.ExactMoneyContract) {
+	if accountingVersion == accounting.ExactMoneyContract {
+		if floors := self.SlotFloorCPMs[siteID]; floors != nil {
+			if floor, found := floors[slotID]; found {
+				if floor < 0 || floor > accounting.MaxCPM {
+					return "", "", SiteTypeUnknown, 0, false
+				}
+				return siteStr, slotStr, siteType, floor, true
+			}
+		}
 		return "", "", SiteTypeUnknown, 0, false
 	}
 	floors := self.SlotFloors[siteID]
@@ -391,6 +397,32 @@ func (self *DirectPub) CommercialSlotExact(siteID, slotID, sizeID uint32) (strin
 		return "", "", SiteTypeUnknown, 0, false
 	}
 	return siteStr, slotStr, siteType, parsed, true
+}
+
+// AccountingContract resolves the direct and embedded publisher markers.
+// Current and legacy provenance may not be mixed or replaced by an unknown
+// marker.
+func (self *DirectPub) AccountingContract() (string, bool) {
+	if self == nil {
+		return "", false
+	}
+	directVersion := self.AccountingVersion
+	pubVersion := ""
+	if self.Pub != nil {
+		pubVersion = self.Pub.AccountingVersion
+	}
+	for _, version := range []string{directVersion, pubVersion} {
+		if version != "" && version != accounting.ExactMoneyContract {
+			return "", false
+		}
+	}
+	if directVersion != "" && pubVersion != "" && directVersion != pubVersion {
+		return "", false
+	}
+	if directVersion == accounting.ExactMoneyContract || pubVersion == accounting.ExactMoneyContract {
+		return accounting.ExactMoneyContract, true
+	}
+	return accounting.LegacyMoneyContract, true
 }
 
 func (self DirectPubMap) PubByID(pubID uint32) *DirectPub {
