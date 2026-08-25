@@ -209,6 +209,15 @@ their own salt. Four triggers freeze the complete experiment-version contract,
 enforce forward state transitions, and prevent variant changes after Draft, so
 the active baseline is 96 tables, 6 routines, and 65 triggers.
 
+M46 adds CHECK constraints that keep `mid_route_group.margin_pct` within the
+exact `0.0000..1.0000` fraction domain and apply the same bound to each non-NULL
+`mid_route_bidder.margin_pct` override. Populated A03 databases use
+`etc/m46_middleman_margin_migration.sql`; its source-shape and invalid-row
+preflights run before either ALTER. It never divides a percent-like value,
+clamps, deactivates, or skips a row. Reconcile invalid configuration against
+the commercial agreement, restore the reviewed source after any failed or
+partial attempt, and rerun only from that clean source.
+
 O02 makes `ledger_log.timely` and `daily_log.daily` unique. The operational
 Redis lease is renewable but cannot prove exclusive ownership during every
 partition; these constraints are the durable backstop that rejects a second

@@ -31,8 +31,8 @@ remain separate, reviewable actions.
    synthetic reporting campaign/item/creative are inactive and form one
    same-advertiser chain.
 4. Create a route group, bidder membership, and the narrowest publisher/site/
-   slot/size target. Use `Fallback`, a bounded timeout, nonnegative margin, and
-   low priority for the first canary.
+   slot/size target. Use `Fallback`, a bounded timeout, an exact four-place
+   `0..1` margin fraction, and low priority for the first canary.
 5. Open `/goto/admin/g/midroute?action=health` and resolve every missing target,
    inactive bidder, credential-name, and synthetic-chain issue. This page never
    resolves or displays credential values.
@@ -56,13 +56,21 @@ GOWORK=off AOFEI=/etc/aofei/aofei.json \
   -activation-stage=preflight
 ```
 
-The check rebuilds the active route model from MySQL, requires the published
+The check rejects active group or route margin fractions outside `0..1`,
+rebuilds the active route model from MySQL, requires the published
 Redis v2 checksum and database high-water mark to match, validates each partner
 profile, and resolves every credential reference without printing header
 values. It fails on an empty generation, stale/legacy publication, partial
 synthetic chain, unsafe profile/header, missing credential, or incomplete
 callback/signing config. Its manifest contains only counts, gate booleans,
 route high-water time, and checksum.
+
+Before deploying an M46 binary against a populated A03 database, freeze route
+and management writers, take a verified backup, and apply
+`etc/m46_middleman_margin_migration.sql`. Any invalid row stops before ALTER;
+resolve it explicitly rather than interpreting values greater than one as
+percentages. Rehearse the exact source and failure behavior with
+`scripts/aofei-margin-constraint-drill.sh`.
 
 `scripts/aofei-recovery-drill.sh` repeats this fallback preflight against a
 restored synthetic route and a harmless environment header fixture in uniquely

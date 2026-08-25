@@ -757,6 +757,13 @@ on exit; a default logical `mysqldump` is intentionally not used because it can
 change restored legacy `FLOAT` values at A03's target scale. The
 production comparison and backups remain external operator evidence.
 
+M46 adds `etc/m46_middleman_margin_migration.sql` plus
+`scripts/aofei-margin-constraint-drill.sh`. The drill uses one uniquely named
+disposable MySQL 8.0.41 container to prove invalid margin rows fail before any
+constraint is installed, valid source installs both CHECK constraints, the
+constraints reject out-of-range group and route values, and a rerun fails
+instead of guessing through an already-migrated source.
+
 Schema baseline verification:
 
 ```bash

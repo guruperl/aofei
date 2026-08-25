@@ -161,11 +161,30 @@ func TestDBValidateMiddlemanActivationChecksEveryTopologyBoundary(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer db.Close()
-	for range 5 {
+	for range 7 {
 		mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	}
 	if err := DBValidateMiddlemanActivation(context.Background(), db); err != nil {
 		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDBValidateMiddlemanActivationRejectsInvalidMarginFraction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for range 5 {
+		mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	}
+	mock.ExpectQuery("SELECT COUNT").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	err = DBValidateMiddlemanActivation(context.Background(), db)
+	if err == nil || !strings.Contains(err.Error(), "route groups with invalid margin fractions") {
+		t.Fatalf("activation error = %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

@@ -528,7 +528,20 @@ WHERE g.active='Yes' AND t.active='Yes' AND (
   OR (t.entitytype_id=3 AND NOT EXISTS (SELECT 1 FROM pub p WHERE p.pub_id=t.entity_id AND p.active='Yes'))
   OR (t.entitytype_id=31 AND NOT EXISTS (SELECT 1 FROM pub_site s WHERE s.site_id=t.entity_id AND s.active='Yes'))
   OR (t.entitytype_id=32 AND NOT EXISTS (SELECT 1 FROM pub_slot sl WHERE sl.slot_id=t.entity_id AND sl.active='Yes'))
-  OR (t.size_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM def_size ds WHERE ds.size_id=t.size_id)))`,
+	  OR (t.size_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM def_size ds WHERE ds.size_id=t.size_id)))`,
+		},
+		{
+			label: "active route groups with invalid margin fractions",
+			query: `SELECT COUNT(*) FROM mid_route_group g
+	WHERE g.active='Yes' AND (g.margin_pct < 0.0000 OR g.margin_pct > 1.0000)`,
+		},
+		{
+			label: "active route bidders with invalid margin fractions",
+			query: `SELECT COUNT(*)
+	FROM mid_route_group g
+	INNER JOIN mid_route_bidder rb USING (group_id)
+	WHERE g.active='Yes' AND rb.active='Yes' AND rb.margin_pct IS NOT NULL
+	  AND (rb.margin_pct < 0.0000 OR rb.margin_pct > 1.0000)`,
 		},
 	}
 	for _, check := range checks {

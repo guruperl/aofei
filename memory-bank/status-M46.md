@@ -35,7 +35,7 @@ contracts.
 |---|---:|---|
 | Review intake and dependency reconciliation | `[x]` | Validated all 15 findings against current code, tests, and operator contracts. Completed source milestones remain closed; M46 precedes conditional I02. |
 | Explicit CPM demand eligibility | `[x]` | `exactCPM` now requires explicit CPM for exact and legacy adapters; headerless/v1/v2 unset records remain readable but cannot bid or bill, and database compilation reports the item and unsupported type before delivery hydration or cache publication. |
-| Middleman margin schema contract | `[ ]` | Add `0..1` group/nullable-route constraints, an offline fail-before-ALTER migration, and activation preflight without clamping or skipping invalid rows. |
+| Middleman margin schema contract | `[x]` | The baseline constrains group and nullable route overrides to exact `0..1` fractions; activation checks active rows, the populated-system migration validates source shape and every row before ALTER without inference, and a disposable MySQL 8.0.41 drill proves failure, installation, enforcement, and rerun behavior. |
 | Existing-directory ownership | `[ ]` | Create and chmod only directories owned by the call; validate but never mutate existing paths or special mode bits. |
 | Concurrent experiment exposure | `[ ]` | Remove the duplicate-record lock upgrade and prove concurrent first-write and idempotent-retry behavior in MySQL. |
 | Audience and callback hot paths | `[ ]` | Collapse alias membership to one Redis command and reuse already-protected HTTP clients. |

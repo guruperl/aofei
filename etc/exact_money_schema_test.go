@@ -80,3 +80,40 @@ func TestA03OfflineMigrationFailsClosedBeforePromotion(t *testing.T) {
 		}
 	}
 }
+
+func TestM46MiddlemanMarginConstraintsAndMigrationFailClosed(t *testing.T) {
+	data, err := os.ReadFile("step4_init.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := string(data)
+	for table, constraint := range map[string]string{
+		"mid_route_group":  "mid_route_group_margin_fraction_chk",
+		"mid_route_bidder": "mid_route_bidder_margin_fraction_chk",
+	} {
+		if definition := schemaTableDefinition(schema, table); !strings.Contains(definition, constraint) || !strings.Contains(definition, "between 0.0000 and 1.0000") {
+			t.Errorf("%s is missing bounded margin constraint %q", table, constraint)
+		}
+	}
+
+	data, err = os.ReadFile("m46_middleman_margin_migration.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	migration := string(data)
+	for _, required := range []string{
+		"m46_middleman_margin_migration_requires_an_unmodified_unconstrained_source",
+		"m46_middleman_margin_migration_requires_zero_invalid_rows",
+		"numeric_precision=7 AND numeric_scale=4",
+		"ADD CONSTRAINT mid_route_group_margin_fraction_chk",
+		"ADD CONSTRAINT mid_route_bidder_margin_fraction_chk",
+	} {
+		if !strings.Contains(migration, required) {
+			t.Errorf("M46 margin migration is missing fail-closed contract %q", required)
+		}
+	}
+	firstAlter := strings.Index(migration, "ALTER TABLE mid_route_group")
+	if firstAlter < 0 || strings.Index(migration, "requires_zero_invalid_rows") > firstAlter {
+		t.Fatal("M46 margin migration alters schema before invalid-row preflight")
+	}
+}

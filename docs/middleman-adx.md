@@ -226,7 +226,10 @@ Under `usd-cpm-impression-v3`, downstream and minimum-margin CPM are six-place
 integers and `margin_pct` is a four-place integer fraction. The percentage
 product rounds half away from zero once to a micro-USD CPM before the exact
 minimum is applied; over-scale downstream prices and marked-price overflow are
-rejected.
+rejected. M46 enforces the `0.0000..1.0000` group and nullable route-override
+domain in MySQL as well as the activation/cache compiler. Invalid populated
+rows must be reconciled before the fail-before-ALTER migration; they are never
+clamped, divided, or omitted from a generation.
 
 If no downstream bid survives validation and markup checks, `Fallback`
 impressions remain no-bid and `Always` impressions keep their local winner when

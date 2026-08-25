@@ -1898,7 +1898,8 @@ CREATE TABLE `mid_route_group` (
   `created` datetime DEFAULT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`group_id`),
-  UNIQUE KEY `group_name` (`group_name`)
+  UNIQUE KEY `group_name` (`group_name`),
+  CONSTRAINT `mid_route_group_margin_fraction_chk` CHECK ((`margin_pct` between 0.0000 and 1.0000))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -1932,6 +1933,7 @@ CREATE TABLE `mid_route_bidder` (
   PRIMARY KEY (`route_bidder_id`),
   UNIQUE KEY `group_bidder` (`group_id`,`bidder_id`),
   KEY `bidder_id` (`bidder_id`),
+  CONSTRAINT `mid_route_bidder_margin_fraction_chk` CHECK (((`margin_pct` is null) or (`margin_pct` between 0.0000 and 1.0000))),
   CONSTRAINT `mid_route_bidder_ibfk_1` FOREIGN KEY (`group_id`) REFERENCES `mid_route_group` (`group_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `mid_route_bidder_ibfk_2` FOREIGN KEY (`bidder_id`) REFERENCES `adv_bidder` (`bidder_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
