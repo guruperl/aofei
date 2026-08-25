@@ -659,6 +659,7 @@ GOWORK=off staticcheck ./...
 GOWORK=off go test -race ./hostedpayment ./trafficquality ./dsp ./match ./internal/cmdboot ./internal/jobs/midcallback ./internal/jobs/cache ./internal/jobs/ledger ./internal/jobs/action ./cmd/spread ./cmd/nats-client ./cmd/action-measurement ./cmd/hosted-payment ./cmd/traffic-quality
 GOWORK=off go test ./dsp ./match -run '^$' -bench . -benchmem
 ./scripts/aofei-doc-check.sh
+gitleaks git --redact --no-banner .
 git diff --check
 ```
 
@@ -666,6 +667,11 @@ git diff --check
 gate. M46 removed the complete pinned-v0.5.1 unused-symbol set before enabling
 the gate; do not suppress a new finding globally when a tested call path or
 deletion can resolve it.
+
+Gitleaks scans reachable Git history, not only the current tree. Known
+synthetic historical false positives are suppressed only by their exact
+commit/file/rule/line fingerprints in `.gitleaksignore`; path-wide or
+rule-wide exclusions are not accepted because they could hide later secrets.
 
 The documentation guard requires `docs/README.md` to index every active
 Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the

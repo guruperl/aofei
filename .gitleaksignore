@@ -1,0 +1,12 @@
+# Synthetic P03 manifest-key fixture introduced by the named historical commit.
+9a9a48535a09eaf96010cbffb0a4ab3dfe1e8449:internal/jobs/cache/cache_test.go:generic-api-key:162
+
+# Synthetic packed slot token emitted by the same cache-publication fixture.
+9a9a48535a09eaf96010cbffb0a4ab3dfe1e8449:internal/jobs/cache/cache_test.go:generic-api-key:208
+
+# Synthetic statement idempotency key used by an exact-money integration test.
+bb27a1d3b0360f8e82eee0d72154d5230f23ab00:accounting/integration_test.go:generic-api-key:155
+
+# Synthetic migration keys used by a disposable exact-money smoke database.
+57f21f8014c3ba9975c08d2d052721cf06f41be0:scripts/aofei-exact-money-migration-smoke.sh:generic-api-key:235
+57f21f8014c3ba9975c08d2d052721cf06f41be0:scripts/aofei-exact-money-migration-smoke.sh:generic-api-key:237
