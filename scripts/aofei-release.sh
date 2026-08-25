@@ -177,7 +177,8 @@ write_manifest() {
 
 verify_release() {
   local release=$1
-  local expected_aofei expected_pzdesign actual_component_count expected_component_count
+  local expected_aofei expected_pzdesign expected_genelet expected_release_id
+  local actual_component_count expected_component_count
   local actual_artifact_count expected_artifact_count checksum_count
 
   release=$(canonical_directory "$release")
@@ -208,6 +209,10 @@ verify_release() {
     fail "RELEASE_ID does not match the manifest"
   expected_aofei=$(jq -r '.sources.aofei.commit' "$release/manifest.json")
   expected_pzdesign=$(jq -r '.sources.pzdesign.commit' "$release/manifest.json")
+  expected_genelet=$(jq -r '.sources.genelet.commit' "$release/manifest.json")
+  expected_release_id="aofei-${expected_aofei:0:12}_pzdesign-${expected_pzdesign:0:12}_genelet-${expected_genelet:0:12}"
+  [[ $(cat "$release/RELEASE_ID") == "$expected_release_id" ]] ||
+    fail "release ID does not match the source commits"
   go version -m "$release/bin/config-preflight" | grep -F "vcs.revision=$expected_aofei" >/dev/null ||
     fail "config-preflight build provenance does not match the manifest"
   go version -m "$release/bin/unify" | grep -F "vcs.revision=$expected_pzdesign" >/dev/null ||
