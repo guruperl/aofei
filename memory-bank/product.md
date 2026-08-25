@@ -151,6 +151,9 @@ operational reliability, experiment privacy, and an exact-money migration. D04
 is complete. A 2026-08-23 follow-up opened repository-only D05 auction/cap and
 hot-path remediation and reopened S06 trusted-marker, anonymous-error, Gmail,
 and quota-script work. D05, S06, P03, S05, O03, R03, and A03 are now complete.
+A 2026-08-25 cross-lane review opened M46 for confirmed demand-eligibility,
+schema, filesystem, concurrency, hot-path, creative-boundary, and
+static-analysis remediation without reopening those completed milestones.
 P03 provides its
 threat contract, default-off versioned locator codec/runtime dual reader,
 default-off SDK/server authentication, independent browser/App enforcement,
@@ -162,8 +165,8 @@ A03 provides exact v3 monetary authority across prices, reservations, ledgers,
 management, statements, and hosted reconciliation while retaining legacy float
 data only as labeled read/drain evidence. I02 maintained Android/iOS SDKs
 remains separately demand-gated: its P03/S05/A03 repository prerequisites are
-complete, but no named integration defines supported platforms and lifecycle
-requirements. Lane state and strict
+complete, M46 must close first, and no named integration defines supported
+platforms and lifecycle requirements. Lane state and strict
 dependency order live in
 [milestone.md](milestone.md); the guide-to-lane map is
 [docs/README.md](../docs/README.md). Explicitly deferred investments and their
