@@ -121,13 +121,22 @@ source while preserving auditable compatibility and hosted-payment safety.
   and v3 middleman identity fails closed; report CPM sums use checked fixed-
   point totals; middleman reconciliation compares nine-place aggregates before
   statement projection; and absent floors receive truthful evidence labels.
-- Iteration 3: `[~]` One blocking finding was confirmed after the complete
+- Iteration 3: `[x]` One blocking finding was confirmed after the complete
   iteration-2 verification matrix passed:
   1. **P2 - constructor/drain version provenance:** exported `NewWinLoss`
      labels a float-only compatibility RAdv as v3, allowing a new signed
      tracker to promote an already-rounded value into apparent exact authority;
      conversely, an explicitly labeled v2 log fact can carry `CostCPM` and the
      ledger consumes that exact field instead of rejecting the mixed contract.
+  Resolution: `NewWinLoss` derives v3 only from a present authoritative exact
+  field and keeps float-only compatibility callers on v2; ledger normalization
+  rejects explicit v2 facts that mix in an exact demand CPM.
+- Iteration 4: `[~]` One blocking finding was confirmed during the whole-
+  milestone review after the iteration-3 fix:
+  1. **P2 - v2 cache provenance loss:** the version-2 RAdv decoder materializes
+     its float-derived CPM into `CostCPM`, and `billableRAdv` always populates
+     that field, so an auction served from a draining v2 cache is relabeled v3
+     despite originating from the compatibility float contract.
 
 ## Exclusions
 

@@ -176,7 +176,7 @@ func convertLegacyBalanceV2(value legacyDeliveryBalanceV2) (DeliveryBalance, err
 }
 
 func convertLegacyRAdvV2(value legacyRAdvV2) (RAdv, error) {
-	cpm, err := accounting.ParseCPM(strconv.FormatFloat(float64(value.Cost), 'f', 6, 32))
+	_, err := accounting.ParseCPM(strconv.FormatFloat(float64(value.Cost), 'f', 6, 32))
 	if err != nil {
 		return RAdv{}, err
 	}
@@ -193,7 +193,7 @@ func convertLegacyRAdvV2(value legacyRAdvV2) (RAdv, error) {
 	}
 	return RAdv{
 		Demand: value.Demand, Weight: value.Weight, CostType: value.CostType,
-		Cost: value.Cost, CostCPM: cpm, Cap: value.Cap,
+		Cost: value.Cost, Cap: value.Cap,
 		Delivery: Delivery{
 			GeneratedAtUnix: value.Delivery.GeneratedAtUnix, Timezone: value.Delivery.Timezone,
 			Campaign: value.Delivery.Campaign, Item: value.Delivery.Item,

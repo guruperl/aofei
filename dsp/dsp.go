@@ -244,7 +244,13 @@ func reportingDimensionsFromAttribute(attribute *match.Attribute) *ReportingDime
 func (self *DSP) billableRAdv() match.RAdv {
 	one := self.one
 	one.Cost = self.bidCPM.Float32()
-	one.CostCPM = self.bidCPM
+	if self.one.CostCPM != 0 {
+		one.CostCPM = self.bidCPM
+	} else {
+		// Preserve v1/v2 cache provenance. The bounded compatibility adapter
+		// remains authoritative for that drain fact; it must not be relabeled v3.
+		one.CostCPM = 0
+	}
 	one.CostType = match.CostTypeCPM
 	return one
 }

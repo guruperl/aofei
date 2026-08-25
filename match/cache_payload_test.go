@@ -134,7 +134,11 @@ func TestRAdvsDecodeVersionTwoFloatPayloadAsCompatibilityOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].CostCPM != 2_500_000 || got[0].Delivery.ItemTotal.LimitSpendNano != 1_250_000_000 || got[0].Delivery.ItemTotal.CurrentSpendNano != 2_500_000 {
+	if len(got) != 1 {
+		t.Fatalf("version-two record count = %d, want 1", len(got))
+	}
+	exact, ok := got[0].ExactCPM()
+	if got[0].CostCPM != 0 || !ok || exact != 2_500_000 || got[0].Delivery.ItemTotal.LimitSpendNano != 1_250_000_000 || got[0].Delivery.ItemTotal.CurrentSpendNano != 2_500_000 {
 		t.Fatalf("version-two exact compatibility decode = %+v", got)
 	}
 }

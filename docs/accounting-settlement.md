@@ -29,6 +29,9 @@ upstream CPM, impression aggregation, reservation, and ledger path exact:
   missing v3 value.
   The exported compatibility constructor preserves v2 when its caller supplies
   only a float; only a present exact CPM can originate a v3 tracker.
+  Likewise, decoding a draining v1/v2 RAdv cache validates and uses its bounded
+  float adapter without populating the v3 exact field, and the resulting
+  billable tracker remains labeled v2.
 - Statement request/party/cadence/period/currency/source/supersession identity
   is database-immutable. Draft or Held totals may change only when they equal
   the sum of immutable adjustment rows; corrections create a replacement and

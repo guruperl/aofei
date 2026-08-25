@@ -242,7 +242,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    projections and statement conversion rounds only once. New win/loss facts
    carry the v3 marker at top level; the ledger explicitly separates v2 drain
    facts and validates v3 middleman charge/pay/margin/currency identity before
-   aggregation.
+   aggregation. Draining v1/v2 RAdv cache reads do not populate the v3 exact
+   field or relabel their signed billable facts, even though the bounded adapter
+   converts their float value for integer reservation and aggregation.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and

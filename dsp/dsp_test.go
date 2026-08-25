@@ -83,6 +83,7 @@ func TestResponseBidIDPackLegacy(t *testing.T) {
 }
 
 func TestWinLossUsesExactSelectedBidPrice(t *testing.T) {
+	selectedCPM := accounting.CPM(100_000_002)
 	w, h := int64(300), int64(250)
 	bid := &openrtb2.BidRequest{
 		ID:     "request-1",
@@ -95,8 +96,9 @@ func TestWinLossUsesExactSelectedBidPrice(t *testing.T) {
 	}
 	one := match.RAdv{
 		Demand:   match.Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
-		CostType: 3,
-		Cost:     0.02,
+		CostType: match.CostTypeCPM,
+		Cost:     selectedCPM.Float32(),
+		CostCPM:  selectedCPM,
 	}
 	creative := &match.Creative{
 		CreativeName:    "ad",
@@ -106,7 +108,6 @@ func TestWinLossUsesExactSelectedBidPrice(t *testing.T) {
 		MIME:            "text/html",
 		Landing:         "https://advertiser.example/landing",
 	}
-	selectedCPM := accounting.CPM(100_000_002)
 	dsp := newDSPForImpExact(bid, 0, attr, one, nil, creative, nil, selectedCPM, "https://dsp.example")
 
 	winloss := dsp.WinLoss(StatusBid)
@@ -129,6 +130,20 @@ func TestWinLossUsesExactSelectedBidPrice(t *testing.T) {
 	}
 	if got := winloss.Macro()[`${AUCTION_PRICE}`]; got != "100.000002" {
 		t.Fatalf("macro auction price = %q, want selected bid price", got)
+	}
+}
+
+func TestDSPWinLossPreservesLegacyCandidateVersion(t *testing.T) {
+	bid := &openrtb2.BidRequest{ID: "request-legacy", Imp: []openrtb2.Imp{{ID: "imp-legacy"}}}
+	attr := &match.Attribute{When: time.Now(), RPub: match.RPub{PubID: 1, SiteID: 2, SlotID: 3}}
+	one := match.RAdv{
+		Demand:   match.Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		CostType: match.CostTypeCPM, Cost: 1.25,
+	}
+	dsp := NewDSPForImp(bid, 0, attr, one, nil, nil, nil, 1.25, "https://dsp.example")
+	wl := dsp.WinLoss(StatusBid)
+	if wl.AccountingVersion != accounting.LegacyMoneyContract || wl.RAdv.CostCPM != 0 {
+		t.Fatalf("legacy DSP win/loss = version %q exact %s", wl.AccountingVersion, wl.RAdv.CostCPM)
 	}
 }
 
