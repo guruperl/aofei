@@ -104,6 +104,15 @@ copy_pzdesign_assets() {
   rsync -a --delete -- "$pzdesign_root/www/" "$target/www/"
 }
 
+normalize_release_modes() {
+  local stage=$1
+
+  find "$stage/assets" -type d -exec chmod 0755 {} +
+  find "$stage/assets" -type f -exec chmod 0644 {} +
+  find "$stage/bin" -type d -exec chmod 0755 {} +
+  find "$stage/bin" -type f -exec chmod 0755 {} +
+}
+
 write_manifest() {
   local stage=$1
   local aofei_root=$2
@@ -255,6 +264,7 @@ build_release() {
   (cd -- "$pzdesign_root" && GOWORK=off GOTOOLCHAIN=go1.23.5 go build -trimpath -o "$stage/bin/unify" ./cmd/unify)
   (cd -- "$aofei_root" && GOWORK=off GOTOOLCHAIN=go1.23.5 go build -trimpath -o "$stage/bin/config-preflight" ./cmd/config-preflight)
   copy_pzdesign_assets "$pzdesign_root" "$stage/assets/pzdesign"
+  normalize_release_modes "$stage"
   write_manifest "$stage" "$aofei_root" "$pzdesign_root" "$genelet_root"
   verify_release "$stage"
   mv -- "$stage" "$output"
