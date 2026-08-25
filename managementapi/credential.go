@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -338,5 +337,3 @@ func sortStrings(values []string) {
 		}
 	}
 }
-
-func formatUint(value uint64) string { return strconv.FormatUint(value, 10) }

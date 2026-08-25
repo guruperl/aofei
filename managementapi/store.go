@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -793,8 +792,6 @@ func creativeContent(input creativeWrite) (string, error) {
 		IconURL: strings.TrimSpace(input.Native.IconURL), MainImageURL: strings.TrimSpace(input.Native.MainImageURL),
 	})
 }
-
-func encodeForHash(value any) ([]byte, error) { return json.Marshal(value) }
 
 // PrepareOperationsPublication marks the operations visible before a cache
 // snapshot with an opaque generation. Mutations that commit while the cache is

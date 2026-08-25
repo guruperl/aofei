@@ -153,14 +153,3 @@ func NewWLangs(langs []string) WLangs {
 	}
 	return wlangs
 }
-
-// toLANGUAGEs returns a slice of LANGUAGEs from the WLangs set.
-func (self WLangs) toLANGUAGEs() []LANGUAGE {
-	var langs []LANGUAGE
-	for lang := LanguageOther; lang <= LanguageNB; lang++ {
-		if self&(1<<lang) != 0 {
-			langs = append(langs, lang)
-		}
-	}
-	return langs
-}

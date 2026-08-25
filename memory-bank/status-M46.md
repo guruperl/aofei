@@ -40,7 +40,7 @@ contracts.
 | Concurrent experiment exposure | `[x]` | The immutable post-insert exposure check now uses `FOR SHARE` instead of upgrading a duplicate `INSERT IGNORE` record to `FOR UPDATE`; disposable-MySQL coverage runs simultaneous first writes and eight-way idempotent retries and requires one stored row with no caller error. |
 | Audience and callback hot paths | `[x]` | Canonical/legacy audience membership now runs through one bounded cross-key Lua action with one-call canonical-hit, legacy-hit, and miss tests. Controllers reuse their construction-time protected client; retry batches normalize once before the loop, while the full URL/redirect/rebinding suite remains green. |
 | Creative-boundary and validation clarity | `[x]` | Markup validation now names its literal script checks as defense in depth and tests that obfuscated scripts remain supported; docs assign executable containment to the opaque-origin no-top-navigation renderer or an external consumer. Direct-publisher validation now checks its required v3 marker once after the embedded publisher independently passes v3 validation. |
-| Static-analysis hygiene | `[ ]` | Remove all pinned-U1000 findings and add U1000 to the repository gate. |
+| Static-analysis hygiene | `[x]` | All 17 pinned-v0.5.1 U1000 findings were removed across ACL, demo, DSP, ledger, management API, matching, MaxMind, and traffic quality. `staticcheck.conf` now runs `U1000` beside `SA*`, and the whole-module pinned check is clean. |
 | Verification and deep review | `[ ]` | Run schema/cache/runtime/full-repository gates, review the complete milestone, and resolve every P1/P2 before closeout. |
 
 ## Acceptance Criteria

@@ -271,11 +271,6 @@ WHERE (ac.entitytype_id=42 AND ac.entity_id=?)`
 	return nil
 }
 
-// dbGetCategoryAudience retrieves category audience from the database.
-func dbGetCategoryAudience(db *sql.DB, itemID uint32, aud *ACLAudience) error {
-	return dbGetCategoryAudienceContext(context.Background(), db, itemID, aud)
-}
-
 func dbGetCategoryAudienceContext(ctx context.Context, db *sql.DB, itemID uint32, aud *ACLAudience) error {
 	if err := ctx.Err(); err != nil {
 		return err

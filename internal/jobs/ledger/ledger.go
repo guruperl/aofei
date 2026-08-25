@@ -750,10 +750,6 @@ func (s *middlemanLedgerStats) addForwardStatus(status string) {
 	}
 }
 
-func insertLedger(db *sql.DB, myDay string, stats StatisticsResult) error {
-	return insertLedgerContext(context.Background(), db, myDay, stats)
-}
-
 func insertLedgerContext(ctx context.Context, db *sql.DB, myDay string, stats StatisticsResult) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {

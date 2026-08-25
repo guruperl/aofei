@@ -1110,10 +1110,6 @@ func (self *Controller) publishBidAudits(bidStr, rspnStr []byte, audits []bidAud
 	return self.publishBidAuditsFor(auditSourceADX, bidStr, rspnStr, audits)
 }
 
-func (self *Controller) publishSSPBidAudits(bidStr, rspnStr []byte, audits []bidAudit) error {
-	return self.publishSSPBidAuditsWithPrivacy(bidStr, rspnStr, audits, privacyDecisionFromAudits(audits))
-}
-
 func (self *Controller) publishSSPBidAuditsWithPrivacy(bidStr, rspnStr []byte, audits []bidAudit, privacy privacyDecision) error {
 	request, err := wrapAuditPayloadWithPrivacy(auditSourceSSP, bidStr, privacy)
 	if err != nil {
@@ -1124,10 +1120,6 @@ func (self *Controller) publishSSPBidAuditsWithPrivacy(bidStr, rspnStr []byte, a
 		return err
 	}
 	return self.publishBidAuditsFor(auditSourceSSP, request, response, audits)
-}
-
-func wrapAuditPayload(source auditSource, payload []byte) ([]byte, error) {
-	return wrapAuditPayloadWithPrivacy(source, payload, privacyDecision{})
 }
 
 func wrapAuditPayloadWithPrivacy(source auditSource, payload []byte, privacy privacyDecision) ([]byte, error) {
@@ -1146,15 +1138,6 @@ func wrapAuditPayloadWithPrivacy(source auditSource, payload []byte, privacy pri
 		PrivacyReason: privacy.Reason,
 		Payload:       json.RawMessage(sanitized),
 	})
-}
-
-func privacyDecisionFromAudits(audits []bidAudit) privacyDecision {
-	for _, audit := range audits {
-		if audit.PrivacyMode != "" {
-			return privacyDecision{Mode: privacyMode(audit.PrivacyMode), Reason: audit.PrivacyReason}
-		}
-	}
-	return privacyDecision{}
 }
 
 func (self *Controller) publishBidAuditsFor(source auditSource, bidStr, rspnStr []byte, audits []bidAudit) error {

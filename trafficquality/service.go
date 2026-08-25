@@ -1154,7 +1154,3 @@ func (s *yesNoScanner) Scan(src any) error {
 	}
 	return nil
 }
-
-func safeSingleLine(value string) string {
-	return strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(value, "\r", " "), "\n", " "))
-}

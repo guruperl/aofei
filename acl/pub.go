@@ -411,10 +411,6 @@ func DBGetPub(db *sql.DB, domain string) (*Pub, error) {
 	return p, rows.Err()
 }
 
-func (self *Pub) addSlot(db *sql.DB, siteID uint32, slotStr string) (uint32, error) {
-	return self.addSlotContext(context.Background(), db, siteID, slotStr)
-}
-
 func (self *Pub) addSlotContext(ctx context.Context, db publisherMutationDB, siteID uint32, slotStr string) (uint32, error) {
 	slotID, err := insertSlotContext(ctx, db, siteID, slotStr)
 	if err != nil {
@@ -500,10 +496,6 @@ func (self *Pub) ExactSlotFloor(siteID, slotID uint32) (accounting.CPM, bool) {
 	}
 	parsed, err := accounting.ParseCPM(strconv.FormatFloat(floor, 'f', 6, 64))
 	return parsed, err == nil
-}
-
-func (self *Pub) addSite(db *sql.DB, siteStr string, siteType string) (uint32, error) {
-	return self.addSiteContext(context.Background(), db, siteStr, siteType)
 }
 
 func (self *Pub) addSiteContext(ctx context.Context, db publisherMutationDB, siteStr string, siteType string) (uint32, error) {

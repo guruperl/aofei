@@ -47,14 +47,6 @@ func bytesToLong(a, b, c, d byte) uint32 {
 	return (a1 & 0xFF) | ((b1 << 8) & 0xFF00) | ((c1 << 16) & 0xFF0000) | ((d1 << 24) & 0xFF000000)
 }
 
-func bytesToLong3(a, b, c byte) uint32 {
-	a1 := uint32(a)
-	b1 := uint32(b)
-	c1 := uint32(c)
-	return (a1 & 0xFF) | ((b1 << 8) & 0xFF00) | ((c1 << 16) & 0xFF0000)
-
-}
-
 func get4(ip uint32) []byte {
 	b4 := make([]byte, 4)
 	binary.LittleEndian.PutUint32(b4, ip)

@@ -18,11 +18,6 @@ func SizeID1To2(sizeID uint32) (uint16, uint16) {
 	return uint16(sizeID >> 16), uint16(sizeID & 0xffff)
 }
 
-// getSizeID returns the size ID from the bid request for banner, video, and native ads.
-func getSizeIDNative(bidRequest *openrtb2.BidRequest) (uint32, *NativeFormat, error) {
-	return getSizeIDNativeForImp(&bidRequest.Imp[0])
-}
-
 // getSizeIDNativeForImp returns the size ID for one impression.
 func getSizeIDNativeForImp(imp *openrtb2.Imp) (uint32, *NativeFormat, error) {
 	if imp == nil {

@@ -662,6 +662,11 @@ GOWORK=off go test ./dsp ./match -run '^$' -bench . -benchmem
 git diff --check
 ```
 
+`staticcheck.conf` enables the `SA*` correctness family and `U1000` unused-code
+gate. M46 removed the complete pinned-v0.5.1 unused-symbol set before enabling
+the gate; do not suppress a new finding globally when a tested call path or
+deletion can resolve it.
+
 The documentation guard requires `docs/README.md` to index every active
 Markdown guide and every zero-padded A/D/I/O/P/R/S status file. It verifies the
 completed original lane set plus S06/P03/S05/O03/R03/A03, demand-gated I02,

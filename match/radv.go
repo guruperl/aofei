@@ -404,10 +404,6 @@ func UnpackRAdvsIO(r io.Reader) (RAdvs, error) {
 	return UnpackRAdvs(data)
 }
 
-func unpackRAdvsLegacy(data []byte) (RAdvs, error) {
-	return unpackRAdvsBody(data, 0)
-}
-
 func unpackRAdvsPayload(data []byte) ([]byte, uint8, error) {
 	headerSize := len(cachePayloadMagic) + 2
 	if len(data) < headerSize || !bytes.Equal(data[:len(cachePayloadMagic)], cachePayloadMagic) {
@@ -768,15 +764,6 @@ func parseDeliveryPacing(value string) (uint8, error) {
 	default:
 		return 0, fmt.Errorf("invalid delivery pacing %q", value)
 	}
-}
-
-// radvHashToRedisSpread the size slot cache, used for the 10 minute refresh.
-func radvHashToRedisSpreadBySizeID(ctx context.Context, conn interface{}, hash map[uint32]RAdvs, sizeID uint32) error {
-	sink, err := CacheSinkFor(conn)
-	if err != nil {
-		return err
-	}
-	return radvHashToCacheSinkBySizeID(ctx, sink, hash, sizeID)
 }
 
 func radvHashToCacheSinkBySizeID(ctx context.Context, sink CacheSink, hash map[uint32]RAdvs, sizeID uint32) error {
