@@ -210,6 +210,28 @@ source while preserving auditable compatibility and hosted-payment safety.
   for full-milestone review/fix cycles. Stop at the first clean pass; if
   iteration 15 still has a P1/P2-or-higher finding, return A03 to blocked and do
   not reconcile downstream work.
+- Iteration 11: `[~]` Three blocking findings and one lower-severity contract
+  defect were confirmed during the full extended review:
+  1. **P2 - exact constructor downgrade:** exported `NewDSPForImp` always
+     reparses its `float32` bid-price argument. When the supplied RAdv already
+     carries a v3 exact CPM, `billableRAdv` replaces that authority with the
+     rounded float projection and emits the replacement as v3.
+  2. **P2 - RAdv partial serialization:** `RAdvs.Pack` and `PackIO` write the v3
+     cache header before validating every candidate's exact CPM. A rejected
+     compatibility or malformed record can therefore return nonempty bytes or
+     mutate an output writer with a corrupt partial current generation.
+  3. **P2 - middleman route write/projection downgrade:** the exported route
+     cache writer still accepts a legacy unmarked generation for
+     reserialization, while marked entries validate exact and compatibility
+     margin terms independently rather than requiring pointer/value parity.
+     New and old binaries can therefore use different markup from the same
+     newly published cache.
+  4. **P3 - management decimal canonicality:** management writes reject JSON
+     numbers but accept and normalize noncanonical exact strings even though
+     the public OpenAPI request schema requires exactly six-place CPM and
+     nine-place spend strings.
+  Resolution: pending; each blocking fix will be committed separately before
+  the next whole-milestone review.
 
 ## Exclusions
 
