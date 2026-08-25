@@ -235,8 +235,12 @@ source while preserving auditable compatibility and hosted-payment safety.
   and fails bid materialization on disagreement without downgrading its audit
   provenance. RAdv packing now constructs and validates the complete v3 wire
   slice before writing its header, so rejected input returns no bytes and
-  leaves `PackIO` output unchanged. The remaining findings are pending separate
-  fixes before the next whole-milestone review.
+  leaves `PackIO` output unchanged. Middleman route serialization now writes
+  current generations only, validates every exact/compatibility group and route
+  term (including pointer and negative-zero parity), and checks the derived
+  old-reader generation before its atomic dual-key write; unmarked legacy data
+  remains readable only. The lower-severity management finding remains pending
+  before the next whole-milestone review.
 
 ## Exclusions
 

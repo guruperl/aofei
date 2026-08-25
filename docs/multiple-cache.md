@@ -41,7 +41,10 @@ Middleman bidder routes are Redis static data in M20:
 - `middleman:routes:v2` stores the preferred M25 versioned JSON payload
   compiled from active `adv_bidder` and `mid_route_*` rows, including trigger
   mode and synthetic item ACL payloads. `middleman:routes` remains a legacy
-  fallback-only key for M24 rolling-deploy compatibility.
+  fallback-only key for M24 rolling-deploy compatibility. Both are derived in
+  one atomic write from a validated current generation; every marked entry has
+  exact/float margin projection parity. Unmarked version-1 data is readable for
+  drain but is not a supported write source.
 - It is populated by the singleton `cmd/redis-cache -cache=redis|all|routes`
   job. Route-only mode leaves the other cache families untouched.
 - M24 route payloads include additive metadata for generated time, entry count,

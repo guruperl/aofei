@@ -50,12 +50,16 @@ uses O03's complete-generation protocol; readers retain the previous complete
 generation until every v3 family is present. Old numeric management clients
 are read-only after activation and receive a deprecation error on money writes.
 
-RAdv payload v3 omits binary monetary fields and carries exact CPM plus
+RAdv payload v3 omits binary float monetary fields and carries exact CPM plus
 nano-USD delivery balances. Readers may convert a v2 float payload once for a
-bounded drain, but republishing emits v3. Mutable delivery state is isolated
-under `delivery:v3:*`; its spend fields use Redis integer operations and do not
-touch the retired unversioned float family. Win/loss records carry exact local
-or middleman CPM, and ledger aggregation uses checked nano-USD addition.
+bounded drain, but public packing validates every candidate before writing even
+the v3 header and refuses to republish that compatibility object. Rebuild from
+MySQL to produce a current generation. Mutable delivery state is isolated under
+`delivery:v3:*`; its spend fields use Redis integer operations and do not touch
+the retired unversioned float family. Win/loss records carry exact local or
+middleman CPM, and ledger aggregation uses checked nano-USD addition. The
+exported float-price DSP compatibility constructor uses a present exact CPM as
+authority and fails bid materialization when its float projection disagrees.
 Publisher and direct-publisher cache payloads likewise carry the v3 marker and
 fixed-point slot floors plus matching float projections solely for old-reader
 rollback. Compatibility is deliberately asymmetric: current readers may use an
@@ -68,6 +72,13 @@ rebuilt from MySQL before publication. Direct SSP request floors reject excess
 scale before auction construction, the configured/request maximum is selected
 in fixed point, and local demand filtering compares exact CPM values before
 returning an OpenRTB float projection.
+
+Middleman routes follow the same asymmetric rule. Preferred route entries and
+the additive old-reader payload require the v3 marker plus exact/float value and
+pointer parity for group and route margin terms. The legacy Redis key is derived
+only from the validated current MySQL generation. An unmarked version-1 route
+payload remains readable during drain but cannot be serialized as a new cache
+generation.
 
 ## Frozen-backup comparison
 

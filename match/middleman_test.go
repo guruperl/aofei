@@ -3,11 +3,13 @@ package match
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/mediocregopher/radix/v4"
 )
@@ -44,6 +46,114 @@ func TestWriteMiddlemanRouteCacheKeysPublishesBothVersions(t *testing.T) {
 		t.Fatal("identical route cache keys were accepted")
 	}
 }
+
+func TestMiddlemanRouteWriteRejectsLegacyBeforeRedisMutation(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	legacy := &MiddlemanRouteCache{
+		Version: MiddlemanRouteCacheLegacyVersion,
+		Entries: []MiddlemanRouteEntry{{GroupMarginPct: 0.125, GroupMinMarginCPM: 1.25}},
+	}
+	if err := legacy.ToRedisKey(ctx, client, "routes:rewritten"); err == nil {
+		t.Fatal("legacy unmarked route generation was reserialized")
+	}
+	if server.Exists("routes:rewritten") {
+		t.Fatal("rejected legacy route generation mutated Redis")
+	}
+}
+
+func TestMiddlemanRouteCurrentCacheRejectsExactProjectionMismatch(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	valid := MiddlemanRouteEntry{
+		AccountingVersion:   MiddlemanRouteAccountingVersion,
+		GroupMarginPct:      0.125,
+		GroupMarginUnits:    1_250,
+		GroupMinMarginCPM:   1.250001,
+		GroupMinMarginExact: 1_250_001,
+		RouteMarginPct:      Float64Pointer(0.25),
+		RouteMarginUnits:    Uint32Pointer(2_500),
+		RouteMinMarginCPM:   Float64Pointer(2.500001),
+		RouteMinMarginExact: cpmPointer(2_500_001),
+	}
+	for name, mutate := range map[string]func(*MiddlemanRouteEntry){
+		"group fraction mismatch": func(e *MiddlemanRouteEntry) { e.GroupMarginPct = 0.25 },
+		"group minimum mismatch":  func(e *MiddlemanRouteEntry) { e.GroupMinMarginCPM = 1.25 },
+		"group negative zero":     func(e *MiddlemanRouteEntry) { e.GroupMarginPct = math.Copysign(0, -1); e.GroupMarginUnits = 0 },
+		"route fraction pointer":  func(e *MiddlemanRouteEntry) { e.RouteMarginUnits = nil },
+		"route fraction mismatch": func(e *MiddlemanRouteEntry) { *e.RouteMarginPct = 0.5 },
+		"route minimum pointer":   func(e *MiddlemanRouteEntry) { e.RouteMinMarginExact = nil },
+		"route minimum mismatch":  func(e *MiddlemanRouteEntry) { *e.RouteMinMarginCPM = 2.5 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			entry := valid
+			if valid.RouteMarginPct != nil {
+				value := *valid.RouteMarginPct
+				entry.RouteMarginPct = &value
+			}
+			if valid.RouteMarginUnits != nil {
+				value := *valid.RouteMarginUnits
+				entry.RouteMarginUnits = &value
+			}
+			if valid.RouteMinMarginCPM != nil {
+				value := *valid.RouteMinMarginCPM
+				entry.RouteMinMarginCPM = &value
+			}
+			if valid.RouteMinMarginExact != nil {
+				value := *valid.RouteMinMarginExact
+				entry.RouteMinMarginExact = &value
+			}
+			mutate(&entry)
+			cache := &MiddlemanRouteCache{Version: MiddlemanRouteCacheVersion, Entries: []MiddlemanRouteEntry{entry}}
+			key := "routes:invalid:" + strings.ReplaceAll(name, " ", "-")
+			if err := cache.ToRedisKey(ctx, client, key); err == nil {
+				t.Fatal("inconsistent exact/compatibility route generation was written")
+			}
+			if server.Exists(key) {
+				t.Fatal("rejected route generation mutated Redis")
+			}
+		})
+	}
+}
+
+func TestMiddlemanRouteLegacyUnmarkedCacheRemainsReadable(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	legacy := MiddlemanRouteCache{
+		Version: MiddlemanRouteCacheLegacyVersion,
+		Entries: []MiddlemanRouteEntry{{GroupMarginPct: 0.125, GroupMinMarginCPM: 1.25}},
+	}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.Set(HashNameMiddlemanRoutes, string(data))
+	decoded, err := MiddlemanRouteCacheFromRedis(ctx, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	units, minimum, err := decoded.Entries[0].ExactMarginTerms()
+	if err != nil || units != 1_250 || minimum != 1_250_000 {
+		t.Fatalf("legacy margin terms = %d %s err=%v", units, minimum, err)
+	}
+}
+
+func cpmPointer(value accounting.CPM) *accounting.CPM { return &value }
 
 func TestDBValidateMiddlemanActivationChecksEveryTopologyBoundary(t *testing.T) {
 	db, mock, err := sqlmock.New()

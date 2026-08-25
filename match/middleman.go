@@ -182,6 +182,61 @@ func (e MiddlemanRouteEntry) ExactMarginTerms() (uint32, accounting.CPM, error) 
 	return units, minimum, nil
 }
 
+// validateExactMarginProjections guarantees that additive float terms remain
+// compatibility projections of the v3 authority. It validates group and route
+// values independently so an override cannot hide malformed base terms from an
+// older binary that still reads the projections.
+func (e MiddlemanRouteEntry) validateExactMarginProjections() error {
+	if e.AccountingVersion != MiddlemanRouteAccountingVersion {
+		return fmt.Errorf("exact middleman margin projections require accounting version %q", MiddlemanRouteAccountingVersion)
+	}
+	if e.GroupMarginUnits > 10_000 {
+		return fmt.Errorf("group margin fraction is outside zero through one")
+	}
+	if err := validateMarginProjection("group margin fraction", e.GroupMarginPct, float64(e.GroupMarginUnits)/10_000); err != nil {
+		return err
+	}
+	if e.GroupMinMarginExact < 0 || e.GroupMinMarginExact > accounting.MaxCPM {
+		return fmt.Errorf("group minimum margin CPM is outside the supported range")
+	}
+	if err := validateMarginProjection("group minimum margin CPM", e.GroupMinMarginCPM, e.GroupMinMarginExact.Float64()); err != nil {
+		return err
+	}
+	if (e.RouteMarginUnits == nil) != (e.RouteMarginPct == nil) {
+		return fmt.Errorf("route margin fraction exact and compatibility fields must be present together")
+	}
+	if e.RouteMarginUnits != nil {
+		if *e.RouteMarginUnits > 10_000 {
+			return fmt.Errorf("route margin fraction is outside zero through one")
+		}
+		if err := validateMarginProjection("route margin fraction", *e.RouteMarginPct, float64(*e.RouteMarginUnits)/10_000); err != nil {
+			return err
+		}
+	}
+	if (e.RouteMinMarginExact == nil) != (e.RouteMinMarginCPM == nil) {
+		return fmt.Errorf("route minimum margin CPM exact and compatibility fields must be present together")
+	}
+	if e.RouteMinMarginExact != nil {
+		if *e.RouteMinMarginExact < 0 || *e.RouteMinMarginExact > accounting.MaxCPM {
+			return fmt.Errorf("route minimum margin CPM is outside the supported range")
+		}
+		if err := validateMarginProjection("route minimum margin CPM", *e.RouteMinMarginCPM, e.RouteMinMarginExact.Float64()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateMarginProjection(name string, value, exact float64) error {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value == 0 && math.Signbit(value) {
+		return fmt.Errorf("%s compatibility projection is invalid", name)
+	}
+	if value != exact {
+		return fmt.Errorf("%s compatibility projection does not match its exact value", name)
+	}
+	return nil
+}
+
 func parseMarginFraction4(raw string) (uint32, error) {
 	raw = strings.TrimSpace(raw)
 	parts := strings.Split(raw, ".")
@@ -247,6 +302,11 @@ func (e MiddlemanRouteEntry) ValidatePartnerProfile() error {
 	for _, value := range []float64{e.GroupMarginPct, e.GroupMinMarginCPM, e.EffectiveMarginPct(), e.EffectiveMinMarginCPM()} {
 		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
 			return fmt.Errorf("partner margins must be finite and nonnegative")
+		}
+	}
+	if e.AccountingVersion == MiddlemanRouteAccountingVersion {
+		if err := e.validateExactMarginProjections(); err != nil {
+			return fmt.Errorf("partner margins: %w", err)
 		}
 	}
 	if _, _, err := e.ExactMarginTerms(); err != nil {
@@ -518,6 +578,9 @@ func (c *MiddlemanRouteCache) ToRedis(ctx context.Context, conn radix.Client) er
 }
 
 func (c *MiddlemanRouteCache) ToRedisKey(ctx context.Context, conn radix.Client, key string) error {
+	if c == nil || c.Version != MiddlemanRouteCacheVersion {
+		return fmt.Errorf("new middleman route writes require cache version %d", MiddlemanRouteCacheVersion)
+	}
 	if err := c.validateAccountingProvenance(); err != nil {
 		return err
 	}
@@ -595,7 +658,11 @@ func writeMiddlemanRouteCacheKeys(ctx context.Context, conn radix.Client, cache 
 	if err := cache.validateAccountingProvenance(); err != nil {
 		return err
 	}
-	legacyData, err := json.Marshal(cache.legacyFallbackCache())
+	legacy := cache.legacyFallbackCache()
+	if err := legacy.validateAccountingProvenance(); err != nil {
+		return err
+	}
+	legacyData, err := json.Marshal(legacy)
 	if err != nil {
 		return err
 	}
@@ -625,6 +692,11 @@ func (c *MiddlemanRouteCache) validateAccountingProvenance() error {
 			}
 		default:
 			return fmt.Errorf("unsupported middleman route cache version %d", c.Version)
+		}
+		if entry.AccountingVersion == MiddlemanRouteAccountingVersion {
+			if err := entry.validateExactMarginProjections(); err != nil {
+				return fmt.Errorf("middleman route entry %d: %w", index, err)
+			}
 		}
 	}
 	return nil

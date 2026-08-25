@@ -245,11 +245,17 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    aggregation. Draining v1/v2 RAdv cache reads do not populate the v3 exact
    field or relabel their signed billable facts, even though the bounded adapter
    converts their float value for integer reservation and aggregation. Current
-   cache packing refuses those compatibility records instead of serializing
-   them under the v3 payload header.
+   cache packing validates the complete wire slice before emitting even a v3
+   header and refuses those compatibility records instead of serializing them
+   under the current payload version. The exported float-price DSP constructor
+   preserves a present exact CPM and treats its float argument only as a
+   projection check; disagreement cannot materialize a bid.
    Current middleman route cache writes and reads likewise require every entry
-   to carry the v3 exact-money marker; only the explicitly legacy route-cache
-   version may retain an unmarked bounded-float entry.
+   to carry the v3 exact-money marker and exact/float parity for every group and
+   route margin term. Only the explicitly legacy route-cache version may retain
+   an unmarked bounded-float entry, and that form is read-only: the old-reader
+   key is derived from a validated current MySQL generation rather than
+   reserialized from drain data.
    Publisher-floor lookup first resolves publisher/direct-publisher accounting
    provenance: v3 reads only the exact map, unmarked legacy gob reads only the
    float map, and direct SSP carries the resolved version through impression
