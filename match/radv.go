@@ -331,13 +331,12 @@ func (self RAdvs) PackIO(w *bytes.Buffer) error {
 func (self RAdvs) packCurrent(w io.Writer) error {
 	wire := make([]radvWireV3, len(self))
 	for index, block := range self {
-		cpm, ok := block.exactCPM()
-		if !ok {
-			return fmt.Errorf("item %d has no exact USD CPM", block.ItemID)
+		if block.CostType != CostTypeCPM || block.CostCPM <= 0 || block.CostCPM > accounting.MaxCPM {
+			return fmt.Errorf("item %d has no authoritative v3 USD CPM", block.ItemID)
 		}
 		wire[index] = radvWireV3{
 			Demand: block.Demand, Weight: block.Weight, CostType: block.CostType,
-			CostCPM: cpm, Cap: block.Cap, Delivery: block.Delivery,
+			CostCPM: block.CostCPM, Cap: block.Cap, Delivery: block.Delivery,
 		}
 	}
 	return binary.Write(w, binary.LittleEndian, wire)

@@ -131,12 +131,20 @@ source while preserving auditable compatibility and hosted-payment safety.
   Resolution: `NewWinLoss` derives v3 only from a present authoritative exact
   field and keeps float-only compatibility callers on v2; ledger normalization
   rejects explicit v2 facts that mix in an exact demand CPM.
-- Iteration 4: `[~]` One blocking finding was confirmed during the whole-
+- Iteration 4: `[x]` One blocking finding was confirmed during the whole-
   milestone review after the iteration-3 fix:
   1. **P2 - v2 cache provenance loss:** the version-2 RAdv decoder materializes
      its float-derived CPM into `CostCPM`, and `billableRAdv` always populates
      that field, so an auction served from a draining v2 cache is relabeled v3
      despite originating from the compatibility float contract.
+  Resolution: v2 decode validates but does not populate the v3 exact field;
+  billable RAdv construction retains that absence and emitted facts remain v2.
+- Iteration 5: `[~]` One blocking finding was confirmed during the next full
+  review:
+  1. **P2 - compatibility cache promotion on write:** current RAdv packing calls
+     the read-compatibility adapter, so a decoded v1/v2 float record can still
+     be serialized into a v3 cache payload and falsely acquire exact-source
+     authority through public cache write helpers.
 
 ## Exclusions
 

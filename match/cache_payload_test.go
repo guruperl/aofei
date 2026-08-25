@@ -12,7 +12,7 @@ func TestCachePayloadVersionedAndLegacyDecode(t *testing.T) {
 	if err := delivery.SetTimezone("UTC"); err != nil {
 		t.Fatal(err)
 	}
-	radvs := RAdvs{{Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4}, Weight: 1, CostType: 2, Cost: 1.5, Delivery: delivery}}
+	radvs := RAdvs{{Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4}, Weight: 1, CostType: CostTypeCPM, Cost: 1.5, CostCPM: 1_500_000, Delivery: delivery}}
 	versioned, err := radvs.Pack()
 	if err != nil {
 		t.Fatal(err)
@@ -140,6 +140,9 @@ func TestRAdvsDecodeVersionTwoFloatPayloadAsCompatibilityOnly(t *testing.T) {
 	exact, ok := got[0].ExactCPM()
 	if got[0].CostCPM != 0 || !ok || exact != 2_500_000 || got[0].Delivery.ItemTotal.LimitSpendNano != 1_250_000_000 || got[0].Delivery.ItemTotal.CurrentSpendNano != 2_500_000 {
 		t.Fatalf("version-two exact compatibility decode = %+v", got)
+	}
+	if _, err := got.Pack(); err == nil {
+		t.Fatal("version-two compatibility record was promoted into a v3 cache payload")
 	}
 }
 

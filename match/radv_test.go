@@ -74,6 +74,7 @@ func TestRAdvPack(t *testing.T) {
 		Demand:   demand,
 		Weight:   0.1,
 		Cost:     0.2,
+		CostCPM:  200_000,
 		CostType: CostTypeCPM,
 		Cap:      cap,
 	}

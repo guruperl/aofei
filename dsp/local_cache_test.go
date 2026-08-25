@@ -194,6 +194,7 @@ func TestServeBidLocalStaticCacheRequiresRedisForCaps(t *testing.T) {
 		Weight:   1,
 		CostType: 2,
 		Cost:     2,
+		CostCPM:  2_000_000,
 		Cap:      match.Cap{CapNumber: 1, CapPeriod: 60},
 	}})
 	if err := controller.ReloadLocalStaticCache(); err != nil {

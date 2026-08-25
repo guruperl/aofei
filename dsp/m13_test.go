@@ -93,8 +93,8 @@ func newLocalBidPathController(t testing.TB) *Controller {
 		},
 	}
 	writePubSnapshot(t, top, "pub.example", pub)
-	writeRAdvsSnapshot(t, top, sizeOne, 100, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Weight: 1, CostType: 2, Cost: 2}})
-	writeRAdvsSnapshot(t, top, sizeTwo, 200, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 2000, CreativeID: 20000}, Weight: 1, CostType: 2, Cost: 3}})
+	writeRAdvsSnapshot(t, top, sizeOne, 100, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Weight: 1, CostType: match.CostTypeCPM, Cost: 2, CostCPM: 2_000_000}})
+	writeRAdvsSnapshot(t, top, sizeTwo, 200, match.RAdvs{{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 2000, CreativeID: 20000}, Weight: 1, CostType: match.CostTypeCPM, Cost: 3, CostCPM: 3_000_000}})
 	writeCreativeSnapshot(t, top, 10000, &match.Creative{CreativeName: "one", CreativeContent: "https://cdn.example/one.html?click={CLICK_URL}", Landing: "https://advertiser.example/one", SizeID: sizeOne, MediaType: match.CreativeMediaBanner, MIME: "text/html"})
 	writeCreativeSnapshot(t, top, 20000, &match.Creative{CreativeName: "two", CreativeContent: "https://cdn.example/two.html", Landing: "https://advertiser.example/two", SizeID: sizeTwo, MediaType: match.CreativeMediaBanner, MIME: "text/html"})
 
