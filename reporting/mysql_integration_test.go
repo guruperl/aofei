@@ -187,6 +187,20 @@ func TestExperimentFactBindingMySQL(t *testing.T) {
 	if err := RecordExposure(ctx, db, assignment); err != nil {
 		t.Fatalf("idempotent exposure retry: %v", err)
 	}
+	runConcurrentExposureWrites(t, db, assignment, 8)
+	concurrentFirst, err := Assign(loaded, "3434343434343434343434343434343434343434343434343434343434343434", start.Add(33*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runConcurrentExposureWrites(t, db, concurrentFirst, 2)
+	var concurrentCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM report_exposure WHERE experiment_id=? AND experiment_version=? AND subject_hash=?`,
+		id, concurrentFirst.Version, concurrentFirst.SubjectHash[:]).Scan(&concurrentCount); err != nil {
+		t.Fatal(err)
+	}
+	if concurrentCount != 1 {
+		t.Fatalf("concurrent first exposure count = %d, want 1", concurrentCount)
+	}
 	outcome, err := NewOutcome(assignment, "actions", "1.000000", "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", assignment.AssignedAt.Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)
@@ -287,5 +301,30 @@ VALUES (?,?,?,?,?)`, expiredExposureID, "actions", "1.000000", bytes.Repeat([]by
 	}
 	if remaining != 0 {
 		t.Fatal("expired experiment subject survived retention prune")
+	}
+}
+
+func runConcurrentExposureWrites(t *testing.T, db *sql.DB, assignment Assignment, workers int) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	start := make(chan struct{})
+	results := make(chan error, workers)
+	for range workers {
+		go func() {
+			<-start
+			results <- RecordExposure(ctx, db, assignment)
+		}()
+	}
+	close(start)
+	for range workers {
+		select {
+		case err := <-results:
+			if err != nil {
+				t.Fatalf("concurrent exposure write: %v", err)
+			}
+		case <-ctx.Done():
+			t.Fatalf("concurrent exposure writes did not finish: %v", ctx.Err())
+		}
 	}
 }

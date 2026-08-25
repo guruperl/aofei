@@ -300,7 +300,7 @@ VALUES (?,?,?,?,?,?)`, assignment.ExperimentID, assignment.Version, assignment.S
 SELECT exposure_id, variant_key, exposed_at, expires_at
 FROM report_exposure
 WHERE experiment_id=? AND experiment_version=? AND subject_hash=?
-FOR UPDATE`, assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:]).Scan(&exposureID, &storedVariant, &storedAt, &storedExpires)
+FOR SHARE`, assignment.ExperimentID, assignment.Version, assignment.SubjectHash[:]).Scan(&exposureID, &storedVariant, &storedAt, &storedExpires)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("experiment is not accepting exposures")
 	}

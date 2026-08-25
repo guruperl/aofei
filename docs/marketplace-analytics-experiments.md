@@ -158,7 +158,10 @@ domain check. Outcomes cannot precede exposure. The runtime API is:
 `Assign` also returns the stored owner scope and a private salt-bound proof.
 `RecordExposure` reloads the exact experiment/version/variant contract and
 requires its owner, algorithm, exposure window, and calculated expiry to match
-before an idempotent insert. A caller-built struct, wrong-account assignment,
+before an idempotent insert. The stored exposure is immutable, so the
+post-insert identity check takes only a shared lock; concurrent first writes
+and duplicate retries cannot form a shared-to-exclusive record-lock upgrade.
+A caller-built struct, wrong-account assignment,
 undeclared variant, altered retention, or stopped experiment without a prior
 matching exposure fails before insertion. `RecordOutcome` repeats that proof
 and scope validation against the immutable stored exposure, then permits only

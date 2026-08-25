@@ -310,7 +310,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    The assignment carries stored owner scope and a private salt-bound proof;
    both recording paths reload and match the database experiment, variant,
    exposure time, exact retention, algorithm, owner, and declared metric before
-   accepting a fact. Registry value domains reject invalid count, ratio, and
+   accepting a fact. Exposure insertion and its immutable identity check retain
+   only shared record locks after `INSERT IGNORE`, so concurrent first writes
+   and idempotent retries do not upgrade duplicate-record locks. Registry value domains reject invalid count, ratio, and
    money observations in Go and in the baseline database while permitting
    nonnegative repeated-event CTR/CVR above one. The stable 64-bit
    modulo allocator has a measured relative bucket spread of `10000/2^64`,
