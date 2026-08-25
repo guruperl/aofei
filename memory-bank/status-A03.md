@@ -94,8 +94,24 @@ source while preserving auditable compatibility and hosted-payment safety.
   version identity; middleman pricing is fixed-point end to end; and publisher
   floors remain exact from database/cache through direct SSP and demand
   comparison.
-- Iteration 2: `[~]` In progress after all iteration-1 fixes and affected
-  verification.
+- Iteration 2: `[~]` Four blocking findings were confirmed after the full
+  iteration-1 fix set passed automated verification:
+  1. **P1 - announced versus billable local price:** exact candidate ordering
+     still returns the selected CPM through `float32`; the OpenRTB bid can
+     therefore announce a lower compatibility projection while reservation,
+     tracker, and ledger charge the exact six-place CPM.
+  2. **P2 - win/loss version and identity:** win/loss facts have no top-level
+     accounting marker, so legacy drain records are inserted under the v3
+     report default, while a marked-v3 middleman fact can still reconstruct
+     missing exact charge/pay from compatibility floats without verifying the
+     RAdv charge identity or USD currency.
+  3. **P2 - report CPM aggregates:** `downstream_cpm_sum` and
+     `returned_cpm_sum` still add float projections (including local
+     `float32`) before insertion into exact DECIMAL report columns.
+  4. **P2 - middleman reconciliation rounding:** reconciliation rounds charge,
+     pay, and margin independently to statement scale before checking
+     `charge-pay=margin`, which can report a false discrepancy even when the
+     underlying nano-USD aggregates are exact.
 
 ## Exclusions
 

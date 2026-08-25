@@ -239,6 +239,10 @@ func TestRAdvCommercialAuctionKeepsSubFloat32CPMOrdering(t *testing.T) {
 	if index != 1 {
 		t.Fatalf("winner = %d, want exact higher CPM candidate 1", index)
 	}
+	index, exact := radvs.PickIndexExact(100.000002, "USD")
+	if index != 1 || exact != 100_000_002 {
+		t.Fatalf("exact winner = %d at %s, want candidate 1 at 100.000002", index, exact.String())
+	}
 	if index, _ := radvs.PickIndexPrice(100.0000001, "USD"); index != -1 {
 		t.Fatalf("over-scale floor selected candidate %d", index)
 	}

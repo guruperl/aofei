@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
@@ -17,7 +18,7 @@ type DSP struct {
 	bothcap             *match.BothCap
 	creative            *match.Creative
 	audience            *match.Audience
-	bidPrice            float32
+	bidCPM              accounting.CPM
 	serverURL           string
 	trackingSecret      string
 	actionTokenTTL      time.Duration
@@ -34,8 +35,8 @@ func NewDSP(
 	audience *match.Audience,
 	serverURL string,
 ) *DSP {
-	price, _ := one.ECPM()
-	return NewDSPForImp(bid, 0, attribute, one, bothcap, creative, audience, price, serverURL)
+	price, _ := one.ExactCPM()
+	return newDSPForImpExact(bid, 0, attribute, one, bothcap, creative, audience, price, serverURL)
 }
 
 // NewDSPForImp creates a DSP instance for one impression in a request.
@@ -50,6 +51,21 @@ func NewDSPForImp(
 	bidPrice float32,
 	serverURL string,
 ) *DSP {
+	cpm, _ := accounting.ParseCPM(strconv.FormatFloat(float64(bidPrice), 'f', 6, 32))
+	return newDSPForImpExact(bid, impIndex, attribute, one, bothcap, creative, audience, cpm, serverURL)
+}
+
+func newDSPForImpExact(
+	bid *openrtb2.BidRequest,
+	impIndex int,
+	attribute *match.Attribute,
+	one match.RAdv,
+	bothcap *match.BothCap,
+	creative *match.Creative,
+	audience *match.Audience,
+	bidCPM accounting.CPM,
+	serverURL string,
+) *DSP {
 	return &DSP{
 		bid:       bid,
 		impIndex:  impIndex,
@@ -57,7 +73,7 @@ func NewDSPForImp(
 		one:       one,
 		creative:  creative,
 		audience:  audience,
-		bidPrice:  bidPrice,
+		bidCPM:    bidCPM,
 		serverURL: serverURL,
 		bothcap:   bothcap,
 	}
@@ -227,13 +243,17 @@ func reportingDimensionsFromAttribute(attribute *match.Attribute) *ReportingDime
 
 func (self *DSP) billableRAdv() match.RAdv {
 	one := self.one
-	one.Cost = self.bidPrice
+	one.Cost = self.bidCPM.Float32()
+	one.CostCPM = self.bidCPM
 	one.CostType = match.CostTypeCPM
 	return one
 }
 
 // NewBid returns the SeatBid for the bid response.
 func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
+	if self.bidCPM <= 0 || self.bidCPM > accounting.MaxCPM {
+		return openrtb2.Bid{}, fmt.Errorf("selected bid has no exact USD CPM")
+	}
 	macroStandard := winloss.Macro()
 	macroCustom := self.Macro()
 	landing, err := self.creative.LandingURL(macroStandard, macroCustom)
@@ -271,7 +291,7 @@ func (self *DSP) NewBid(winloss *WinLoss) (openrtb2.Bid, error) {
 	rspnsBid := openrtb2.Bid{
 		ID:    self.rspndBidID(),
 		ImpID: self.impID(),
-		Price: float64(self.bidPrice),
+		Price: self.bidCPM.Float64(),
 		NURL:  nurl,
 		LURL:  lurl,
 		AdM:   adm,

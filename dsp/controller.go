@@ -848,11 +848,11 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 	imp := bid.Imp[impIndex]
 	var one match.RAdv
 	var selectedAudience *match.Audience
-	var bidPrice float32
+	var bidCPM accounting.CPM
 	var deliveryReservation string
 	var creative *match.Creative
 	for len(radvs) != 0 {
-		index, selectedPrice := radvs.PickIndexPrice(imp.BidFloor, imp.BidFloorCur)
+		index, selectedPrice := radvs.PickIndexExact(imp.BidFloor, imp.BidFloorCur)
 		if index < 0 {
 			return nil, audit, noBidErrorf("no ad to match for bid floor %f %s", imp.BidFloor, imp.BidFloorCur)
 		}
@@ -874,7 +874,7 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 		reservation, reserveErr := self.reserveDelivery(ctx, candidate, current, spend)
 		if reserveErr == nil {
 			one = candidate
-			bidPrice = selectedPrice
+			bidCPM = selectedPrice
 			deliveryReservation = reservation
 			selectedAudience = auds[index]
 			break
@@ -893,7 +893,7 @@ func (self *Controller) bidForImp(ctx context.Context, bid *openrtb2.BidRequest,
 			bothcap = &b
 		}
 	}
-	dspBid := NewDSPForImp(bid, impIndex, attr, one, bothcap, creative, selectedAudience, bidPrice, self.C.ServerURL).
+	dspBid := newDSPForImpExact(bid, impIndex, attr, one, bothcap, creative, selectedAudience, bidCPM, self.C.ServerURL).
 		WithTrackingSecret(self.C.TrackingSecret).
 		withDeliveryReservation(deliveryReservation)
 	_, _, _, actionTokenTTL, _ := self.actionPolicy()

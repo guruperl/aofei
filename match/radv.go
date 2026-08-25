@@ -1055,18 +1055,30 @@ func exactBidFloor(bidFloor float64, currency string) (accounting.CPM, bool) {
 }
 
 func (self RAdvs) PickIndex(bidFloor float64, bidFoorCur string) int {
-	index, _ := self.PickIndexPrice(bidFloor, bidFoorCur)
+	index, _ := self.PickIndexExact(bidFloor, bidFoorCur)
 	return index
 }
 
 func (self RAdvs) PickIndexPrice(bidFloor float64, bidFoorCur string) (int, float32) {
-	return self.pickIndexPriceAt(bidFloor, bidFoorCur, rand.Float32())
+	index, price := self.PickIndexExact(bidFloor, bidFoorCur)
+	return index, price.Float32()
+}
+
+// PickIndexExact returns the selected demand candidate and its authoritative
+// six-place CPM. OpenRTB projection happens only after auction selection.
+func (self RAdvs) PickIndexExact(bidFloor float64, bidFloorCur string) (int, accounting.CPM) {
+	return self.pickIndexExactAt(bidFloor, bidFloorCur, rand.Float32())
 }
 
 // pickIndexPriceAt applies the commercial auction contract with a caller-
 // supplied point in [0,1). Price selects the winning demand unit first;
 // creative weight is used only to rotate creatives inside that unit.
 func (self RAdvs) pickIndexPriceAt(bidFloor float64, bidFloorCur string, point float32) (int, float32) {
+	index, price := self.pickIndexExactAt(bidFloor, bidFloorCur, point)
+	return index, price.Float32()
+}
+
+func (self RAdvs) pickIndexExactAt(bidFloor float64, bidFloorCur string, point float32) (int, accounting.CPM) {
 	floor, ok := exactBidFloor(bidFloor, bidFloorCur)
 	if !ok {
 		return -1, 0
@@ -1110,7 +1122,7 @@ func (self RAdvs) pickIndexPriceAt(bidFloor float64, bidFloorCur string, point f
 	if point >= 1 {
 		point = math.Nextafter32(1, 0)
 	}
-	return selectOneAt(weights, point*total, lastPositive), bestPrice.Float32()
+	return selectOneAt(weights, point*total, lastPositive), bestPrice
 }
 
 func sameDemandUnit(a, b RAdv) bool {

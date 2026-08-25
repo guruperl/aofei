@@ -82,7 +82,7 @@ func TestResponseBidIDPackLegacy(t *testing.T) {
 	}
 }
 
-func TestWinLossUsesSelectedBidPrice(t *testing.T) {
+func TestWinLossUsesExactSelectedBidPrice(t *testing.T) {
 	w, h := int64(300), int64(250)
 	bid := &openrtb2.BidRequest{
 		ID:     "request-1",
@@ -106,27 +106,28 @@ func TestWinLossUsesSelectedBidPrice(t *testing.T) {
 		MIME:            "text/html",
 		Landing:         "https://advertiser.example/landing",
 	}
-	dsp := NewDSPForImp(bid, 0, attr, one, nil, creative, nil, 2.0, "https://dsp.example")
+	selectedCPM := accounting.CPM(100_000_002)
+	dsp := newDSPForImpExact(bid, 0, attr, one, nil, creative, nil, selectedCPM, "https://dsp.example")
 
 	winloss := dsp.WinLoss(StatusBid)
 	responseBid, err := dsp.NewBid(winloss)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if responseBid.Price != 2.0 {
-		t.Fatalf("response price = %f, want selected bid price", responseBid.Price)
+	if responseBid.Price != selectedCPM.Float64() {
+		t.Fatalf("response price = %.6f, want %s", responseBid.Price, selectedCPM.String())
 	}
-	if winloss.RAdv.Cost != 2.0 {
-		t.Fatalf("winloss cost = %f, want selected bid price", winloss.RAdv.Cost)
+	if winloss.RAdv.CostCPM != selectedCPM {
+		t.Fatalf("winloss exact cost = %s, want %s", winloss.RAdv.CostCPM.String(), selectedCPM.String())
 	}
 	tracker, err := url.Parse(winloss.ImpURL())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := tracker.Query().Get("auction_price"); got != "2.000000" {
+	if got := tracker.Query().Get("auction_price"); got != "100.000002" {
 		t.Fatalf("tracker auction_price = %q, want selected bid price", got)
 	}
-	if got := winloss.Macro()[`${AUCTION_PRICE}`]; got != "2.000000" {
+	if got := winloss.Macro()[`${AUCTION_PRICE}`]; got != "100.000002" {
 		t.Fatalf("macro auction price = %q, want selected bid price", got)
 	}
 }
