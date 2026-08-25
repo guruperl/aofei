@@ -54,6 +54,22 @@ func TestNanoAggregateOverflowAndStatementRounding(t *testing.T) {
 	}
 }
 
+func TestCPMTotalAddsPricesWithoutSinglePriceCap(t *testing.T) {
+	total, err := CPMTotal(MaxCPM).Add(MaxCPM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := total.String(); got != "1999999.999998" {
+		t.Fatalf("CPM total = %s, want 1999999.999998", got)
+	}
+	if _, err := CPMTotal(math.MaxInt64).Add(1); err == nil {
+		t.Fatal("CPM total overflow succeeded")
+	}
+	if _, err := CPMTotal(0).Add(-1); err == nil {
+		t.Fatal("negative CPM was added to report total")
+	}
+}
+
 func TestExactDatabaseScanRejectsBinaryFloat(t *testing.T) {
 	var cpm CPM
 	if err := cpm.Scan([]byte("2.500001")); err != nil || cpm.String() != "2.500001" {

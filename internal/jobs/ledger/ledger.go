@@ -129,21 +129,23 @@ type reportingLedgerKey struct {
 }
 
 type reportingLedgerStats struct {
-	Wins             int
-	Losses           int
-	Imps             int
-	Clis             int
-	SpendUSD         float64
-	RevenueUSD       float64
-	CostUSD          float64
-	MarginUSD        float64
-	DownstreamCPMSum float64
-	ReturnedCPMSum   float64
-	SpendNano        accounting.Nano
-	RevenueNano      accounting.Nano
-	CostNano         accounting.Nano
-	MarginNano       accounting.Nano
-	CallbackErrors   int
+	Wins               int
+	Losses             int
+	Imps               int
+	Clis               int
+	SpendUSD           float64
+	RevenueUSD         float64
+	CostUSD            float64
+	MarginUSD          float64
+	DownstreamCPMSum   float64
+	ReturnedCPMSum     float64
+	DownstreamCPMTotal accounting.CPMTotal
+	ReturnedCPMTotal   accounting.CPMTotal
+	SpendNano          accounting.Nano
+	RevenueNano        accounting.Nano
+	CostNano           accounting.Nano
+	MarginNano         accounting.Nano
+	CallbackErrors     int
 }
 
 func New(db *sql.DB, dir string, interval int, stamp ...int) (*Ledger, error) {
@@ -544,8 +546,10 @@ func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, 
 				return err
 			}
 			stats.syncMoneyCompatibility()
-			cpm, _ := wl.RAdv.ECPM()
-			stats.ReturnedCPMSum += float64(cpm)
+			cpm, _ := wl.RAdv.ExactCPM()
+			if err := stats.addReturnedCPM(cpm); err != nil {
+				return err
+			}
 			return nil
 		}
 		chargeCPM, payCPM, err := exactMiddlemanCPM(wl.Middleman)
@@ -575,8 +579,12 @@ func aggregateReportingLedger(out map[reportingLedgerKey]*reportingLedgerStats, 
 			return err
 		}
 		stats.syncMoneyCompatibility()
-		stats.DownstreamCPMSum += payCPM.Float64()
-		stats.ReturnedCPMSum += chargeCPM.Float64()
+		if err := stats.addDownstreamCPM(payCPM); err != nil {
+			return err
+		}
+		if err := stats.addReturnedCPM(chargeCPM); err != nil {
+			return err
+		}
 	case dsp.StatusTrackClk:
 		stats.Clis++
 	}
@@ -676,6 +684,26 @@ func (s *reportingLedgerStats) syncMoneyCompatibility() {
 	s.RevenueUSD = float64(s.RevenueNano) / float64(accounting.NanoScale)
 	s.CostUSD = float64(s.CostNano) / float64(accounting.NanoScale)
 	s.MarginUSD = float64(s.MarginNano) / float64(accounting.NanoScale)
+}
+
+func (s *reportingLedgerStats) addDownstreamCPM(cpm accounting.CPM) error {
+	total, err := s.DownstreamCPMTotal.Add(cpm)
+	if err != nil {
+		return fmt.Errorf("downstream CPM aggregate: %w", err)
+	}
+	s.DownstreamCPMTotal = total
+	s.DownstreamCPMSum = total.Float64()
+	return nil
+}
+
+func (s *reportingLedgerStats) addReturnedCPM(cpm accounting.CPM) error {
+	total, err := s.ReturnedCPMTotal.Add(cpm)
+	if err != nil {
+		return fmt.Errorf("returned CPM aggregate: %w", err)
+	}
+	s.ReturnedCPMTotal = total
+	s.ReturnedCPMSum = total.Float64()
+	return nil
 }
 
 func reportingDimensionHash(key reportingLedgerKey) []byte {
@@ -857,7 +885,7 @@ SET la.imps=tmp.imps, la.clis=tmp.clis, la.spend=tmp.spend`
 			key.ManagementControl, key.SellerType, key.SellerID, reportingDimensionHash(key),
 			value.Wins, value.Losses, value.Imps, value.Clis,
 			value.SpendNano.StatementMoney().String(), value.RevenueNano.StatementMoney().String(), value.CostNano.StatementMoney().String(), value.MarginNano.StatementMoney().String(),
-			value.DownstreamCPMSum, value.ReturnedCPMSum, value.CallbackErrors,
+			value.DownstreamCPMTotal.String(), value.ReturnedCPMTotal.String(), value.CallbackErrors,
 		); err != nil {
 			return err
 		}

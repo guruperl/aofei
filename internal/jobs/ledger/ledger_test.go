@@ -361,6 +361,48 @@ func TestAggregateReportingLedgerSeparatesLocalAndMiddlemanCommercialFacts(t *te
 	}
 }
 
+func TestAggregateReportingLedgerKeepsCPMSumsExact(t *testing.T) {
+	out := make(map[reportingLedgerKey]*reportingLedgerStats)
+	wl := dsp.WinLoss{
+		Status:            dsp.StatusTrackImp,
+		AccountingVersion: accounting.ExactMoneyContract,
+		RPub:              match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
+		RAdv: match.RAdv{
+			Demand:   match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7},
+			CostType: match.CostTypeCPM,
+			CostCPM:  100_000_002,
+		},
+	}
+	for range 3 {
+		if err := aggregateReportingLedger(out, wl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	key := reportingLedgerKey{
+		AccountingVersion: accounting.ExactMoneyContract,
+		DemandSource:      "Local",
+		AdvID:             4, CampaignID: 5, ItemID: 6, CreativeID: 7,
+		PubID: 1, SiteID: 2, SlotID: 3,
+		Environment: "Unknown", IntegrationMode: "Unknown", MediaIntent: "Unknown", Placement: "Unknown",
+		RenderContext: "Unknown", RefreshMode: "Unknown", AdDensity: "Unknown", TrafficQuality: "Unknown",
+		SourceQuality: "Unknown", ManagementControl: "Unknown", SellerType: "Unknown",
+	}
+	stats := out[key]
+	if stats == nil || stats.ReturnedCPMTotal.String() != "300.000006" {
+		t.Fatalf("exact returned CPM sum = %#v, want 300.000006", stats)
+	}
+	if stats.ReturnedCPMSum != 300.000006 {
+		t.Fatalf("compatibility returned CPM sum = %.6f, want 300.000006", stats.ReturnedCPMSum)
+	}
+}
+
+func TestReportingCPMSumRejectsOverflow(t *testing.T) {
+	stats := &reportingLedgerStats{ReturnedCPMTotal: accounting.CPMTotal(math.MaxInt64)}
+	if err := stats.addReturnedCPM(1); err == nil {
+		t.Fatal("overflowing returned CPM aggregate was accepted")
+	}
+}
+
 func TestReportingDimensionHashSeparatesSupplyTaxonomy(t *testing.T) {
 	first := reportingLedgerKey{DemandSource: "Local", PubID: 1, SiteID: 2, SlotID: 3, Environment: "Web", Placement: "AboveFold"}
 	second := first

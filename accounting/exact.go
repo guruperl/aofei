@@ -31,6 +31,11 @@ const (
 // rounds.
 type CPM int64
 
+// CPMTotal is a checked sum of six-place CPM prices. Unlike CPM, it is not a
+// single auction price and may exceed DECIMAL(12,6) while remaining within the
+// report DECIMAL(20,6) and signed-64-bit boundary.
+type CPMTotal int64
+
 // Nano is an exact USD amount in nano-dollars. Auction reservations and
 // ledger aggregation use Nano; statements round to Money exactly once.
 type Nano int64
@@ -55,6 +60,20 @@ func (c CPM) String() string { return formatFixed(int64(c), 6) }
 func (c CPM) Float64() float64 { return float64(c) / float64(CPMScale) }
 
 func (c CPM) Float32() float32 { return float32(c.Float64()) }
+
+func (t CPMTotal) String() string { return formatFixed(int64(t), 6) }
+
+func (t CPMTotal) Float64() float64 { return float64(t) / float64(CPMScale) }
+
+func (t CPMTotal) Add(cpm CPM) (CPMTotal, error) {
+	if cpm < 0 || cpm > MaxCPM {
+		return 0, fmt.Errorf("USD CPM is outside the supported range")
+	}
+	if t > CPMTotal(math.MaxInt64)-CPMTotal(cpm) {
+		return 0, fmt.Errorf("CPM total is out of range")
+	}
+	return t + CPMTotal(cpm), nil
+}
 
 func (c *CPM) Scan(source any) error {
 	raw, err := exactDatabaseText(source)

@@ -35,6 +35,9 @@ upstream CPM, impression aggregation, reservation, and ledger path exact:
 - Ledger accumulation retains source precision. A statement snapshot rounds
   the daily aggregate to six decimal places. Statement, adjustment, and total
   mutations use `DECIMAL(20,6)` in MySQL and integer micro-dollars in Go.
+- Delivery-report downstream and returned CPM sums likewise add integer
+  six-place CPM values with overflow checks and write canonical decimal
+  strings; their floating fields are read-only compatibility projections.
 - USD is the only supported currency. Unsupported bid-floor or downstream
   currencies cannot silently enter a USD statement.
 
