@@ -224,7 +224,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   personalized matching. Authenticated SDK identity and publisher-asserted
 	   IP/coarse geo still require the independent S01 grant and lose exact
 	   coordinates. Uploaded-audience writes use a closed canonical marker set;
-	   reads/deletion retain bounded `buyerid`/`user` aliases for TTL-bound keys.
+	   reads/deletion retain bounded `buyerid`/`user` aliases for TTL-bound keys,
+	   and membership checks cover the canonical/legacy key family in one Redis
+	   script invocation.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files, runs under signal-aware shutdown, drains NATS on exit, and
    flushes its queued log messages before closing files. Missing log
@@ -376,8 +378,9 @@ IPv6 addresses are normalized to IPv4; IPv6 is eligible only inside the
 currently public `2000::/3` block after explicit protocol, benchmark,
 documentation, and transition exclusions. This makes mixed answers, DNS
 rebinding, and future non-public IPv6 space fail closed.
-Injected bidder/callback clients are normalized at controller, call, and retry
-entry points. Supported `*http.Transport` configuration is cloned but proxies,
+Injected bidder/callback clients are normalized once at controller construction
+or once before a retry batch; individual fanout/forward calls reuse the protected
+client. Supported `*http.Transport` configuration is cloned but proxies,
 custom TLS dial hooks, certificate-name overrides, and verification bypasses
 are removed; the shared wrapper enforces TLS 1.2, checked resolution, a 64-KiB
 response-header cap, caller timeouts, and the existing caller-owned body limits.

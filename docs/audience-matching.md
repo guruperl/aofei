@@ -49,6 +49,8 @@ Uploaded audience keys use only canonical markers `buyeruid`, `userid`, `ip`,
 `ifa`, `did`, `dpid`, and `mac`. Writers normalize case/whitespace plus the
 historical `buyerid` and `user` aliases; readers and scoped deletion retain a
 bounded alias fallback so older TTL-bound sets remain usable and removable.
+Membership checks evaluate the canonical and legacy set keys in one Redis Lua
+invocation, so an alias miss does not add a serialized auction-path round trip.
 
 Nil or empty subaudiences generally mean wildcard targeting. Uploaded audiences
 are different: when upload targeting is configured, every configured identifier

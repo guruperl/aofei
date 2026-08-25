@@ -990,7 +990,6 @@ func (self *Controller) forwardMiddlemanCallback(ctx context.Context, raw string
 		return target, "request_error", 0
 	}
 	client := self.client
-	client = safehttp.NewCallbackClient(client)
 	resp, err := client.Do(req)
 	if err != nil {
 		metricMiddlemanForwardErrors.Add(1)

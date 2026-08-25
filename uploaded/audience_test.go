@@ -2,6 +2,7 @@ package uploaded
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -9,6 +10,18 @@ import (
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
+
+type countingRedisClient struct {
+	radix.Client
+	calls int
+}
+
+func (c *countingRedisClient) Addr() net.Addr { return c.Client.Addr() }
+
+func (c *countingRedisClient) Do(ctx context.Context, action radix.Action) error {
+	c.calls++
+	return c.Client.Do(ctx, action)
+}
 
 func TestUploadManyWithTTLWritesAtomicallyAndPreservesLongerRetention(t *testing.T) {
 	server := miniredis.RunT(t)
@@ -135,5 +148,38 @@ func TestAudienceMarkersCanonicalizeAndReadLegacyAliases(t *testing.T) {
 	removed, err := DeleteAudience(ctx, client, 7, "buyeruid")
 	if err != nil || !removed || server.Exists(uploadName(7, "buyeruid")) || server.Exists(uploadName(7, "buyerid")) {
 		t.Fatalf("alias family delete = %t, err = %v", removed, err)
+	}
+}
+
+func TestAudienceAliasMembershipUsesOneRedisCommand(t *testing.T) {
+	server := miniredis.RunT(t)
+	client, err := (radix.PoolConfig{Size: 1}).New(context.Background(), "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	ctx := context.Background()
+	audience := &UploadAudience{}
+	server.SAdd(uploadName(7, "buyeruid"), "canonical")
+	server.SAdd(uploadName(7, "buyerid"), "legacy")
+
+	for name, target := range map[string]string{
+		"canonical hit": "canonical",
+		"legacy hit":    "legacy",
+		"miss":          "missing",
+	} {
+		t.Run(name, func(t *testing.T) {
+			counting := &countingRedisClient{Client: client}
+			matched, err := audience.findUploaded(ctx, counting, 7, "buyeruid", target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := target != "missing"; matched != want {
+				t.Fatalf("matched = %t, want %t", matched, want)
+			}
+			if counting.calls != 1 {
+				t.Fatalf("Redis calls = %d, want 1", counting.calls)
+			}
+		})
 	}
 }

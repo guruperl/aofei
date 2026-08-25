@@ -339,6 +339,11 @@ documentation, protocol-transition, reserved, and future non-public ranges;
 IPv4-mapped IPv6 addresses follow the IPv4 policy. A DNS answer containing any
 denied address fails closed, including after re-resolution, so a mixed answer
 cannot select only its public member. The retry command applies the same guard.
+Controllers normalize their bidder/callback client once at construction, and a
+retry batch normalizes its injected client once before forwarding any selected
+row. Individual bids and callbacks reuse that protected client, retaining
+connection pooling and the complete redirect/rebinding policy without layering
+a new redirect closure per request.
 The reviewed prefix policy follows the IANA
 [IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry/) and
 [IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry/)

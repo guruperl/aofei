@@ -549,8 +549,9 @@ Notes:
   than 429 are not queued.
 - The retry command forwards downstream only. It does not republish delivery,
   win, loss, or billable records, so ledger counts remain idempotent.
-- Every forward still uses the guarded callback client: request-time and
-  dial-time address checks, proxy prohibition, reviewed TLS settings, redirect
+- The retry batch normalizes its injected client once before its first forward;
+  every row still uses that guarded client. Request-time and dial-time address
+  checks, proxy prohibition, reviewed TLS settings, redirect
   credential stripping, and bounded response draining cannot be bypassed by an
   injected client.
 - `forwarded=1 state_errors=1` means the guarded downstream attempt completed

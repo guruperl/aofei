@@ -169,7 +169,9 @@ proxies and cookie jars, replaces all network/TLS dial hooks, requires verified
 TLS 1.2+, derives the certificate name from the request, bounds response headers
 to 64 KiB, validates every redirect after custom hooks, limits redirects to ten,
 and clears all headers across authority/scheme changes. Client timeouts and the
-callers' existing body limits remain independent.
+callers' existing body limits remain independent. Controllers normalize once
+at construction and callback retry jobs once per selected batch; hot-path
+requests reuse that protected client instead of layering redirect closures.
 
 OpenRTB partner interoperability uses exact version `2.5`. Public auction
 traffic accepts only identity or one gzip content coding; traffic policies set
@@ -507,7 +509,8 @@ Authenticated publisher/App body IP/coarse geo and identity are publisher
 assertions usable only under a separate S01 grant; exact coordinates remain
 removed. Uploaded audience Redis markers are canonical `buyeruid`, `userid`,
 `ip`, `ifa`, `did`, `dpid`, or `mac`, with read/delete-only compatibility for
-the historical `buyerid` and `user` aliases.
+the historical `buyerid` and `user` aliases. Canonical and alias membership is
+checked across keys by one bounded Lua invocation.
 SSP request/response audit logs are JSON envelopes with `source:"ssp"` and
 `contract:"pz-v1"`. ADX keeps its OpenRTB envelope shape, but both sources are
 privacy-scrubbed before NATS. Attribute logs remove identity and precise

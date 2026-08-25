@@ -159,6 +159,10 @@ func Run(ctx context.Context, db *sql.DB, opts Options) (Result, error) {
 	if opts.DryRun {
 		return result, nil
 	}
+	// Protect the injected client once for the complete batch. Per-row wrapping
+	// would repeatedly copy redirect policy while the guarded transport already
+	// owns connection pooling and DNS-rebinding checks.
+	opts.Client = safehttp.NewCallbackClient(opts.Client)
 	for _, row := range rows {
 		status, code, lastErr, forwarded := forward(ctx, row.CallbackURL, opts)
 		if forwarded {
@@ -407,8 +411,7 @@ func forward(ctx context.Context, raw string, opts Options) (string, int, string
 	if err != nil {
 		return "request_error", 0, storedForwardEvidence("request_error"), false
 	}
-	client := safehttp.NewCallbackClient(opts.Client)
-	resp, err := client.Do(req)
+	resp, err := opts.Client.Do(req)
 	if err != nil {
 		return "error", 0, storedForwardEvidence("error"), true
 	}

@@ -93,6 +93,14 @@ func uploadName(advID uint32, marker string) string {
 }
 
 // findUploaded checks if the given value is present in the audience data.
+var findUploadedScript = radix.NewEvalScript(`
+for _, key in ipairs(KEYS) do
+  if redis.call("SISMEMBER", key, ARGV[1]) == 1 then
+    return 1
+  end
+end
+return 0`)
+
 func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client, advID uint32, marker string, target string) (bool, error) {
 	if marker == "" || target == "" {
 		return false, nil
@@ -101,16 +109,15 @@ func (self *UploadAudience) findUploaded(ctx context.Context, conn radix.Client,
 	if err != nil {
 		return false, err
 	}
+	keys := make([]string, 0, 2)
 	for _, candidate := range audienceMarkerReadNames(canonical) {
-		var ok int
-		if err := conn.Do(ctx, radix.Cmd(&ok, "SISMEMBER", uploadName(advID, candidate), target)); err != nil {
-			return false, err
-		}
-		if ok == 1 {
-			return true, nil
-		}
+		keys = append(keys, uploadName(advID, candidate))
 	}
-	return false, nil
+	var ok int
+	if err := conn.Do(ctx, findUploadedScript.Cmd(&ok, keys, target)); err != nil {
+		return false, err
+	}
+	return ok == 1, nil
 }
 
 func UploadSingle(ctx context.Context, conn radix.Client, advID uint32, marker string, single string) error {

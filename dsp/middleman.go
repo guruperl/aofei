@@ -390,7 +390,6 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 		recordMiddlemanBidRejection("endpoint")
 		return nil, err
 	}
-	client = safehttp.NewCallbackClient(client)
 	headers, err := middlemanCredentialHeaders(assignment.Entry.CredentialRef)
 	if err != nil {
 		recordMiddlemanBidRejection("credential")
