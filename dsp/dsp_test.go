@@ -132,6 +132,24 @@ func TestWinLossUsesExactSelectedBidPrice(t *testing.T) {
 	}
 }
 
+func TestNewWinLossDoesNotPromoteCompatibilityFloatToV3(t *testing.T) {
+	wl := NewWinLoss(
+		StatusBid, time.Now(), match.RPub{},
+		match.RAdv{CostType: match.CostTypeCPM, Cost: 1.25},
+		nil, "", "auction", "bid", "imp", "", "https://dsp.example",
+	)
+	if wl.AccountingVersion != accounting.LegacyMoneyContract {
+		t.Fatalf("float-only win/loss version = %q, want %q", wl.AccountingVersion, accounting.LegacyMoneyContract)
+	}
+	values, err := wl.packURLValues(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := values.Get("accounting_version"); got != accounting.LegacyMoneyContract {
+		t.Fatalf("tracker accounting version = %q, want %q", got, accounting.LegacyMoneyContract)
+	}
+}
+
 func TestWinLossTrackingURLIncludesStandaloneThrottle(t *testing.T) {
 	winloss := NewWinLoss(
 		StatusBid,

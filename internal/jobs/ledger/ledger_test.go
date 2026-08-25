@@ -80,6 +80,17 @@ func TestNormalizeWinLossAccountingRejectsBrokenExactMiddlemanIdentity(t *testin
 	}
 }
 
+func TestNormalizeWinLossAccountingRejectsMixedLegacyExactFact(t *testing.T) {
+	wl := dsp.WinLoss{
+		Status:            dsp.StatusTrackImp,
+		AccountingVersion: accounting.LegacyMoneyContract,
+		RAdv:              match.RAdv{CostType: match.CostTypeCPM, Cost: 1.25, CostCPM: 1_250_000},
+	}
+	if err := normalizeWinLossAccounting(&wl); err == nil {
+		t.Fatal("v2 win/loss fact carrying exact CPM was accepted")
+	}
+}
+
 func TestStatisticsMissingWinLossFileReturnsMissingInput(t *testing.T) {
 	ledger := &Ledger{LogWinLoss: t.TempDir(), Current: 123}
 

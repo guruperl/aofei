@@ -652,6 +652,9 @@ func normalizeWinLossAccounting(wl *dsp.WinLoss) error {
 	if version != accounting.LegacyMoneyContract && version != accounting.ExactMoneyContract {
 		return fmt.Errorf("unsupported win/loss accounting version %q", version)
 	}
+	if version == accounting.LegacyMoneyContract && wl.RAdv.CostCPM != 0 {
+		return fmt.Errorf("legacy win/loss fact mixes an exact demand CPM field")
+	}
 	if wl.Middleman != nil {
 		middlemanVersion := wl.Middleman.AccountingVersion
 		if middlemanVersion == "" {

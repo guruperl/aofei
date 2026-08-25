@@ -94,7 +94,8 @@ source while preserving auditable compatibility and hosted-payment safety.
   version identity; middleman pricing is fixed-point end to end; and publisher
   floors remain exact from database/cache through direct SSP and demand
   comparison.
-- Iteration 2: `[~]` Four blocking findings were confirmed after the full
+- Iteration 2: `[x]` Four blocking findings and one lower-severity evidence
+  defect were confirmed after the full
   iteration-1 fix set passed automated verification:
   1. **P1 - announced versus billable local price:** exact candidate ordering
      still returns the selected CPM through `float32`; the OpenRTB bid can
@@ -112,6 +113,21 @@ source while preserving auditable compatibility and hosted-payment safety.
      pay, and margin independently to statement scale before checking
      `charge-pay=margin`, which can report a false discrepancy even when the
      underlying nano-USD aggregates are exact.
+  5. **P3 - absent floor evidence label:** a nullable legacy publisher floor is
+     preserved as absent but labeled `LegacyRenderedHalfAway`, falsely implying
+     that a binary value was converted.
+  Resolution: local selection now carries exact CPM through the OpenRTB float64
+  response boundary; top-level win/loss markers separate v2 drain and v3 facts
+  and v3 middleman identity fails closed; report CPM sums use checked fixed-
+  point totals; middleman reconciliation compares nine-place aggregates before
+  statement projection; and absent floors receive truthful evidence labels.
+- Iteration 3: `[~]` One blocking finding was confirmed after the complete
+  iteration-2 verification matrix passed:
+  1. **P2 - constructor/drain version provenance:** exported `NewWinLoss`
+     labels a float-only compatibility RAdv as v3, allowing a new signed
+     tracker to promote an already-rounded value into apparent exact authority;
+     conversely, an explicitly labeled v2 log fact can carry `CostCPM` and the
+     ledger consumes that exact field instead of rejecting the mixed contract.
 
 ## Exclusions
 

@@ -105,10 +105,17 @@ func NewWinLoss(
 	bothcap *match.BothCap,
 	seat, auctionID, auctionBidID, auctionImpID, auctionAdID, serverURL string,
 ) *WinLoss {
+	accountingVersion := accounting.LegacyMoneyContract
+	if radv.CostCPM != 0 {
+		// A present exact field is authoritative even when malformed; keeping it
+		// on v3 makes tracker construction fail closed instead of relabeling the
+		// compatibility float as a legacy source.
+		accountingVersion = accounting.ExactMoneyContract
+	}
 	return &WinLoss{
 		Status:            how,
 		Current:           current,
-		AccountingVersion: accounting.ExactMoneyContract,
+		AccountingVersion: accountingVersion,
 		RPub:              rpub,
 		RAdv:              radv,
 		BothCap:           bothcap,

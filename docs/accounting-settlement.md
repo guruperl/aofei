@@ -27,6 +27,8 @@ upstream CPM, impression aggregation, reservation, and ledger path exact:
   or mixed versions. V3 middleman facts must bind USD exact charge, pay, and
   margin to the billable demand CPM; compatibility floats cannot reconstruct a
   missing v3 value.
+  The exported compatibility constructor preserves v2 when its caller supplies
+  only a float; only a present exact CPM can originate a v3 tracker.
 - Statement request/party/cadence/period/currency/source/supersession identity
   is database-immutable. Draft or Held totals may change only when they equal
   the sum of immutable adjustment rows; corrections create a replacement and
