@@ -51,8 +51,26 @@ func NewDSPForImp(
 	bidPrice float32,
 	serverURL string,
 ) *DSP {
-	cpm, _ := accounting.ParseCPM(strconv.FormatFloat(float64(bidPrice), 'f', 6, 32))
+	cpm := compatibleBidCPM(one, bidPrice)
 	return newDSPForImpExact(bid, impIndex, attribute, one, bothcap, creative, audience, cpm, serverURL)
+}
+
+// compatibleBidCPM keeps the exported float32 constructor usable for legacy
+// callers without letting it replace a present v3 source. A current RAdv may
+// use the float argument only as a consistency check; its exact CPM remains
+// authoritative. A disagreement produces an invalid DSP that NewBid rejects.
+func compatibleBidCPM(one match.RAdv, bidPrice float32) accounting.CPM {
+	if one.CostCPM != 0 {
+		if one.CostCPM <= 0 || one.CostCPM > accounting.MaxCPM || bidPrice != one.CostCPM.Float32() {
+			return 0
+		}
+		return one.CostCPM
+	}
+	cpm, err := accounting.ParseCPM(strconv.FormatFloat(float64(bidPrice), 'f', 6, 32))
+	if err != nil || cpm <= 0 {
+		return 0
+	}
+	return cpm
 }
 
 func newDSPForImpExact(
@@ -245,7 +263,15 @@ func (self *DSP) billableRAdv() match.RAdv {
 	one := self.one
 	one.Cost = self.bidCPM.Float32()
 	if self.one.CostCPM != 0 {
-		one.CostCPM = self.bidCPM
+		if self.bidCPM > 0 && self.bidCPM <= accounting.MaxCPM {
+			one.CostCPM = self.bidCPM
+		} else {
+			// Preserve a present exact source when compatibility construction
+			// fails. NewBid rejects the invalid selected price; callers that inspect
+			// the audit fact cannot observe a false downgrade to v2.
+			one.CostCPM = self.one.CostCPM
+			one.Cost = self.one.CostCPM.Float32()
+		}
 	} else {
 		// Preserve v1/v2 cache provenance. The bounded compatibility adapter
 		// remains authoritative for that drain fact; it must not be relabeled v3.

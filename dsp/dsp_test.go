@@ -147,6 +147,45 @@ func TestDSPWinLossPreservesLegacyCandidateVersion(t *testing.T) {
 	}
 }
 
+func TestNewDSPForImpPreservesCurrentExactCPM(t *testing.T) {
+	bid := &openrtb2.BidRequest{ID: "request-current", Imp: []openrtb2.Imp{{ID: "imp-current"}}}
+	attr := &match.Attribute{When: time.Now(), RPub: match.RPub{PubID: 1, SiteID: 2, SlotID: 3}}
+	exact := accounting.CPM(100_000_002)
+	one := match.RAdv{
+		Demand:   match.Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		CostType: match.CostTypeCPM, Cost: exact.Float32(), CostCPM: exact,
+	}
+	dsp := NewDSPForImp(bid, 0, attr, one, nil, nil, nil, exact.Float32(), "https://dsp.example")
+	wl := dsp.WinLoss(StatusBid)
+	if wl.AccountingVersion != accounting.ExactMoneyContract || wl.RAdv.CostCPM != exact {
+		t.Fatalf("current DSP win/loss = version %q exact %s, want %q %s", wl.AccountingVersion, wl.RAdv.CostCPM, accounting.ExactMoneyContract, exact)
+	}
+	if got := wl.Macro()[`${AUCTION_PRICE}`]; got != exact.String() {
+		t.Fatalf("current DSP macro price = %q, want %q", got, exact.String())
+	}
+}
+
+func TestNewDSPForImpRejectsMismatchedCurrentProjection(t *testing.T) {
+	bid := &openrtb2.BidRequest{ID: "request-current", Imp: []openrtb2.Imp{{ID: "imp-current"}}}
+	attr := &match.Attribute{When: time.Now(), RPub: match.RPub{PubID: 1, SiteID: 2, SlotID: 3}}
+	exact := accounting.CPM(1_250_001)
+	one := match.RAdv{
+		Demand:   match.Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		CostType: match.CostTypeCPM, Cost: exact.Float32(), CostCPM: exact,
+	}
+	dsp := NewDSPForImp(bid, 0, attr, one, nil, nil, nil, 2, "https://dsp.example")
+	if dsp.bidCPM != 0 {
+		t.Fatalf("mismatched compatibility price produced exact CPM %s", dsp.bidCPM)
+	}
+	wl := dsp.WinLoss(StatusBid)
+	if wl.AccountingVersion != accounting.ExactMoneyContract || wl.RAdv.CostCPM != exact {
+		t.Fatalf("rejected current DSP audit was downgraded: version=%q exact=%s", wl.AccountingVersion, wl.RAdv.CostCPM)
+	}
+	if _, err := dsp.NewBid(wl); err == nil {
+		t.Fatal("mismatched compatibility price produced a bid")
+	}
+}
+
 func TestNewWinLossDoesNotPromoteCompatibilityFloatToV3(t *testing.T) {
 	wl := NewWinLoss(
 		StatusBid, time.Now(), match.RPub{},

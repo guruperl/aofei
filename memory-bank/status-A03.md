@@ -230,8 +230,11 @@ source while preserving auditable compatibility and hosted-payment safety.
      numbers but accept and normalize noncanonical exact strings even though
      the public OpenAPI request schema requires exactly six-place CPM and
      nine-place spend strings.
-  Resolution: pending; each blocking fix will be committed separately before
-  the next whole-milestone review.
+  Resolution progress: the exported compatibility constructor now treats a
+  present exact CPM as authority, uses the float only as a projection check,
+  and fails bid materialization on disagreement without downgrading its audit
+  provenance. The remaining findings are pending separate fixes before the
+  next whole-milestone review.
 
 ## Exclusions
 
