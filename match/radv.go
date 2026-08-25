@@ -312,34 +312,44 @@ ORDER BY v.size_id`)
 
 // Pack packs the creatives to binary.
 func (self RAdvs) Pack() ([]byte, error) {
+	wire, err := self.currentWire()
+	if err != nil {
+		return nil, err
+	}
 	buf := new(bytes.Buffer)
 	if err := writeCachePayloadHeader(buf, cachePayloadKindRAdvs, cachePayloadVersionRAdvs); err != nil {
 		return nil, err
 	}
-	err := self.packCurrent(buf)
-	return buf.Bytes(), err
+	if err := binary.Write(buf, binary.LittleEndian, wire); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // PackIO packs the RAdvs to an IO writer.
 func (self RAdvs) PackIO(w *bytes.Buffer) error {
+	wire, err := self.currentWire()
+	if err != nil {
+		return err
+	}
 	if err := writeCachePayloadHeader(w, cachePayloadKindRAdvs, cachePayloadVersionRAdvs); err != nil {
 		return err
 	}
-	return self.packCurrent(w)
+	return binary.Write(w, binary.LittleEndian, wire)
 }
 
-func (self RAdvs) packCurrent(w io.Writer) error {
+func (self RAdvs) currentWire() ([]radvWireV3, error) {
 	wire := make([]radvWireV3, len(self))
 	for index, block := range self {
 		if block.CostType != CostTypeCPM || block.CostCPM <= 0 || block.CostCPM > accounting.MaxCPM {
-			return fmt.Errorf("item %d has no authoritative v3 USD CPM", block.ItemID)
+			return nil, fmt.Errorf("item %d has no authoritative v3 USD CPM", block.ItemID)
 		}
 		wire[index] = radvWireV3{
 			Demand: block.Demand, Weight: block.Weight, CostType: block.CostType,
 			CostCPM: block.CostCPM, Cap: block.Cap, Delivery: block.Delivery,
 		}
 	}
-	return binary.Write(w, binary.LittleEndian, wire)
+	return wire, nil
 }
 
 // Update updates the current RAdvs with the new RAdv blocks.

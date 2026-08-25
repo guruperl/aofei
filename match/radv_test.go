@@ -1,6 +1,7 @@
 package match
 
 import (
+	"bytes"
 	"database/sql"
 	"math"
 	"testing"
@@ -124,6 +125,27 @@ func TestRAdvPack(t *testing.T) {
 	}
 	if radv11.Cap.ClickPeriod != radv12.Cap.ClickPeriod {
 		t.Errorf("ClickPeriod %d != %d", radv11.Cap.ClickPeriod, radv12.Cap.ClickPeriod)
+	}
+}
+
+func TestRAdvPackRejectsCompatibilityBeforeWritingCurrentHeader(t *testing.T) {
+	radvs := RAdvs{
+		{Demand: Demand{ItemID: 1}, CostType: CostTypeCPM, CostCPM: 1_000_000},
+		{Demand: Demand{ItemID: 2}, CostType: CostTypeCPM, Cost: 1.25},
+	}
+	packed, err := radvs.Pack()
+	if err == nil {
+		t.Fatal("float-only compatibility candidate was serialized as v3")
+	}
+	if len(packed) != 0 {
+		t.Fatalf("rejected Pack returned %d bytes, want none", len(packed))
+	}
+	var out bytes.Buffer
+	if err := radvs.PackIO(&out); err == nil {
+		t.Fatal("float-only compatibility candidate was written as v3")
+	}
+	if out.Len() != 0 {
+		t.Fatalf("rejected PackIO wrote %d bytes, want none", out.Len())
 	}
 }
 

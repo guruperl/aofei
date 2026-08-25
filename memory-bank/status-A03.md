@@ -233,8 +233,10 @@ source while preserving auditable compatibility and hosted-payment safety.
   Resolution progress: the exported compatibility constructor now treats a
   present exact CPM as authority, uses the float only as a projection check,
   and fails bid materialization on disagreement without downgrading its audit
-  provenance. The remaining findings are pending separate fixes before the
-  next whole-milestone review.
+  provenance. RAdv packing now constructs and validates the complete v3 wire
+  slice before writing its header, so rejected input returns no bytes and
+  leaves `PackIO` output unchanged. The remaining findings are pending separate
+  fixes before the next whole-milestone review.
 
 ## Exclusions
 
