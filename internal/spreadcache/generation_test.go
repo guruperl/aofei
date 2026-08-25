@@ -13,6 +13,15 @@ import (
 	"github.com/mediocregopher/radix/v4"
 )
 
+func privateTempDir(t testing.TB) string {
+	t.Helper()
+	path := t.TempDir()
+	if err := os.Chmod(path, 0750); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestNextSequenceAdvancesPastCommittedFloor(t *testing.T) {
 	server := miniredis.RunT(t)
 	ctx := context.Background()
@@ -68,7 +77,7 @@ func TestManifestEncodingStaysBoundedAsInventoryGrows(t *testing.T) {
 }
 
 func TestCommitAndResolveGeneration(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	root := GenerationRoot(top, 7)
 	if err := os.MkdirAll(filepath.Join(root, "creative"), 0750); err != nil {
 		t.Fatal(err)
@@ -86,7 +95,7 @@ func TestCommitAndResolveGeneration(t *testing.T) {
 }
 
 func TestResolveRejectsMissingCommittedGeneration(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	if err := Commit(top, 9); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +105,7 @@ func TestResolveRejectsMissingCommittedGeneration(t *testing.T) {
 }
 
 func TestCommitNeverMovesSelectionBackward(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	if err := Commit(top, 12); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +122,7 @@ func TestCommitNeverMovesSelectionBackward(t *testing.T) {
 }
 
 func TestSelectRemovesOnlySupersededGenerations(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	for _, sequence := range []uint64{7, 8, 10} {
 		if err := os.MkdirAll(GenerationRoot(top, sequence), 0750); err != nil {
 			t.Fatal(err)
@@ -144,7 +153,7 @@ func TestSelectRemovesOnlySupersededGenerations(t *testing.T) {
 }
 
 func TestWithResolvedRetainsRootUntilReadCompletes(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	root := GenerationRoot(top, 1)
 	if err := os.MkdirAll(root, 0750); err != nil {
 		t.Fatal(err)
@@ -194,7 +203,7 @@ func TestWithResolvedRetainsRootUntilReadCompletes(t *testing.T) {
 }
 
 func TestCommitContextCancelsWhileWaitingForSelectionLock(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	if err := Commit(top, 12); err != nil {
 		t.Fatal(err)
 	}

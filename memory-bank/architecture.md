@@ -51,8 +51,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    `.aofei-generations/<sequence>/` and atomically replaces `.aofei-current`
    only after the entry count and SHA-256 manifest match. Missing reconnect
    messages, duplicates, and stale or overlapping producer sequences therefore
-   cannot delete or partially replace the current files. Spread directories
-   are restricted to at most `0750`, files to `0640`, and the shared durable
+   cannot delete or partially replace the current files. New spread directories
+   are created at `0750`; existing roots must already grant no permissions
+   beyond `0750` and are never chmod'd by Aofei. Files use `0640`, and the shared durable
    writer syncs file data plus each containing-directory rename; the former
    private-temp-file flock provided no exclusion and is removed.
 5. `../pzdesign/cmd/unify` reads `SUMMER` and `AOFEI`, wires Summer/Genelet
@@ -226,8 +227,10 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
 	   reads/deletion retain bounded `buyerid`/`user` aliases for TTL-bound keys.
 7. `cmd/nats-client` consumes NATS log subjects into `.local/logs/log_*`
    interval files, runs under signal-aware shutdown, drains NATS on exit, and
-   flushes its queued log messages before closing files. Generated log
-   directories are tightened to `0750` and generated log files to `0640`.
+   flushes its queued log messages before closing files. Missing log
+   directories are created at `0750`; existing directories must already grant
+   no permissions beyond `0750` and retain their complete mode. Generated log
+   files use `0640`.
    Generated subject files older than `privacy_log_retention_hours` are pruned
    at startup and rotation without touching unrelated files. The
    ledger job consumes `winloss.<stamp>` files into interval and daily ledger

@@ -14,8 +14,8 @@ import (
 )
 
 // EnsureDir creates path and any missing parents, syncing each new directory
-// entry before returning. An existing final directory is tightened to at most
-// perm, but a more restrictive mode is preserved.
+// entry before returning. An existing final directory is never chmod'd: it may
+// be more restrictive than perm, but permissions broader than perm fail.
 func EnsureDir(path string, perm fs.FileMode) (err error) {
 	defer func() {
 		outcome := "directory_succeeded"
@@ -54,14 +54,31 @@ func EnsureDir(path string, perm fs.FileMode) (err error) {
 
 	for i := len(missing) - 1; i >= 0; i-- {
 		dir := missing[i]
-		if err := os.Mkdir(dir, perm); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
+		created := false
+		if err := os.Mkdir(dir, perm); err != nil {
+			if !errors.Is(err, fs.ErrExist) {
+				return err
+			}
+			info, statErr := os.Stat(dir)
+			if statErr != nil {
+				return statErr
+			}
+			if !info.IsDir() {
+				return fmt.Errorf("directory path %q is not a directory", dir)
+			}
+		} else {
+			created = true
 		}
-		if err := os.Chmod(dir, perm); err != nil {
-			return err
-		}
-		if err := SyncDir(filepath.Dir(dir)); err != nil {
-			return err
+		if created {
+			// Override umask only for a directory this call created. A path won by
+			// another process is existing operator-owned state and is validated
+			// below instead of mutated.
+			if err := os.Chmod(dir, perm); err != nil {
+				return err
+			}
+			if err := SyncDir(filepath.Dir(dir)); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -73,12 +90,8 @@ func EnsureDir(path string, perm fs.FileMode) (err error) {
 		return fmt.Errorf("directory path %q is not a directory", clean)
 	}
 	current := info.Mode().Perm()
-	tightened := current & perm
-	if tightened != current {
-		if err := os.Chmod(clean, tightened); err != nil {
-			return err
-		}
-		return SyncDir(clean)
+	if extra := current &^ perm; extra != 0 {
+		return fmt.Errorf("existing directory %q permissions %04o exceed allowed %04o", clean, current, perm)
 	}
 	return nil
 }

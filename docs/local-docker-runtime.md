@@ -298,8 +298,10 @@ atomically replaces `.aofei-current`; incomplete reconnect delivery leaves the
 prior generation selected. Duplicate and stale overlapping messages are
 idempotent or ignored. Deploy the generation-aware receiver before the matching
 publisher; legacy direct subjects are ignored after the first pointer exists.
-Spread directories are created or tightened to at most `0750`, files use
-`0640`, and durable replacement syncs each file and containing directory.
+Missing spread directories are created at `0750`; existing directories must
+already grant no permissions beyond `0750` and are never chmod'd, so setgid or
+sticky ownership policy is preserved. Files use `0640`, and durable replacement
+syncs each file and containing directory.
 
 On a fresh node, `cmd/spread` flushes its NATS subscription before attempting to
 bootstrap static spread files from MySQL, and the bootstrap holds the same

@@ -576,9 +576,11 @@ in `docs/marketplace-analytics-experiments.md`.
 
 Generated log directories are `.local/logs/log_request/`,
 `.local/logs/log_response/`, `.local/logs/log_attribute/`, and
-`.local/logs/log_winloss/`. `cmd/nats-client` creates or tightens these
-directories to `0750` and generated interval files to `0640`; ledger input logs
-should not be world-readable or group/world-writable. `cmd/maxmind` reads MySQL
+`.local/logs/log_winloss/`. `cmd/nats-client` creates missing directories at
+`0750` and requires an existing directory to grant no permissions beyond
+`0750` without chmod'ing it; generated interval files use `0640`, so
+setgid/sticky operator policy remains intact and ledger input logs should not
+be world-readable or group/world-writable. `cmd/maxmind` reads MySQL
 country/state tables, stages and validates a content-addressed City MMDB, and
 atomically selects it through the configured MaxMind JSON path, normally
 `etc/maxmind.json`. A stable `0640` sibling lock serializes publication and
@@ -586,8 +588,9 @@ holds each complete JSON/MMDB load on its shared side; a static read-only
 config directory remains loadable before first publication. The current and
 immediately prior MMDB generations remain available. The shared
 local-file primitive writes mode `0640`, syncs the temporary file, renames it,
-and syncs the containing directory. Spread
-directories are created or tightened to at most `0750`; its snapshots and
+and syncs the containing directory. Spread directories are created at `0750`;
+existing directories are validated at no broader than `0750` and never
+chmod'd. Its snapshots and
 generation pointer also use the shared primitive. Current geodata readers load
 their files into Go-managed memory and retain neither mmap nor file handles.
 

@@ -17,8 +17,17 @@ import (
 	"github.com/guruperl/aofei/internal/spreadcache"
 )
 
+func privateTempDir(t testing.TB) string {
+	t.Helper()
+	path := t.TempDir()
+	if err := os.Chmod(path, 0750); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestHandleSpreadMessageWritesSnapshot(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	msg := &nats.Msg{Subject: "creative:7", Data: []byte("first")}
 	handled, err := handleSpreadMessage(top, msg)
 	if err != nil {
@@ -46,8 +55,8 @@ func TestHandleSpreadMessageWritesSnapshot(t *testing.T) {
 	}
 }
 
-func TestWriteSnapshotUsesPrivateModes(t *testing.T) {
-	top := t.TempDir()
+func TestWriteSnapshotRejectsBroadExistingDirectoryAndCreatesPrivatePaths(t *testing.T) {
+	top := privateTempDir(t)
 	dir := filepath.Join(top, "creative")
 	if err := os.Mkdir(dir, 0700); err != nil {
 		t.Fatal(err)
@@ -56,6 +65,22 @@ func TestWriteSnapshotUsesPrivateModes(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "7")
+	if err := writeSnapshot(path, []byte("creative")); err == nil {
+		t.Fatal("broad existing snapshot directory was accepted")
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0777 {
+		t.Fatalf("rejected directory mode = %04o, want unchanged 0777", got)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("rejected snapshot path stat error = %v, want not-exist", err)
+	}
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
 	if err := writeSnapshot(path, []byte("creative")); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +102,7 @@ func TestSpreadSubscriptionReceivesNestedSubjects(t *testing.T) {
 }
 
 func TestHandleSpreadMessageWritesDottedPublisherSubject(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	handled, err := handleSpreadMessage(top, &nats.Msg{
 		Subject: "pubmap:example.com",
 		Data:    []byte("publisher"),
@@ -92,7 +117,7 @@ func TestHandleSpreadMessageWritesDottedPublisherSubject(t *testing.T) {
 }
 
 func TestHandleSpreadMessageCleanupSubject(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	path := filepath.Join(top, "slot", "4194368", "10")
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -122,7 +147,7 @@ func TestHandleSpreadMessageCleanupSubject(t *testing.T) {
 }
 
 func TestHandleSpreadMessageSlotCleanupOnlySubject(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	path := filepath.Join(top, "slot", "4194368", "10")
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -146,7 +171,7 @@ func TestHandleSpreadMessageSlotCleanupOnlySubject(t *testing.T) {
 }
 
 func TestHandleSpreadMessageCleanupSuffixOnlyAppliesToSlots(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	handled, err := handleSpreadMessage(top, &nats.Msg{
 		Subject: "pubmap:examplecleanup",
 		Data:    []byte("publisher"),
@@ -161,7 +186,7 @@ func TestHandleSpreadMessageCleanupSuffixOnlyAppliesToSlots(t *testing.T) {
 }
 
 func TestHandleSpreadMessageResetSubject(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	path := filepath.Join(top, "creative", "7")
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -185,7 +210,7 @@ func TestHandleSpreadMessageResetSubject(t *testing.T) {
 }
 
 func TestSpreadGenerationPublishesOnlyCompleteOrderedSnapshot(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +231,7 @@ func TestSpreadGenerationPublishesOnlyCompleteOrderedSnapshot(t *testing.T) {
 }
 
 func TestSpreadReceiverRepairsMissingSelectedGeneration(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	if err := spreadcache.Commit(top, 9); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +260,7 @@ func TestSpreadReceiverRepairsMissingSelectedGeneration(t *testing.T) {
 }
 
 func TestBootstrapRechecksSubscribedGenerationBeforeDependencies(t *testing.T) {
-	receiver, err := newSpreadGenerationReceiver(t.TempDir())
+	receiver, err := newSpreadGenerationReceiver(privateTempDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +273,7 @@ func TestBootstrapRechecksSubscribedGenerationBeforeDependencies(t *testing.T) {
 }
 
 func TestBootstrapInstallCancellationStopsFilesAndPointerCommit(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -288,7 +313,7 @@ func TestBootstrapInstallCancellationStopsFilesAndPointerCommit(t *testing.T) {
 }
 
 func TestSpreadGenerationReconnectGapPreservesCommittedSnapshot(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -339,7 +364,7 @@ func TestSpreadGenerationReconnectGapPreservesCommittedSnapshot(t *testing.T) {
 }
 
 func TestSpreadFailedHigherBeginPreservesActiveStaging(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -379,7 +404,7 @@ func TestSpreadFailedHigherBeginPreservesActiveStaging(t *testing.T) {
 }
 
 func TestSpreadGenerationDuplicateMessagesAreIdempotent(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -400,7 +425,7 @@ func TestSpreadGenerationDuplicateMessagesAreIdempotent(t *testing.T) {
 }
 
 func TestSpreadGenerationDigestMismatchPreservesCommittedSnapshot(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -433,7 +458,7 @@ func TestSpreadGenerationDigestMismatchPreservesCommittedSnapshot(t *testing.T) 
 }
 
 func TestSpreadGenerationOverlappingProducerCannotDeleteNewerSnapshot(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -470,7 +495,7 @@ func TestSpreadGenerationOverlappingProducerCannotDeleteNewerSnapshot(t *testing
 }
 
 func TestSpreadGenerationStaleProcessAdoptsNewerDiskSelection(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	stale, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -506,7 +531,7 @@ func TestSpreadGenerationStaleProcessAdoptsNewerDiskSelection(t *testing.T) {
 }
 
 func TestSpreadGenerationSameSequenceUsesPrivateStaging(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	first, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -552,7 +577,7 @@ func TestSpreadGenerationSameSequenceUsesPrivateStaging(t *testing.T) {
 }
 
 func TestSpreadGenerationIgnoresLegacyMutationAfterActivation(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -573,7 +598,7 @@ func TestSpreadGenerationIgnoresLegacyMutationAfterActivation(t *testing.T) {
 }
 
 func TestSpreadGenerationRetainsCurrentAndPreviousSnapshots(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -599,7 +624,7 @@ func TestSpreadGenerationNATSReconnectIntegration(t *testing.T) {
 	if url == "" {
 		t.Skip("set AOFEI_TEST_NATS_URL to run NATS reconnect integration")
 	}
-	top := t.TempDir()
+	top := privateTempDir(t)
 	receiver, err := newSpreadGenerationReceiver(top)
 	if err != nil {
 		t.Fatal(err)
@@ -685,7 +710,7 @@ func TestSpreadGenerationNATSReconnectIntegration(t *testing.T) {
 }
 
 func TestHandleSpreadMessageMultipleSlotRefresh(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	old := filepath.Join(top, "slot", "4194368", "10")
 	if err := os.MkdirAll(filepath.Dir(old), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -712,7 +737,7 @@ func TestHandleSpreadMessageMultipleSlotRefresh(t *testing.T) {
 }
 
 func TestHandleSpreadMessageDelete(t *testing.T) {
-	top := t.TempDir()
+	top := privateTempDir(t)
 	path := filepath.Join(top, "audience", "5")
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -738,7 +763,7 @@ func TestHandleSpreadMessageDelete(t *testing.T) {
 
 func TestHandleSpreadMessageIgnoresSubjects(t *testing.T) {
 	for _, subject := range []string{"request", "response", "attribute", "winloss", "unknown:1", "creative", "creative:..:escape"} {
-		handled, err := handleSpreadMessage(t.TempDir(), &nats.Msg{
+		handled, err := handleSpreadMessage(privateTempDir(t), &nats.Msg{
 			Subject: subject,
 			Data:    []byte("data"),
 		})
@@ -784,7 +809,7 @@ func TestRunSpreadExitsOnContextCancelAndDrains(t *testing.T) {
 	conn := &fakeSpreadConn{}
 	var logs bytes.Buffer
 	cfg := &dsp.Config{
-		Spread:                      t.TempDir(),
+		Spread:                      privateTempDir(t),
 		ConnectArray:                []string{"mysql", "missing"},
 		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
 		TrackingSignatureTTLSeconds: 86400,
@@ -815,7 +840,7 @@ func TestRunSpreadExitsOnContextCancelAndDrains(t *testing.T) {
 func TestRunSpreadFlushesSubscriptionBeforeBootstrap(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	top := t.TempDir()
+	top := privateTempDir(t)
 	messages := []spreadcache.Message{{Subject: "creative:7", Data: []byte("subscribed")}}
 	conn := &fakeSpreadConn{onFlush: func(handler nats.MsgHandler) error {
 		if handler == nil {
@@ -871,7 +896,7 @@ func TestRunSpreadReturnsDrainError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cfg := &dsp.Config{
-		Spread:                      t.TempDir(),
+		Spread:                      privateTempDir(t),
 		ConnectArray:                []string{"mysql", "missing"},
 		Redis:                       &dsp.Red{Network: "tcp", Addr: "127.0.0.1:1"},
 		TrackingSignatureTTLSeconds: 86400,

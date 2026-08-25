@@ -189,9 +189,11 @@ Notes:
 - Request and attribute data is privacy-scrubbed before NATS. Retention does
   not replace encrypted storage or a separate backup-expiry policy; see
   [privacy-data-governance.md](privacy-data-governance.md).
-- Log directories are created or tightened to `0750`; generated log files are
-  created or tightened to `0640`. Ledger input files should never be
-  world-readable or group/world-writable.
+- Missing log directories are created at `0750`. Existing directories must
+  already grant no permissions beyond `0750`; the command validates and never
+  chmods them, preserving setgid/sticky ownership policy. Generated log files
+  use `0640`. Ledger input files should never be world-readable or
+  group/world-writable.
 - Unknown subjects are logged as ignored.
 - A full internal log queue is returned as an error instead of blocking the NATS
   callback.
@@ -242,8 +244,9 @@ Notes:
   then atomically replaces the current pointer; it retains the current and
   immediately previous generation.
 - The configured spread root must be a specific directory rather than `.`,
-  `/`, or a relative parent traversal. New/tightened directories use at most
-  `0750`; snapshot and pointer files use `0640`. Each file and containing
+  `/`, or a relative parent traversal. Missing directories are created at
+  `0750`; an existing directory must already grant no permissions beyond
+  `0750` and is never chmod'd. Snapshot and pointer files use `0640`. Each file and containing
   directory is synced around atomic replacement; no process-local flock is
   used as a publication guarantee.
 - A reconnect gap or failed/incomplete commit leaves the prior generation

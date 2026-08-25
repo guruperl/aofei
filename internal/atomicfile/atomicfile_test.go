@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -103,34 +104,84 @@ func TestWriteFailurePreservesPriorFileAndRemovesTemporary(t *testing.T) {
 	}
 }
 
-func TestEnsureDirTightensWithoutBroadening(t *testing.T) {
+func TestEnsureDirValidatesWithoutMutatingExistingDirectory(t *testing.T) {
 	parent := t.TempDir()
-	wide := filepath.Join(parent, "wide")
-	if err := os.Mkdir(wide, 0700); err != nil {
-		t.Fatal(err)
+	for name, mode := range map[string]os.FileMode{
+		"wide":          0777,
+		"shared-setgid": 0775 | os.ModeSetgid,
+		"sticky":        0777 | os.ModeSticky,
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(parent, name)
+			if err := os.Mkdir(path, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(path, mode); err != nil {
+				t.Fatal(err)
+			}
+			before := fullMode(t, path)
+			if err := EnsureDir(path, 0750); err == nil {
+				t.Fatal("over-permissive existing directory was accepted")
+			}
+			if after := fullMode(t, path); after != before {
+				t.Fatalf("existing mode changed from %v to %v", before, after)
+			}
+		})
 	}
-	if err := os.Chmod(wide, 0777); err != nil {
-		t.Fatal(err)
-	}
-	if err := EnsureDir(wide, 0750); err != nil {
-		t.Fatal(err)
-	}
-	assertMode(t, wide, 0750)
 
-	private := filepath.Join(parent, "private")
-	if err := os.Mkdir(private, 0700); err != nil {
-		t.Fatal(err)
+	for name, mode := range map[string]os.FileMode{
+		"private":        0700,
+		"safe-setgid":    0750 | os.ModeSetgid,
+		"private-sticky": 0700 | os.ModeSticky,
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(parent, name)
+			if err := os.Mkdir(path, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(path, mode); err != nil {
+				t.Fatal(err)
+			}
+			before := fullMode(t, path)
+			if err := EnsureDir(path, 0750); err != nil {
+				t.Fatal(err)
+			}
+			if after := fullMode(t, path); after != before {
+				t.Fatalf("existing mode changed from %v to %v", before, after)
+			}
+		})
 	}
-	if err := EnsureDir(private, 0750); err != nil {
-		t.Fatal(err)
-	}
-	assertMode(t, private, 0700)
 
 	nested := filepath.Join(parent, "one", "two")
 	if err := EnsureDir(nested, 0750); err != nil {
 		t.Fatal(err)
 	}
 	assertMode(t, filepath.Join(parent, "one"), 0750)
+	assertMode(t, nested, 0750)
+}
+
+func TestEnsureDirConcurrentCreationDoesNotChmodRaceWinner(t *testing.T) {
+	nested := filepath.Join(t.TempDir(), "shared", "nested")
+	start := make(chan struct{})
+	errors := make(chan error, 32)
+	var wait sync.WaitGroup
+	for range 32 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			errors <- EnsureDir(nested, 0750)
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertMode(t, filepath.Dir(nested), 0750)
 	assertMode(t, nested, 0750)
 }
 
@@ -143,4 +194,13 @@ func assertMode(t *testing.T, path string, want os.FileMode) {
 	if got := info.Mode().Perm(); got != want {
 		t.Fatalf("%s mode = %04o, want %04o", path, got, want)
 	}
+}
+
+func fullMode(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Mode() & (os.ModePerm | os.ModeSetgid | os.ModeSticky)
 }
