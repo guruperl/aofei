@@ -152,10 +152,13 @@ func (self *Fcap) ensureUTC() {
 }
 
 func (self *Fcap) setLegacyView(start, last time.Time) {
-	start = start.UTC()
+	// The pre-D04 reader interprets these calendar fields in time.Local. Keep
+	// the compatibility prefix in that wall clock while the v2 trailer retains
+	// the authoritative UTC epoch minutes.
+	start = start.In(time.Local)
 	self.StartYM = uint8((start.Year()-FCAPStartYear)<<4 + int(start.Month()))
 	self.StartDHM = uint16(start.Day()<<11 + start.Hour()<<6 + start.Minute())
-	self.Last = saturatedMinutes(elapsedMinutes(start, last.UTC()))
+	self.Last = saturatedMinutes(elapsedMinutes(start, last))
 }
 
 func elapsedMinutes(start, when time.Time) int64 {

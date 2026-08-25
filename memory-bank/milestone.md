@@ -1707,7 +1707,7 @@ complete. Production 99.9% and provider RPO/RTO achievement remain explicitly
 unclaimed until a named production window supplies retained evidence. Detailed
 results are in [status-O02.md](status-O02.md).
 
-## O03 - Job, Cache, And Filesystem Reliability `[~]`
+## O03 - Job, Cache, And Filesystem Reliability `[+]`
 
 Harden singleton renewal, atomic reusable cache publication, spread-generation
 ordering, callback recovery evidence, filesystem permissions/atomicity, and

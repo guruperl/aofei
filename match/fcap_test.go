@@ -122,6 +122,50 @@ func TestFcapUTCFormatCoversNinetyDaysWithoutMinuteWrap(t *testing.T) {
 	}
 }
 
+func TestBothCapPackKeepsLegacyPrefixInLocalWallTime(t *testing.T) {
+	local := time.FixedZone("UTC-8", -8*60*60)
+	originalLocal := time.Local
+	time.Local = local
+	defer func() { time.Local = originalLocal }()
+
+	start := time.Date(2026, time.August, 1, 12, 15, 0, 0, time.UTC)
+	last := start.Add(45 * time.Minute)
+	state := NewBothCap(start)
+	state.Imp.Refresh(last)
+	packed, err := state.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var legacy legacyBothCapWire
+	if err := binary.Read(bytes.NewReader(packed), binary.LittleEndian, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	legacyImp := Fcap{
+		Total:    legacy.Imp.Total,
+		StartYM:  legacy.Imp.StartYM,
+		StartDHM: legacy.Imp.StartDHM,
+		Last:     legacy.Imp.Last,
+	}
+	if got := legacyImp.GetStart(); !got.Equal(start) {
+		t.Fatalf("legacy-prefix start = %s, want local wall-clock instant %s", got, start)
+	}
+	if got := legacyImp.GetLast(); !got.Equal(last) {
+		t.Fatalf("legacy-prefix last = %s, want %s", got, last)
+	}
+
+	current, err := UnpackBothCap(packed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := current.Imp.GetStart(); !got.Equal(start) {
+		t.Fatalf("v2 start = %s, want UTC instant %s", got, start)
+	}
+	if got := current.Imp.GetLast(); !got.Equal(last) {
+		t.Fatalf("v2 last = %s, want UTC instant %s", got, last)
+	}
+}
+
 func TestBothCapFormatMetricsUseFixedKeys(t *testing.T) {
 	legacyBefore := expvarMapValue(metricBothCapFormats, "legacy")
 	v2Before := expvarMapValue(metricBothCapFormats, "utc_v2")
