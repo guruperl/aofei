@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/match"
 	"github.com/mediocregopher/radix/v4"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -83,6 +84,18 @@ func TestMiddlemanReconciledPricesUseServerOwnedPrice(t *testing.T) {
 	got := value.reconciledPrices()
 	if !closeFloat(got.ChargePrice, 1.2) || !closeFloat(got.PayPrice, 1.0) {
 		t.Fatalf("prices = %+v, want charge 1.2 pay 1.0", got)
+	}
+}
+
+func TestMiddlemanExactCallbackRejectsTamperedPriceIdentity(t *testing.T) {
+	value := middlemanCallbackContext{
+		AccountingVersion: accounting.ExactMoneyContract,
+		DownstreamBidCPM:  1_000_000,
+		UpstreamBidCPM:    1_200_000,
+		MarginCPMExact:    200_001,
+	}
+	if _, err := value.reconciledPricesExact(); err == nil {
+		t.Fatal("tampered exact callback price identity was accepted")
 	}
 }
 
@@ -337,6 +350,9 @@ func TestPrepareMiddlemanCallbackRewritesBidAndStoresContext(t *testing.T) {
 	}
 	if stored.RequestID != "req" || stored.ImpID != "imp" || stored.DownstreamBidPrice != 1.0 || stored.UpstreamBidPrice != 1.2 {
 		t.Fatalf("stored context = %#v", stored)
+	}
+	if stored.AccountingVersion != accounting.ExactMoneyContract || stored.DownstreamBidCPM != 1_000_000 || stored.UpstreamBidCPM != 1_200_000 || stored.MarginCPMExact != 200_000 {
+		t.Fatalf("stored exact price identity = %#v", stored)
 	}
 	clickToken, err := store.GetClick(context.Background(), "rtok", "imp")
 	if err != nil {
@@ -928,7 +944,10 @@ func TestMiddlemanPublishFailureCleanupDetachesFromRequestCancellation(t *testin
 			return errors.New("publish failed")
 		},
 	}
-	value := middlemanCallbackContext{Token: "tok", RAdv: match.RAdv{}}
+	value := middlemanCallbackContext{
+		Token: "tok", RAdv: match.RAdv{},
+		DownstreamBidPrice: 1, UpstreamBidPrice: 1,
+	}
 	if err := controller.publishMiddlemanEventOnce(ctx, StatusTrackClk, value, "click", value.reconciledPrices(), "none", 0); err == nil {
 		t.Fatal("publication failure succeeded")
 	}

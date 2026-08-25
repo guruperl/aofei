@@ -222,6 +222,12 @@ and apply markup only on the response returned upstream:
 upstream_price = downstream_price + max(downstream_price * margin_pct, min_margin_cpm)
 ```
 
+Under `usd-cpm-impression-v3`, downstream and minimum-margin CPM are six-place
+integers and `margin_pct` is a four-place integer fraction. The percentage
+product rounds half away from zero once to a micro-USD CPM before the exact
+minimum is applied; over-scale downstream prices and marked-price overflow are
+rejected.
+
 If no downstream bid survives validation and markup checks, `Fallback`
 impressions remain no-bid and `Always` impressions keep their local winner when
 one exists.
@@ -293,13 +299,15 @@ callback token.
 M21 records both sides of the middleman price:
 
 ```text
-charge_price = upstream returned bid price stored in the Redis callback context
-pay_price = min(downstream_bid_price, max(0, charge_price - margin_cpm))
-margin_cpm = upstream returned bid price - downstream bid price
+charge_price = exact upstream CPM stored in the Redis callback context
+pay_price = exact downstream CPM stored in the same context
+margin_cpm = charge_price - pay_price
 ```
 
 Incoming middleman `auction_price` and `auction_currency` query parameters are
-not trusted for ledger math. Downstream callbacks receive the net payable price
+not trusted for ledger math. The callback context carries a v3 contract marker
+and exact charge/pay/margin identity; an inconsistent or out-of-range context
+fails closed. Downstream callbacks receive the net payable price
 in their `${AUCTION_PRICE}` macro. Winloss logs store charge-side CPM in the
 exact CPM field; `usd-cpm-impression-v3` maps each billable impression to
 integer nano-USD charge, pay, and margin by dividing the respective CPM values

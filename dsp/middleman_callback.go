@@ -58,6 +58,7 @@ type redisMiddlemanCallbackStore struct {
 }
 
 type middlemanCallbackContext struct {
+	AccountingVersion  string               `json:"accounting_version,omitempty"`
 	Token              string               `json:"token"`
 	Created            time.Time            `json:"created"`
 	RequestID          string               `json:"request_id"`
@@ -72,6 +73,9 @@ type middlemanCallbackContext struct {
 	DownstreamBidPrice float64              `json:"downstream_bid_price"`
 	UpstreamBidPrice   float64              `json:"upstream_bid_price"`
 	MarginCPM          float64              `json:"margin_cpm"`
+	DownstreamBidCPM   accounting.CPM       `json:"downstream_bid_cpm_micros,omitempty"`
+	UpstreamBidCPM     accounting.CPM       `json:"upstream_bid_cpm_micros,omitempty"`
+	MarginCPMExact     accounting.CPM       `json:"margin_cpm_micros,omitempty"`
 	BillOnWin          bool                 `json:"bill_on_win"`
 	BidderID           uint32               `json:"bidder_id,omitempty"`
 	GroupID            uint32               `json:"group_id,omitempty"`
@@ -86,6 +90,8 @@ type middlemanCallbackContext struct {
 type middlemanPrices struct {
 	ChargePrice float64
 	PayPrice    float64
+	ChargeCPM   accounting.CPM
+	PayCPM      accounting.CPM
 	Currency    string
 }
 
@@ -471,8 +477,27 @@ func (self *Controller) prepareMiddlemanCallback(ctx context.Context, bid *openr
 		return err
 	}
 
+	downstreamCPM := selected.DownstreamBidCPM
+	if downstreamCPM == 0 {
+		downstreamCPM, err = protocolCPM(selected.DownstreamBidPrice)
+		if err != nil {
+			return err
+		}
+	}
+	upstreamCPM := selected.UpstreamBidCPM
+	if upstreamCPM == 0 {
+		upstreamCPM, err = protocolCPM(selected.UpstreamBidPrice)
+		if err != nil {
+			return err
+		}
+	}
+	if upstreamCPM < downstreamCPM {
+		return fmt.Errorf("middleman marked CPM is below downstream CPM")
+	}
+	marginCPM := upstreamCPM - downstreamCPM
 	billOnWin := selected.DownstreamBURL == ""
 	ctxValue := middlemanCallbackContext{
+		AccountingVersion:  accounting.ExactMoneyContract,
 		Token:              token,
 		Created:            time.Now(),
 		RequestID:          bid.ID,
@@ -487,6 +512,9 @@ func (self *Controller) prepareMiddlemanCallback(ctx context.Context, bid *openr
 		DownstreamBidPrice: selected.DownstreamBidPrice,
 		UpstreamBidPrice:   selected.UpstreamBidPrice,
 		MarginCPM:          selected.UpstreamBidPrice - selected.DownstreamBidPrice,
+		DownstreamBidCPM:   downstreamCPM,
+		UpstreamBidCPM:     upstreamCPM,
+		MarginCPMExact:     marginCPM,
 		BillOnWin:          billOnWin,
 		BidderID:           selected.Entry.BidderID,
 		GroupID:            selected.Entry.GroupID,
@@ -564,7 +592,10 @@ func (self *Controller) serveMiddlemanClick(ctx context.Context, args url.Values
 	if err != nil {
 		return middlemanLookupError(err)
 	}
-	prices := value.reconciledPrices()
+	prices, err := value.reconciledPricesExact()
+	if err != nil {
+		return err
+	}
 	return self.publishMiddlemanEventOnce(ctx, StatusTrackClk, value, "click", prices, "none", 0)
 }
 
@@ -580,7 +611,10 @@ func (self *Controller) serveMiddlemanStatus(ctx context.Context, path string, a
 	if err != nil {
 		return middlemanLookupError(err)
 	}
-	prices := value.reconciledPrices()
+	prices, err := value.reconciledPricesExact()
+	if err != nil {
+		return err
+	}
 
 	switch path {
 	case "/mid/win":
@@ -696,13 +730,9 @@ func (self *Controller) publishMiddlemanBillOnce(ctx context.Context, value midd
 }
 
 func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCallbackContext, source string, prices middlemanPrices, forwardStatus string, forwardCode int) error {
-	chargeCPM, err := protocolCPM(prices.ChargePrice)
-	if err != nil {
-		return err
-	}
-	payCPM, err := protocolCPM(prices.PayPrice)
-	if err != nil {
-		return err
+	chargeCPM, payCPM := prices.ChargeCPM, prices.PayCPM
+	if chargeCPM <= 0 || chargeCPM > accounting.MaxCPM || payCPM < 0 || payCPM > chargeCPM {
+		return fmt.Errorf("middleman exact charge/pay CPM is invalid")
 	}
 	wl := &WinLoss{
 		Current:      time.Now(),
@@ -716,6 +746,7 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 		AuctionAdID:  value.DownstreamAdID,
 		Reporting:    value.Reporting,
 		Middleman: &MiddlemanWinLossMeta{
+			AccountingVersion:  accounting.ExactMoneyContract,
 			BidderID:           value.BidderID,
 			GroupID:            value.GroupID,
 			RouteBidderID:      value.RouteBidderID,
@@ -731,6 +762,7 @@ func (self *Controller) publishMiddlemanWinLoss(status Status, value middlemanCa
 			ChargeCPM:          chargeCPM,
 			PayCPM:             payCPM,
 			MarginCPM:          value.MarginCPM,
+			MarginCPMExact:     chargeCPM - payCPM,
 			Currency:           prices.Currency,
 		},
 	}
@@ -752,22 +784,55 @@ func protocolCPM(value float64) (accounting.CPM, error) {
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
 		return 0, fmt.Errorf("invalid protocol USD CPM %v", value)
 	}
-	return accounting.ParseCPM(strconv.FormatFloat(value, 'f', 6, 64))
+	return accounting.ParseCPM(strconv.FormatFloat(value, 'f', -1, 64))
 }
 
 func (value middlemanCallbackContext) reconciledPrices() middlemanPrices {
-	charge := value.UpstreamBidPrice
-	if charge < 0 {
-		charge = 0
+	prices, _ := value.reconciledPricesExact()
+	return prices
+}
+
+func (value middlemanCallbackContext) reconciledPricesExact() (middlemanPrices, error) {
+	if value.AccountingVersion == accounting.ExactMoneyContract {
+		charge, pay := value.UpstreamBidCPM, value.DownstreamBidCPM
+		if charge <= 0 || charge > accounting.MaxCPM || pay < 0 || pay > charge || value.MarginCPMExact != charge-pay {
+			return middlemanPrices{}, fmt.Errorf("invalid exact middleman callback price identity")
+		}
+		return middlemanPrices{
+			ChargePrice: charge.Float64(), PayPrice: pay.Float64(),
+			ChargeCPM: charge, PayCPM: pay, Currency: "USD",
+		}, nil
 	}
-	pay := charge - value.MarginCPM
-	if pay < 0 {
-		pay = 0
+	charge, err := legacyProtocolCPM(value.UpstreamBidPrice)
+	if err != nil || charge <= 0 {
+		return middlemanPrices{}, fmt.Errorf("invalid legacy middleman charge CPM")
 	}
-	if pay > value.DownstreamBidPrice {
-		pay = value.DownstreamBidPrice
+	downstream, err := legacyProtocolCPM(value.DownstreamBidPrice)
+	if err != nil {
+		return middlemanPrices{}, fmt.Errorf("invalid legacy middleman downstream CPM")
 	}
-	return middlemanPrices{ChargePrice: charge, PayPrice: pay, Currency: "USD"}
+	margin, err := legacyProtocolCPM(value.MarginCPM)
+	if err != nil {
+		return middlemanPrices{}, fmt.Errorf("invalid legacy middleman margin CPM")
+	}
+	pay := accounting.CPM(0)
+	if charge > margin {
+		pay = charge - margin
+	}
+	if pay > downstream {
+		pay = downstream
+	}
+	return middlemanPrices{
+		ChargePrice: charge.Float64(), PayPrice: pay.Float64(),
+		ChargeCPM: charge, PayCPM: pay, Currency: "USD",
+	}, nil
+}
+
+func legacyProtocolCPM(value float64) (accounting.CPM, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+		return 0, fmt.Errorf("invalid legacy protocol USD CPM %v", value)
+	}
+	return accounting.ParseCPM(strconv.FormatFloat(value, 'f', 6, 64))
 }
 
 func (self *Controller) forwardMiddlemanCallbackOnce(ctx context.Context, value middlemanCallbackContext, source, raw string, prices middlemanPrices) (middlemanForwardState, bool, error) {

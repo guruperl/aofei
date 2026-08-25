@@ -12,9 +12,22 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/dsp"
 	"github.com/guruperl/aofei/match"
 )
+
+func TestExactMiddlemanCPMRejectsInvalidV3RangeAndIdentity(t *testing.T) {
+	for _, meta := range []*dsp.MiddlemanWinLossMeta{
+		{ChargeCPM: accounting.MaxCPM + 1, PayCPM: 1, ChargePrice: 1},
+		{AccountingVersion: accounting.ExactMoneyContract, ChargeCPM: 2, PayCPM: 1, MarginCPMExact: 2},
+		{ChargeCPM: 1, PayCPM: 2},
+	} {
+		if _, _, err := exactMiddlemanCPM(meta); err == nil {
+			t.Fatalf("invalid middleman exact fact was accepted: %+v", meta)
+		}
+	}
+}
 
 func TestStatisticsMissingWinLossFileReturnsMissingInput(t *testing.T) {
 	ledger := &Ledger{LogWinLoss: t.TempDir(), Current: 123}

@@ -17,6 +17,10 @@ six-decimal statement boundary and keeping historical v2 facts labeled v2.
 - Values are aggregated before conversion to A01 `DECIMAL(20,6)` statements.
   That single boundary rounds half away from zero. UI and CSV display six
   decimals and never feed formatted values back into authority.
+- Middleman route percentage is an exact four-place fraction. Its product with
+  downstream CPM rounds half away from zero once to a micro-USD CPM, then the
+  exact minimum margin is applied. Markup that exceeds the supported CPM range
+  fails closed.
 - Overflow, negative demand price, excess scale, NaN/Inf, negative zero, and
   an unsupported commercial model fail closed before mutation. CPC, CPA, and
   ROI remain unsupported.
@@ -138,7 +142,8 @@ After the isolated comparison passes, keep writers frozen and use this order:
    account-scoped report output. No real provider movement is part of a canary.
 4. Admit the canary at a bounded share. Compare accepted impressions to Redis
    nano-USD deltas, win/loss facts, interval/daily ledgers, publisher pay,
-   middleman charge/pay/margin, and draft statement source. Require exact
+middleman charge/pay/margin (including the signed callback-context identity),
+and draft statement source. Require exact
    equality for v3 facts and no new v2 writer/key/report rows.
 5. Expand HTTP nodes, then restart singleton cache, callback retry,
    interval-ledger, daily-ledger, and accounting jobs one at a time. Release

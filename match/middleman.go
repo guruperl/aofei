@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/mediocregopher/radix/v4"
 )
@@ -23,6 +25,7 @@ const (
 
 	MiddlemanRouteCacheLegacyVersion = 1
 	MiddlemanRouteCacheVersion       = 2
+	MiddlemanRouteAccountingVersion  = accounting.ExactMoneyContract
 )
 
 type MiddlemanRouteCache struct {
@@ -40,6 +43,7 @@ type MiddlemanRouteCacheMetadata struct {
 }
 
 type MiddlemanRouteEntry struct {
+	AccountingVersion   string           `json:"accounting_version,omitempty"`
 	TargetID            uint32           `json:"target_id"`
 	GroupID             uint32           `json:"group_id"`
 	TriggerMode         string           `json:"trigger_mode,omitempty"`
@@ -58,6 +62,10 @@ type MiddlemanRouteEntry struct {
 	GroupMinMarginCPM   float64          `json:"group_min_margin_cpm"`
 	RouteMarginPct      *float64         `json:"route_margin_pct,omitempty"`
 	RouteMinMarginCPM   *float64         `json:"route_min_margin_cpm,omitempty"`
+	GroupMarginUnits    uint32           `json:"group_margin_fraction_1e4,omitempty"`
+	GroupMinMarginExact accounting.CPM   `json:"group_min_margin_cpm_micros,omitempty"`
+	RouteMarginUnits    *uint32          `json:"route_margin_fraction_1e4,omitempty"`
+	RouteMinMarginExact *accounting.CPM  `json:"route_min_margin_cpm_micros,omitempty"`
 	EndpointURL         string           `json:"endpoint_url"`
 	OpenRTBVersion      string           `json:"openrtb_version"`
 	Seat                string           `json:"seat,omitempty"`
@@ -140,6 +148,65 @@ func (e MiddlemanRouteEntry) EffectiveMinMarginCPM() float64 {
 	return e.GroupMinMarginCPM
 }
 
+// ExactMarginTerms returns a four-place nonnegative margin fraction and an
+// exact six-place minimum CPM. New cache generations carry these values
+// directly; old generations use a bounded compatibility conversion.
+func (e MiddlemanRouteEntry) ExactMarginTerms() (uint32, accounting.CPM, error) {
+	if e.AccountingVersion == MiddlemanRouteAccountingVersion {
+		units := e.GroupMarginUnits
+		minimum := e.GroupMinMarginExact
+		if e.RouteMarginUnits != nil {
+			units = *e.RouteMarginUnits
+		}
+		if e.RouteMinMarginExact != nil {
+			minimum = *e.RouteMinMarginExact
+		}
+		if units > 10_000 || minimum < 0 || minimum > accounting.MaxCPM {
+			return 0, 0, fmt.Errorf("exact partner margin is outside its supported range")
+		}
+		return units, minimum, nil
+	}
+	units, err := parseMarginFraction4(strconv.FormatFloat(e.EffectiveMarginPct(), 'f', 4, 64))
+	if err != nil {
+		return 0, 0, err
+	}
+	minimum, err := accounting.ParseCPM(strconv.FormatFloat(e.EffectiveMinMarginCPM(), 'f', 6, 64))
+	if err != nil {
+		return 0, 0, err
+	}
+	return units, minimum, nil
+}
+
+func parseMarginFraction4(raw string) (uint32, error) {
+	raw = strings.TrimSpace(raw)
+	parts := strings.Split(raw, ".")
+	if len(parts) > 2 || parts[0] == "" || len(parts) == 2 && len(parts[1]) > 4 {
+		return 0, fmt.Errorf("margin fraction must have at most four decimal places")
+	}
+	whole, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid margin fraction")
+	}
+	fraction := ""
+	if len(parts) == 2 {
+		fraction = parts[1]
+	}
+	for len(fraction) < 4 {
+		fraction += "0"
+	}
+	frac := uint64(0)
+	if fraction != "" {
+		frac, err = strconv.ParseUint(fraction, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("invalid margin fraction")
+		}
+	}
+	if whole > 1 || whole == 1 && frac != 0 {
+		return 0, fmt.Errorf("margin fraction must be between zero and one")
+	}
+	return uint32(whole*10_000 + frac), nil
+}
+
 // ValidatePartnerProfile verifies the bounded OpenRTB contract carried by an
 // active route. Network-address policy remains a runtime safehttp check so DNS
 // rebinding and private destinations cannot be approved from cached metadata.
@@ -176,6 +243,9 @@ func (e MiddlemanRouteEntry) ValidatePartnerProfile() error {
 		if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
 			return fmt.Errorf("partner margins must be finite and nonnegative")
 		}
+	}
+	if _, _, err := e.ExactMarginTerms(); err != nil {
+		return fmt.Errorf("partner margins: %w", err)
 	}
 	return nil
 }
@@ -237,10 +307,11 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 		var e MiddlemanRouteEntry
 		var entityType, entityID, sizeID, routeTimeout sql.NullInt64
 		var seat sql.NullString
-		var routeMargin, routeMinMargin sql.NullFloat64
+		var groupMargin, groupMinMargin sql.NullString
+		var routeMargin, routeMinMargin sql.NullString
 		if err := rows.Scan(
 			&e.TargetID, &entityType, &entityID, &sizeID, &e.TargetPriority,
-			&e.GroupID, &e.TriggerMode, &e.GroupTimeoutMS, &e.GroupMarginPct, &e.GroupMinMarginCPM,
+			&e.GroupID, &e.TriggerMode, &e.GroupTimeoutMS, &groupMargin, &groupMinMargin,
 			&e.RouteBidderID, &e.RouteBidderPriority, &routeTimeout, &routeMargin, &routeMinMargin,
 			&e.BidderID, &e.AdvID, &e.SyntheticCampaignID, &e.SyntheticItemID,
 			&e.SyntheticCreativeID, &e.EndpointURL, &e.OpenRTBVersion, &seat,
@@ -248,6 +319,20 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 		); err != nil {
 			return nil, err
 		}
+		if !groupMargin.Valid || !groupMinMargin.Valid {
+			return nil, fmt.Errorf("middleman bidder %d has NULL group margin", e.BidderID)
+		}
+		e.GroupMarginUnits, err = parseMarginFraction4(groupMargin.String)
+		if err != nil {
+			return nil, fmt.Errorf("middleman bidder %d group margin: %w", e.BidderID, err)
+		}
+		e.GroupMinMarginExact, err = accounting.ParseCPM(groupMinMargin.String)
+		if err != nil {
+			return nil, fmt.Errorf("middleman bidder %d group minimum margin: %w", e.BidderID, err)
+		}
+		e.AccountingVersion = MiddlemanRouteAccountingVersion
+		e.GroupMarginPct = float64(e.GroupMarginUnits) / 10_000
+		e.GroupMinMarginCPM = e.GroupMinMarginExact.Float64()
 		if entityType.Valid {
 			v := uint8(entityType.Int64)
 			e.EntityTypeID = &v
@@ -265,12 +350,22 @@ ORDER BY t.priority, rb.priority, t.target_id, rb.route_bidder_id`)
 			e.RouteTimeoutMS = &v
 		}
 		if routeMargin.Valid {
-			v := routeMargin.Float64
-			e.RouteMarginPct = &v
+			v, err := parseMarginFraction4(routeMargin.String)
+			if err != nil {
+				return nil, fmt.Errorf("middleman bidder %d route margin: %w", e.BidderID, err)
+			}
+			e.RouteMarginUnits = &v
+			projection := float64(v) / 10_000
+			e.RouteMarginPct = &projection
 		}
 		if routeMinMargin.Valid {
-			v := routeMinMargin.Float64
-			e.RouteMinMarginCPM = &v
+			v, err := accounting.ParseCPM(routeMinMargin.String)
+			if err != nil {
+				return nil, fmt.Errorf("middleman bidder %d route minimum margin: %w", e.BidderID, err)
+			}
+			e.RouteMinMarginExact = &v
+			projection := v.Float64()
+			e.RouteMinMarginCPM = &projection
 		}
 		if seat.Valid {
 			e.Seat = seat.String

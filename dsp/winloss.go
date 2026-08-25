@@ -52,6 +52,7 @@ type WinLoss struct {
 // MiddlemanWinLossMeta carries charge/pay audit details for proxied middleman
 // callbacks without changing the existing ledger aggregation contract.
 type MiddlemanWinLossMeta struct {
+	AccountingVersion  string         `json:"accounting_version,omitempty"`
 	BidderID           uint32         `json:"bidder_id,omitempty"`
 	GroupID            uint32         `json:"group_id,omitempty"`
 	RouteBidderID      uint32         `json:"route_bidder_id,omitempty"`
@@ -67,6 +68,7 @@ type MiddlemanWinLossMeta struct {
 	ChargeCPM          accounting.CPM `json:"charge_cpm_micros,omitempty"`
 	PayCPM             accounting.CPM `json:"pay_cpm_micros,omitempty"`
 	MarginCPM          float64        `json:"margin_cpm,omitempty"`
+	MarginCPMExact     accounting.CPM `json:"margin_cpm_micros,omitempty"`
 	Currency           string         `json:"currency,omitempty"`
 }
 

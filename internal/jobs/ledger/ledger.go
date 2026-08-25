@@ -596,8 +596,17 @@ func exactMiddlemanCPM(meta *dsp.MiddlemanWinLossMeta) (accounting.CPM, accounti
 			return 0, 0, err
 		}
 	}
-	if charge < 0 || pay < 0 {
-		return 0, 0, fmt.Errorf("middleman CPM cannot be negative")
+	if charge < 0 || charge > accounting.MaxCPM || pay < 0 || pay > accounting.MaxCPM || pay > charge {
+		return 0, 0, fmt.Errorf("middleman charge/pay CPM is outside the supported identity")
+	}
+	if _, err := charge.ImpressionNano(); err != nil {
+		return 0, 0, err
+	}
+	if _, err := pay.ImpressionNano(); err != nil {
+		return 0, 0, err
+	}
+	if meta.AccountingVersion == accounting.ExactMoneyContract && meta.MarginCPMExact != charge-pay {
+		return 0, 0, fmt.Errorf("middleman exact margin does not equal charge minus pay")
 	}
 	return charge, pay, nil
 }

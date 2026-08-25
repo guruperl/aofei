@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"os"
 	"sort"
@@ -20,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/internal/safehttp"
 	"github.com/guruperl/aofei/match"
 	"github.com/guruperl/aofei/trafficquality"
@@ -60,6 +60,8 @@ type middlemanDownstreamBid struct {
 	DownstreamLURL     string
 	DownstreamBidPrice float64
 	UpstreamBidPrice   float64
+	DownstreamBidCPM   accounting.CPM
+	UpstreamBidCPM     accounting.CPM
 	ClickRequestToken  string
 }
 
@@ -555,16 +557,29 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 				sawInvalidBid = true
 				continue
 			}
-			if rspBid.Price < bid.Imp[impIndex].BidFloor {
-				recordMiddlemanBidRejection("floor")
-				continue
-			}
-			markedPrice := middlemanMarkedPrice(rspBid.Price, entry)
-			if markedPrice <= 0 || math.IsNaN(markedPrice) || math.IsInf(markedPrice, 0) {
+			downstreamCPM, err := protocolCPM(rspBid.Price)
+			if err != nil {
 				recordMiddlemanBidRejection("price")
 				sawInvalidBid = true
 				continue
 			}
+			floorCPM, err := protocolCPM(bid.Imp[impIndex].BidFloor)
+			if err != nil {
+				recordMiddlemanBidRejection("floor")
+				sawInvalidBid = true
+				continue
+			}
+			if downstreamCPM < floorCPM {
+				recordMiddlemanBidRejection("floor")
+				continue
+			}
+			markedCPM, err := middlemanMarkedCPM(downstreamCPM, entry)
+			if err != nil || markedCPM <= 0 {
+				recordMiddlemanBidRejection("price")
+				sawInvalidBid = true
+				continue
+			}
+			markedPrice := markedCPM.Float64()
 			downstreamPrice := rspBid.Price
 			downstreamNURL := rspBid.NURL
 			downstreamBURL := rspBid.BURL
@@ -593,6 +608,7 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 						},
 						CostType: match.CostTypeCPM,
 						Cost:     float32(markedPrice),
+						CostCPM:  markedCPM,
 					},
 				},
 				ResponseBidID:      responseBidID,
@@ -604,6 +620,8 @@ func (self *Controller) callMiddlemanBidder(ctx context.Context, client *http.Cl
 				DownstreamLURL:     downstreamLURL,
 				DownstreamBidPrice: downstreamPrice,
 				UpstreamBidPrice:   markedPrice,
+				DownstreamBidCPM:   downstreamCPM,
+				UpstreamBidCPM:     markedCPM,
 				ClickRequestToken:  clickRequestToken,
 			})
 			acceptedCount++
@@ -985,12 +1003,26 @@ func durationCeilMillis(d time.Duration) int64 {
 	return int64((d + time.Millisecond - 1) / time.Millisecond)
 }
 
-func middlemanMarkedPrice(price float64, entry match.MiddlemanRouteEntry) float64 {
-	margin := price * entry.EffectiveMarginPct()
-	if min := entry.EffectiveMinMarginCPM(); margin < min {
-		margin = min
+func middlemanMarkedCPM(price accounting.CPM, entry match.MiddlemanRouteEntry) (accounting.CPM, error) {
+	if price <= 0 || price > accounting.MaxCPM {
+		return 0, fmt.Errorf("downstream CPM is outside the supported range")
 	}
-	return price + margin
+	units, minimum, err := entry.ExactMarginTerms()
+	if err != nil {
+		return 0, err
+	}
+	// The four-place percentage product rounds half away from zero once at the
+	// six-place CPM boundary. Inputs are nonnegative, so adding half the divisor
+	// implements the published rule without binary floating point.
+	product := int64(price) * int64(units)
+	margin := accounting.CPM((product + 5_000) / 10_000)
+	if margin < minimum {
+		margin = minimum
+	}
+	if margin > accounting.MaxCPM-price {
+		return 0, fmt.Errorf("marked-up CPM exceeds %s", accounting.MaxCPM)
+	}
+	return price + margin, nil
 }
 
 func middlemanImpIndexByID(bid *openrtb2.BidRequest, impID string) int {

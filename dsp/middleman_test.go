@@ -13,12 +13,35 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
+
+func TestMiddlemanMarkedCPMUsesExactDeclaredRoundingAndBounds(t *testing.T) {
+	entry := match.MiddlemanRouteEntry{
+		AccountingVersion: match.MiddlemanRouteAccountingVersion,
+		GroupMarginUnits:  5_000,
+	}
+	got, err := middlemanMarkedCPM(accounting.CPM(3), entry)
+	if err != nil || got != 5 {
+		t.Fatalf("half-away marked CPM = %s, %v; want 0.000005", got, err)
+	}
+	entry.GroupMinMarginExact = 7
+	got, err = middlemanMarkedCPM(accounting.CPM(3), entry)
+	if err != nil || got != 10 {
+		t.Fatalf("minimum marked CPM = %s, %v; want 0.000010", got, err)
+	}
+	if _, err := middlemanMarkedCPM(accounting.MaxCPM, entry); err == nil {
+		t.Fatal("overflowing marked CPM was accepted")
+	}
+	if _, err := protocolCPM(1.0000004); err == nil {
+		t.Fatal("over-scale downstream protocol CPM was rounded")
+	}
+}
 
 func TestMiddlemanRoutesRefreshesOnceForConcurrentRequests(t *testing.T) {
 	cache := &match.MiddlemanRouteCache{Version: match.MiddlemanRouteCacheVersion}
