@@ -120,7 +120,7 @@ func TestPublishSpreadMessagesFailureCannotEmitCommit(t *testing.T) {
 
 func TestBuildSpreadPublisherMessagesOmitsUnpublishableInventory(t *testing.T) {
 	pubmap := acl.PubMap{
-		"active.example":   {PubID: 1, Active: true},
+		"active.example":   {AccountingVersion: accounting.ExactMoneyContract, PubID: 1, Active: true},
 		"inactive.example": {PubID: 2},
 		"capped.example":   {PubID: 3, Active: true, LimitImps: 10, CurrentImps: 10},
 	}
@@ -130,6 +130,16 @@ func TestBuildSpreadPublisherMessagesOmitsUnpublishableInventory(t *testing.T) {
 	}
 	if len(messages) != 1 || messages[0].Subject != acl.HashNamePubmap+":active.example" {
 		t.Fatalf("publisher messages = %#v, want active inventory only", messages)
+	}
+	pub, err := acl.UnpackPub(messages[0].Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pub.AccountingVersion != accounting.ExactMoneyContract {
+		t.Fatalf("spread publisher accounting version = %q", pub.AccountingVersion)
+	}
+	if direct := acl.DirectPubMapFromPubMap(acl.PubMap{"active.example": pub})[1]; direct == nil || direct.AccountingVersion != accounting.ExactMoneyContract {
+		t.Fatalf("spread publisher did not preserve the derived direct-publisher shape: %#v", direct)
 	}
 }
 

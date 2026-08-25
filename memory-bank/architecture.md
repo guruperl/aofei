@@ -253,7 +253,12 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    Publisher-floor lookup first resolves publisher/direct-publisher accounting
    provenance: v3 reads only the exact map, unmarked legacy gob reads only the
    float map, and direct SSP carries the resolved version through impression
-   construction. Unknown or conflicting markers cannot fall back.
+   construction. Unknown or conflicting markers cannot fall back. Publisher
+   serializers and their direct Redis/spread helpers are write-v3 only: they
+   require exact markers, a valid floor for every declared slot, complete
+   exact/float projection parity, and direct/embedded publisher agreement
+   before writing bytes or issuing a publication mutation. Unmarked gob is a
+   read-only drain format and must be rebuilt from MySQL rather than promoted.
    Middleman callback state follows the same boundary: only exact v3, explicit
    v2, or an unmarked pre-A03 context can be reconciled into billable prices.
    Tracking callbacks also require an explicit v3 marker before populating an
@@ -561,10 +566,12 @@ active site/slot metadata, site type, slot size, and configured USD CPM floor so
 `/pz` can validate commercial packed tokens, enforce platform and floor policy,
 and reconstruct site/slot strings without a MySQL read. Full cache publication
 scans the decimal floor as a fixed-point CPM, carries the v3 accounting marker
-and exact field in both publisher cache shapes, and validates this metadata
-first. Current generations cannot fall back to the float compatibility
-projection; unversioned gob generations retain only a bounded six-place drain
-adapter. Direct SSP parses its request floor to the same type, computes the
+and exact field in both publisher cache shapes, retains matching float
+projections solely for old readers, and validates the complete monetary shape
+before bytes or publication mutations. Current generations cannot fall back to
+the float compatibility projection; unversioned gob generations retain only a
+bounded six-place read adapter and cannot pass a serializer. Direct SSP parses
+its request floor to the same type, computes the
 maximum exactly, and local matching compares exact demand/floor values before
 projecting the selected price to OpenRTB. `cmd/redis-cache -validate-publishers` is a
 DB-only, no-mutation readiness mode that emits a deterministic packed-token

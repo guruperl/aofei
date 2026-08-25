@@ -91,7 +91,7 @@ acceptance criteria recorded in the corresponding status files.
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
-| A03 | Planned | [status-A03.md](status-A03.md) | Exact monetary source migration. |
+| A03 | In progress | [status-A03.md](status-A03.md) | Exact monetary source migration. |
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
 | O03 | Completed | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
@@ -1682,7 +1682,7 @@ was 94 tables, 6 routines, and 55 triggers. Recorded/disposable verification is 
 provider sandbox, migration, governance, and production enablement remain
 external go-live gates rather than repository completion claims.
 
-## A03 - Exact Monetary Source Migration `[ ]`
+## A03 - Exact Monetary Source Migration `[~]`
 
 Extend exact money through authoritative demand, reservation, ledger, daily,
 management, statement, and hosted reconciliation sources using a versioned,

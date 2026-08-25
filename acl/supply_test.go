@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"testing"
+
+	"github.com/guruperl/aofei/accounting"
 )
 
 type legacyPubCache struct {
@@ -51,7 +53,7 @@ func TestSupplyMetadataValidation(t *testing.T) {
 	}
 }
 
-func TestPublisherGobCacheIsAdditiveInBothDirections(t *testing.T) {
+func TestPublisherGobCacheReadsLegacyAndWritesOnlyV3(t *testing.T) {
 	legacy := legacyPubCache{
 		PubID: 7, Active: true, Sites: map[string]uint32{"example.com": 8},
 		SiteTypes:  map[uint32]SiteType{8: SiteTypeWeb},
@@ -70,12 +72,21 @@ func TestPublisherGobCacheIsAdditiveInBothDirections(t *testing.T) {
 	if got := decoded.SupplyFor(8, 9); got.Site.Environment != "Unknown" || got.Slot.Placement != "Unknown" {
 		t.Fatalf("old cache did not decode to explicit unknown taxonomy: %#v", got)
 	}
+	if packed, err := decoded.Pack(); err == nil || len(packed) != 0 {
+		t.Fatalf("legacy publisher reserialization = %d bytes, %v; want no bytes and an error", len(packed), err)
+	}
+	decoded.AccountingVersion = "future-version"
+	if packed, err := decoded.Pack(); err == nil || len(packed) != 0 {
+		t.Fatalf("unknown-version publisher reserialization = %d bytes, %v; want no bytes and an error", len(packed), err)
+	}
 	decoded.Seller = SellerMetadata{ID: "pending-7", Type: "Publisher", ASI: "w8m.com"}
 	if got := decoded.SupplyFor(8, 9).Seller; got.ID != "" || got.ASI != "" || got.Authorized {
 		t.Fatalf("unapproved seller reached runtime supply metadata: %#v", got)
 	}
 
 	decoded.Seller = SellerMetadata{ID: "seller-7", Type: "Publisher", ASI: "w8m.com", Authorized: true}
+	decoded.AccountingVersion = accounting.ExactMoneyContract
+	decoded.SlotFloorCPMs = map[uint32]map[uint32]accounting.CPM{8: {9: 1_250_000}}
 	decoded.SiteSupply = map[uint32]SiteSupplyMetadata{8: {Environment: "Web", CanonicalIdentity: "example.com", IntegrationMode: "BrowserTag"}}
 	decoded.SlotSupply = map[uint32]map[uint32]SlotSupplyMetadata{8: {9: {MediaIntent: "Banner", Placement: "AboveFold", RefreshMode: "None"}}}
 	packed, err := decoded.Pack()
@@ -91,7 +102,7 @@ func TestPublisherGobCacheIsAdditiveInBothDirections(t *testing.T) {
 	}
 }
 
-func TestDirectPublisherGobCacheIsAdditiveInBothDirections(t *testing.T) {
+func TestDirectPublisherGobCacheReadsLegacyAndWritesOnlyV3(t *testing.T) {
 	legacyPub := &legacyPubCache{
 		PubID: 7, Active: true, Sites: map[string]uint32{"example.com": 8},
 		SiteTypes:  map[uint32]SiteType{8: SiteTypeWeb},
@@ -116,7 +127,18 @@ func TestDirectPublisherGobCacheIsAdditiveInBothDirections(t *testing.T) {
 	if got := decoded.Pub.SupplyFor(8, 9); got.Site.Environment != "Unknown" || got.Slot.MediaIntent != "Unknown" {
 		t.Fatalf("old direct cache did not decode to explicit unknown taxonomy: %#v", got)
 	}
+	if packed, err := decoded.Pack(); err == nil || len(packed) != 0 {
+		t.Fatalf("legacy direct-publisher reserialization = %d bytes, %v; want no bytes and an error", len(packed), err)
+	}
+	decoded.AccountingVersion = "future-version"
+	if packed, err := decoded.Pack(); err == nil || len(packed) != 0 {
+		t.Fatalf("unknown-version direct-publisher reserialization = %d bytes, %v; want no bytes and an error", len(packed), err)
+	}
 
+	decoded.AccountingVersion = accounting.ExactMoneyContract
+	decoded.Pub.AccountingVersion = accounting.ExactMoneyContract
+	decoded.SlotFloorCPMs = map[uint32]map[uint32]accounting.CPM{8: {9: 1_250_000}}
+	decoded.Pub.SlotFloorCPMs = map[uint32]map[uint32]accounting.CPM{8: {9: 1_250_000}}
 	decoded.Pub.Seller = SellerMetadata{ID: "seller-7", Type: "Publisher", ASI: "w8m.com", Authorized: true}
 	decoded.Pub.SiteSupply = map[uint32]SiteSupplyMetadata{8: {Environment: "Web", CanonicalIdentity: "example.com", IntegrationMode: "BrowserTag"}}
 	decoded.Pub.SlotSupply = map[uint32]map[uint32]SlotSupplyMetadata{8: {9: {MediaIntent: "Banner", Placement: "AboveFold", RefreshMode: "None"}}}

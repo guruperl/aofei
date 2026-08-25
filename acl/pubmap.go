@@ -40,6 +40,9 @@ func (self PubMap) ToRedis(ctx context.Context, conn radix.Client) error {
 
 // ToRedisKeys writes publisher caches to explicit Redis hash keys.
 func (self PubMap) ToRedisKeys(ctx context.Context, conn radix.Client, pubmapKey, byIDKey string) error {
+	if err := self.validateActivePublisherWrites(); err != nil {
+		return err
+	}
 	arr := []string{pubmapKey}
 	byID := []string{byIDKey}
 	for k, v := range self {
@@ -80,10 +83,25 @@ func (self PubMap) ToRedisKeys(ctx context.Context, conn radix.Client, pubmapKey
 
 // ToSpread encodes the PubMap to a byte slice and publish it to nats
 func (self PubMap) ToSpread(conn *nats.Conn) error {
+	if err := self.validateActivePublisherWrites(); err != nil {
+		return err
+	}
 	for k, v := range self {
 		err := v.ToSpread(conn, k)
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (self PubMap) validateActivePublisherWrites() error {
+	for domain, pub := range self {
+		if pub == nil || !pub.Active || (pub.LimitImps != 0 && pub.CurrentImps >= pub.LimitImps) {
+			continue
+		}
+		if err := pub.validateWrite(); err != nil {
+			return fmt.Errorf("publisher %q: %w", domain, err)
 		}
 	}
 	return nil
@@ -313,9 +331,65 @@ func commercialSize(sizeID uint32) (uint16, uint16) {
 }
 
 func (self *DirectPub) Pack() ([]byte, error) {
+	if err := self.validateWrite(); err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
 	err := gob.NewEncoder(&buf).Encode(self)
 	return buf.Bytes(), err
+}
+
+func (self *DirectPub) validateWrite() error {
+	if self == nil {
+		return fmt.Errorf("direct publisher is nil")
+	}
+	if self.Pub == nil {
+		return fmt.Errorf("direct publisher %q has no embedded publisher", self.Domain)
+	}
+	if err := self.Pub.validateWrite(); err != nil {
+		return fmt.Errorf("direct publisher %q: %w", self.Domain, err)
+	}
+	if self.AccountingVersion != accounting.ExactMoneyContract || self.AccountingVersion != self.Pub.AccountingVersion {
+		return fmt.Errorf("direct publisher %q accounting version %q does not match embedded publisher version %q", self.Domain, self.AccountingVersion, self.Pub.AccountingVersion)
+	}
+	declared := make(map[publisherSlot]struct{})
+	for siteID, slots := range self.Slots {
+		for slotID := range slots {
+			declared[publisherSlot{siteID: siteID, slotID: slotID}] = struct{}{}
+		}
+	}
+	if err := validatePublisherFloorWrite(declared, self.SlotFloorCPMs, self.SlotFloors); err != nil {
+		return fmt.Errorf("direct publisher %q: %w", self.Domain, err)
+	}
+	if err := comparePublisherFloorWrites(self.SlotFloorCPMs, self.Pub.SlotFloorCPMs); err != nil {
+		return fmt.Errorf("direct publisher %q exact floors do not match embedded publisher: %w", self.Domain, err)
+	}
+	if err := comparePublisherFloorWrites(self.SlotFloors, self.Pub.SlotFloors); err != nil {
+		return fmt.Errorf("direct publisher %q compatibility floors do not match embedded publisher: %w", self.Domain, err)
+	}
+	return nil
+}
+
+func comparePublisherFloorWrites[T comparable](direct, embedded map[uint32]map[uint32]T) error {
+	for siteID, floors := range direct {
+		for slotID, floor := range floors {
+			embeddedFloor, ok := embedded[siteID][slotID]
+			if !ok {
+				return fmt.Errorf("site %d slot %d is missing from embedded publisher", siteID, slotID)
+			}
+			if floor != embeddedFloor {
+				return fmt.Errorf("site %d slot %d value differs from embedded publisher", siteID, slotID)
+			}
+		}
+	}
+	for siteID, floors := range embedded {
+		for slotID := range floors {
+			if _, ok := direct[siteID][slotID]; !ok {
+				return fmt.Errorf("site %d slot %d is missing from direct publisher", siteID, slotID)
+			}
+		}
+	}
+	return nil
 }
 
 func UnpackDirectPub(data []byte) (*DirectPub, error) {

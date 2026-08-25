@@ -37,10 +37,13 @@ func (a redisRecorderAddr) String() string  { return string(a) }
 
 func TestPubToRedisUpdatesPubmapAndDirectPubByID(t *testing.T) {
 	pub := &Pub{
-		PubID:  42,
-		Active: true,
-		Sites:  map[string]uint32{"example.com": 7},
-		Slots:  map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+		AccountingVersion: accounting.ExactMoneyContract,
+		PubID:             42,
+		Active:            true,
+		Sites:             map[string]uint32{"example.com": 7},
+		Slots:             map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+		SlotFloors:        map[uint32]map[uint32]float64{7: {99: 1.75}},
+		SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{7: {99: 1_750_000}},
 	}
 	redis := &redisCommandRecorder{}
 
@@ -55,6 +58,33 @@ func TestPubToRedisUpdatesPubmapAndDirectPubByID(t *testing.T) {
 	}
 	if !strings.Contains(redis.commands[1], `"HSET" "pubmap:by-id" "42"`) {
 		t.Fatalf("direct by-id command = %s", redis.commands[1])
+	}
+}
+
+func TestPublisherRedisAndSpreadWritersPreflightBeforeMutation(t *testing.T) {
+	invalid := validPublisherWrite()
+	invalid.SlotFloors[7][99] = 9.75
+	redis := &redisCommandRecorder{}
+	if err := invalid.ToRedis(context.Background(), redis, "invalid.example"); err == nil {
+		t.Fatal("invalid publisher ToRedis succeeded")
+	}
+	if len(redis.commands) != 0 {
+		t.Fatalf("invalid publisher emitted Redis commands: %#v", redis.commands)
+	}
+
+	pubmap := PubMap{
+		"delete.example":  {PubID: 7},
+		"valid.example":   validPublisherWrite(),
+		"invalid.example": invalid,
+	}
+	if err := pubmap.ToRedisKeys(context.Background(), redis, "pubmap:next", "pubmap:by-id:next"); err == nil {
+		t.Fatal("invalid publisher map ToRedisKeys succeeded")
+	}
+	if len(redis.commands) != 0 {
+		t.Fatalf("publisher-map preflight emitted Redis commands: %#v", redis.commands)
+	}
+	if err := pubmap.ToSpread(nil); err == nil {
+		t.Fatal("invalid publisher map ToSpread succeeded")
 	}
 }
 
@@ -87,6 +117,13 @@ func TestPubMapRedisRoundTripPreservesCommercialSlotPolicy(t *testing.T) {
 	if err := pubmap.ToRedis(ctx, client); err != nil {
 		t.Fatal(err)
 	}
+	pub, err := PubFromRedis(ctx, client, "pub.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pub.AccountingVersion != accounting.ExactMoneyContract || pub.SlotFloorCPMs[7][99] != 1_750_000 || pub.SlotFloors[7][99] != 1.75 {
+		t.Fatalf("publisher cache lost v3/compatibility floor shapes: %#v", pub)
+	}
 	direct, err := PubByIDFromRedis(ctx, client, 42)
 	if err != nil {
 		t.Fatal(err)
@@ -94,6 +131,9 @@ func TestPubMapRedisRoundTripPreservesCommercialSlotPolicy(t *testing.T) {
 	site, slot, siteType, floor, ok := direct.CommercialSlot(7, 99, sizeID)
 	if !ok || site != "example.com" || slot != "leaderboard" || siteType != SiteTypeWeb || floor != 1.75 {
 		t.Fatalf("CommercialSlot = (%q, %q, %v, %v, %v)", site, slot, siteType, floor, ok)
+	}
+	if direct.AccountingVersion != accounting.ExactMoneyContract || direct.SlotFloorCPMs[7][99] != 1_750_000 || direct.SlotFloors[7][99] != 1.75 {
+		t.Fatalf("direct publisher cache lost v3/compatibility floor shapes: %#v", direct)
 	}
 }
 

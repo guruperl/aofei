@@ -19,7 +19,7 @@ publisher ownership boundary.
 |---|---:|---|
 | Taxonomy contract | `[+]` | Closed site/app environment, canonical identity, integration, media, placement, render, refresh, density, traffic/source quality, management, and seller vocabularies are validated in Aofei and Summer. |
 | Schema and UI | `[+]` | Defaulted `pub`/`pub_site`/`pub_slot` fields, publisher forms, operator review pages, hostile-output tests, and a seller-approval revocation trigger retain the existing publisher role. |
-| Cache and audits | `[+]` | Both publisher Gob views carry additive metadata; old/new readers are tested both ways, missing values normalize to `Unknown`, and runtime attributes clear unapproved seller data before privacy-safe audit. |
+| Cache and audits | `[+]` | Both publisher Gob views carry additive metadata; legacy unmarked payloads remain readable, while A03 makes every new write v3 and retains matching float projections only so older readers can consume current payloads. Missing taxonomy values normalize to `Unknown`, and runtime attributes clear unapproved seller data before privacy-safe audit. |
 | Seller identity | `[+]` | Publisher-proposed id/type/ASI/name/domain require exact operator authorization; edits revoke approval and transparency never changes the A01 settlement owner. |
 | Supply chain | `[+]` | Direct `/pz` derives owned/intermediary chains only from approved cache state; middleman fanout validates bounded standard chains, requires `hp=1`, and strips `pchain`/extensions. |
 | Reporting | `[+]` | Signed measurement lineage and `report_delivery` retain every approved supply category, refresh seconds, and authorized seller id/type under a complete SHA-256 dimension identity. |
@@ -121,7 +121,7 @@ publisher ownership boundary.
   100,000-row/five-run benchmark measured advertiser 100/119 ms, publisher
   105/118 ms, and operator 1684/1830 ms median/max on x86-64 with eight visible
   CPUs; these are local measurements, not production p95/p99.
-- Publisher and direct-publisher Gob compatibility, seller authorization,
+- Publisher and direct-publisher read-old/write-v3 Gob compatibility, seller authorization,
   hostile metadata, direct/client trust, owned/intermediary `schain`, audit,
   signed reporting, and refresh-identity tests passed. Both template surfaces
   (263 templates), public-copy/data guards, Aofei docs, and all three repository

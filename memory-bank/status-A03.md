@@ -1,6 +1,6 @@
 # Status A03 - Exact Monetary Source Migration
 
-State: `[!]` Blocked at review limit
+State: `[~]` In progress - user-authorized review extension through iteration 15
 
 ## Goal
 
@@ -25,7 +25,7 @@ source while preserving auditable compatibility and hosted-payment safety.
 |---|---:|---|
 | Exact-money contract | `[x]` | `usd-cpm-impression-v3` inventories authoritative and compatibility-only sources. CPM is integer micro-USD/1,000 at six-decimal ingress; one impression is the same integer count of nano-USD, aggregates use checked integer arithmetic, and the statement boundary rounds half away from zero once. Historical floats remain labeled evidence and are never promoted as recovered exact input. |
 | Schema and history migration | `[x]` | The baseline and offline `etc/a03_exact_money_migration.sql` use DECIMAL(12,6) CPM and DECIMAL(20,9) amount columns for demand, floors, budgets, balance history, interval/daily, and middleman sources. `money_migration_evidence` preserves database-rendered legacy values without claiming recovered precision; unsupported, invalid, or signed-64-overflow sources are quarantined and stop promotion. Inactive `adv.balance`, `his_payment`, and `pay_payment` floats remain explicitly outside authority. |
-| Runtime and cache representation | `[x]` | RAdv v3 writes exact CPM and nano-USD balances while retaining bounded v2/v1/headerless read conversion. Publisher/direct-publisher v3 caches scan and carry exact slot-floor CPM, direct SSP validates and maximizes request/configured floors in fixed point, and demand filtering compares exact CPM before OpenRTB projection; only unversioned gob generations use the bounded float adapter. New `delivery:v3:*` state uses decimal-string comparison plus Redis `HINCRBY` for atomic signed-64-bit nano-USD reservations; old float keys are untouched for drain. Middleman route caches carry exact four-place percentage/six-place minimum terms, callbacks bind exact charge/pay/margin identity, and authoritative interval/daily aggregation uses checked nano-USD addition before DECIMAL writes. |
+| Runtime and cache representation | `[x]` | RAdv v3 writes exact CPM and nano-USD balances while retaining bounded v2/v1/headerless read conversion. Publisher/direct-publisher v3 caches scan and carry exact slot-floor CPM plus matching old-reader float projections; their public serializers and Redis/spread helpers validate the complete v3 shape before bytes or mutations, so unmarked gob remains read-only drain data. Direct SSP validates and maximizes request/configured floors in fixed point, and demand filtering compares exact CPM before OpenRTB projection. New `delivery:v3:*` state uses decimal-string comparison plus Redis `HINCRBY` for atomic signed-64-bit nano-USD reservations; old float keys are untouched for drain. Middleman route caches carry exact four-place percentage/six-place minimum terms, callbacks bind exact charge/pay/margin identity, and authoritative interval/daily aggregation uses checked nano-USD addition before DECIMAL writes. |
 | Management and report interfaces | `[x]` | Management item CPM and budget limits are canonical exact JSON strings (six and nine places); numeric money receives `money_string_required` and cannot mutate. SQL scans reject binary float, item/limit responses preserve exact strings, report spend remains account-scoped six-decimal output, and rows distinguish historical v2 from new v3 authority. |
 | Statement and database invariants | `[x]` | Database triggers freeze request/party/cadence/period/currency/source/supersession/creator identity, reject statement deletion, and allow draft/Held amount changes only when they equal the immutable adjustment sum. Adjustment/audit and A03 migration evidence remain update/delete immutable; service adjustment, Hold/approval/settlement, and correction replacement paths stay valid. Current baseline: 96 tables, 6 routines, 65 triggers. |
 | Account and sensitive-data scope | `[x]` | Statement listing requires an explicit authorized party scope; only the offline operator's explicit `-all-parties` export is global, while Summer passes its typed-principal party. Audit/reference guards reject nine-plus digit account/routing/card groups across common separators, IBAN-like forms, and provider secret prefixes without retaining or echoing the candidate value. |
@@ -188,9 +188,10 @@ source while preserving auditable compatibility and hosted-payment safety.
   Resolution: tracking ingress populates the exact CPM only for an explicit v3
   callback; unmarked and v2 callbacks retain a validated float projection, and
   ledger normalization rejects an unmarked record that mixes in exact fields.
-- Iteration 10: `[!]` One blocking finding reached the bounded review limit on
-  2026-08-25. `GOAL.md` requires explicit user direction before another
-  fix-review cycle, and downstream reconciliation has not begun.
+- Iteration 10: `[x]` One blocking finding reached the original bounded review
+  limit on 2026-08-25. The user explicitly authorized this continuation and an
+  extension through iterations 11-15; A03 returned to in-progress and
+  downstream reconciliation remains paused until a clean extended pass.
   1. **P2 - publisher compatibility generation rewrite:** the exported
      publisher serializers and their direct Redis/spread helpers can write a
      newly encoded active `Pub`/`DirectPub` with an empty accounting marker and
@@ -198,6 +199,17 @@ source while preserving auditable compatibility and hosted-payment safety.
      calls, but the public writer contract can bypass that guard and repopulate
      live publisher keys with a newly created compatibility generation instead
      of reserving unmarked gob data for read-only drain.
+  Resolution: publisher and direct-publisher packing now shares a write-v3
+  validator requiring exact markers, valid per-slot exact floors, complete and
+  canonical float projection parity, and direct/embedded agreement. Packing
+  fails before bytes; map Redis/spread helpers preflight every active publisher;
+  and the single-publisher Redis helper builds both payload shapes before its
+  first command. Legacy and unknown-version gob objects remain decodable but
+  cannot be reserialized.
+- Extended review authorization (2026-08-25): iterations 11-15 are available
+  for full-milestone review/fix cycles. Stop at the first clean pass; if
+  iteration 15 still has a P1/P2-or-higher finding, return A03 to blocked and do
+  not reconcile downstream work.
 
 ## Exclusions
 

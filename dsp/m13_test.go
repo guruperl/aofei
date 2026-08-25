@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/guruperl/aofei/accounting"
 	"github.com/guruperl/aofei/acl"
 	"github.com/guruperl/aofei/match"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -73,12 +74,13 @@ func newLocalBidPathController(t testing.TB) *Controller {
 	sizeTwo := match.SizeID2To1(320, 50)
 
 	pub := &acl.Pub{
-		PubID:            1,
-		Active:           true,
-		DefaultWebSiteID: 10,
-		DefaultWebSlotID: 100,
-		Sites:            map[string]uint32{"example.com": 10, "app.example.com": 11},
-		SiteTypes:        map[uint32]acl.SiteType{10: acl.SiteTypeWeb, 11: acl.SiteTypeAPP},
+		AccountingVersion: accounting.ExactMoneyContract,
+		PubID:             1,
+		Active:            true,
+		DefaultWebSiteID:  10,
+		DefaultWebSlotID:  100,
+		Sites:             map[string]uint32{"example.com": 10, "app.example.com": 11},
+		SiteTypes:         map[uint32]acl.SiteType{10: acl.SiteTypeWeb, 11: acl.SiteTypeAPP},
 		Slots: map[uint32]map[string]uint32{
 			10: map[string]uint32{"slot-one": 100, "slot-two": 200},
 			11: map[string]uint32{"slot-one": 100, "slot-two": 200},
@@ -90,6 +92,10 @@ func newLocalBidPathController(t testing.TB) *Controller {
 		SlotFloors: map[uint32]map[uint32]float64{
 			10: map[uint32]float64{100: 0, 200: 0},
 			11: map[uint32]float64{100: 0, 200: 0},
+		},
+		SlotFloorCPMs: map[uint32]map[uint32]accounting.CPM{
+			10: {100: 0, 200: 0},
+			11: {100: 0, 200: 0},
 		},
 	}
 	writePubSnapshot(t, top, "pub.example", pub)

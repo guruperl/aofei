@@ -299,13 +299,15 @@ func TestDirectPubMapOmitsInactiveAndLimitedPublishers(t *testing.T) {
 
 func TestDirectPubPackRoundTrip(t *testing.T) {
 	pub := &Pub{
-		PubID:      42,
-		Active:     true,
-		Sites:      map[string]uint32{"example.com": 7},
-		SiteTypes:  map[uint32]SiteType{7: SiteTypeWeb},
-		Slots:      map[uint32]map[string]uint32{7: map[string]uint32{"leaderboard": 99}},
-		SlotSizes:  map[uint32]map[uint32]uint32{7: map[uint32]uint32{99: 12345}},
-		SlotFloors: map[uint32]map[uint32]float64{7: map[uint32]float64{99: 1.75}},
+		AccountingVersion: accounting.ExactMoneyContract,
+		PubID:             42,
+		Active:            true,
+		Sites:             map[string]uint32{"example.com": 7},
+		SiteTypes:         map[uint32]SiteType{7: SiteTypeWeb},
+		Slots:             map[uint32]map[string]uint32{7: {"leaderboard": 99}},
+		SlotSizes:         map[uint32]map[uint32]uint32{7: {99: 12345}},
+		SlotFloors:        map[uint32]map[uint32]float64{7: {99: 1.75}},
+		SlotFloorCPMs:     map[uint32]map[uint32]accounting.CPM{7: {99: 1_750_000}},
 	}
 	direct := NewDirectPub("pub.example", pub)
 	data, err := direct.Pack()

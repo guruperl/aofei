@@ -98,6 +98,7 @@ func TestOpenRTBImpFromSSPRejectsUnknownFloorAccountingVersion(t *testing.T) {
 func TestOpenRTBFromSSPUsesGreaterOfRequestAndConfiguredFloor(t *testing.T) {
 	controller := newLocalBidPathController(t)
 	controller.local.pubByID[1].SlotFloors[10][100] = 1.75
+	controller.local.pubByID[1].SlotFloorCPMs[10][100] = 1_750_000
 	for _, test := range []struct {
 		name         string
 		requestFloor float64
@@ -163,7 +164,7 @@ func TestServeSSPRejectsCommercialInventoryMismatchBeforeSideEffects(t *testing.
 			runtime := &recordingMiddlemanRuntime{}
 			enableSSPMiddleman(controller, true, runtime)
 			if test.stalePolicy {
-				controller.local.pubByID[1].SlotFloors = nil
+				controller.local.pubByID[1].SlotFloorCPMs = nil
 			}
 			rr := serveSSPWithHeaders(t, controller, test.body, map[string]string{"Origin": "https://example.com"})
 			if rr.Code != http.StatusBadRequest {

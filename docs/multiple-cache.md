@@ -23,7 +23,11 @@ Static bid-serving data is local:
   floor metadata for `/pz` validation.
   Redis mode also publishes the additive `pubmap:by-id` hash for `/pz`
   serving; local mode derives the same lookup in memory and does not add a
-  spread directory.
+  spread directory. New publisher and direct-publisher gob writes require the
+  `usd-cpm-impression-v3` marker, valid exact floors, and complete parity with
+  the float projections retained for old readers. Unmarked legacy gob remains
+  readable during drain but cannot be reserialized or promoted; rebuild it
+  from MySQL before publishing a new Redis or spread generation.
 - `slot/<size_id>/<slot_id>` compiled `match.RAdvs` candidates.
 - `audience/<item_id>` compiled audience predicates.
 - `creative/<creative_id>` creative metadata, trackers, landing URL, optional

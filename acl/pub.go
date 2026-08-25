@@ -49,18 +49,109 @@ type publisherMutationDB interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-// Pack encodes a Pub object into a byte slice.
+// Pack encodes a current v3 Pub object into a byte slice. Legacy payloads are
+// read-compatible only and must be rebuilt from their authoritative source.
 func (self *Pub) Pack() ([]byte, error) {
+	if err := self.validateWrite(); err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(self)
 	return buf.Bytes(), err
 }
 
-// PackIO packs a Pub object into a byte slice in IO writer.
+// PackIO packs a current v3 Pub object into an IO writer.
 func (self *Pub) PackIO(w io.Writer) error {
+	if err := self.validateWrite(); err != nil {
+		return err
+	}
 	enc := gob.NewEncoder(w)
 	return enc.Encode(self)
+}
+
+type publisherSlot struct {
+	siteID uint32
+	slotID uint32
+}
+
+// validateWrite keeps legacy publisher gob support one-way: old unmarked
+// payloads remain decodable, but every newly encoded payload must carry exact
+// v3 floors and the matching float projections needed by older readers.
+func (self *Pub) validateWrite() error {
+	if self == nil {
+		return errors.New("publisher is nil")
+	}
+	if self.AccountingVersion != accounting.ExactMoneyContract {
+		return fmt.Errorf("publisher %d has accounting version %q, want %q", self.PubID, self.AccountingVersion, accounting.ExactMoneyContract)
+	}
+	declared := make(map[publisherSlot]struct{})
+	for siteID, slots := range self.Slots {
+		for _, slotID := range slots {
+			declared[publisherSlot{siteID: siteID, slotID: slotID}] = struct{}{}
+		}
+	}
+	if err := validatePublisherFloorWrite(declared, self.SlotFloorCPMs, self.SlotFloors); err != nil {
+		return fmt.Errorf("publisher %d: %w", self.PubID, err)
+	}
+	return nil
+}
+
+func validatePublisherFloorWrite(
+	declared map[publisherSlot]struct{},
+	exact map[uint32]map[uint32]accounting.CPM,
+	compatibility map[uint32]map[uint32]float64,
+) error {
+	for slot := range declared {
+		if floors := exact[slot.siteID]; floors == nil {
+			return fmt.Errorf("site %d slot %d is missing exact USD CPM floor", slot.siteID, slot.slotID)
+		} else if _, ok := floors[slot.slotID]; !ok {
+			return fmt.Errorf("site %d slot %d is missing exact USD CPM floor", slot.siteID, slot.slotID)
+		}
+		if floors := compatibility[slot.siteID]; floors == nil {
+			return fmt.Errorf("site %d slot %d is missing compatibility USD CPM floor", slot.siteID, slot.slotID)
+		} else if _, ok := floors[slot.slotID]; !ok {
+			return fmt.Errorf("site %d slot %d is missing compatibility USD CPM floor", slot.siteID, slot.slotID)
+		}
+	}
+
+	for siteID, floors := range exact {
+		for slotID, floor := range floors {
+			if floor < 0 || floor > accounting.MaxCPM {
+				return fmt.Errorf("site %d slot %d exact USD CPM floor is outside the supported range", siteID, slotID)
+			}
+			projection, ok := compatibility[siteID][slotID]
+			if !ok {
+				return fmt.Errorf("site %d slot %d exact USD CPM floor has no compatibility projection", siteID, slotID)
+			}
+			if err := validatePublisherFloorProjection(siteID, slotID, floor, projection); err != nil {
+				return err
+			}
+		}
+	}
+	for siteID, floors := range compatibility {
+		for slotID, projection := range floors {
+			floor, ok := exact[siteID][slotID]
+			if !ok {
+				return fmt.Errorf("site %d slot %d compatibility USD CPM floor has no exact value", siteID, slotID)
+			}
+			if err := validatePublisherFloorProjection(siteID, slotID, floor, projection); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validatePublisherFloorProjection(siteID, slotID uint32, floor accounting.CPM, projection float64) error {
+	if math.IsNaN(projection) || math.IsInf(projection, 0) || projection < 0 ||
+		(projection == 0 && math.Signbit(projection)) || projection > accounting.MaxCPM.Float64() {
+		return fmt.Errorf("site %d slot %d compatibility USD CPM floor is invalid", siteID, slotID)
+	}
+	if projection != floor.Float64() {
+		return fmt.Errorf("site %d slot %d compatibility USD CPM floor does not match exact value", siteID, slotID)
+	}
+	return nil
 }
 
 // UnpackPub decodes a byte slice into a Pub object.
@@ -134,11 +225,11 @@ func (self *Pub) ToRedis(ctx context.Context, conn radix.Client, domain string) 
 		if err != nil {
 			return err
 		}
-		if err := conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubmap, domain, string(bs))); err != nil {
-			return err
-		}
 		direct, err := NewDirectPub(domain, self).Pack()
 		if err != nil {
+			return err
+		}
+		if err := conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubmap, domain, string(bs))); err != nil {
 			return err
 		}
 		return conn.Do(ctx, radix.Cmd(nil, "HSET", HashNamePubByID, strconv.FormatUint(uint64(self.PubID), 10), string(direct)))
