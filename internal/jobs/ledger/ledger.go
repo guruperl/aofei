@@ -642,9 +642,6 @@ func normalizeWinLossAccounting(wl *dsp.WinLoss) error {
 		switch {
 		case wl.Middleman != nil && wl.Middleman.AccountingVersion != "":
 			version = wl.Middleman.AccountingVersion
-		case wl.RAdv.CostCPM != 0:
-			// A03 produced exact facts before the top-level marker was added.
-			version = accounting.ExactMoneyContract
 		default:
 			version = accounting.LegacyMoneyContract
 		}

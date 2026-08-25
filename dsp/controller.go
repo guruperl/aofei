@@ -1421,21 +1421,30 @@ func (self *Controller) serveStatus(ctx context.Context, status Status, current 
 
 	rawPrice := args.Get("auction_price")
 	cpm, priceErr := accounting.ParseCPM(rawPrice)
-	if priceErr == nil {
+	billable := status == StatusTrackClk || status == StatusTrackImp
+	if wl.AccountingVersion == accounting.ExactMoneyContract && priceErr == nil {
 		wl.RAdv.CostCPM = cpm
 		wl.RAdv.Cost = cpm.Float32()
 		if v := args.Get("auction_currency"); v == "USD" {
 			wl.RAdv.CostType = match.CostTypeCPM
 		}
-	} else if status == StatusTrackClk || status == StatusTrackImp {
+	} else if billable && priceErr != nil {
 		return priceErr
+	} else if billable {
+		// An unmarked or explicit-v2 callback carries only a legacy float
+		// rendering. Validate its bounded value, but do not promote it into the
+		// authoritative v3 field merely because the text has six places.
+		wl.RAdv.Cost = cpm.Float32()
+		if v := args.Get("auction_currency"); v == "USD" {
+			wl.RAdv.CostType = match.CostTypeCPM
+		}
 	} else if price, legacyErr := strconv.ParseFloat(rawPrice, 64); legacyErr == nil {
 		// Exchange-resolved win/loss macros are non-billable compatibility
 		// observations. Billable impression/click callbacks above require exact
 		// six-place input.
 		wl.RAdv.Cost = float32(price)
 	}
-	if (status == StatusTrackClk || status == StatusTrackImp) && args.Get("auction_currency") != "USD" {
+	if billable && args.Get("auction_currency") != "USD" {
 		return fmt.Errorf("billable tracking currency must be USD")
 	}
 

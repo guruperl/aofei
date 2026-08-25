@@ -256,6 +256,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    construction. Unknown or conflicting markers cannot fall back.
    Middleman callback state follows the same boundary: only exact v3, explicit
    v2, or an unmarked pre-A03 context can be reconciled into billable prices.
+   Tracking callbacks also require an explicit v3 marker before populating an
+   exact CPM; unmarked or v2 callbacks remain float-only drain evidence even
+   when their rendered text has six decimal places.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and

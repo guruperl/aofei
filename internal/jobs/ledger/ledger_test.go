@@ -43,15 +43,12 @@ func TestNormalizeWinLossAccountingSeparatesLegacyAndExactFacts(t *testing.T) {
 		t.Fatalf("legacy version = %q", legacy.AccountingVersion)
 	}
 
-	exact := dsp.WinLoss{
+	unmarkedExact := dsp.WinLoss{
 		Status: dsp.StatusTrackImp,
 		RAdv:   match.RAdv{CostType: match.CostTypeCPM, CostCPM: 1_250_001},
 	}
-	if err := normalizeWinLossAccounting(&exact); err != nil {
-		t.Fatal(err)
-	}
-	if exact.AccountingVersion != accounting.ExactMoneyContract {
-		t.Fatalf("transitional exact version = %q", exact.AccountingVersion)
+	if err := normalizeWinLossAccounting(&unmarkedExact); err == nil {
+		t.Fatal("unmarked exact field was promoted to v3")
 	}
 }
 
@@ -208,7 +205,7 @@ func TestStatisticsAggregatesMinimumCPMWithoutFloatRounding(t *testing.T) {
 	events := make([]dsp.WinLoss, 1_000)
 	for index := range events {
 		events[index] = dsp.WinLoss{
-			Status: dsp.StatusTrackImp, RPub: match.RPub{SlotID: 1},
+			Status: dsp.StatusTrackImp, AccountingVersion: accounting.ExactMoneyContract, RPub: match.RPub{SlotID: 1},
 			RAdv: match.RAdv{Demand: match.Demand{ItemID: 5, CreativeID: 4}, CostType: match.CostTypeCPM, CostCPM: 1},
 		}
 	}

@@ -178,6 +178,16 @@ source while preserving auditable compatibility and hosted-payment safety.
   Resolution: callback reconciliation now admits only v3, explicit v2, or an
   unmarked pre-A03 context; every unknown marker is rejected before prices are
   derived or published.
+- Iteration 9: `[x]` One blocking finding was confirmed during the next full
+  review:
+  1. **P2 - unmarked tracker promotion:** billable callbacks from pre-A03
+     signed URLs have no accounting marker but their float-rendered price often
+     parses as a six-place decimal. Tracking ingress stores that value in the
+     exact CPM field, and ledger normalization infers v3 from the field, falsely
+     promoting compatibility evidence into exact authority.
+  Resolution: tracking ingress populates the exact CPM only for an explicit v3
+  callback; unmarked and v2 callbacks retain a validated float projection, and
+  ledger normalization rejects an unmarked record that mixes in exact fields.
 
 ## Exclusions
 

@@ -22,9 +22,10 @@ upstream CPM, impression aggregation, reservation, and ledger path exact:
   signed impression finalizes it.
 - The ledger counts only idempotently accepted impression trackers as spend.
 - New tracker and win/loss facts carry `usd-cpm-impression-v3` at top level.
-  The ledger labels unmarked float-only drain records as v2, recognizes the
-  bounded pre-marker exact transition by its exact fields, and rejects unknown
-  or mixed versions. V3 middleman facts must bind USD exact charge, pay, and
+  Tracking ingress and the ledger label every unmarked drain record as v2 and
+  never promote a six-place rendering into exact authority. Only an explicit
+  v3 marker can authorize the exact field; unknown or mixed versions fail
+  closed. V3 middleman facts must bind USD exact charge, pay, and
   margin to the billable demand CPM; compatibility floats cannot reconstruct a
   missing v3 value.
   The exported compatibility constructor preserves v2 when its caller supplies

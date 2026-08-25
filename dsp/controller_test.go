@@ -75,6 +75,7 @@ func TestServeStatusRejectsInvalidTrackingAuctionPrice(t *testing.T) {
 
 func TestServeStatusUsesSharedCPMCostType(t *testing.T) {
 	args := trackingTestArgs("cost-type", false)
+	args.Set("accounting_version", accounting.ExactMoneyContract)
 	addTrackingSignature("test-secret", "/imp", args)
 	var published WinLoss
 	controller := &Controller{
@@ -89,6 +90,26 @@ func TestServeStatusUsesSharedCPMCostType(t *testing.T) {
 	}
 	if published.RAdv.CostCPM.String() != "1.000000" {
 		t.Fatalf("exact CPM = %s, want 1.000000", published.RAdv.CostCPM)
+	}
+}
+
+func TestServeStatusDoesNotPromoteUnmarkedTrackingPrice(t *testing.T) {
+	args := trackingTestArgs("legacy-price", false)
+	args.Set("auction_price", "1.234567")
+	addTrackingSignature("test-secret", "/imp", args)
+	var published WinLoss
+	controller := &Controller{
+		C:                  &Config{TrackingSecret: "test-secret"},
+		publishWinLossFunc: func(data []byte) error { return json.Unmarshal(data, &published) },
+	}
+	if err := controller.serveStatus(context.Background(), StatusTrackImp, time.Now(), args); err != nil {
+		t.Fatal(err)
+	}
+	if published.AccountingVersion != "" || published.RAdv.CostCPM != 0 {
+		t.Fatalf("unmarked callback was promoted: version=%q exact=%s", published.AccountingVersion, published.RAdv.CostCPM)
+	}
+	if published.RAdv.CostType != match.CostTypeCPM || published.RAdv.Cost <= 0 {
+		t.Fatalf("legacy callback lost bounded price projection: %+v", published.RAdv)
 	}
 }
 
