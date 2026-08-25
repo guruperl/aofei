@@ -118,15 +118,20 @@ type Discrepancy struct {
 }
 
 type MiddlemanReconciliation struct {
-	PeriodStart    time.Time
-	PeriodEnd      time.Time
-	Currency       string
-	Impressions    uint64
-	Charge         Money
-	Pay            Money
-	Margin         Money
-	ExpectedMargin Money
-	Difference     Money
+	PeriodStart     time.Time
+	PeriodEnd       time.Time
+	Currency        string
+	Impressions     uint64
+	ChargeExact     Nano
+	PayExact        Nano
+	MarginExact     Nano
+	ExpectedExact   Nano
+	DifferenceExact Nano
+	Charge          Money
+	Pay             Money
+	Margin          Money
+	ExpectedMargin  Money
+	Difference      Money
 }
 
 type Service struct{ DB *sql.DB }
@@ -534,36 +539,41 @@ func (s Service) ReconcileMiddleman(ctx context.Context, start, end time.Time) (
 	var chargeRaw, payRaw, marginRaw string
 	if err := s.DB.QueryRowContext(ctx, `
 SELECT COALESCE(SUM(m.imps),0),
-       CAST(COALESCE(ROUND(SUM(m.charge_spend),6),0) AS CHAR),
-       CAST(COALESCE(ROUND(SUM(m.pay_spend),6),0) AS CHAR),
-       CAST(COALESCE(ROUND(SUM(m.margin_spend),6),0) AS CHAR)
+	   CAST(COALESCE(SUM(m.charge_spend),0) AS CHAR),
+	   CAST(COALESCE(SUM(m.pay_spend),0) AS CHAR),
+	   CAST(COALESCE(SUM(m.margin_spend),0) AS CHAR)
 FROM daily_mid m INNER JOIN daily_log l USING (log_id)
 WHERE l.daily BETWEEN ? AND ?`, dateString(start), dateString(end)).
 		Scan(&result.Impressions, &chargeRaw, &payRaw, &marginRaw); err != nil {
 		return result, err
 	}
 	var err error
-	if result.Charge, err = ParseMoney(chargeRaw); err != nil {
+	if result.ChargeExact, err = ParseNano(chargeRaw); err != nil {
 		return result, err
 	}
-	if result.Pay, err = ParseMoney(payRaw); err != nil {
+	if result.PayExact, err = ParseNano(payRaw); err != nil {
 		return result, err
 	}
-	if result.Margin, err = ParseMoney(marginRaw); err != nil {
+	if result.MarginExact, err = ParseNano(marginRaw); err != nil {
 		return result, err
 	}
-	if result.Charge < 0 || result.Pay < 0 || result.Margin < 0 || result.Pay > result.Charge {
+	result.Charge = result.ChargeExact.StatementMoney()
+	result.Pay = result.PayExact.StatementMoney()
+	result.Margin = result.MarginExact.StatementMoney()
+	if result.ChargeExact < 0 || result.PayExact < 0 || result.MarginExact < 0 || result.PayExact > result.ChargeExact {
 		return result, ErrSourceDiscrepancy
 	}
-	result.ExpectedMargin, err = result.Charge.Sub(result.Pay)
+	result.ExpectedExact, err = result.ChargeExact.Sub(result.PayExact)
 	if err != nil {
 		return result, err
 	}
-	result.Difference, err = result.Margin.Sub(result.ExpectedMargin)
+	result.DifferenceExact, err = result.MarginExact.Sub(result.ExpectedExact)
 	if err != nil {
 		return result, err
 	}
-	if result.Difference != 0 {
+	result.ExpectedMargin = result.ExpectedExact.StatementMoney()
+	result.Difference = result.DifferenceExact.StatementMoney()
+	if result.DifferenceExact != 0 {
 		return result, ErrSourceDiscrepancy
 	}
 	return result, nil

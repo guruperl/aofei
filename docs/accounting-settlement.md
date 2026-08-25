@@ -52,6 +52,13 @@ Current commercial facts are deliberately explicit:
 | Middleman margin | `daily_mid.margin_spend` | non-negative charge minus pay, per accepted impression |
 | Statement total | `acct_statement` | immutable source snapshot plus immutable adjustment rows |
 
+Middleman reconciliation sums the nine-place daily charge, pay, and margin
+facts and checks `charge - pay = margin` before any statement rounding. Its
+operator output includes both nine-place exact totals and six-place statement
+projections, so a sub-micro discrepancy remains visible and blocking while an
+exact identity cannot be rejected merely because the three display values
+round independently.
+
 Local advertiser charge and publisher pay currently use the same gross
 impression fact; no undocumented revenue-share percentage is deducted. A new
 commercial share requires a versioned accounting contract and migration, not

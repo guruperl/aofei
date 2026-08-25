@@ -140,10 +140,11 @@ func run(ctx context.Context, service accounting.Service) error {
 			return err
 		}
 		result, err := service.ReconcileMiddleman(ctx, start, end)
-		fmt.Printf("from=%s to=%s currency=%s impressions=%d charge=%s pay=%s margin=%s expected_margin=%s difference=%s\n",
+		fmt.Printf("from=%s to=%s currency=%s impressions=%d charge=%s pay=%s margin=%s expected_margin=%s difference=%s charge_exact=%s pay_exact=%s margin_exact=%s expected_exact=%s difference_exact=%s\n",
 			result.PeriodStart.Format("2006-01-02"), result.PeriodEnd.Format("2006-01-02"),
 			result.Currency, result.Impressions, result.Charge, result.Pay, result.Margin,
-			result.ExpectedMargin, result.Difference)
+			result.ExpectedMargin, result.Difference, result.ChargeExact, result.PayExact,
+			result.MarginExact, result.ExpectedExact, result.DifferenceExact)
 		return err
 	case "export":
 		var scope accounting.StatementScope

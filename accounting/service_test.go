@@ -250,11 +250,49 @@ func TestReconcileMiddlemanReportsChargePayMarginDifference(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"imps", "charge", "pay", "margin"}).
 			AddRow(1000, "2.500000", "2.000000", "0.499999"))
 	result, err := (Service{DB: db}).ReconcileMiddleman(context.Background(), start, end)
-	if !errors.Is(err, ErrSourceDiscrepancy) || result.ExpectedMargin != Money(500000) || result.Difference != Money(-1) {
+	if !errors.Is(err, ErrSourceDiscrepancy) || result.ExpectedMargin != Money(500000) || result.Difference != Money(-1) || result.DifferenceExact != Nano(-1000) {
 		t.Fatalf("middleman reconcile = %#v, %v", result, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestReconcileMiddlemanChecksIdentityBeforeStatementRounding(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		margin    string
+		wantErr   bool
+		wantExact Nano
+	}{
+		{name: "exact identity", margin: "0.000000100"},
+		{name: "sub-micro discrepancy", margin: "0.000000099", wantErr: true, wantExact: -1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+			mock.ExpectQuery("SELECT COALESCE\\(SUM\\(m.imps\\),0\\)").
+				WithArgs("2026-07-01", "2026-07-01").
+				WillReturnRows(sqlmock.NewRows([]string{"imps", "charge", "pay", "margin"}).
+					AddRow(1, "0.000000500", "0.000000400", test.margin))
+			result, err := (Service{DB: db}).ReconcileMiddleman(context.Background(), start, start)
+			if test.wantErr != errors.Is(err, ErrSourceDiscrepancy) {
+				t.Fatalf("reconcile error = %v, want discrepancy=%v", err, test.wantErr)
+			}
+			if result.DifferenceExact != test.wantExact {
+				t.Fatalf("exact difference = %s, want %s", result.DifferenceExact, test.wantExact)
+			}
+			if result.Charge != 1 || result.Pay != 0 || result.Margin != 0 || result.ExpectedMargin != 0 || result.Difference != 0 {
+				t.Fatalf("statement projections = %#v", result)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
