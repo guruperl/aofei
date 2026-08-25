@@ -1,6 +1,6 @@
 # Status A03 - Exact Monetary Source Migration
 
-State: `[~]` In progress
+State: `[!]` Blocked at review limit
 
 ## Goal
 
@@ -188,6 +188,16 @@ source while preserving auditable compatibility and hosted-payment safety.
   Resolution: tracking ingress populates the exact CPM only for an explicit v3
   callback; unmarked and v2 callbacks retain a validated float projection, and
   ledger normalization rejects an unmarked record that mixes in exact fields.
+- Iteration 10: `[!]` One blocking finding reached the bounded review limit on
+  2026-08-25. `GOAL.md` requires explicit user direction before another
+  fix-review cycle, and downstream reconciliation has not begun.
+  1. **P2 - publisher compatibility generation rewrite:** the exported
+     publisher serializers and their direct Redis/spread helpers can write a
+     newly encoded active `Pub`/`DirectPub` with an empty accounting marker and
+     float-only floors. The supported generation jobs validate v3 before these
+     calls, but the public writer contract can bypass that guard and repopulate
+     live publisher keys with a newly created compatibility generation instead
+     of reserving unmarked gob data for read-only drain.
 
 ## Exclusions
 
