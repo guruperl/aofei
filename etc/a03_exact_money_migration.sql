@@ -126,11 +126,14 @@ INSERT INTO money_migration_evidence
    converted_value, conversion_rule, discrepancy, created_at)
 SELECT 'usd-cpm-impression-v3', 'pub_slot', CAST(slot_id AS CHAR), 'bidfloor',
        CAST(bidfloor AS CHAR),
-       CASE WHEN COALESCE(bidfloor,0) BETWEEN 0 AND 999999.999999
+	   CASE WHEN bidfloor IS NULL THEN NULL
+	        WHEN bidfloor BETWEEN 0 AND 999999.999999
             THEN CAST(bidfloor AS DECIMAL(12,6)) ELSE NULL END,
-       CASE WHEN COALESCE(bidfloor,0) BETWEEN 0 AND 999999.999999
+	   CASE WHEN bidfloor IS NULL THEN 'AlreadyExact'
+	        WHEN bidfloor BETWEEN 0 AND 999999.999999
             THEN 'LegacyRenderedHalfAway' ELSE 'Quarantined' END,
-       CASE WHEN COALESCE(bidfloor,0) BETWEEN 0 AND 999999.999999
+	   CASE WHEN bidfloor IS NULL THEN NULL
+	        WHEN bidfloor BETWEEN 0 AND 999999.999999
             THEN CAST(CAST(bidfloor AS DECIMAL(12,6))-bidfloor AS DECIMAL(20,9)) ELSE NULL END,
        NOW(6)
 FROM pub_slot

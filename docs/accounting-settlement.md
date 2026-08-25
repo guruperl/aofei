@@ -69,6 +69,9 @@ compatibility rows are not statement, funding, delivery, or settlement
 authority. No active Summer route changes them, and the old payment view and
 balance-crediting trigger are absent. Existing deployments archive or remove
 them under the migration policy rather than reconciling A01 from those rows.
+An absent legacy publisher floor remains `NULL` and is labeled `AlreadyExact`
+in migration evidence; only present binary-float floors use the legacy-rendered
+conversion label.
 
 ## Statement And Approval Lifecycle
 

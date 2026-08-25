@@ -71,4 +71,12 @@ func TestA03OfflineMigrationFailsClosedBeforePromotion(t *testing.T) {
 	if strings.Index(migration, "a03_exact_money_migration_requires_zero_quarantined_sources") > strings.Index(migration, "ALTER TABLE adv_item MODIFY cost") {
 		t.Fatal("offline migration alters authoritative columns before its quarantine gate")
 	}
+	for _, required := range []string{
+		"CASE WHEN bidfloor IS NULL THEN NULL",
+		"CASE WHEN bidfloor IS NULL THEN 'AlreadyExact'",
+	} {
+		if !strings.Contains(migration, required) {
+			t.Errorf("absent publisher floor evidence is missing %q", required)
+		}
+	}
 }
