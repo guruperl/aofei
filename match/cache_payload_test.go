@@ -146,6 +146,59 @@ func TestRAdvsDecodeVersionTwoFloatPayloadAsCompatibilityOnly(t *testing.T) {
 	}
 }
 
+func TestLegacyRAdvsWithUnsetCostTypeRemainReadableButIneligible(t *testing.T) {
+	legacyV1 := []legacyRAdv{{
+		Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		Weight: 1,
+		Cost:   1.5,
+	}}
+	var versionOne bytes.Buffer
+	if err := binary.Write(&versionOne, binary.LittleEndian, legacyV1); err != nil {
+		t.Fatal(err)
+	}
+	for name, payload := range map[string][]byte{
+		"headerless":  versionOne.Bytes(),
+		"version-one": packCachePayload(cachePayloadKindRAdvs, 1, versionOne.Bytes()),
+	} {
+		got, err := UnpackRAdvs(payload)
+		if err != nil {
+			t.Fatalf("%s decode: %v", name, err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("%s record count = %d, want 1", name, len(got))
+		}
+		if _, ok := got[0].ExactCPM(); ok {
+			t.Fatalf("%s unset cost type became exact CPM authority", name)
+		}
+		if index, _ := got.PickIndexExact(0, "USD"); index != -1 {
+			t.Fatalf("%s unset cost type selected candidate %d", name, index)
+		}
+	}
+
+	legacyV2 := []legacyRAdvV2{{
+		Demand: Demand{AdvID: 1, CampaignID: 2, ItemID: 3, CreativeID: 4},
+		Weight: 1,
+		Cost:   1.5,
+	}}
+	var versionTwo bytes.Buffer
+	if err := binary.Write(&versionTwo, binary.LittleEndian, legacyV2); err != nil {
+		t.Fatal(err)
+	}
+	got, err := UnpackRAdvs(packCachePayload(cachePayloadKindRAdvs, 2, versionTwo.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("version-two record count = %d, want 1", len(got))
+	}
+	if _, ok := got[0].ExactCPM(); ok {
+		t.Fatal("version-two unset cost type became exact CPM authority")
+	}
+	if index, _ := got.PickIndexExact(0, "USD"); index != -1 {
+		t.Fatalf("version-two unset cost type selected candidate %d", index)
+	}
+}
+
 func TestUnversionedRAdvsAlwaysDecodeAsLegacy(t *testing.T) {
 	legacySize := binary.Size(legacyRAdv{})
 	currentSize := binary.Size(RAdv{})

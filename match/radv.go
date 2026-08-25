@@ -128,7 +128,7 @@ type radvWireV3 struct {
 }
 
 func (self RAdv) exactCPM() (accounting.CPM, bool) {
-	if self.CostType != CostTypeCPM && self.CostType != 0 {
+	if self.CostType != CostTypeCPM {
 		return 0, false
 	}
 	if self.CostCPM != 0 {

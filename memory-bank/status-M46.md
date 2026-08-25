@@ -34,7 +34,7 @@ contracts.
 | Item | State | Notes |
 |---|---:|---|
 | Review intake and dependency reconciliation | `[x]` | Validated all 15 findings against current code, tests, and operator contracts. Completed source milestones remain closed; M46 precedes conditional I02. |
-| Explicit CPM demand eligibility | `[ ]` | Reject unset/unrecognized cost types before auction, accounting, or cache publication. |
+| Explicit CPM demand eligibility | `[x]` | `exactCPM` now requires explicit CPM for exact and legacy adapters; headerless/v1/v2 unset records remain readable but cannot bid or bill, and database compilation reports the item and unsupported type before delivery hydration or cache publication. |
 | Middleman margin schema contract | `[ ]` | Add `0..1` group/nullable-route constraints, an offline fail-before-ALTER migration, and activation preflight without clamping or skipping invalid rows. |
 | Existing-directory ownership | `[ ]` | Create and chmod only directories owned by the call; validate but never mutate existing paths or special mode bits. |
 | Concurrent experiment exposure | `[ ]` | Remove the duplicate-record lock upgrade and prove concurrent first-write and idempotent-retry behavior in MySQL. |

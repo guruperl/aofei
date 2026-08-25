@@ -121,13 +121,13 @@ func TestStatisticsScansLargeLinesAndAggregatesByCreativeID(t *testing.T) {
 		dsp.WinLoss{
 			Status:    dsp.StatusTrackImp,
 			RPub:      match.RPub{SlotID: 10},
-			RAdv:      match.RAdv{Demand: match.Demand{ItemID: 77, CreativeID: 99}, Cost: 1.25},
+			RAdv:      match.RAdv{Demand: match.Demand{ItemID: 77, CreativeID: 99}, CostType: match.CostTypeCPM, Cost: 1.25},
 			AuctionID: strings.Repeat("x", 128*1024),
 		},
 		dsp.WinLoss{
 			Status: dsp.StatusTrackClk,
 			RPub:   match.RPub{SlotID: 10},
-			RAdv:   match.RAdv{Demand: match.Demand{ItemID: 77, CreativeID: 99}, Cost: 1.25},
+			RAdv:   match.RAdv{Demand: match.Demand{ItemID: 77, CreativeID: 99}, CostType: match.CostTypeCPM, Cost: 1.25},
 		},
 	)
 
@@ -171,12 +171,12 @@ func TestStatisticsAggregatesDirectSSPTrackerWinLossWithoutSchemaChange(t *testi
 		dsp.WinLoss{
 			Status: dsp.StatusTrackImp,
 			RPub:   match.RPub{PubID: 1, SiteID: 10, SlotID: 100},
-			RAdv:   match.RAdv{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Cost: 2.5},
+			RAdv:   match.RAdv{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, CostType: match.CostTypeCPM, Cost: 2.5},
 		},
 		dsp.WinLoss{
 			Status: dsp.StatusTrackClk,
 			RPub:   match.RPub{PubID: 1, SiteID: 10, SlotID: 100},
-			RAdv:   match.RAdv{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, Cost: 2.5},
+			RAdv:   match.RAdv{Demand: match.Demand{AdvID: 1, CampaignID: 10, ItemID: 1000, CreativeID: 10000}, CostType: match.CostTypeCPM, Cost: 2.5},
 		},
 	)
 
@@ -265,7 +265,7 @@ func TestStatisticsAggregatesMiddlemanMetadata(t *testing.T) {
 		dsp.WinLoss{
 			Status:    dsp.StatusTrackImp,
 			RPub:      match.RPub{PubID: 30, SiteID: 20, SlotID: 10},
-			RAdv:      match.RAdv{Demand: match.Demand{AdvID: 55, CampaignID: 66, ItemID: 77, CreativeID: 99}, Cost: 1.20},
+			RAdv:      match.RAdv{Demand: match.Demand{AdvID: 55, CampaignID: 66, ItemID: 77, CreativeID: 99}, CostType: match.CostTypeCPM, Cost: 1.20},
 			Middleman: meta,
 		},
 		dsp.WinLoss{
@@ -333,7 +333,7 @@ func TestAggregateReportingLedgerSeparatesLocalAndMiddlemanCommercialFacts(t *te
 	local := dsp.WinLoss{
 		Status: dsp.StatusTrackImp,
 		RPub:   match.RPub{PubID: 1, SiteID: 2, SlotID: 3},
-		RAdv:   match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, Cost: 2.5},
+		RAdv:   match.RAdv{Demand: match.Demand{AdvID: 4, CampaignID: 5, ItemID: 6, CreativeID: 7}, CostType: match.CostTypeCPM, Cost: 2.5},
 		Reporting: &dsp.ReportingDimensions{
 			CountryID: 8, StateID: 9, DeviceOS: 10, DeviceType: 11,
 			Environment: "Web", IntegrationMode: "BrowserTag", MediaIntent: "Banner", Placement: "AboveFold",

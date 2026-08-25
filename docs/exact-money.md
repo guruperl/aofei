@@ -21,9 +21,10 @@ six-decimal statement boundary and keeping historical v2 facts labeled v2.
   downstream CPM rounds half away from zero once to a micro-USD CPM, then the
   exact minimum margin is applied. Markup that exceeds the supported CPM range
   fails closed.
-- Overflow, negative demand price, excess scale, NaN/Inf, negative zero, and
-  an unsupported commercial model fail closed before mutation. CPC, CPA, and
-  ROI remain unsupported.
+- Overflow, negative demand price, excess scale, NaN/Inf, negative zero, an
+  unset cost type, and an unsupported commercial model fail closed before
+  mutation. Only an explicit CPM cost type is commercial authority; CPC, CPA,
+  and ROI remain unsupported.
 
 ## Authority inventory
 

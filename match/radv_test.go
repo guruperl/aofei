@@ -273,6 +273,8 @@ func TestRAdvCommercialAuctionKeepsSubFloat32CPMOrdering(t *testing.T) {
 
 func TestRAdvCommercialAuctionRejectsLegacyAndInvalidPrices(t *testing.T) {
 	for _, candidate := range []RAdv{
+		{Weight: 1, Cost: 1},
+		{Weight: 1, CostCPM: accounting.CPM(accounting.CPMScale)},
 		{Weight: 1, CostType: CostTypeROI, Cost: 1},
 		{Weight: 1, CostType: CostTypeCPC, Cost: 1},
 		{Weight: 1, CostType: CostTypeCPA, Cost: 1},

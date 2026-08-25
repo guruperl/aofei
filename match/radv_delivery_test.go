@@ -91,31 +91,36 @@ func TestParseDeliveryPacingRejectsUnknownValue(t *testing.T) {
 }
 
 func TestDBRAdvsRejectsLegacyCommercialTypeBeforeCachePublication(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
+	for name, costType := range map[string]any{"CPC": "CPC", "unset": nil} {
+		t.Run(name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
 
-	columns := []string{
-		"adv_id", "campaign_id", "item_id", "creative_id", "weight",
-		"cost_type", "cost", "cap_number", "cap_period", "cap_throttle",
-		"click_number", "click_period", "item_start", "item_end",
-	}
-	rows := sqlmock.NewRows(columns).AddRow(
-		1, 2, 3, 4, 1,
-		"CPC", 0.25, nil, nil, nil,
-		nil, nil, nil, nil,
-	)
-	mock.ExpectQuery(`(?s)CALL proc_slotall\(\?, \?\)`).
-		WithArgs(uint32(100), uint32(300250)).
-		WillReturnRows(rows)
+			columns := []string{
+				"adv_id", "campaign_id", "item_id", "creative_id", "weight",
+				"cost_type", "cost", "cap_number", "cap_period", "cap_throttle",
+				"click_number", "click_period", "item_start", "item_end",
+			}
+			rows := sqlmock.NewRows(columns).AddRow(
+				1, 2, 3, 4, 1,
+				costType, 0.25, nil, nil, nil,
+				nil, nil, nil, nil,
+			)
+			mock.ExpectQuery(`(?s)CALL proc_slotall\(\?, \?\)`).
+				WithArgs(uint32(100), uint32(300250)).
+				WillReturnRows(rows)
 
-	_, err = dbRAdvsBySizeIDSlotID(context.Background(), db, 300250, 100)
-	if err == nil || !strings.Contains(err.Error(), "migrate it to a reviewed positive USD CPM price") {
-		t.Fatalf("legacy CPC compile error = %v", err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
+			_, err = dbRAdvsBySizeIDSlotID(context.Background(), db, 300250, 100)
+			if err == nil || !strings.Contains(err.Error(), "item 3 uses unsupported commercial cost type") ||
+				!strings.Contains(err.Error(), "migrate it to a reviewed positive USD CPM price") {
+				t.Fatalf("legacy %s compile error = %v", name, err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
