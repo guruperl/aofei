@@ -14,13 +14,14 @@ when customer demand justifies their long-term support cost.
 - I01 interoperability and error semantics.
 - S01 mobile identity, consent, and disclosure rules.
 - S05 native rendering and runtime trust-boundary hardening.
+- A03 exact monetary source and compatibility contracts.
 - A named Android or iOS integration with supported OS/version requirements.
 
 ## Tasks
 
 | Item | State | Notes |
 |---|---:|---|
-| SDK contract | `[ ]` | Freeze supported `/pz` request/response, timeout, retry, lifecycle, impression, click, and error behavior for native clients. |
+| SDK contract | `[ ]` | Freeze supported `/pz` request/response, timeout, retry, lifecycle, impression, click, error, and server-owned monetary-projection behavior for native clients. |
 | Android library | `[ ]` | Implement a versioned Android package with tests, sample app, release artifacts, and upgrade guidance. |
 | iOS library | `[ ]` | Implement a versioned Swift package with tests, sample app, release artifacts, and upgrade guidance. |
 | Privacy integration | `[ ]` | Propagate approved consent/regulatory and opt-out signals under S01. Send IFA/app/device/user fields only for an approved purpose, never use the browser cookie or IP/UA fallback, expect exact coordinates to be removed, and stay contextual for unsupported GPP mappings. |
@@ -31,6 +32,8 @@ when customer demand justifies their long-term support cost.
 
 - SDKs are thin, documented clients of the public `/pz` contract rather than a
   second auction implementation.
+- SDKs treat request floors and response prices as protocol projections only;
+  they cannot create, relabel, cache, or mutate authoritative accounting facts.
 - Sample apps demonstrate fill, no-fill, timeout, impression, click, consent,
   and invalid configuration.
 - Release and security ownership is explicit for both ecosystems.
@@ -212,9 +215,33 @@ when customer demand justifies their long-term support cost.
 - No named Android/iOS integration, platform matrix, consent contract, or
   lifecycle owner has appeared, so R03 completion does not trigger I02.
 
+## Reconciliation From A03
+
+- Native clients never own monetary provenance. A request floor is an
+  untrusted auction constraint that may raise but never lower the cache-owned
+  configured floor; the server selects the billable exact USD CPM, owns its v3
+  marker, reservation, signed tracker, ledger, statement, and provider
+  reconciliation, and exposes protocol prices only as server-derived
+  projections.
+- An SDK cannot create or reserialize publisher/demand caches, claim an
+  accounting version, reconstruct exact CPM from a response float, calculate
+  middleman charge/pay/margin authority, mutate a budget/reservation, or emit a
+  ledger, statement, settlement, or hosted-payment fact. Retries and telemetry
+  preserve server-issued signed tracker identity and never feed a rounded
+  response price back as authoritative input.
+- Named-integration contract tests must prove that float projection does not
+  become accounting authority, that malformed/unknown money markers fail
+  closed, and that legacy drain compatibility stays a server rollout concern
+  rather than an SDK write capability.
+
 ## Conditional Trigger Evaluation
 
 - 2026-08-24 after S05 closeout: no named Android or iOS integration supplied
   supported OS/version, consent, renderer, release, or support-lifecycle
   requirements. I02 remains planned and is skipped, not completed or
   cancelled, when this goal reaches its conditional step.
+- 2026-08-25 after A03 closeout: no named Android or iOS integration, platform
+  matrix, consent contract, renderer owner, release owner, or lifecycle owner
+  has appeared. A03 adds the server-owned monetary projection boundary above
+  but does not trigger SDK implementation. I02 remains planned and is skipped,
+  not completed or cancelled, for this goal.

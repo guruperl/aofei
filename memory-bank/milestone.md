@@ -33,11 +33,11 @@ complete. A 2026-08-23 follow-up review opened D05 for post-D04 auction
 compatibility and hot-path remediation; D05 is now complete. S06 repository
 hardening, managed Cloudflare widget, constrained Free-plan edge rule,
 production deployment, and live proof are also complete. P03, S05, and O03 are
-complete; R03 is also complete, leaving A03 as the required deep-review horizon. I02 remains
-demand-gated and starts only when a named Android or iOS integration
-supplies supported OS/version and lifecycle requirements. Matching lane status
-files are the authoritative completion record; completed M-lane files retain
-earlier runtime history.
+complete; R03 and A03 are also complete, so no required remediation horizon
+remains. I02 remains demand-gated and starts only when a named Android or iOS
+integration supplies supported OS/version and lifecycle requirements. Matching
+lane status files are the authoritative completion record; completed M-lane
+files retain earlier runtime history.
 
 Delivery sequence:
 
@@ -48,8 +48,9 @@ Delivery sequence:
 5. Follow-up review remediation: D04 callback/runtime history, D05
    auction/cap/hot-path fixes, S06 repository plus production activation, and
    P03 direct-SSP authenticity, S05 runtime trust boundaries, and O03
-   job/cache/filesystem reliability and R03 experiment/report integrity are
-   complete; the remaining sequence is A03 exact monetary sources.
+   job/cache/filesystem reliability, R03 experiment/report integrity, and A03
+   exact monetary sources are complete; no required remediation milestone
+   remains.
 6. Demand-gated mobile delivery: P03/S05 are complete, but I02 starts only when
    a named mobile integration supplies supported-platform and lifecycle needs.
 
@@ -91,7 +92,7 @@ acceptance criteria recorded in the corresponding status files.
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
-| A03 | In progress | [status-A03.md](status-A03.md) | Exact monetary source migration. |
+| A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
 | O03 | Completed | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
@@ -1682,12 +1683,13 @@ was 94 tables, 6 routines, and 55 triggers. Recorded/disposable verification is 
 provider sandbox, migration, governance, and production enablement remain
 external go-live gates rather than repository completion claims.
 
-## A03 - Exact Monetary Source Migration `[~]`
+## A03 - Exact Monetary Source Migration `[+]`
 
-Extend exact money through authoritative demand, reservation, ledger, daily,
-management, statement, and hosted reconciliation sources using a versioned,
-auditable migration that does not invent precision for historical float data.
-Detailed tasks and verification are in [status-A03.md](status-A03.md).
+Exact money now extends through authoritative demand, reservation, ledger,
+daily, management, statement, and hosted reconciliation sources using a
+versioned, auditable migration that does not invent precision for historical
+float data. Detailed tasks and verification are in
+[status-A03.md](status-A03.md).
 
 ## O01 - Production Traffic Controls And Observability `[+]`
 

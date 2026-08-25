@@ -136,10 +136,10 @@ placement and direct `go install` invocations in
 ## Capability And Activation Status
 
 The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, S06,
-P03, and S05 are complete. P03's authenticity gates remain disabled by default
-until a separately authorized named-publisher canary. The remaining
-implementation proceeds through O03, R03, and A03. I02 remains
-separately demand-gated. Implementation does not imply production activation:
+P03, S05, O03, R03, and A03 are complete. P03's authenticity gates remain
+disabled by default until a separately authorized named-publisher canary. No
+required remediation milestone remains; I02 remains separately demand-gated.
+Implementation does not imply production activation:
 
 | Area | Current state |
 |---|---|
@@ -160,7 +160,7 @@ separately demand-gated. Implementation does not imply production activation:
 | S06 public account abuse protection | Implemented and active on W8M with its scoped Cloudflare widget and Free-plan exact-path rate rule. |
 | A01 manual accounting | Implemented and remains the financial authority and outage fallback. |
 | A02 hosted funding/payout | Implemented but disabled by default; live provider use requires separate legal, finance, tax, risk, privacy, and support approval. |
-| A03 exact monetary sources | Planned as a versioned schema/API/cache migration; existing historical float precision is not overstated. |
+| A03 exact monetary sources | Completed; authoritative prices, floors, reservations, ledgers, reports, management writes, statements, and hosted reconciliation use the v3 exact-money contract while historical float data remains labeled drain evidence. |
 | O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
 | O03 job/cache/filesystem reliability | Completed; renewable ownership, atomic publication, durable filesystem/geodata handling, and recovery evidence are implemented. |
 

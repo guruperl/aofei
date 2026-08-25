@@ -1,6 +1,6 @@
 # Status A03 - Exact Monetary Source Migration
 
-State: `[~]` In progress - user-authorized review extension through iteration 15
+State: `[+]` Completed
 
 ## Goal
 
@@ -55,6 +55,26 @@ source while preserving auditable compatibility and hosted-payment safety.
   backup/restore and cache rebuild, old/new comparison evidence, and rollback.
 - Full Aofei/pzdesign/Genelet tests, vet, pinned staticcheck, scoped race,
   documentation/template/public-data guards, benchmarks, and diff hygiene.
+
+Closeout evidence on 2026-08-25:
+
+- Aofei package tests, vet, staticcheck v0.5.1 under the documented Go 1.23.5
+  toolchain, the scoped race suite, full DSP/match benchmarks, capacity
+  baseline, documentation/public-data guards, and diff hygiene passed.
+- The local sample reset, SQL guard, live schema diff, Redis/NATS/spread cache
+  smoke, configured bid smoke, clean-room recovery drill, 100,000-row reporting
+  benchmark, and exact-money migration drill passed. The migration drill
+  preserved 26 immutable evidence rows with zero quarantine.
+- Full pzdesign tests, `cmd/unify` race, vet, pinned staticcheck, both template
+  parsers, public-copy/data guards, and MySQL-configured Summer tests passed.
+  Full MySQL-configured Genelet tests, vet, and race also passed; the sample
+  baseline was restored afterward and again matched 96 tables, 6 routines, and
+  65 triggers.
+- Extended review iteration 12 was the first clean pass. No lower-severity
+  finding is carried. A03 implements the exact-money direction already chosen
+  by evolution V27, so no successor evolution version is warranted. No
+  production deployment, credentials, traffic, provider, or Cloudflare state
+  was changed.
 
 ## Deep Review Gate
 
@@ -242,7 +262,15 @@ source while preserving auditable compatibility and hosted-payment safety.
   remains readable only. Management validation now requires the submitted
   string itself to equal the canonical six- or nine-place representation rather
   than normalizing a looser value. Each blocking fix was committed separately;
-  iteration 12 is the next whole-milestone review.
+  iteration 12 was the next whole-milestone review and is recorded below.
+- Iteration 12: `[x]` Clean extended pass on 2026-08-25. The complete A03
+  milestone was reviewed again after every iteration-11 fix, covering exact
+  arithmetic and source scanning, offline schema/evidence migration, demand and
+  publisher cache compatibility, delivery reservation, local and middleman
+  auction/tracking identity, ledger/report aggregation, management writes,
+  hosted-payment binding, and the sibling Summer monetary writers. No P1, P2,
+  or higher-severity finding remained; the bounded review-fix gate stopped at
+  this first clean pass. The full closeout verification matrix then succeeded.
 
 ## Exclusions
 
