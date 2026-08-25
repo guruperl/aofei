@@ -247,6 +247,9 @@ The reusable `github.com/guruperl/genelet` framework is the separate sibling
    converts their float value for integer reservation and aggregation. Current
    cache packing refuses those compatibility records instead of serializing
    them under the v3 payload header.
+   Current middleman route cache writes and reads likewise require every entry
+   to carry the v3 exact-money marker; only the explicitly legacy route-cache
+   version may retain an unmarked bounded-float entry.
    `cmd/accounting` snapshots completed daily advertiser or publisher facts
    into DECIMAL statements, then enforces immutable adjustments,
    maker-checker transitions, source reconciliation, corrections, audit, and

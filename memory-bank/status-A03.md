@@ -139,12 +139,21 @@ source while preserving auditable compatibility and hosted-payment safety.
      despite originating from the compatibility float contract.
   Resolution: v2 decode validates but does not populate the v3 exact field;
   billable RAdv construction retains that absence and emitted facts remain v2.
-- Iteration 5: `[~]` One blocking finding was confirmed during the next full
+- Iteration 5: `[x]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - compatibility cache promotion on write:** current RAdv packing calls
      the read-compatibility adapter, so a decoded v1/v2 float record can still
      be serialized into a v3 cache payload and falsely acquire exact-source
      authority through public cache write helpers.
+  Resolution: v3 RAdv packing now requires a present, valid exact CPM and
+  refuses every float-only compatibility record; v2 decoding remains read-only.
+- Iteration 6: `[~]` One blocking finding was confirmed during the next full
+  review:
+  1. **P2 - current middleman cache downgrade:** a version-2 route cache can be
+     written and decoded with entries that omit the v3 accounting marker, and
+     unknown nonempty entry markers also fall through to legacy float
+     conversion. The current cache can therefore silently lose exact margin
+     provenance despite its version and completeness contract.
 
 ## Exclusions
 

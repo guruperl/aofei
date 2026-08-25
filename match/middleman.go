@@ -152,7 +152,8 @@ func (e MiddlemanRouteEntry) EffectiveMinMarginCPM() float64 {
 // exact six-place minimum CPM. New cache generations carry these values
 // directly; old generations use a bounded compatibility conversion.
 func (e MiddlemanRouteEntry) ExactMarginTerms() (uint32, accounting.CPM, error) {
-	if e.AccountingVersion == MiddlemanRouteAccountingVersion {
+	switch e.AccountingVersion {
+	case MiddlemanRouteAccountingVersion:
 		units := e.GroupMarginUnits
 		minimum := e.GroupMinMarginExact
 		if e.RouteMarginUnits != nil {
@@ -165,6 +166,10 @@ func (e MiddlemanRouteEntry) ExactMarginTerms() (uint32, accounting.CPM, error) 
 			return 0, 0, fmt.Errorf("exact partner margin is outside its supported range")
 		}
 		return units, minimum, nil
+	case "":
+		// Pre-A03 route generations carry only the bounded float terms below.
+	default:
+		return 0, 0, fmt.Errorf("unsupported middleman accounting version %q", e.AccountingVersion)
 	}
 	units, err := parseMarginFraction4(strconv.FormatFloat(e.EffectiveMarginPct(), 'f', 4, 64))
 	if err != nil {
@@ -513,6 +518,9 @@ func (c *MiddlemanRouteCache) ToRedis(ctx context.Context, conn radix.Client) er
 }
 
 func (c *MiddlemanRouteCache) ToRedisKey(ctx context.Context, conn radix.Client, key string) error {
+	if err := c.validateAccountingProvenance(); err != nil {
+		return err
+	}
 	data, err := json.Marshal(c)
 	if err != nil {
 		return err
@@ -552,6 +560,9 @@ func middlemanRouteCacheFromRedisKey(ctx context.Context, conn radix.Client, key
 	}
 	switch cache.Version {
 	case MiddlemanRouteCacheVersion, MiddlemanRouteCacheLegacyVersion:
+		if err := cache.validateAccountingProvenance(); err != nil {
+			return nil, err
+		}
 		return &cache, nil
 	default:
 		return nil, fmt.Errorf("middleman route cache version %d, want %d or %d", cache.Version, MiddlemanRouteCacheVersion, MiddlemanRouteCacheLegacyVersion)
@@ -578,6 +589,12 @@ func writeMiddlemanRouteCacheKeys(ctx context.Context, conn radix.Client, cache 
 	if legacyKey == "" || currentKey == "" || legacyKey == currentKey {
 		return errors.New("middleman route Redis keys must be nonempty and distinct")
 	}
+	if cache == nil || cache.Version != MiddlemanRouteCacheVersion {
+		return fmt.Errorf("current middleman route cache version must be %d", MiddlemanRouteCacheVersion)
+	}
+	if err := cache.validateAccountingProvenance(); err != nil {
+		return err
+	}
 	legacyData, err := json.Marshal(cache.legacyFallbackCache())
 	if err != nil {
 		return err
@@ -590,6 +607,27 @@ func writeMiddlemanRouteCacheKeys(ctx context.Context, conn radix.Client, cache 
 		legacyKey, string(legacyData),
 		currentKey, string(currentData),
 	))
+}
+
+func (c *MiddlemanRouteCache) validateAccountingProvenance() error {
+	if c == nil {
+		return fmt.Errorf("middleman route cache is nil")
+	}
+	for index, entry := range c.Entries {
+		switch c.Version {
+		case MiddlemanRouteCacheVersion:
+			if entry.AccountingVersion != MiddlemanRouteAccountingVersion {
+				return fmt.Errorf("current middleman route entry %d has accounting version %q, want %q", index, entry.AccountingVersion, MiddlemanRouteAccountingVersion)
+			}
+		case MiddlemanRouteCacheLegacyVersion:
+			if entry.AccountingVersion != "" && entry.AccountingVersion != MiddlemanRouteAccountingVersion {
+				return fmt.Errorf("legacy middleman route entry %d has unsupported accounting version %q", index, entry.AccountingVersion)
+			}
+		default:
+			return fmt.Errorf("unsupported middleman route cache version %d", c.Version)
+		}
+	}
+	return nil
 }
 
 func (c *MiddlemanRouteCache) legacyFallbackCache() *MiddlemanRouteCache {

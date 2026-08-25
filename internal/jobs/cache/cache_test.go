@@ -251,7 +251,8 @@ func middlemanActivationCache(trigger string) *match.MiddlemanRouteCache {
 	cache := &match.MiddlemanRouteCache{
 		Version: match.MiddlemanRouteCacheVersion,
 		Entries: []match.MiddlemanRouteEntry{{
-			TargetID: 1, GroupID: 2, TriggerMode: trigger, RouteBidderID: 3,
+			AccountingVersion: match.MiddlemanRouteAccountingVersion,
+			TargetID:          1, GroupID: 2, TriggerMode: trigger, RouteBidderID: 3,
 			BidderID: 4, AdvID: 5, GroupTimeoutMS: 100, BidderTimeoutMS: 100,
 			EndpointURL: "https://bidder.example/openrtb", OpenRTBVersion: "2.5",
 			CredentialRef: "D03_TEST_HEADERS", SyntheticCampaignID: 6,

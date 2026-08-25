@@ -332,6 +332,9 @@ func validateMiddlemanRouteGeneration(source string, cache *match.MiddlemanRoute
 		return fmt.Errorf("%s middleman route generated_at is invalid: %w", source, err)
 	}
 	for _, entry := range cache.Entries {
+		if requireCurrent && entry.AccountingVersion != match.MiddlemanRouteAccountingVersion {
+			return fmt.Errorf("%s middleman bidder %d has accounting version %q, want %q", source, entry.BidderID, entry.AccountingVersion, match.MiddlemanRouteAccountingVersion)
+		}
 		if err := entry.ValidatePartnerProfile(); err != nil {
 			return fmt.Errorf("%s middleman bidder %d profile: %w", source, entry.BidderID, err)
 		}

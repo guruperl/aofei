@@ -65,6 +65,11 @@ projections, so a sub-micro discrepancy remains visible and blocking while an
 exact identity cannot be rejected merely because the three display values
 round independently.
 
+Current version-2 middleman route cache entries must carry the v3 accounting
+marker and exact four-place margin/six-place minimum fields. Writers, runtime
+decode, and activation validation reject a missing or unknown marker; only a
+version-1 cache entry with an empty marker may use the bounded legacy floats.
+
 Local advertiser charge and publisher pay currently use the same gross
 impression fact; no undocumented revenue-share percentage is deducted. A new
 commercial share requires a versioned accounting contract and migration, not

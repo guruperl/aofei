@@ -22,7 +22,7 @@ func TestWriteMiddlemanRouteCacheKeysPublishesBothVersions(t *testing.T) {
 	defer client.Close()
 	cache := &MiddlemanRouteCache{
 		Version: MiddlemanRouteCacheVersion,
-		Entries: []MiddlemanRouteEntry{{BidderID: 7, TriggerMode: "Fallback"}},
+		Entries: []MiddlemanRouteEntry{{AccountingVersion: MiddlemanRouteAccountingVersion, BidderID: 7, TriggerMode: "Fallback"}},
 	}
 	if err := writeMiddlemanRouteCacheKeys(ctx, client, cache, "routes:legacy", "routes:v2"); err != nil {
 		t.Fatal(err)
@@ -157,12 +157,36 @@ func TestMiddlemanRouteCacheMetadataIsAdditive(t *testing.T) {
 	}
 }
 
+func TestMiddlemanRouteCurrentCacheRejectsMissingOrUnknownAccountingVersion(t *testing.T) {
+	server := miniredis.RunT(t)
+	ctx := context.Background()
+	client, err := (radix.PoolConfig{Size: 1}).New(ctx, "tcp", server.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	for _, version := range []string{"", "future-version"} {
+		cache := &MiddlemanRouteCache{
+			Version: MiddlemanRouteCacheVersion,
+			Entries: []MiddlemanRouteEntry{{AccountingVersion: version}},
+		}
+		data, err := json.Marshal(cache)
+		if err != nil {
+			t.Fatal(err)
+		}
+		server.Set(HashNameMiddlemanRoutesV2, string(data))
+		if _, err := MiddlemanRouteCacheFromRedis(ctx, client); err == nil {
+			t.Fatalf("current route entry accounting version %q was accepted", version)
+		}
+	}
+}
+
 func TestMiddlemanRouteLegacyFallbackCacheExcludesAlways(t *testing.T) {
 	cache := &MiddlemanRouteCache{
 		Version: MiddlemanRouteCacheVersion,
 		Entries: []MiddlemanRouteEntry{
-			{TargetID: 1, GroupID: 1, RouteBidderID: 1, BidderID: 1, TriggerMode: "Fallback"},
-			{TargetID: 2, GroupID: 2, RouteBidderID: 2, BidderID: 2, TriggerMode: "Always"},
+			{AccountingVersion: MiddlemanRouteAccountingVersion, TargetID: 1, GroupID: 1, RouteBidderID: 1, BidderID: 1, TriggerMode: "Fallback"},
+			{AccountingVersion: MiddlemanRouteAccountingVersion, TargetID: 2, GroupID: 2, RouteBidderID: 2, BidderID: 2, TriggerMode: "Always"},
 		},
 		Metadata: &MiddlemanRouteCacheMetadata{
 			GeneratedAt:      "2026-05-13T00:00:00Z",
