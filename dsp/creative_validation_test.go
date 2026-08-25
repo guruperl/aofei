@@ -66,6 +66,17 @@ func TestContainedMarkupSrcsetPreservesURLCommasAndChecksEveryCandidate(t *testi
 	}
 }
 
+func TestContainedMarkupDoesNotClaimToSanitizeObfuscatedJavaScript(t *testing.T) {
+	for _, adm := range []string{
+		`<img src="https://cdn.example/ad.png" onerror="top['loc'+'ation']='//evil.example'">`,
+		`<img src="https://cdn.example/ad.png" onerror="self[atob('dG9w')].location='//evil.example'">`,
+	} {
+		if err := validateContainedAdMarkup(adm, true); err != nil {
+			t.Fatalf("supported script was treated as sanitizable: %v", err)
+		}
+	}
+}
+
 func TestValidateMiddlemanNativeAndVideoContracts(t *testing.T) {
 	format := &match.NativeFormat{Ver: "1.2", Assets: []*match.AssetFormat{{
 		AssetFormat: adcom1.AssetFormat{ID: 7, Img: &adcom1.ImageAssetFormat{Type: adcom1.ImageAssetMain, MIME: []string{"image/png"}}},

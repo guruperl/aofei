@@ -99,6 +99,10 @@ func validateMiddlemanDownstreamBid(imp *openrtb2.Imp, attr *match.Attribute, bi
 	}
 }
 
+// validateContainedAdMarkup enforces structural and URL-bearing markup rules.
+// Literal script checks below are defense in depth for obvious references; they
+// are not a JavaScript sanitizer. Executable containment belongs to the
+// consumer's reviewed opaque-origin sandbox.
 func validateContainedAdMarkup(adm string, secure bool) error {
 	lower := strings.ToLower(adm)
 	for _, forbidden := range []string{
@@ -172,10 +176,10 @@ func validateContainedAdMarkup(adm string, secure bool) error {
 					}
 				default:
 					// The tokenizer decodes character references in attribute
-					// values, closing entity-encoded event-handler variants that a
-					// raw substring check cannot see. Scripts remain supported, but
-					// handlers may not target the containing browsing context.
-					if strings.HasPrefix(name, "on") && containsContainerEscapeScript(value) {
+					// values, letting defense-in-depth checks recognize obvious
+					// literal references. Scripts remain supported; the renderer
+					// sandbox, not this syntax check, owns containment.
+					if strings.HasPrefix(name, "on") && containsObviousContainerReference(value) {
 						return fmt.Errorf("middleman adm contains forbidden container-escape content")
 					}
 				}
@@ -240,7 +244,7 @@ func isSrcsetSpace(value byte) bool {
 	}
 }
 
-func containsContainerEscapeScript(raw string) bool {
+func containsObviousContainerReference(raw string) bool {
 	compact := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "").Replace(strings.ToLower(raw))
 	for _, forbidden := range []string{
 		"window.top", "window.parent", "self.top", "self.parent", "globalthis.top", "globalthis.parent",

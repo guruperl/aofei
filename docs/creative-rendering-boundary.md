@@ -57,8 +57,11 @@ D02 validates local creatives as URL-only Banner/Video or structured Native
 source and validates middleman media, size, MIME, secure-inventory, callback,
 VAST, Native asset, and contained-markup contracts before response selection.
 S05 extends contained-markup checks to fetching `srcset`, `ping`, and legacy
-`background` attributes and to entity-decoded event-handler attempts to address
-the parent/top context. `srcset` follows URL-token boundaries so valid HTTPS
+`background` attributes and applies defense-in-depth rejection to obvious,
+including entity-decoded, event-handler references to the parent/top context.
+Those literal checks do not parse or sanitize JavaScript; equivalent obfuscated
+code remains valid advertising script and is contained by the renderer's fixed
+opaque-origin sandbox without top-navigation permission. `srcset` follows URL-token boundaries so valid HTTPS
 URLs containing commas remain compatible while every subsequent candidate is
 still checked. Scripts and ordinary event behavior remain supported because
 removing them would change the approved advertising language.
@@ -107,8 +110,9 @@ mobile renderer.
 ## Verification
 
 - Aofei creative tests cover local URL-only materialization, strict Native and
-  VAST handling, hostile middleman markup, URL attributes, entity-decoded event
-  escapes, secure inventory, and every `/pz` response format.
+  VAST handling, hostile middleman markup, URL attributes, obvious
+  entity-decoded references, explicitly accepted obfuscated scripts, secure
+  inventory, and every `/pz` response format.
 - pzdesign source and Node fixtures prove there is one `srcdoc` sink, no host
   `innerHTML`, no `allow-same-origin`, fixed sandbox/referrer/permission values,
   hostile string containment, and deterministic fill/no-fill/error states. Its

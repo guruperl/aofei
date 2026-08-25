@@ -349,8 +349,8 @@ func (self *DirectPub) validateWrite() error {
 	if err := self.Pub.validateWrite(); err != nil {
 		return fmt.Errorf("direct publisher %q: %w", self.Domain, err)
 	}
-	if self.AccountingVersion != accounting.ExactMoneyContract || self.AccountingVersion != self.Pub.AccountingVersion {
-		return fmt.Errorf("direct publisher %q accounting version %q does not match embedded publisher version %q", self.Domain, self.AccountingVersion, self.Pub.AccountingVersion)
+	if self.AccountingVersion != accounting.ExactMoneyContract {
+		return fmt.Errorf("direct publisher %q requires accounting version %q, got %q", self.Domain, accounting.ExactMoneyContract, self.AccountingVersion)
 	}
 	declared := make(map[publisherSlot]struct{})
 	for siteID, slots := range self.Slots {

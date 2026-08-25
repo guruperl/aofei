@@ -90,9 +90,13 @@ approved synthetic identifiers, a positive finite price in USD, non-empty
 markup, exact dimensions, a compatible media type, and safe callback/image
 URLs. It must also satisfy the synthesized server/request floor.
 
-- Banner markup is contained but may include scripts needed by the approved ad
-  container. Top/parent navigation, refresh/base elements, JavaScript-like URL
-  schemes, document-domain changes, and sandbox escape tokens are rejected.
+- Banner markup may include scripts needed by the approved ad container.
+  Structural navigation, refresh/base elements, JavaScript-like URL schemes,
+  document-domain changes, and obvious literal top/parent references are
+  rejected as defense in depth. This validation is not a JavaScript sanitizer;
+  the first-party browser renderer's opaque-origin iframe without
+  top-navigation permission is the executable containment boundary, and an
+  external protocol consumer must provide its own equivalent boundary.
 - Video markup must be well-formed VAST with a protocol compatible with the
   request. URL-bearing VAST resources must be absolute HTTP(S), and embedded
   HTML/active content remains subject to the container policy.

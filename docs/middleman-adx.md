@@ -209,7 +209,9 @@ never logged or returned in a public debug body.
 D02 validates each downstream winner before markup or competition: positive
 finite USD price, synthesized floor, selected impression ID, approved synthetic
 IDs, exact dimensions, compatible media type, safe callbacks, and secure
-inventory. Banner markup cannot navigate or escape the approved container;
+inventory. Banner markup receives structural/URL validation and obvious-script
+defense in depth; executable containment belongs to the approved first-party
+opaque-origin renderer or an external consumer's equivalent boundary.
 Video must be compatible VAST; Native must decode to requested assets with safe
 click/tracker/image URLs and all required assets present. Rejected responses do
 not displace a local winner. See
