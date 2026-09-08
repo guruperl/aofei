@@ -14,6 +14,7 @@
 | `maxmind/` | Geo/IP lookup helpers and tests. |
 | `etc/` | Active SQL baseline, sample configs, generated local configs, samples, and data-load helper code. |
 | `scripts/` | Local Docker service helper scripts. |
+| `internal/deployment`, `cmd/aofei-deploy` | Strict generic immutable-release validation, preflight, bootstrap, activation, rollback, and history engine. |
 | `backup/` | Policy only; operational snapshots and third-party data stay outside Git. |
 | `docs/` | Stable long-form references. |
 | `memory-bank/` | Current product, architecture, tech stack, milestone, and status memory. |
@@ -531,19 +532,24 @@ The source/runtime boundary and populated-data rollout are specified in
 An HTTP release is one immutable Aofei/Pzdesign/Genelet bundle, not a standalone
 `unify` binary. `scripts/aofei-release.sh` requires clean source trees exactly
 equal to their upstream branches, runs all three test suites, and packages the
-binary, production config preflight, registered Summer component definitions,
-templates, and static assets. Its manifest records all three source commits and
-the active database/accounting contract; a checksum inventory covers every
-runtime artifact. Activated releases contain no mutable asset overlay or
+binary, generic deployment engine, production config preflight, registered
+Summer component definitions, templates, and static assets. New manifests use
+generic schema v2/kind `aofei-http-backend`; the verifier reads legacy W8M v1
+only for rollback. Its manifest records all three source commits and the active
+database/accounting contract; a checksum inventory covers every runtime
+artifact. Activated releases contain no mutable asset overlay or
 checkout-relative path.
 
 Environment identity remains outside this public source boundary. A private
-infrastructure repository owns canonical origins, host paths, systemd scope,
-dependency image IDs, config/secret-file paths without their contents, direct
-and public health policy, atomic `current`-symlink activation, rollback, and
-credential-free deployment history. A release does not authorize schema/cache
-migration, feature activation, or edge/provider mutation; environment preflight
-must stop when those separately reviewed gates are not already satisfied.
+infrastructure repository owns canonical origins, host paths, the exact unit
+template, dependency image IDs, config/secret-file paths without their
+contents, direct and public health policy, and credential-free deployment
+history. `cmd/aofei-deploy` strictly validates those inputs, a verified prior
+release, and the installed unit before selection; it owns atomic activation,
+proxy-free non-redirecting health checks, bootstrap config projection, and
+rollback state ordering. A release does not authorize schema/cache migration,
+feature activation, dependency installation, retention, browser activity, or
+edge/provider mutation.
 
 ## Cache Boundary
 

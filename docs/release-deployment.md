@@ -22,16 +22,19 @@ manifest.json
 checksums.sha256
 bin/unify
 bin/config-preflight
+bin/aofei-deploy
 assets/pzdesign/summer/*/component.json
 assets/pzdesign/tmpls/
 assets/pzdesign/www/
 ```
 
-The manifest records the exact clean, published Aofei, Pzdesign, and Genelet
-commits; Go toolchain; database/accounting contract; component count; and
-artifact count. `checksums.sha256` covers every executable, runtime asset, and
-the manifest. Release directories contain no symlinks or group/world-writable
-paths.
+New manifests use schema version 2 and kind `aofei-http-backend`. They record
+the exact clean, published Aofei, Pzdesign, and Genelet commits; Go toolchain;
+database/accounting contract; component count; and artifact count.
+`checksums.sha256` covers every executable, runtime asset, `RELEASE_ID`, and the
+manifest. Release directories contain no symlinks or group/world-writable
+paths. Verification accepts legacy schema-v1 `w8m-http-backend` bundles only as
+a read/rollback bridge; the builder never writes that format.
 
 ## Build And Verify
 
@@ -43,9 +46,9 @@ and refuses to overwrite an existing output path.
 ```bash
 release_parent=$(mktemp -d)
 ./scripts/aofei-release.sh build \
-  --output "$release_parent/w8m-backend"
+  --output "$release_parent/http-backend"
 ./scripts/aofei-release.sh verify \
-  "$release_parent/w8m-backend"
+  "$release_parent/http-backend"
 ```
 
 The output can be transferred to the deployment host only through a channel
@@ -66,9 +69,40 @@ or customer identifier. It names only:
 - expected database schema and accounting contract;
 - rollback and release-retention policy.
 
+The manifest is strict: unknown fields, unsafe or colliding paths, a service
+that bypasses the atomic `current` selection, non-loopback direct probes,
+public probes outside accepted HTTPS origins, mutable dependency identities,
+and automatic release deletion fail before effects. Target values never become
+defaults in the generic command.
+
 Secrets remain in the host's owner-readable environment/configuration files.
 The manifest may name those files so a deploy preflight can require their
 existence and modes, but it never copies their contents.
+
+## Generic Command
+
+After the release has been independently verified, a private realization calls
+the bundled command with its exact target-owned inputs:
+
+```bash
+release=/absolute/verified/release
+"$release/bin/aofei-deploy" \
+  -manifest /absolute/private/environment.json \
+  -unit-template /absolute/private/service.unit \
+  -history-dir /absolute/private/history \
+  preflight "$release"
+
+"$release/bin/aofei-deploy" \
+  -manifest /absolute/private/environment.json \
+  -unit-template /absolute/private/service.unit \
+  -history-dir /absolute/private/history \
+  deploy "$release"
+```
+
+`validate`, `verify-release`, `status`, and one-time `bootstrap` are also
+available. `bootstrap` is invalid once an atomic current selection exists.
+`status` and public smoke probes may contact the target and therefore retain
+environment-specific authorization.
 
 ## Activation State Machine
 
@@ -87,9 +121,10 @@ perform this order:
    process id, and the configured public smoke responses.
 6. On any failure, atomically restore the prior symlink, restart it, and require
    prior health before returning failure.
-7. Append a credential-free deployment record containing release id, manifest
-   digest, old/new targets, result, timestamps, and health outcomes to the
-   private repository.
+7. Create a credential-free `started` deployment record before selection and
+   atomically finalize it with release id, manifest digest, old/new targets,
+   result, timestamps, process identities, and health outcomes. A crash cannot
+   erase the fact that activation began.
 
 Public edge policy may intentionally hide `/healthz`, `/readyz`, or
 `/debug/vars`; direct-origin checks remain mandatory and public checks use only
@@ -110,3 +145,9 @@ an old binary against new assets or copies selected files backward. Retain at
 least the selected and immediately prior releases. Removal of older releases is
 a separate exact-target retention action and must never follow a failed
 activation.
+
+The deploy path verifies the selected prior bundle and installed unit before
+changing the symlink. Health probes bypass ambient HTTP proxies, refuse
+redirects, and restrict direct checks to loopback URLs from the strict
+manifest. Rollback must pass both direct and public probes before it can be
+recorded as recovered.

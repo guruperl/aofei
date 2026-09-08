@@ -17,6 +17,8 @@ routines, and 65 triggers;
 planned milestones do not imply schema or runtime activation. S07 account
 identifier protection is in progress and remains disabled by default; its
 additive repository work does not claim a production migration.
+O04 generic release deployment is in progress independently; its public engine
+contains no W8M target values, and host adoption remains private.
 
 ## Start By Audience
 
@@ -69,6 +71,7 @@ additive repository work does not claim a production migration.
 | O01 production traffic controls | Completed | [status-O01.md](../memory-bank/status-O01.md) | [Production traffic and observability](production-traffic-observability.md) |
 | O02 single-region availability | Completed; production claims evidence-gated | [status-O02.md](../memory-bank/status-O02.md) | [Availability, recovery, and SLO](single-region-availability.md) |
 | O03 job/cache/filesystem reliability | Completed | [status-O03.md](../memory-bank/status-O03.md) | [Operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
+| O04 generic release deployment | In progress | [status-O04.md](../memory-bank/status-O04.md) | [Immutable backend releases](release-deployment.md) and [production runbook](production-runbook.md) |
 
 ## Supporting Runtime References
 

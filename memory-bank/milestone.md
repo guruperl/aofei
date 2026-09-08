@@ -40,6 +40,9 @@ lane status files are the authoritative completion record; completed M-lane
 files retain earlier runtime history. S07 account-identifier protection is now
 in progress as a default-off successor to S02/S06; it does not activate or
 migrate production by implication.
+O04 is independently in progress under the owner-directed deployment-boundary
+split: Aofei will own a generic deployment/bootstrap engine, while exact W8M
+host policy remains private. O04 neither depends on nor activates S07.
 
 Delivery sequence:
 
@@ -59,6 +62,8 @@ Delivery sequence:
 7. Current security migration: S07 protects interactive account identifiers
    through additive schema, dual reads/writes, opaque account-action tokens,
    and a separately authorized plaintext-retirement gate.
+8. Independent deployment tooling: O04 replaces duplicated target deploy logic
+   with a strict generic Aofei engine and synthetic state-machine tests.
 
 The strict serial order is:
 
@@ -68,7 +73,7 @@ D01 -> S01 -> S04 -> O01 -> A01 -> P01
 -> R02 -> P02 -> S02 -> I03 -> S03 -> A02
 -> D04 -> D05 -> S06 -> P03 -> S05 -> O03 -> R03 -> A03
 -> M46
--> S07
+-> S07 and O04 (independent successors)
 -> I02 (only after repository prerequisites and a named mobile integration)
 ```
 
@@ -105,6 +110,7 @@ acceptance criteria recorded in the corresponding status files.
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
 | O03 | Completed | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
+| O04 | In progress | [status-O04.md](status-O04.md) | Generic immutable-release deployment and bootstrap engine. |
 
 Historical M-lane status index:
 
@@ -1740,6 +1746,15 @@ Harden singleton renewal, atomic reusable cache publication, spread-generation
 ordering, callback recovery evidence, filesystem permissions/atomicity, and
 malformed geodata handling without weakening O02 split-brain safety. Detailed
 tasks and verification are in [status-O03.md](status-O03.md).
+
+## O04 - Generic Release Deployment And Bootstrap `[~]`
+
+Move reusable immutable-release verification, strict environment validation,
+preflight, atomic activation, rollback, history, and one-time bootstrap behavior
+from the W8M realization into Aofei. New release bundles use a generic contract;
+legacy W8M bundles remain read-compatible for rollback only. Exact host names,
+paths, units, dependency identities, health policy, and history remain private.
+Detailed tasks and review evidence are in [status-O04.md](status-O04.md).
 
 ## Deferred Product Investments
 

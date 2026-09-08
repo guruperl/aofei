@@ -13,7 +13,7 @@ Usage:
     [--pzdesign-root ABSOLUTE_PATH] [--genelet-root ABSOLUTE_PATH]
   scripts/aofei-release.sh verify RELEASE_DIRECTORY
 
-Build creates an immutable W8M HTTP-backend release bundle. All three source
+Build creates an immutable Aofei HTTP-backend release bundle. All three source
 repositories must be clean and exactly equal to their configured upstream
 branches. Existing output paths are never overwritten.
 EOF
@@ -131,7 +131,7 @@ write_manifest() {
   jq -n \
     --arg release_id "$release_id" \
     --arg built_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-    --arg go_version "$(go version)" \
+    --arg go_version "$(GOTOOLCHAIN=go1.23.5 go version)" \
     --arg aofei_commit "$aofei_commit" \
     --arg aofei_branch "$(source_manifest_value "$aofei_root" branch)" \
     --arg aofei_upstream "$(source_manifest_value "$aofei_root" upstream)" \
@@ -147,8 +147,8 @@ write_manifest() {
     --argjson component_count "$component_count" \
     --argjson artifact_count "$artifact_count" \
     '{
-      schema_version: 1,
-      kind: "w8m-http-backend",
+      schema_version: 2,
+      kind: "aofei-http-backend",
       release_id: $release_id,
       built_at: $built_at,
       go_version: $go_version,
@@ -197,12 +197,15 @@ verify_release() {
   (cd -- "$release" && sha256sum --check --strict checksums.sha256 >/dev/null) ||
     fail "release checksum verification failed"
   jq -e '
-    .schema_version == 1 and
-    .kind == "w8m-http-backend" and
+    ((.schema_version == 1 and .kind == "w8m-http-backend") or
+     (.schema_version == 2 and .kind == "aofei-http-backend")) and
     (.release_id | test("^aofei-[0-9a-f]{12}_pzdesign-[0-9a-f]{12}_genelet-[0-9a-f]{12}$")) and
     .contracts.database == {tables:96, views:0, routines:6, triggers:65} and
     .contracts.accounting_version == "usd-cpm-impression-v3"
   ' "$release/manifest.json" >/dev/null || fail "release manifest contract is invalid"
+  if [[ $(jq -r '.schema_version' "$release/manifest.json") == 2 ]]; then
+    [[ -x $release/bin/aofei-deploy ]] || fail "bin/aofei-deploy is missing or not executable"
+  fi
   jq -e '.sources | all(.[]; (.commit | test("^[0-9a-f]{40}$")))' "$release/manifest.json" >/dev/null ||
     fail "release source provenance is invalid"
   [[ $(cat "$release/RELEASE_ID") == "$(jq -r '.release_id' "$release/manifest.json")" ]] ||
@@ -215,8 +218,21 @@ verify_release() {
     fail "release ID does not match the source commits"
   go version -m "$release/bin/config-preflight" | grep -F "vcs.revision=$expected_aofei" >/dev/null ||
     fail "config-preflight build provenance does not match the manifest"
+  if go version -m "$release/bin/config-preflight" | grep -F 'vcs.modified=true' >/dev/null; then
+    fail "config-preflight was built from a modified worktree"
+  fi
   go version -m "$release/bin/unify" | grep -F "vcs.revision=$expected_pzdesign" >/dev/null ||
     fail "unify build provenance does not match the manifest"
+  if go version -m "$release/bin/unify" | grep -F 'vcs.modified=true' >/dev/null; then
+    fail "unify was built from a modified worktree"
+  fi
+  if [[ $(jq -r '.schema_version' "$release/manifest.json") == 2 ]]; then
+    go version -m "$release/bin/aofei-deploy" | grep -F "vcs.revision=$expected_aofei" >/dev/null ||
+      fail "aofei-deploy build provenance does not match the manifest"
+    if go version -m "$release/bin/aofei-deploy" | grep -F 'vcs.modified=true' >/dev/null; then
+      fail "aofei-deploy was built from a modified worktree"
+    fi
+  fi
   actual_component_count=$(find "$release/assets/pzdesign/summer" -mindepth 2 -maxdepth 2 -type f -name component.json | wc -l)
   expected_component_count=$(jq -r '.assets.component_count' "$release/manifest.json")
   [[ $actual_component_count == "$expected_component_count" ]] || fail "component inventory does not match the manifest"
@@ -227,6 +243,10 @@ verify_release() {
   [[ $checksum_count -eq $((actual_artifact_count + 2)) ]] || fail "checksum inventory is incomplete"
   [[ -f $release/assets/pzdesign/summer/publishercredential/component.json ]] ||
     fail "publishercredential component metadata is missing"
+  if [[ $(jq -r '.schema_version' "$release/manifest.json") == 2 ]]; then
+    "$release/bin/aofei-deploy" verify-release "$release" >/dev/null ||
+      fail "generic release verification failed"
+  fi
   printf 'release_verification=passed release_id=%s\n' "$(jq -r '.release_id' "$release/manifest.json")"
 }
 
@@ -269,6 +289,7 @@ build_release() {
   install -d -m 0755 -- "$stage/bin" "$stage/assets/pzdesign"
   (cd -- "$pzdesign_root" && GOWORK=off GOTOOLCHAIN=go1.23.5 go build -trimpath -o "$stage/bin/unify" ./cmd/unify)
   (cd -- "$aofei_root" && GOWORK=off GOTOOLCHAIN=go1.23.5 go build -trimpath -o "$stage/bin/config-preflight" ./cmd/config-preflight)
+  (cd -- "$aofei_root" && GOWORK=off GOTOOLCHAIN=go1.23.5 go build -trimpath -o "$stage/bin/aofei-deploy" ./cmd/aofei-deploy)
   copy_pzdesign_assets "$pzdesign_root" "$stage/assets/pzdesign"
   normalize_release_modes "$stage"
   write_manifest "$stage" "$aofei_root" "$pzdesign_root" "$genelet_root"

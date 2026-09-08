@@ -632,14 +632,16 @@ matching Summer components, templates, and static files with `unify`:
 ```bash
 release_parent=$(mktemp -d)
 ./scripts/aofei-release.sh build \
-  --output "$release_parent/w8m-backend"
-./scripts/aofei-release.sh verify "$release_parent/w8m-backend"
+  --output "$release_parent/http-backend"
+./scripts/aofei-release.sh verify "$release_parent/http-backend"
 ```
 
 Host-specific dependency identities, systemd paths, origins, direct/public
-health checks, rollback selection, and credential-free deployment records are
-owned by the private environment repository. Config and secret contents stay
-only in owner-readable host files.
+health policy, and credential-free deployment records are owned by the private
+environment repository. The release carries `bin/aofei-deploy`, whose strict Go
+engine consumes those private inputs for `validate`, `status`, `preflight`,
+one-time `bootstrap`, and `deploy`. Config and secret contents stay only in
+owner-readable host files.
 
 Package gate:
 

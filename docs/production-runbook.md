@@ -664,18 +664,25 @@ Build and verify the HTTP release before the environment deployer installs it:
 ```bash
 release_parent=$(mktemp -d)
 ./scripts/aofei-release.sh build \
-  --output "$release_parent/w8m-backend"
-./scripts/aofei-release.sh verify "$release_parent/w8m-backend"
+  --output "$release_parent/http-backend"
+./scripts/aofei-release.sh verify "$release_parent/http-backend"
 ```
 
-Copy complete bundles and worker binaries into versioned release directories,
-atomically update the active symlink or binary paths, then restart services:
+For the HTTP backend, use the generic `aofei-deploy` command through the private
+environment repository's exact manifest, unit template, history directory, and
+thin adapter. Run `preflight` before `deploy`; the engine stages a complete
+bundle, switches the active symlink, restarts the configured service, verifies
+direct and public health, and restores the already-verified prior bundle on
+failure. Do not manually copy `unify` or synchronize Summer assets component by
+component.
+
+Install separately managed worker binaries into versioned paths, then restart
+or enable their authorized services as applicable:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl restart aofei-spread.service
 sudo systemctl restart aofei-nats-client.service
-sudo systemctl restart aofei-unify.service
 sudo systemctl enable --now aofei-redis-cache.timer
 sudo systemctl enable --now aofei-mid-callback-retry.timer
 sudo systemctl enable --now aofei-action-reconcile.timer

@@ -147,6 +147,9 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   Passwords remain bcrypt-only. Plaintext retirement is separately gated on
   complete display/mail/action-token migration plus private canary, rollback,
   and rotation evidence.
+- O04 owns reusable immutable Aofei/Pzdesign/Genelet release verification and
+  strict target-manifest deployment mechanics. Exact host values, service
+  inputs, dependency identities, health policy, and history remain private.
 
 ## Current Product Direction
 
@@ -163,7 +166,10 @@ demand-eligibility, schema, filesystem, concurrency, hot-path,
 creative-boundary, and static-analysis findings without reopening those
 completed milestones. S07 is now the active repository security milestone;
 its additive work remains disabled and does not claim production migration or
-plaintext retirement. P03 provides its
+plaintext retirement. Independent O04 deployment work moves reusable strict
+preflight, bootstrap, atomic activation, proxy-free health checks, rollback,
+and credential-free history into Aofei without embedding W8M host values or
+activating any schema/cache/feature/provider change. P03 provides its
 threat contract, default-off versioned locator codec/runtime dual reader,
 default-off SDK/server authentication, independent browser/App enforcement,
 client-claim disposition, portal/cache integration, and repository rollout/
