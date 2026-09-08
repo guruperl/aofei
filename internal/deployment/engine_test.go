@@ -423,6 +423,28 @@ func TestBootstrapPreflightRejectsLoadedUnitWithoutMutation(t *testing.T) {
 	}
 }
 
+func TestBootstrapPreflightRejectsPeerWritableUnitDirectoryChainWithoutMutation(t *testing.T) {
+	fixture := prepareEngineFixture(t, false)
+	unitDirectory := filepath.Dir(fixture.engine.Environment.Service.UnitPath)
+	unsafeAncestor := filepath.Join(unitDirectory, "unsafe")
+	if err := os.Mkdir(unsafeAncestor, 0o775); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(unsafeAncestor, 0o775); err != nil {
+		t.Fatal(err)
+	}
+	fixture.engine.Environment.Service.UnitPath = filepath.Join(unsafeAncestor, "example.service")
+	fixture.runner.environment = fixture.engine.Environment
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "directory is writable by peers") {
+		t.Fatalf("peer-writable unit directory chain error = %v", err)
+	}
+	if _, err := os.Lstat(fixture.engine.Environment.Paths.CurrentLink); !os.IsNotExist(err) ||
+		len(directoryNames(t, fixture.engine.HistoryDir)) != 0 ||
+		len(directoryNames(t, fixture.engine.Environment.Paths.BootstrapBackupRoot)) != 0 {
+		t.Fatal("peer-writable directory rejection mutated deployment state")
+	}
+}
+
 func TestDeployRejectsSymlinkLockBeforeSelectionMutation(t *testing.T) {
 	fixture := prepareEngineFixture(t, true)
 	target := filepath.Join(t.TempDir(), "lock-target")

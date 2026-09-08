@@ -103,7 +103,9 @@ release=/absolute/verified/release
 
 `validate`, `verify-release`, `status`, and one-time `bootstrap` are also
 available. `bootstrap` is a clean first activation: both the atomic current
-selection and installed/manager-loaded service unit must be absent. It retains
+selection and installed/manager-loaded service unit must be absent. Every unit
+directory ancestor must be owned by the operator or root and reject peer writes
+(a root-owned sticky shared ancestor is permitted). Bootstrap retains
 an owner-only snapshot of the supplied base configs, projects only release
 asset paths, installs the exact unit, starts the service, and verifies the same
 loaded-state and health contract as deployment. It does not migrate or depend

@@ -438,8 +438,8 @@ func (engine *Engine) verifyBootstrapState(ctx context.Context) error {
 	if _, err := os.Lstat(engine.Environment.Service.UnitPath); err == nil || !os.IsNotExist(err) {
 		return fmt.Errorf("bootstrap requires an absent installed unit")
 	}
-	if err := validateOwnedDirectory(filepath.Dir(engine.Environment.Service.UnitPath), engine.Environment.Operator.UID); err != nil {
-		return fmt.Errorf("service unit directory: %w", err)
+	if err := validateTrustedDirectoryChain(filepath.Dir(engine.Environment.Service.UnitPath), engine.Environment.Operator.UID); err != nil {
+		return fmt.Errorf("service unit directory chain: %w", err)
 	}
 	loadState, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "LoadState", "--value")
 	if err != nil || strings.TrimSpace(string(loadState)) != "not-found" {
@@ -1189,6 +1189,28 @@ func validateOwnedDirectory(path string, ownerUID int) error {
 		return fmt.Errorf("directory owner changed")
 	}
 	return nil
+}
+
+func validateTrustedDirectoryChain(path string, ownerUID int) error {
+	current := filepath.Clean(path)
+	for {
+		info, err := os.Lstat(current)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("directory is missing or not a real directory")
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || int(stat.Uid) != ownerUID && stat.Uid != 0 {
+			return fmt.Errorf("directory owner is not trusted")
+		}
+		if info.Mode().Perm()&0o022 != 0 && info.Mode()&os.ModeSticky == 0 {
+			return fmt.Errorf("directory is writable by peers")
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return nil
+		}
+		current = parent
+	}
 }
 
 func ensurePrivateDirectory(path string, ownerUID int, mode os.FileMode) error {

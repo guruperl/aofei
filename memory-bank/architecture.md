@@ -550,8 +550,9 @@ environment-file set, a verified healthy prior release, and the installed unit
 before selection; it owns atomic activation, proxy-free non-redirecting health
 checks, clean-bootstrap config projection, and rollback state ordering.
 Bootstrap requires no current selection and no installed or manager-loaded
-unit; it starts from target-owned base configs and restores the uninstalled
-state on failure. Failure to finalize a successful history record is an
+unit; its complete unit-directory chain rejects untrusted ownership and
+non-sticky peer writes before it starts from target-owned base configs and
+restores the uninstalled state on failure. Failure to finalize a successful history record is an
 activation failure and restores the verified prior release or clean bootstrap
 state. A release does not
 authorize schema/cache migration,

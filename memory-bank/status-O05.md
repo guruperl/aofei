@@ -50,3 +50,15 @@ specific migration path in Aofei.
   pinned staticcheck, the scoped race suite including `internal/deployment`,
   the documentation guard, and diff hygiene pass. Private W8M realization and
   exact activation evidence remain pending, so O05 is not closed yet.
+- Iteration 4: P1 confirmed by the first exact target attempt. Clean bootstrap
+  checked only the immediate unit directory; a peer-writable ancestor could
+  replace that directory after validation, defeating the claimed no-peer-write
+  boundary. Validate the complete absolute directory chain, accepting only the
+  operator/root ownership and sticky shared ancestors, before installing the
+  unit. The exact attempt itself failed before generic history/activation and
+  the private bridge restored the healthy prior release.
+- Iteration 5: clean after the directory-chain fix. Whole-milestone review
+  found no remaining P1/P2. A synthetic peer-writable ancestor now fails before
+  selection, snapshot, history, or service mutation; full package tests, vet,
+  pinned staticcheck, the scoped race suite, documentation guard, and diff
+  hygiene pass. Corrected exact W8M activation remains pending.

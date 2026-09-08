@@ -641,9 +641,10 @@ health policy, and credential-free deployment records are owned by the private
 environment repository. The release carries `bin/aofei-deploy`, whose strict Go
 engine consumes those private inputs for `validate`, `status`, `preflight`,
 clean first-install `bootstrap`, and `deploy`. Bootstrap requires an absent
-selection and unloaded unit, snapshots the owner-managed base configs, and
-starts the service; config and secret contents stay only in owner-readable host
-files.
+selection, unloaded unit, and operator/root-owned non-peer-writable directory
+chain (apart from sticky shared ancestors), snapshots the owner-managed base
+configs, and starts the service; config and secret contents stay only in
+owner-readable host files.
 
 Package gate:
 
