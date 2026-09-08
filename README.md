@@ -138,9 +138,10 @@ placement and direct `go install` invocations in
 The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, S06,
 P03, S05, O03, O04, R03, and A03 are complete. P03's authenticity gates remain
 disabled by default until a separately authorized named-publisher canary. No
-required remediation milestone remains; I02 remains separately demand-gated.
-S07 account-identifier protection remains in progress. O04 generic release
-deployment is complete; neither implies S07's gated production changes.
+earlier review-remediation milestone remains; I02 remains separately
+demand-gated. S07 account-identifier protection remains in progress. O04 generic release
+deployment is complete. O05 clean first activation is in progress; neither
+operations milestone implies S07's gated production changes.
 Implementation does not imply production activation:
 
 | Area | Current state |
@@ -166,6 +167,7 @@ Implementation does not imply production activation:
 | O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
 | O03 job/cache/filesystem reliability | Completed; renewable ownership, atomic publication, durable filesystem/geodata handling, and recovery evidence are implemented. |
 | O04 generic release deployment | Completed; target-neutral release verification, preflight, bootstrap, activation, rollback, and history are implemented and the private W8M realization has cut over successfully. |
+| O05 generic clean bootstrap | In progress; first activation is being separated from target-private migration of any pre-existing service. |
 
 See the [documentation and milestone index](docs/README.md) for the authoritative
 guide for each lane and the matching status file. Historical M-lane evidence is

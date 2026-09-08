@@ -43,6 +43,10 @@ migrate production by implication.
 O04 is complete under the owner-directed deployment-boundary split: Aofei owns
 a generic deployment/bootstrap engine, while exact W8M host policy remains
 private. O04 neither depends on nor activates S07.
+O05 is in progress as O04's clean-bootstrap successor. It removes the generic
+engine's dependency on a healthy legacy process while keeping each existing
+target's migration procedure private. O05 neither depends on nor activates
+S07.
 
 Delivery sequence:
 
@@ -64,6 +68,9 @@ Delivery sequence:
    and a separately authorized plaintext-retirement gate.
 8. Independent deployment tooling: O04 replaces duplicated target deploy logic
    with a strict generic Aofei engine and synthetic state-machine tests.
+9. Clean first activation: O05 replaces O04's legacy-process bootstrap bridge
+   with an uninstalled-state transaction while preserving ordinary deploy and
+   rollback behavior.
 
 The strict serial order is:
 
@@ -73,9 +80,13 @@ D01 -> S01 -> S04 -> O01 -> A01 -> P01
 -> R02 -> P02 -> S02 -> I03 -> S03 -> A02
 -> D04 -> D05 -> S06 -> P03 -> S05 -> O03 -> R03 -> A03
 -> M46
--> S07 and O04 (independent successors)
+-> O04 -> O05
 -> I02 (only after repository prerequisites and a named mobile integration)
 ```
+
+S07 is an independent successor to M46 and may proceed concurrently with
+O04/O05; it is not an O05 dependency and does not change I02's named-mobile-
+integration gate.
 
 Controlled direct-SSP and middleman staging may begin with existing runtime
 features, but revenue-bearing activation must satisfy the prerequisite lane
@@ -111,6 +122,7 @@ acceptance criteria recorded in the corresponding status files.
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
 | O03 | Completed | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
 | O04 | Completed | [status-O04.md](status-O04.md) | Generic immutable-release deployment and bootstrap engine. |
+| O05 | In progress | [status-O05.md](status-O05.md) | Generic clean first activation from an uninstalled service state. |
 
 Historical M-lane status index:
 
@@ -1755,6 +1767,16 @@ from the W8M realization into Aofei. New release bundles use a generic contract;
 legacy W8M bundles remain read-compatible for rollback only. Exact host names,
 paths, units, dependency identities, health policy, and history remain private.
 Detailed tasks and review evidence are in [status-O04.md](status-O04.md).
+
+## O05 - Generic Clean Bootstrap `[-]`
+
+Replace O04's migration-oriented bootstrap bridge with a target-neutral first
+activation from an absent release selection and uninstalled systemd unit.
+Snapshot target-owned base configs, install and start one immutable release,
+verify it, and restore an uninstalled state on failure. Migration from an
+existing target service remains a private maintenance operation. Ordinary
+deploy and verified rollback behavior do not change. Detailed tasks and review
+evidence are in [status-O05.md](status-O05.md).
 
 ## Deferred Product Investments
 

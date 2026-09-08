@@ -548,9 +548,12 @@ history. `cmd/aofei-deploy` strictly validates those inputs, manager reload
 state, the exact loaded executable, working directory, config environment and
 environment-file set, a verified healthy prior release, and the installed unit
 before selection; it owns atomic activation, proxy-free non-redirecting health
-checks, bootstrap config projection, and rollback state ordering. Failure to
-finalize a successful history record is an activation failure and restores the
-verified prior release or complete legacy bootstrap state. A release does not
+checks, clean-bootstrap config projection, and rollback state ordering.
+Bootstrap requires no current selection and no installed or manager-loaded
+unit; it starts from target-owned base configs and restores the uninstalled
+state on failure. Failure to finalize a successful history record is an
+activation failure and restores the verified prior release or clean bootstrap
+state. A release does not
 authorize schema/cache migration,
 feature activation, dependency installation, retention, browser activity, or
 edge/provider mutation.

@@ -16,7 +16,16 @@ import (
 type deploymentRunner struct {
 	environment        Environment
 	restarts           int
+	starts             int
+	stops              int
+	active             bool
 	failConfig         bool
+	failConfigAt       int
+	configCalls        int
+	failStart          bool
+	failStop           bool
+	stopLeavesActive   bool
+	loadedUnit         bool
 	staleManager       bool
 	loadedExecStart    string
 	loadedWorkingDir   string
@@ -41,7 +50,8 @@ func (runner *deploymentRunner) Run(_ context.Context, command string, arguments
 		return runner.systemctl(arguments)
 	default:
 		if strings.HasSuffix(filepath.ToSlash(command), "/bin/config-preflight") {
-			if runner.failConfig {
+			runner.configCalls++
+			if runner.failConfig || runner.configCalls == runner.failConfigAt {
 				return nil, errors.New("synthetic config failure")
 			}
 			return []byte("production_config_preflight=passed\n"), nil
@@ -79,13 +89,41 @@ func (runner *deploymentRunner) docker(arguments []string) ([]byte, error) {
 func (runner *deploymentRunner) systemctl(arguments []string) ([]byte, error) {
 	if containsSequence(arguments, "restart") {
 		runner.restarts++
+		runner.active = true
+		return nil, nil
+	}
+	if containsSequence(arguments, "start") {
+		runner.starts++
+		runner.active = true
+		if runner.failStart {
+			return nil, errors.New("synthetic start failure")
+		}
+		return nil, nil
+	}
+	if containsSequence(arguments, "stop") {
+		runner.stops++
+		if runner.failStop {
+			return nil, errors.New("synthetic stop failure")
+		}
+		if !runner.stopLeavesActive {
+			runner.active = false
+		}
 		return nil, nil
 	}
 	if containsSequence(arguments, "daemon-reload") {
 		return nil, nil
 	}
 	if containsSequence(arguments, "is-active") {
-		return []byte("active\n"), nil
+		if runner.active {
+			return []byte("active\n"), nil
+		}
+		return []byte("inactive\n"), errors.New("inactive")
+	}
+	if containsSequence(arguments, "LoadState") {
+		if _, err := os.Lstat(runner.environment.Service.UnitPath); os.IsNotExist(err) && !runner.loadedUnit {
+			return []byte("not-found\n"), nil
+		}
+		return []byte("loaded\n"), nil
 	}
 	if containsSequence(arguments, "NeedDaemonReload") {
 		if runner.staleManager {
@@ -125,7 +163,10 @@ func (runner *deploymentRunner) systemctl(arguments []string) ([]byte, error) {
 		return []byte("GOWORK=off AOFEI=" + aofei + " SUMMER=" + summer + "\n"), nil
 	}
 	if containsSequence(arguments, "show") {
-		return []byte(fmt.Sprintf("%d\n", 100+runner.restarts*100)), nil
+		if !runner.active {
+			return []byte("0\n"), nil
+		}
+		return []byte(fmt.Sprintf("%d\n", 100+(runner.restarts+runner.starts)*100)), nil
 	}
 	return nil, fmt.Errorf("unexpected systemctl command: %q", arguments)
 }
@@ -227,8 +268,10 @@ func prepareEngineFixture(t *testing.T, current bool) engineFixture {
 	if err := os.WriteFile(unitTemplate, unit, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(environment.Service.UnitPath, unit, 0o644); err != nil {
-		t.Fatal(err)
+	if current {
+		if err := os.WriteFile(environment.Service.UnitPath, unit, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	priorFixture, priorManifest, _ := writeReleaseFixtureWithIdentity(t, environment.Paths.ReleaseRoot, true, "abc")
 	prior := filepath.Join(environment.Paths.ReleaseRoot, priorManifest.ReleaseID)
@@ -245,7 +288,7 @@ func prepareEngineFixture(t *testing.T, current bool) engineFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner := &deploymentRunner{environment: environment}
+	runner := &deploymentRunner{environment: environment, active: current}
 	output := &bytes.Buffer{}
 	engine.Runner = runner
 	engine.Prober = selectionProber{current: environment.Paths.CurrentLink}
@@ -352,18 +395,31 @@ func TestPreflightRejectsStaleLoadedServiceWithoutMutation(t *testing.T) {
 	}
 }
 
-func TestBootstrapPreflightRejectsUnsafeLegacyUnitWithoutMutation(t *testing.T) {
+func TestBootstrapPreflightRejectsExistingUnitWithoutMutation(t *testing.T) {
 	fixture := prepareEngineFixture(t, false)
-	if err := os.Chmod(fixture.engine.Environment.Service.UnitPath, 0o664); err != nil {
+	if err := os.WriteFile(fixture.engine.Environment.Service.UnitPath, []byte("[Service]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil {
-		t.Fatal("peer-writable legacy unit passed bootstrap preflight")
+		t.Fatal("existing installed unit passed bootstrap preflight")
 	}
 	if _, err := os.Lstat(fixture.engine.Environment.Paths.CurrentLink); !os.IsNotExist(err) ||
 		len(directoryNames(t, fixture.engine.HistoryDir)) != 0 ||
 		len(directoryNames(t, fixture.engine.Environment.Paths.BootstrapBackupRoot)) != 0 {
 		t.Fatal("unsafe bootstrap preflight mutated deployment state")
+	}
+}
+
+func TestBootstrapPreflightRejectsLoadedUnitWithoutMutation(t *testing.T) {
+	fixture := prepareEngineFixture(t, false)
+	fixture.runner.loadedUnit = true
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil {
+		t.Fatal("manager-loaded unit passed bootstrap preflight")
+	}
+	if _, err := os.Lstat(fixture.engine.Environment.Paths.CurrentLink); !os.IsNotExist(err) ||
+		len(directoryNames(t, fixture.engine.HistoryDir)) != 0 ||
+		len(directoryNames(t, fixture.engine.Environment.Paths.BootstrapBackupRoot)) != 0 {
+		t.Fatal("loaded-unit bootstrap rejection mutated deployment state")
 	}
 }
 
@@ -498,10 +554,6 @@ func TestDeployHistoryFinalizationFailureRestoresPriorRelease(t *testing.T) {
 
 func TestBootstrapProjectsConfigsAndInstallsTargetUnit(t *testing.T) {
 	fixture := prepareEngineFixture(t, false)
-	legacyUnit := []byte("[Service]\nExecStart=/legacy/unify\n")
-	if err := os.WriteFile(fixture.engine.Environment.Service.UnitPath, legacyUnit, 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err != nil {
 		t.Fatal(err)
 	}
@@ -521,14 +573,13 @@ func TestBootstrapProjectsConfigsAndInstallsTargetUnit(t *testing.T) {
 	if len(backups) != 1 {
 		t.Fatalf("bootstrap backups = %v", backups)
 	}
+	if fixture.runner.starts != 1 || fixture.runner.restarts != 0 || fixture.runner.stops != 0 {
+		t.Fatalf("bootstrap service actions: starts=%d restarts=%d stops=%d", fixture.runner.starts, fixture.runner.restarts, fixture.runner.stops)
+	}
 }
 
-func TestBootstrapFailureRestoresLegacyInputsAndRecordsRollback(t *testing.T) {
+func TestBootstrapFailureRestoresUninstalledStateAndRecordsRollback(t *testing.T) {
 	fixture := prepareEngineFixture(t, false)
-	legacyUnit := []byte("[Service]\nExecStart=/legacy/unify\n")
-	if err := os.WriteFile(fixture.engine.Environment.Service.UnitPath, legacyUnit, 0o644); err != nil {
-		t.Fatal(err)
-	}
 	aofeiBefore, _ := os.ReadFile(fixture.engine.Environment.Paths.AofeiConfig)
 	summerBefore, _ := os.ReadFile(fixture.engine.Environment.Paths.SummerConfig)
 	candidateManifest, err := loadReleaseManifest(filepath.Join(fixture.candidate, "manifest.json"))
@@ -539,7 +590,7 @@ func TestBootstrapFailureRestoresLegacyInputsAndRecordsRollback(t *testing.T) {
 		current:       fixture.engine.Environment.Paths.CurrentLink,
 		failingTarget: filepath.Join(fixture.engine.Environment.Paths.ReleaseRoot, candidateManifest.ReleaseID),
 	}
-	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "restored the legacy service") {
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "restored the uninstalled state") {
 		t.Fatalf("bootstrap failure = %v", err)
 	}
 	if _, err := os.Lstat(fixture.engine.Environment.Paths.CurrentLink); !os.IsNotExist(err) {
@@ -547,22 +598,84 @@ func TestBootstrapFailureRestoresLegacyInputsAndRecordsRollback(t *testing.T) {
 	}
 	aofeiAfter, _ := os.ReadFile(fixture.engine.Environment.Paths.AofeiConfig)
 	summerAfter, _ := os.ReadFile(fixture.engine.Environment.Paths.SummerConfig)
-	unitAfter, _ := os.ReadFile(fixture.engine.Environment.Service.UnitPath)
-	if !bytes.Equal(aofeiBefore, aofeiAfter) || !bytes.Equal(summerBefore, summerAfter) || !bytes.Equal(legacyUnit, unitAfter) {
-		t.Fatal("failed bootstrap did not restore legacy inputs")
+	if _, err := os.Lstat(fixture.engine.Environment.Service.UnitPath); !os.IsNotExist(err) {
+		t.Fatal("failed bootstrap retained the installed unit")
+	}
+	if !bytes.Equal(aofeiBefore, aofeiAfter) || !bytes.Equal(summerBefore, summerAfter) {
+		t.Fatal("failed bootstrap did not restore base configs")
 	}
 	record := readOnlyHistoryRecord(t, fixture.engine.HistoryDir)
-	if record.Result != "rolled_back" || record.SelectedRelease != "legacy-direct-binary" || record.Checks.RollbackRecovery != "passed" {
+	if record.Result != "rolled_back" || record.PreviousRelease != "none" || record.SelectedRelease != "none" || record.FinalPID != 0 ||
+		record.Checks.RollbackRecovery != "passed" || record.Checks.SelectedOriginHealth != "not_applicable" || fixture.runner.stops != 1 {
 		t.Fatalf("bootstrap rollback record = %#v", record)
 	}
 }
 
-func TestBootstrapHistoryFinalizationFailureRestoresLegacyInputs(t *testing.T) {
+func TestBootstrapProjectedConfigFailureRestoresWithoutStartingService(t *testing.T) {
 	fixture := prepareEngineFixture(t, false)
-	legacyUnit := []byte("[Service]\nExecStart=/legacy/unify\n")
-	if err := os.WriteFile(fixture.engine.Environment.Service.UnitPath, legacyUnit, 0o644); err != nil {
-		t.Fatal(err)
+	aofeiBefore, _ := os.ReadFile(fixture.engine.Environment.Paths.AofeiConfig)
+	summerBefore, _ := os.ReadFile(fixture.engine.Environment.Paths.SummerConfig)
+	fixture.runner.failConfigAt = 3
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "restored the uninstalled state") {
+		t.Fatalf("projected config failure = %v", err)
 	}
+	aofeiAfter, _ := os.ReadFile(fixture.engine.Environment.Paths.AofeiConfig)
+	summerAfter, _ := os.ReadFile(fixture.engine.Environment.Paths.SummerConfig)
+	if !bytes.Equal(aofeiBefore, aofeiAfter) || !bytes.Equal(summerBefore, summerAfter) || fixture.runner.starts != 0 || fixture.runner.stops != 0 {
+		t.Fatalf("pre-start rollback state: starts=%d stops=%d", fixture.runner.starts, fixture.runner.stops)
+	}
+	if _, err := os.Lstat(fixture.engine.Environment.Service.UnitPath); !os.IsNotExist(err) {
+		t.Fatal("pre-start rollback retained a unit")
+	}
+}
+
+func TestBootstrapStartFailureStopsAndRestoresUninstalledState(t *testing.T) {
+	fixture := prepareEngineFixture(t, false)
+	fixture.runner.failStart = true
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "restored the uninstalled state") {
+		t.Fatalf("start failure = %v", err)
+	}
+	if fixture.runner.starts != 1 || fixture.runner.stops != 1 || fixture.runner.active {
+		t.Fatalf("start rollback state: starts=%d stops=%d active=%v", fixture.runner.starts, fixture.runner.stops, fixture.runner.active)
+	}
+}
+
+func TestBootstrapStopFailureRetainsSelectedServiceAndRecordsFailure(t *testing.T) {
+	fixture := prepareEngineFixture(t, false)
+	fixture.runner.failStart = true
+	fixture.runner.failStop = true
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "new service could not be stopped") {
+		t.Fatalf("stop failure = %v", err)
+	}
+	selected, selectErr := filepath.EvalSymlinks(fixture.engine.Environment.Paths.CurrentLink)
+	if selectErr != nil || selected == "" || !fixture.runner.active {
+		t.Fatalf("failed-stop selection=%q error=%v active=%v", selected, selectErr, fixture.runner.active)
+	}
+	record := readOnlyHistoryRecord(t, fixture.engine.HistoryDir)
+	if record.Result != "rollback_failed" || record.SelectedRelease != selected || record.Checks.RollbackRecovery != "failed" {
+		t.Fatalf("failed-stop history = %#v", record)
+	}
+}
+
+func TestBootstrapUnconfirmedStopRetainsSelectedServiceAndRecordsFailure(t *testing.T) {
+	fixture := prepareEngineFixture(t, false)
+	fixture.runner.failStart = true
+	fixture.runner.stopLeavesActive = true
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "did not reach a stopped state") {
+		t.Fatalf("unconfirmed stop = %v", err)
+	}
+	selected, selectErr := filepath.EvalSymlinks(fixture.engine.Environment.Paths.CurrentLink)
+	if selectErr != nil || selected == "" || !fixture.runner.active {
+		t.Fatalf("unconfirmed-stop selection=%q error=%v active=%v", selected, selectErr, fixture.runner.active)
+	}
+	record := readOnlyHistoryRecord(t, fixture.engine.HistoryDir)
+	if record.Result != "rollback_failed" || record.SelectedRelease != selected || record.Checks.RollbackRecovery != "failed" {
+		t.Fatalf("unconfirmed-stop history = %#v", record)
+	}
+}
+
+func TestBootstrapHistoryFinalizationFailureRestoresUninstalledState(t *testing.T) {
+	fixture := prepareEngineFixture(t, false)
 	aofeiBefore, _ := os.ReadFile(fixture.engine.Environment.Paths.AofeiConfig)
 	summerBefore, _ := os.ReadFile(fixture.engine.Environment.Paths.SummerConfig)
 	writes := 0
@@ -573,7 +686,7 @@ func TestBootstrapHistoryFinalizationFailureRestoresLegacyInputs(t *testing.T) {
 		}
 		return writeJSONAtomic(path, value, mode)
 	}
-	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "restored the legacy service") {
+	if err := fixture.engine.Bootstrap(context.Background(), fixture.candidate); err == nil || !strings.Contains(err.Error(), "restored the uninstalled state") {
 		t.Fatalf("history finalization failure = %v", err)
 	}
 	if _, err := os.Lstat(fixture.engine.Environment.Paths.CurrentLink); !os.IsNotExist(err) {
@@ -581,12 +694,14 @@ func TestBootstrapHistoryFinalizationFailureRestoresLegacyInputs(t *testing.T) {
 	}
 	aofeiAfter, _ := os.ReadFile(fixture.engine.Environment.Paths.AofeiConfig)
 	summerAfter, _ := os.ReadFile(fixture.engine.Environment.Paths.SummerConfig)
-	unitAfter, _ := os.ReadFile(fixture.engine.Environment.Service.UnitPath)
-	if !bytes.Equal(aofeiBefore, aofeiAfter) || !bytes.Equal(summerBefore, summerAfter) || !bytes.Equal(legacyUnit, unitAfter) {
-		t.Fatal("history failure did not restore legacy inputs")
+	if _, err := os.Lstat(fixture.engine.Environment.Service.UnitPath); !os.IsNotExist(err) {
+		t.Fatal("history failure retained the installed unit")
+	}
+	if !bytes.Equal(aofeiBefore, aofeiAfter) || !bytes.Equal(summerBefore, summerAfter) {
+		t.Fatal("history failure did not restore base configs")
 	}
 	record := readOnlyHistoryRecord(t, fixture.engine.HistoryDir)
-	if record.Result != "rolled_back" || record.SelectedRelease != "legacy-direct-binary" || record.Checks.RollbackRecovery != "passed" {
+	if record.Result != "rolled_back" || record.SelectedRelease != "none" || record.Checks.RollbackRecovery != "passed" || fixture.runner.stops != 1 {
 		t.Fatalf("history rollback record = %#v", record)
 	}
 }

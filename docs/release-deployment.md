@@ -102,7 +102,12 @@ release=/absolute/verified/release
 ```
 
 `validate`, `verify-release`, `status`, and one-time `bootstrap` are also
-available. `bootstrap` is invalid once an atomic current selection exists.
+available. `bootstrap` is a clean first activation: both the atomic current
+selection and installed/manager-loaded service unit must be absent. It retains
+an owner-only snapshot of the supplied base configs, projects only release
+asset paths, installs the exact unit, starts the service, and verifies the same
+loaded-state and health contract as deployment. It does not migrate or depend
+on a running legacy process.
 `status` and public smoke probes may contact the target and therefore retain
 environment-specific authorization.
 
@@ -129,8 +134,9 @@ perform this order:
    atomically finalize it with release id, manifest digest, old/new targets,
    result, timestamps, process identities, and health outcomes. A crash cannot
    erase the fact that activation began. If successful-record finalization
-   fails, restore and verify the prior release (or the complete legacy service
-   during bootstrap) before returning failure.
+   fails, restore and verify the prior release. A first bootstrap instead stops
+   the candidate and restores the config snapshot, absent selection, and absent
+   unit; health is explicitly not applicable in that recovered state.
 
 Public edge policy may intentionally hide `/healthz`, `/readyz`, or
 `/debug/vars`; direct-origin checks remain mandatory and public checks use only
@@ -151,6 +157,12 @@ an old binary against new assets or copies selected files backward. Retain at
 least the selected and immediately prior releases. Removal of older releases is
 a separate exact-target retention action and must never follow a failed
 activation.
+
+Bootstrap cleanup is different from release rollback because no prior service
+exists. If a started candidate cannot be stopped, cleanup does not remove its
+selection or files and records `rollback_failed`. Otherwise it removes the
+candidate selection and exact installed unit, restores both owner-managed base
+configs, reloads systemd to an unloaded state, and records `none` as selected.
 
 The deploy path verifies the selected prior bundle and installed unit before
 changing the symlink. Health probes bypass ambient HTTP proxies, refuse

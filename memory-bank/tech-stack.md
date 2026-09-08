@@ -640,8 +640,10 @@ Host-specific dependency identities, systemd paths, origins, direct/public
 health policy, and credential-free deployment records are owned by the private
 environment repository. The release carries `bin/aofei-deploy`, whose strict Go
 engine consumes those private inputs for `validate`, `status`, `preflight`,
-one-time `bootstrap`, and `deploy`. Config and secret contents stay only in
-owner-readable host files.
+clean first-install `bootstrap`, and `deploy`. Bootstrap requires an absent
+selection and unloaded unit, snapshots the owner-managed base configs, and
+starts the service; config and secret contents stay only in owner-readable host
+files.
 
 Package gate:
 

@@ -256,17 +256,6 @@ func (engine *Engine) Bootstrap(ctx context.Context, bundle string) error {
 		if _, err := os.Lstat(engine.Environment.Paths.CurrentLink); err == nil || !os.IsNotExist(err) {
 			return fmt.Errorf("bootstrap requires an absent current symlink")
 		}
-		active, err := engine.run(ctx, "systemctl", "--user", "is-active", engine.Environment.Service.Name)
-		if err != nil || strings.TrimSpace(string(active)) != "active" {
-			return fmt.Errorf("legacy service is not active")
-		}
-		if err := engine.waitForProbes(ctx, engine.Environment.Health.Origin); err != nil {
-			return fmt.Errorf("legacy service is not healthy")
-		}
-		oldPID, err := engine.servicePID(ctx)
-		if err != nil {
-			return err
-		}
 		target, err := engine.installRelease(candidate)
 		if err != nil {
 			return err
@@ -275,28 +264,34 @@ func (engine *Engine) Bootstrap(ctx context.Context, bundle string) error {
 		if err != nil {
 			return err
 		}
-		record, err := engine.beginHistory(target, "legacy-direct-binary", oldPID)
+		record, err := engine.beginHistory(target, "none", 0)
 		if err != nil {
 			return err
 		}
 		if err := engine.switchCurrent(target.Root); err != nil {
-			return engine.rollbackBootstrap(backup, record, oldPID, err)
+			return engine.rollbackBootstrap(backup, record, false, err)
 		}
 		if err := engine.writeReleaseConfigs(); err != nil {
-			return engine.rollbackBootstrap(backup, record, oldPID, err)
+			return engine.rollbackBootstrap(backup, record, false, err)
+		}
+		if _, err := engine.run(ctx, filepath.Join(target.Root, "bin", "config-preflight"), "-s", engine.Environment.Paths.AofeiConfig); err != nil {
+			return engine.rollbackBootstrap(backup, record, false, fmt.Errorf("projected application config preflight failed"))
+		}
+		if err := engine.verifyReleaseConfigPaths(); err != nil {
+			return engine.rollbackBootstrap(backup, record, false, err)
 		}
 		if err := copyRegular(engine.UnitTemplate, engine.Environment.Service.UnitPath, 0o644); err != nil {
-			return engine.rollbackBootstrap(backup, record, oldPID, err)
+			return engine.rollbackBootstrap(backup, record, false, err)
 		}
 		if _, err := engine.run(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
-			return engine.rollbackBootstrap(backup, record, oldPID, err)
+			return engine.rollbackBootstrap(backup, record, false, err)
 		}
-		newPID, err := engine.restartAndVerify(ctx, oldPID, true)
+		newPID, err := engine.activateAndVerify(ctx, "start", 0, true)
 		if err != nil {
-			return engine.rollbackBootstrap(backup, record, oldPID, err)
+			return engine.rollbackBootstrap(backup, record, true, err)
 		}
 		if err := engine.finishHistory(record, "succeeded", target.Root, newPID, "passed", "not_required"); err != nil {
-			return engine.rollbackBootstrap(backup, record, oldPID, fmt.Errorf("deployment history finalization failed: %w", err))
+			return engine.rollbackBootstrap(backup, record, true, fmt.Errorf("deployment history finalization failed: %w", err))
 		}
 		_, err = fmt.Fprintf(engine.Output, "deployment=passed release_id=%s pid=%d\n", target.Manifest.ReleaseID, newPID)
 		return err
@@ -321,43 +316,45 @@ func (engine *Engine) rollbackDeploy(record *historyRecord, previous VerifiedRel
 	return fmt.Errorf("release activation failed and restored the prior release: %w", cause)
 }
 
-func (engine *Engine) rollbackBootstrap(backup string, record *historyRecord, oldPID int, cause error) error {
+func (engine *Engine) rollbackBootstrap(backup string, record *historyRecord, serviceMayBeActive bool, cause error) error {
 	recoveryCtx, cancelRecovery := engine.recoveryContext()
 	defer cancelRecovery()
-	var rollbackErrors []error
-	for _, item := range []struct {
-		source      string
-		destination string
-		mode        os.FileMode
-	}{
-		{filepath.Join(backup, "aofei.json"), engine.Environment.Paths.AofeiConfig, 0o600},
-		{filepath.Join(backup, "summer.json"), engine.Environment.Paths.SummerConfig, 0o600},
-		{filepath.Join(backup, "service.unit"), engine.Environment.Service.UnitPath, 0o644},
-	} {
-		if err := copyRegular(item.source, item.destination, item.mode); err != nil {
-			rollbackErrors = append(rollbackErrors, err)
+	if serviceMayBeActive {
+		if _, err := engine.run(recoveryCtx, "systemctl", "--user", "stop", engine.Environment.Service.Name); err != nil {
+			historyErr := engine.finishFailedHistory(record, record.AttemptedRelease, "rollback_failed")
+			return errors.Join(fmt.Errorf("bootstrap activation failed: %w", cause), fmt.Errorf("new service could not be stopped: %w", err), historyErr)
+		}
+		if err := engine.verifyServiceStopped(recoveryCtx); err != nil {
+			historyErr := engine.finishFailedHistory(record, record.AttemptedRelease, "rollback_failed")
+			return errors.Join(fmt.Errorf("bootstrap activation failed: %w", cause), fmt.Errorf("new service did not reach a stopped state: %w", err), historyErr)
 		}
 	}
-	selection := "legacy-direct-binary"
+	var rollbackErrors []error
+	selection := "none"
 	if err := engine.removeCurrent(); err != nil {
 		selection = "unknown"
+		rollbackErrors = append(rollbackErrors, err)
+	}
+	if err := engine.restoreBootstrapConfigs(backup); err != nil {
+		rollbackErrors = append(rollbackErrors, err)
+	}
+	if err := engine.removeBootstrapUnit(); err != nil {
 		rollbackErrors = append(rollbackErrors, err)
 	}
 	if _, err := engine.run(recoveryCtx, "systemctl", "--user", "daemon-reload"); err != nil {
 		rollbackErrors = append(rollbackErrors, err)
 	}
-	rollbackPID, recoveryErr := engine.restartAndVerify(recoveryCtx, oldPID, false)
-	if recoveryErr != nil {
-		rollbackErrors = append(rollbackErrors, recoveryErr)
+	if err := engine.verifyBootstrapState(recoveryCtx); err != nil {
+		rollbackErrors = append(rollbackErrors, err)
 	}
 	if len(rollbackErrors) > 0 {
 		historyErr := engine.finishFailedHistory(record, selection, "rollback_failed")
-		return errors.Join(fmt.Errorf("bootstrap activation failed: %w", cause), fmt.Errorf("legacy rollback failed: %w", errors.Join(rollbackErrors...)), historyErr)
+		return errors.Join(fmt.Errorf("bootstrap activation failed: %w", cause), fmt.Errorf("bootstrap cleanup failed: %w", errors.Join(rollbackErrors...)), historyErr)
 	}
-	if err := engine.finishHistory(record, "rolled_back", selection, rollbackPID, "failed", "passed"); err != nil {
+	if err := engine.finishBootstrapRollbackHistory(record); err != nil {
 		return errors.Join(fmt.Errorf("bootstrap activation failed: %w", cause), err)
 	}
-	return fmt.Errorf("bootstrap activation failed and restored the legacy service: %w", cause)
+	return fmt.Errorf("bootstrap activation failed and restored the uninstalled state: %w", cause)
 }
 
 func (engine *Engine) ready() error {
@@ -386,9 +383,6 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 	if err := engine.verifyOperatorAndHost(ctx); err != nil {
 		return err
 	}
-	if err := engine.verifyServiceManagerInputs(ctx); err != nil {
-		return err
-	}
 	if err := engine.verifyOwnerFiles(); err != nil {
 		return err
 	}
@@ -404,10 +398,13 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 	if _, err := engine.run(ctx, filepath.Join(release.Root, "bin", "config-preflight"), "-s", engine.Environment.Paths.AofeiConfig); err != nil {
 		return fmt.Errorf("application config preflight failed")
 	}
-	if err := engine.requireSafeUnit(); err != nil {
-		return err
-	}
 	if _, err := os.Lstat(engine.Environment.Paths.CurrentLink); err == nil {
+		if err := engine.verifyServiceManagerInputs(ctx); err != nil {
+			return err
+		}
+		if err := engine.requireSafeUnit(); err != nil {
+			return err
+		}
 		if _, err := engine.selectedRelease(); err != nil {
 			return fmt.Errorf("current release: %w", err)
 		}
@@ -423,8 +420,30 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 		if err := engine.verifyActiveService(ctx); err != nil {
 			return err
 		}
-	} else if !os.IsNotExist(err) {
-		return err
+	} else {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := engine.verifyBootstrapState(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (engine *Engine) verifyBootstrapState(ctx context.Context) error {
+	if _, err := os.Lstat(engine.Environment.Paths.CurrentLink); err == nil || !os.IsNotExist(err) {
+		return fmt.Errorf("bootstrap requires an absent current symlink")
+	}
+	if _, err := os.Lstat(engine.Environment.Service.UnitPath); err == nil || !os.IsNotExist(err) {
+		return fmt.Errorf("bootstrap requires an absent installed unit")
+	}
+	if err := validateOwnedDirectory(filepath.Dir(engine.Environment.Service.UnitPath), engine.Environment.Operator.UID); err != nil {
+		return fmt.Errorf("service unit directory: %w", err)
+	}
+	loadState, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "LoadState", "--value")
+	if err != nil || strings.TrimSpace(string(loadState)) != "not-found" {
+		return fmt.Errorf("bootstrap requires an unloaded service unit")
 	}
 	return nil
 }
@@ -818,7 +837,14 @@ func (engine *Engine) removeCurrent() error {
 }
 
 func (engine *Engine) restartAndVerify(ctx context.Context, oldPID int, requireReleaseService bool) (int, error) {
-	if _, err := engine.run(ctx, "systemctl", "--user", "restart", engine.Environment.Service.Name); err != nil {
+	return engine.activateAndVerify(ctx, "restart", oldPID, requireReleaseService)
+}
+
+func (engine *Engine) activateAndVerify(ctx context.Context, action string, oldPID int, requireReleaseService bool) (int, error) {
+	if action != "start" && action != "restart" {
+		return 0, fmt.Errorf("unsupported service activation")
+	}
+	if _, err := engine.run(ctx, "systemctl", "--user", action, engine.Environment.Service.Name); err != nil {
 		return 0, err
 	}
 	active, err := engine.run(ctx, "systemctl", "--user", "is-active", engine.Environment.Service.Name)
@@ -858,6 +884,19 @@ func (engine *Engine) servicePID(ctx context.Context) (int, error) {
 	return pid, nil
 }
 
+func (engine *Engine) verifyServiceStopped(ctx context.Context) error {
+	active, _ := engine.run(ctx, "systemctl", "--user", "is-active", engine.Environment.Service.Name)
+	state := strings.TrimSpace(string(active))
+	if state != "inactive" && state != "failed" {
+		return fmt.Errorf("service state is %q", state)
+	}
+	output, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "MainPID", "--value")
+	if err != nil || strings.TrimSpace(string(output)) != "0" {
+		return fmt.Errorf("service process is still present")
+	}
+	return nil
+}
+
 func (engine *Engine) probeOnce(ctx context.Context, probes []Probe) error {
 	for _, probe := range probes {
 		status, err := engine.Prober.Status(ctx, probe.URL)
@@ -893,23 +932,69 @@ func (engine *Engine) backupBootstrapInputs() (string, error) {
 		return "", err
 	}
 	backup := filepath.Join(root, engine.Now().UTC().Format("20060102T150405.000000000Z"))
-	if err := os.Mkdir(backup, 0o700); err != nil {
+	if _, err := os.Lstat(backup); err == nil || !os.IsNotExist(err) {
+		return "", fmt.Errorf("bootstrap snapshot already exists")
+	}
+	stage, err := os.MkdirTemp(root, ".snapshot.")
+	if err != nil {
 		return "", err
 	}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.RemoveAll(stage)
+		}
+	}()
 	for _, item := range []struct {
 		source string
 		name   string
-		mode   os.FileMode
 	}{
-		{engine.Environment.Paths.AofeiConfig, "aofei.json", 0o600},
-		{engine.Environment.Paths.SummerConfig, "summer.json", 0o600},
-		{engine.Environment.Service.UnitPath, "service.unit", 0o644},
+		{engine.Environment.Paths.AofeiConfig, "aofei.json"},
+		{engine.Environment.Paths.SummerConfig, "summer.json"},
 	} {
-		if err := copyRegular(item.source, filepath.Join(backup, item.name), item.mode); err != nil {
+		if err := copyRegular(item.source, filepath.Join(stage, item.name), 0o600); err != nil {
 			return "", err
 		}
 	}
+	if err := os.Rename(stage, backup); err != nil {
+		return "", err
+	}
+	cleanup = false
+	if err := syncDirectory(root); err != nil {
+		return "", err
+	}
 	return backup, nil
+}
+
+func (engine *Engine) restoreBootstrapConfigs(backup string) error {
+	var restoreErrors []error
+	for _, item := range []struct {
+		source      string
+		destination string
+	}{
+		{filepath.Join(backup, "aofei.json"), engine.Environment.Paths.AofeiConfig},
+		{filepath.Join(backup, "summer.json"), engine.Environment.Paths.SummerConfig},
+	} {
+		if err := copyRegular(item.source, item.destination, 0o600); err != nil {
+			restoreErrors = append(restoreErrors, err)
+		}
+	}
+	return errors.Join(restoreErrors...)
+}
+
+func (engine *Engine) removeBootstrapUnit() error {
+	if _, err := os.Lstat(engine.Environment.Service.UnitPath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if err := engine.requireInstalledUnit(); err != nil {
+		return err
+	}
+	if err := os.Remove(engine.Environment.Service.UnitPath); err != nil {
+		return err
+	}
+	return syncDirectory(filepath.Dir(engine.Environment.Service.UnitPath))
 }
 
 func (engine *Engine) writeReleaseConfigs() error {
@@ -1037,6 +1122,23 @@ func (engine *Engine) finishHistory(record *historyRecord, result, selected stri
 	record.Checks.SelectedOriginHealth = "passed"
 	record.Checks.SelectedReadiness = "passed"
 	record.Checks.SelectedPublicSmoke = "passed"
+	if err := engine.WriteHistory(record.Path, record, 0o600); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(engine.Output, "deployment_history=%s\n", record.Path)
+	return err
+}
+
+func (engine *Engine) finishBootstrapRollbackHistory(record *historyRecord) error {
+	record.Result = "rolled_back"
+	record.SelectedRelease = "none"
+	record.CompletedAt = engine.Now().UTC().Format(time.RFC3339Nano)
+	record.FinalPID = 0
+	record.Checks.Activation = "failed"
+	record.Checks.RollbackRecovery = "passed"
+	record.Checks.SelectedOriginHealth = "not_applicable"
+	record.Checks.SelectedReadiness = "not_applicable"
+	record.Checks.SelectedPublicSmoke = "not_applicable"
 	if err := engine.WriteHistory(record.Path, record, 0o600); err != nil {
 		return err
 	}
