@@ -544,10 +544,11 @@ Environment identity remains outside this public source boundary. A private
 infrastructure repository owns canonical origins, host paths, the exact unit
 template, dependency image IDs, config/secret-file paths without their
 contents, direct and public health policy, and credential-free deployment
-history. `cmd/aofei-deploy` strictly validates those inputs, a verified prior
-release, and the installed unit before selection; it owns atomic activation,
-proxy-free non-redirecting health checks, bootstrap config projection, and
-rollback state ordering. A release does not authorize schema/cache migration,
+history. `cmd/aofei-deploy` strictly validates those inputs, the exact loaded
+systemd environment-file set, a verified healthy prior release, and the
+installed unit before selection; it owns atomic activation, proxy-free
+non-redirecting health checks, bootstrap config projection, and rollback state
+ordering. A release does not authorize schema/cache migration,
 feature activation, dependency installation, retention, browser activity, or
 edge/provider mutation.
 

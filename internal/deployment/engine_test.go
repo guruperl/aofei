@@ -82,6 +82,13 @@ func (runner *deploymentRunner) systemctl(arguments []string) ([]byte, error) {
 	if containsSequence(arguments, "is-active") {
 		return []byte("active\n"), nil
 	}
+	if containsSequence(arguments, "EnvironmentFiles") {
+		var output strings.Builder
+		for _, path := range runner.environment.Service.SecretEnvironmentFiles {
+			fmt.Fprintf(&output, "%s (ignore_errors=no)\n", path)
+		}
+		return []byte(output.String()), nil
+	}
 	if containsSequence(arguments, "show") {
 		return []byte(fmt.Sprintf("%d\n", 100+runner.restarts*100)), nil
 	}
@@ -214,6 +221,13 @@ func prepareEngineFixture(t *testing.T, current bool) engineFixture {
 	return engineFixture{engine: engine, runner: runner, prior: prior, candidate: candidate, output: output}
 }
 
+func TestNewEngineRejectsTargetInputStateOverlap(t *testing.T) {
+	environment := testEnvironment(t)
+	if _, err := NewEngine(environment, environment.Paths.AofeiConfig, filepath.Join(t.TempDir(), "history")); err == nil {
+		t.Fatal("unit template overlapping mutable config passed")
+	}
+}
+
 func TestPreflightFailureDoesNotMutateSelectionReleaseOrHistory(t *testing.T) {
 	fixture := prepareEngineFixture(t, true)
 	fixture.runner.failConfig = true
@@ -254,6 +268,22 @@ func TestPreflightRejectsInstalledUnitAndPriorReleaseDrift(t *testing.T) {
 				t.Fatal("drifted rollback input passed preflight")
 			}
 		})
+	}
+}
+
+func TestPreflightRejectsServiceEnvironmentFileDriftWithoutMutation(t *testing.T) {
+	fixture := prepareEngineFixture(t, true)
+	fixture.runner.environment.Service.SecretEnvironmentFiles = nil
+	beforeSelection, err := os.Readlink(fixture.engine.Environment.Paths.CurrentLink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.engine.Preflight(context.Background(), fixture.candidate); err == nil {
+		t.Fatal("service environment-file drift passed preflight")
+	}
+	afterSelection, _ := os.Readlink(fixture.engine.Environment.Paths.CurrentLink)
+	if beforeSelection != afterSelection || len(directoryNames(t, fixture.engine.HistoryDir)) != 0 {
+		t.Fatal("environment-file preflight failure mutated deployment state")
 	}
 }
 

@@ -190,6 +190,7 @@ verify_release() {
   [[ -d $release/assets/pzdesign/tmpls ]] || fail "templates are missing"
   [[ -d $release/assets/pzdesign/www ]] || fail "static assets are missing"
   [[ -z $(find "$release" -type l -print -quit) ]] || fail "release contains a symlink"
+  [[ -z $(find "$release" -type f -links +1 -print -quit) ]] || fail "release contains a hard link"
   [[ -z $(find "$release" \( -perm -0002 -o -perm -0020 \) -print -quit) ]] ||
     fail "release contains a group/world-writable path"
   awk '{path=$2; if (path ~ /^\// || path ~ /(^|\/)\.\.(\/|$)/) exit 1}' "$release/checksums.sha256" ||

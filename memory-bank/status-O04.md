@@ -68,5 +68,21 @@ stop only after a clean pass or the limit is reached.
 Focused package tests, vet, pinned staticcheck, the full Aofei package/vet/
 staticcheck gates, documentation guard, scoped race suite, target-neutral value
 scan, strict parsing of the private manifest, and legacy selected-release
-verification pass. Iteration 2 and final milestone closeout follow the private
-handoff and exact-host cutover evidence.
+verification pass.
+
+- Iteration 2 (2026-09-08): two P2 findings were found after the first exact
+  generic cutover and are resolved before final closeout.
+  - The manifest declared owner-managed secret files, but preflight proved only
+    their file metadata rather than requiring systemd to have loaded exactly
+    that set through its unit/drop-ins. Preflight, bootstrap, status, and every
+    post-restart verification now compare the manager's `EnvironmentFiles`
+    projection with the strict manifest; mismatch fails without mutation.
+  - Engine-owned unit/history inputs were checked against each other and the
+    release root but could overlap another manifest-owned mutable state path.
+    Construction now rejects overlap with every backend state/config/secret
+    path, and a focused fixture covers it.
+  - The source-side release verifier now rejects hard-linked inputs before it
+    invokes the bundle's generic verifier.
+
+Iteration 3 and final milestone closeout follow a corrected exact release and
+private evidence update.

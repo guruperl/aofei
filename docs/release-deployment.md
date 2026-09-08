@@ -70,7 +70,8 @@ or customer identifier. It names only:
 - rollback and release-retention policy.
 
 The manifest is strict: unknown fields, unsafe or colliding paths, a service
-that bypasses the atomic `current` selection, non-loopback direct probes,
+that bypasses the atomic `current` selection, loaded systemd environment files
+that differ from the declared owner-managed set, non-loopback direct probes,
 public probes outside accepted HTTPS origins, mutable dependency identities,
 and automatic release deletion fail before effects. Target values never become
 defaults in the generic command.

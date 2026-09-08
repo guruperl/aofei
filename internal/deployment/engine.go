@@ -86,9 +86,23 @@ func NewEngine(environment Environment, unitTemplate, historyDir string) (*Engin
 			return nil, err
 		}
 	}
-	if pathsOverlap(unitTemplate, historyDir) || pathsOverlap(environment.Paths.ReleaseRoot, unitTemplate) ||
-		pathsOverlap(environment.Paths.ReleaseRoot, historyDir) {
+	enginePaths := []string{unitTemplate, historyDir}
+	statePaths := []string{
+		environment.Paths.ReleaseRoot, environment.Paths.CurrentLink,
+		environment.Paths.LockFile, environment.Paths.AofeiConfig,
+		environment.Paths.SummerConfig, environment.Paths.BootstrapBackupRoot,
+		environment.Service.UnitPath,
+	}
+	statePaths = append(statePaths, environment.Service.SecretEnvironmentFiles...)
+	if pathsOverlap(unitTemplate, historyDir) {
 		return nil, fmt.Errorf("engine input paths collide with deployment state")
+	}
+	for _, enginePath := range enginePaths {
+		for _, statePath := range statePaths {
+			if pathsOverlap(enginePath, statePath) {
+				return nil, fmt.Errorf("engine input paths collide with deployment state")
+			}
+		}
 	}
 	engine := &Engine{
 		Environment:  environment,
@@ -135,6 +149,9 @@ func (engine *Engine) Status(ctx context.Context) error {
 		return err
 	}
 	if err := engine.verifyOperatorAndHost(ctx); err != nil {
+		return err
+	}
+	if err := engine.verifyServiceEnvironmentFiles(ctx); err != nil {
 		return err
 	}
 	selected := "none"
@@ -364,6 +381,9 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 	if err := engine.verifyOperatorAndHost(ctx); err != nil {
 		return err
 	}
+	if err := engine.verifyServiceEnvironmentFiles(ctx); err != nil {
+		return err
+	}
 	if err := engine.verifyOwnerFiles(); err != nil {
 		return err
 	}
@@ -414,6 +434,36 @@ func (engine *Engine) verifyActiveService(ctx context.Context) error {
 	}
 	if err := engine.probeOnce(ctx, engine.Environment.Health.Public); err != nil {
 		return fmt.Errorf("current public smoke failed")
+	}
+	return nil
+}
+
+func (engine *Engine) verifyServiceEnvironmentFiles(ctx context.Context) error {
+	output, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "EnvironmentFiles", "--value")
+	if err != nil {
+		return fmt.Errorf("service environment files are unavailable")
+	}
+	want := make(map[string]bool, len(engine.Environment.Service.SecretEnvironmentFiles))
+	for _, path := range engine.Environment.Service.SecretEnvironmentFiles {
+		want[path] = true
+	}
+	got := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
+		}
+		const suffix = " (ignore_errors=no)"
+		if !strings.HasSuffix(line, suffix) {
+			return fmt.Errorf("service environment-file policy drifted")
+		}
+		path := strings.TrimSuffix(line, suffix)
+		if !want[path] || got[path] {
+			return fmt.Errorf("service environment-file policy drifted")
+		}
+		got[path] = true
+	}
+	if len(got) != len(want) {
+		return fmt.Errorf("service environment-file policy drifted")
 	}
 	return nil
 }
@@ -726,6 +776,9 @@ func (engine *Engine) restartAndVerify(ctx context.Context, oldPID int) (int, er
 	active, err := engine.run(ctx, "systemctl", "--user", "is-active", engine.Environment.Service.Name)
 	if err != nil || strings.TrimSpace(string(active)) != "active" {
 		return 0, fmt.Errorf("service is not active")
+	}
+	if err := engine.verifyServiceEnvironmentFiles(ctx); err != nil {
+		return 0, err
 	}
 	if err := engine.waitForProbes(ctx, engine.Environment.Health.Origin); err != nil {
 		return 0, err
