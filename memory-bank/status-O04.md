@@ -14,8 +14,8 @@ repository.
 | --- | ---: | --- |
 | Generic release contract | `[+]` | New bundles write generic schema-v2 `aofei-http-backend`, include the deployer, and bind all executable revisions/toolchains; verification reads legacy W8M v1 only for rollback. |
 | Strict environment contract | `[+]` | Strict decoding rejects unknown fields, path overlap, service ambiguity, unsafe health/dependency/database/retention policy, and owner/file drift before effects. |
-| Deployment state machine | `[+]` | Preflight, status, one-time bootstrap, immutable installation, atomic activation, independent-context rollback, config projection, locking, and bounded history are implemented. |
-| Synthetic verification | `[+]` | Fixtures prove activation, cancellation and health rollback, unrecovered-history finalization, mutation-free preflight failure, bootstrap restoration, and malformed manifest/release rejection without host contact. |
+| Deployment state machine | `[+]` | Preflight, status, one-time bootstrap, immutable installation, atomic activation, independent-context rollback, config projection, locking, and bounded history are implemented; an unfinalized success rolls back. |
+| Synthetic verification | `[+]` | Fixtures prove activation, cancellation, health and success-history rollback, loaded-manager drift rejection, mutation-free preflight failure, bootstrap restoration, and malformed manifest/release rejection without host contact. |
 | Documentation and private handoff | `[+]` | Public contracts and memory are updated; the private W8M realization delegates through a thin adapter, retains its legacy fallback, and records two successful reviewed generic cutovers. |
 
 ## Acceptance
@@ -91,6 +91,24 @@ verification pass.
   and configured public smoke passed, and credential-free history was reviewed
   and published privately. Selected, prior-generic, and original-legacy
   immutable releases remain available. No excluded operation ran.
+
+- Iteration 4 (2026-09-08): a cross-repository deep review found and resolved
+  two additional O04 blockers without contacting the deployment target:
+  - P1: disk validation and loaded `EnvironmentFiles` validation did not prove
+    that systemd had loaded the release-backed executable, working directory,
+    inline `AOFEI`/`SUMMER` values, or the latest unit revision. Preflight,
+    status, and post-restart verification now reject `NeedDaemonReload` and
+    require those loaded values to match the strict manifest exactly.
+  - P2: after service health succeeded, failure to finalize the success history
+    record returned with the new release active and a retry-blocking `started`
+    record. Deploy and bootstrap now treat finalization failure as activation
+    failure, restore and verify the exact prior state, and attempt to finalize a
+    rollback record.
+
+- Iteration 5 (2026-09-08): clean. The focused deployment tests, vet, pinned
+  staticcheck, race suite, documentation guard, and diff checks pass. No new
+  evolution version is required because the repair enforces O04's existing
+  strict-state and recoverable-activation direction.
 
 Full Aofei tests, vet, pinned staticcheck, focused deployment race tests,
 documentation/diff guards, all three release-source test suites, generic/legacy

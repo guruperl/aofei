@@ -75,6 +75,7 @@ type Engine struct {
 	Output       io.Writer
 	Now          func() time.Time
 	Sleep        func(context.Context, time.Duration) error
+	WriteHistory func(string, any, os.FileMode) error
 }
 
 func NewEngine(environment Environment, unitTemplate, historyDir string) (*Engine, error) {
@@ -113,6 +114,7 @@ func NewEngine(environment Environment, unitTemplate, historyDir string) (*Engin
 		Inspector:    BuildInfoInspector{},
 		Output:       os.Stdout,
 		Now:          time.Now,
+		WriteHistory: writeJSONAtomic,
 		Sleep: func(ctx context.Context, duration time.Duration) error {
 			timer := time.NewTimer(duration)
 			defer timer.Stop()
@@ -151,13 +153,16 @@ func (engine *Engine) Status(ctx context.Context) error {
 	if err := engine.verifyOperatorAndHost(ctx); err != nil {
 		return err
 	}
-	if err := engine.verifyServiceEnvironmentFiles(ctx); err != nil {
+	if err := engine.verifyServiceManagerInputs(ctx); err != nil {
 		return err
 	}
 	selected := "none"
 	if _, err := os.Lstat(engine.Environment.Paths.CurrentLink); err == nil {
 		release, err := engine.selectedRelease()
 		if err != nil {
+			return err
+		}
+		if err := engine.verifyLoadedReleaseService(ctx); err != nil {
 			return err
 		}
 		selected = release.Root
@@ -224,10 +229,10 @@ func (engine *Engine) Deploy(ctx context.Context, bundle string) error {
 		if err := engine.switchCurrent(target.Root); err != nil {
 			return engine.rollbackDeploy(record, previous, oldPID, err)
 		}
-		newPID, activationErr := engine.restartAndVerify(ctx, oldPID)
+		newPID, activationErr := engine.restartAndVerify(ctx, oldPID, true)
 		if activationErr == nil {
 			if err := engine.finishHistory(record, "succeeded", target.Root, newPID, "passed", "not_required"); err != nil {
-				return err
+				return engine.rollbackDeploy(record, previous, oldPID, fmt.Errorf("deployment history finalization failed: %w", err))
 			}
 			_, err = fmt.Fprintf(engine.Output, "deployment=passed release_id=%s pid=%d\n", target.Manifest.ReleaseID, newPID)
 			return err
@@ -286,12 +291,12 @@ func (engine *Engine) Bootstrap(ctx context.Context, bundle string) error {
 		if _, err := engine.run(ctx, "systemctl", "--user", "daemon-reload"); err != nil {
 			return engine.rollbackBootstrap(backup, record, oldPID, err)
 		}
-		newPID, err := engine.restartAndVerify(ctx, oldPID)
+		newPID, err := engine.restartAndVerify(ctx, oldPID, true)
 		if err != nil {
 			return engine.rollbackBootstrap(backup, record, oldPID, err)
 		}
 		if err := engine.finishHistory(record, "succeeded", target.Root, newPID, "passed", "not_required"); err != nil {
-			return err
+			return engine.rollbackBootstrap(backup, record, oldPID, fmt.Errorf("deployment history finalization failed: %w", err))
 		}
 		_, err = fmt.Fprintf(engine.Output, "deployment=passed release_id=%s pid=%d\n", target.Manifest.ReleaseID, newPID)
 		return err
@@ -305,7 +310,7 @@ func (engine *Engine) rollbackDeploy(record *historyRecord, previous VerifiedRel
 		historyErr := engine.finishFailedHistory(record, "unknown", "rollback_failed")
 		return errors.Join(fmt.Errorf("release activation failed: %w", cause), fmt.Errorf("rollback selection failed: %w", err), historyErr)
 	}
-	rollbackPID, err := engine.restartAndVerify(recoveryCtx, oldPID)
+	rollbackPID, err := engine.restartAndVerify(recoveryCtx, oldPID, true)
 	if err != nil {
 		historyErr := engine.finishFailedHistory(record, previous.Root, "rollback_failed")
 		return errors.Join(fmt.Errorf("release activation failed: %w", cause), fmt.Errorf("prior release did not recover: %w", err), historyErr)
@@ -341,7 +346,7 @@ func (engine *Engine) rollbackBootstrap(backup string, record *historyRecord, ol
 	if _, err := engine.run(recoveryCtx, "systemctl", "--user", "daemon-reload"); err != nil {
 		rollbackErrors = append(rollbackErrors, err)
 	}
-	rollbackPID, recoveryErr := engine.restartAndVerify(recoveryCtx, oldPID)
+	rollbackPID, recoveryErr := engine.restartAndVerify(recoveryCtx, oldPID, false)
 	if recoveryErr != nil {
 		rollbackErrors = append(rollbackErrors, recoveryErr)
 	}
@@ -356,7 +361,7 @@ func (engine *Engine) rollbackBootstrap(backup string, record *historyRecord, ol
 }
 
 func (engine *Engine) ready() error {
-	if engine.Runner == nil || engine.Prober == nil || engine.Inspector == nil || engine.Output == nil || engine.Now == nil || engine.Sleep == nil {
+	if engine.Runner == nil || engine.Prober == nil || engine.Inspector == nil || engine.Output == nil || engine.Now == nil || engine.Sleep == nil || engine.WriteHistory == nil {
 		return fmt.Errorf("deployment engine dependencies are incomplete")
 	}
 	if err := engine.Environment.Validate(); err != nil {
@@ -381,7 +386,7 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 	if err := engine.verifyOperatorAndHost(ctx); err != nil {
 		return err
 	}
-	if err := engine.verifyServiceEnvironmentFiles(ctx); err != nil {
+	if err := engine.verifyServiceManagerInputs(ctx); err != nil {
 		return err
 	}
 	if err := engine.verifyOwnerFiles(); err != nil {
@@ -412,6 +417,9 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 		if err := engine.requireInstalledUnit(); err != nil {
 			return err
 		}
+		if err := engine.verifyLoadedReleaseService(ctx); err != nil {
+			return err
+		}
 		if err := engine.verifyActiveService(ctx); err != nil {
 			return err
 		}
@@ -438,7 +446,11 @@ func (engine *Engine) verifyActiveService(ctx context.Context) error {
 	return nil
 }
 
-func (engine *Engine) verifyServiceEnvironmentFiles(ctx context.Context) error {
+func (engine *Engine) verifyServiceManagerInputs(ctx context.Context) error {
+	reload, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "NeedDaemonReload", "--value")
+	if err != nil || strings.TrimSpace(string(reload)) != "no" {
+		return fmt.Errorf("service manager configuration is stale")
+	}
 	output, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "EnvironmentFiles", "--value")
 	if err != nil {
 		return fmt.Errorf("service environment files are unavailable")
@@ -464,6 +476,42 @@ func (engine *Engine) verifyServiceEnvironmentFiles(ctx context.Context) error {
 	}
 	if len(got) != len(want) {
 		return fmt.Errorf("service environment-file policy drifted")
+	}
+	return nil
+}
+
+func (engine *Engine) verifyLoadedReleaseService(ctx context.Context) error {
+	workingDirectory, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "WorkingDirectory", "--value")
+	if err != nil || strings.TrimSpace(string(workingDirectory)) != engine.Environment.Service.WorkingDirectory {
+		return fmt.Errorf("loaded service working directory drifted")
+	}
+	execStart, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "ExecStart", "--value")
+	prefix := "{ path=" + engine.Environment.Service.ExecStart + " ; argv[]=" + engine.Environment.Service.ExecStart + " ; ignore_errors=no ;"
+	lines := strings.Split(strings.TrimSpace(string(execStart)), "\n")
+	if err != nil || len(lines) != 1 || !strings.HasPrefix(lines[0], prefix) {
+		return fmt.Errorf("loaded service executable drifted")
+	}
+	environment, err := engine.run(ctx, "systemctl", "--user", "show", engine.Environment.Service.Name, "-p", "Environment", "--value")
+	if err != nil {
+		return fmt.Errorf("loaded service environment is unavailable")
+	}
+	want := map[string]string{
+		"AOFEI":  engine.Environment.Paths.AofeiConfig,
+		"SUMMER": engine.Environment.Paths.SummerConfig,
+	}
+	seen := map[string]bool{}
+	for _, field := range strings.Fields(string(environment)) {
+		field = strings.Trim(field, `"`)
+		name, value, found := strings.Cut(field, "=")
+		if expected, tracked := want[name]; tracked {
+			if !found || value != expected || seen[name] {
+				return fmt.Errorf("loaded service environment drifted")
+			}
+			seen[name] = true
+		}
+	}
+	if len(seen) != len(want) {
+		return fmt.Errorf("loaded service environment drifted")
 	}
 	return nil
 }
@@ -769,7 +817,7 @@ func (engine *Engine) removeCurrent() error {
 	return syncDirectory(filepath.Dir(current))
 }
 
-func (engine *Engine) restartAndVerify(ctx context.Context, oldPID int) (int, error) {
+func (engine *Engine) restartAndVerify(ctx context.Context, oldPID int, requireReleaseService bool) (int, error) {
 	if _, err := engine.run(ctx, "systemctl", "--user", "restart", engine.Environment.Service.Name); err != nil {
 		return 0, err
 	}
@@ -777,8 +825,13 @@ func (engine *Engine) restartAndVerify(ctx context.Context, oldPID int) (int, er
 	if err != nil || strings.TrimSpace(string(active)) != "active" {
 		return 0, fmt.Errorf("service is not active")
 	}
-	if err := engine.verifyServiceEnvironmentFiles(ctx); err != nil {
+	if err := engine.verifyServiceManagerInputs(ctx); err != nil {
 		return 0, err
+	}
+	if requireReleaseService {
+		if err := engine.verifyLoadedReleaseService(ctx); err != nil {
+			return 0, err
+		}
 	}
 	if err := engine.waitForProbes(ctx, engine.Environment.Health.Origin); err != nil {
 		return 0, err
@@ -984,7 +1037,7 @@ func (engine *Engine) finishHistory(record *historyRecord, result, selected stri
 	record.Checks.SelectedOriginHealth = "passed"
 	record.Checks.SelectedReadiness = "passed"
 	record.Checks.SelectedPublicSmoke = "passed"
-	if err := writeJSONAtomic(record.Path, record, 0o600); err != nil {
+	if err := engine.WriteHistory(record.Path, record, 0o600); err != nil {
 		return err
 	}
 	_, err := fmt.Fprintf(engine.Output, "deployment_history=%s\n", record.Path)
@@ -1000,7 +1053,7 @@ func (engine *Engine) finishFailedHistory(record *historyRecord, selected, resul
 	record.Checks.SelectedOriginHealth = "unknown"
 	record.Checks.SelectedReadiness = "unknown"
 	record.Checks.SelectedPublicSmoke = "unknown"
-	if err := writeJSONAtomic(record.Path, record, 0o600); err != nil {
+	if err := engine.WriteHistory(record.Path, record, 0o600); err != nil {
 		return err
 	}
 	_, err := fmt.Fprintf(engine.Output, "deployment_history=%s\n", record.Path)

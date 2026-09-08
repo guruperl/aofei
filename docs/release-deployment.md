@@ -70,8 +70,9 @@ or customer identifier. It names only:
 - rollback and release-retention policy.
 
 The manifest is strict: unknown fields, unsafe or colliding paths, a service
-that bypasses the atomic `current` selection, loaded systemd environment files
-that differ from the declared owner-managed set, non-loopback direct probes,
+that bypasses the atomic `current` selection, a systemd manager awaiting reload,
+loaded `ExecStart`, working directory, `AOFEI`, `SUMMER`, or environment files
+that differ from the declared owner-managed values, non-loopback direct probes,
 public probes outside accepted HTTPS origins, mutable dependency identities,
 and automatic release deletion fail before effects. Target values never become
 defaults in the generic command.
@@ -118,14 +119,18 @@ perform this order:
 3. Copy the release to a new immutable directory. Never alter an activated
    release.
 4. Atomically replace the `current` symlink and restart the configured service.
-5. Require `active`, direct-origin `/healthz`, direct-origin `/readyz`, a new
-   process id, and the configured public smoke responses.
+5. Require the manager to have loaded the exact release-backed service paths
+   and config environment, then require `active`, direct-origin `/healthz`,
+   direct-origin `/readyz`, a new process id, and the configured public smoke
+   responses.
 6. On any failure, atomically restore the prior symlink, restart it, and require
    prior health before returning failure.
 7. Create a credential-free `started` deployment record before selection and
    atomically finalize it with release id, manifest digest, old/new targets,
    result, timestamps, process identities, and health outcomes. A crash cannot
-   erase the fact that activation began.
+   erase the fact that activation began. If successful-record finalization
+   fails, restore and verify the prior release (or the complete legacy service
+   during bootstrap) before returning failure.
 
 Public edge policy may intentionally hide `/healthz`, `/readyz`, or
 `/debug/vars`; direct-origin checks remain mandatory and public checks use only
