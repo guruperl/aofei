@@ -23,6 +23,12 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 	}
 
 	var config struct {
+		AccountProtection struct {
+			Enabled          bool
+			PlaintextRetired bool
+			Current          struct{ ID, KeyEnv string }
+			Previous         []struct{ ID, KeyEnv string }
+		}
 		Identity struct {
 			Enabled            bool
 			KeyEnv             string
@@ -33,9 +39,16 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 			Permissions  []string
 			RequireGrant bool
 			Issuers      map[string]struct {
-				PasswordHash          string   `json:"Password_hash"`
-				LegacyPasswordUpgrade bool     `json:"Legacy_password_upgrade"`
-				OutPars               []string `json:"OutPars"`
+				SQL                       string   `json:"Sql"`
+				SQLAs                     string   `json:"Sql_as"`
+				PasswordHash              string   `json:"Password_hash"`
+				LegacyPasswordUpgrade     bool     `json:"Legacy_password_upgrade"`
+				ProtectedSQL              string   `json:"Protected_sql"`
+				ProtectedSQLAs            string   `json:"Protected_sql_as"`
+				IdentifierNamespace       string   `json:"Identifier_namespace"`
+				IdentifierNormalization   string   `json:"Identifier_normalization"`
+				IdentifierCipherAttribute string   `json:"Identifier_cipher_attribute"`
+				OutPars                   []string `json:"OutPars"`
 			} `json:"Issuers"`
 		} `json:"Roles"`
 	}
@@ -67,6 +80,27 @@ func TestSummerExampleUsesBcryptPasswordHashField(t *testing.T) {
 		if !reflect.DeepEqual(issuer.OutPars, fields) {
 			t.Errorf("%s db issuer OutPars = %#v, want %#v", role, issuer.OutPars, fields)
 		}
+		if issuer.ProtectedSQL == "" || issuer.IdentifierNamespace == "" || issuer.IdentifierCipherAttribute == "" {
+			t.Errorf("%s db issuer is missing the protected identifier lookup contract", role)
+		}
+		wantNormalization := "login"
+		if role == "adv" || role == "pub" {
+			wantNormalization = "email"
+		}
+		if issuer.IdentifierNormalization != wantNormalization {
+			t.Errorf("%s identifier normalization = %q, want %q", role, issuer.IdentifierNormalization, wantNormalization)
+		}
+		if role == "adv" || role == "pub" || role == "agent" {
+			if issuer.SQLAs == "" || issuer.ProtectedSQLAs == "" || !strings.Contains(issuer.SQLAs, "_id=?") || !strings.Contains(issuer.ProtectedSQLAs, "_id=?") {
+				t.Errorf("%s login-as must use complete numeric-ID legacy/protected queries", role)
+			}
+			if !strings.Contains(issuer.SQLAs, "NULL AS passwd") || !strings.Contains(issuer.ProtectedSQLAs, "NULL AS passwd") {
+				t.Errorf("%s login-as query must preserve OutPars arity without returning a password hash", role)
+			}
+		}
+	}
+	if config.AccountProtection.Enabled || config.AccountProtection.PlaintextRetired || config.AccountProtection.Current.ID == "" || config.AccountProtection.Current.KeyEnv != "W8M_ACCOUNT_DATA_KEY" || len(config.AccountProtection.Previous) != 0 {
+		t.Fatalf("account protection must be default-off with an environment-only rotation contract: %#v", config.AccountProtection)
 	}
 	if config.Identity.Enabled {
 		t.Fatal("example identity boundary must require an explicit production enablement step")

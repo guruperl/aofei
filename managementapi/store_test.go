@@ -11,6 +11,43 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
+type testIdentifierDecryptor struct {
+	namespace string
+	encoded   string
+	plain     string
+}
+
+func (d *testIdentifierDecryptor) DecryptIdentifier(namespace, encoded string) (string, error) {
+	d.namespace, d.encoded = namespace, encoded
+	return d.plain, nil
+}
+
+func TestAdvertiserUsesProtectedIdentifierProjection(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT adv_id, email_cipher, firstname, lastname, domain, active, created FROM adv WHERE adv_id=?")).
+		WithArgs(uint64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"adv_id", "email_cipher", "firstname", "lastname", "domain", "active", "created"}).
+			AddRow(7, "protected-envelope", "First", "Last", "example.test", "Yes", now))
+	decryptor := &testIdentifierDecryptor{plain: "owner@example.test"}
+	service := &Service{db: db}
+	service.SetIdentifierDecryptor(decryptor)
+	got, err := service.advertiser(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["email"] != "owner@example.test" || decryptor.namespace != "adv.email" || decryptor.encoded != "protected-envelope" {
+		t.Fatalf("protected advertiser response=%v decryptor=%+v", got, decryptor)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClaimIdempotencyReplaysCompletedResponse(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

@@ -781,6 +781,24 @@ constraint is installed, valid source installs both CHECK constraints, the
 constraints reject out-of-range group and route values, and a rerun fails
 instead of guessing through an already-migrated source.
 
+S07 adds the additive `etc/s07_account_identifier_migration.sql` and the
+Pzdesign `cmd/account-data` operator command. Account-data keys are 32-byte
+base64 or hexadecimal environment values named by Summer's owner-readable
+`AccountProtection` block; values never enter JSON or Git. The command defaults
+to read-only status, and mutation needs both `-mode=backfill|rotate` and
+`-write`. Status validates every retained plaintext source without printing
+its value, and backfill preflights all five account tables for invalid sources
+or partial protection pairs before the first mutation. Rotation authenticates
+each ciphertext and proves its stored digest belongs to the same identifier
+under Current or a retained Previous key before rewriting the pair. Current-key
+promotion requires a coordinated account-writer stop and an identical ordered
+ring on every instance. See
+[docs/account-identifier-protection.md](../docs/account-identifier-protection.md)
+for the ordered offline and activation gates.
+The private deployment must retain a previous account-data key for at least the
+24-hour activation-token lifetime and must verify front-proxy access-log policy
+before enabling opaque query-token links.
+
 Schema baseline verification:
 
 ```bash

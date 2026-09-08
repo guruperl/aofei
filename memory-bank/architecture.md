@@ -809,3 +809,31 @@ The complete boundary is in
   ordered `OutPars` matching every selected column, including the password-hash
   column. Identity enablement remains deployment-gated rather than an automatic
   baseline behavior.
+- S07 adds an independent `AccountProtection` key ring to Genelet. Each key is
+  named by environment variable and derives distinct lookup and AES-GCM
+  subkeys; ciphertext includes a version/key-id envelope and binds its role/
+  field namespace as associated data. Enabled DB issuers try the current HMAC
+  then bounded previous-key HMACs, decrypt the returned identifier attribute,
+  and still verify only the returned bcrypt password in Go. Pzdesign installs
+  a Redis login throttle that receives only a protected identifier digest and
+  stores a second pseudonymous digest of role/provider/login/IP with expiry.
+  The Aofei schema owns nullable additive digest/cipher columns until the
+  separately reviewed retirement migration. The complete staged contract is
+  [docs/account-identifier-protection.md](../docs/account-identifier-protection.md).
+  Advertiser/publisher action links use random raw tokens only in mail and
+  store role/purpose-bound digests with expiry; consumption is atomic with the
+  state/password change. Genelet redacts token-bearing query logs, applies
+  no-store/no-referrer response headers, and removes private delivery envelopes
+  before response serialization. SQL diagnostics retain query shape/count but
+  never bind values, and response serialization strips password hashes and
+  storage-only protection fields. The W8M login throttle reuses S06's
+  trusted-proxy client resolution instead of treating local Apache as every
+  client. Account create/change paths reject matches under every retained
+  lookup key, while the current-key unique indexes arbitrate concurrent writes;
+  promoting Current therefore requires a writer stop so mixed binaries cannot
+  write the same identifier under different current keys. Identifier changes
+  revoke outstanding activation/reset proofs in the same update. Publisher
+  cache discovery may extend inventory for an existing account but cannot
+  synthesize a publisher account without an interactive identifier and the
+  application-owned key. Proxy access-log handling remains a private
+  deployment gate.

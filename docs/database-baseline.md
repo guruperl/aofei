@@ -266,6 +266,19 @@ enablement. Older portal binaries tolerate the additive columns/triggers, but
 the trigger must remain while API clients depend on optimistic conflicts. See
 [advertiser-management-api.md](advertiser-management-api.md).
 
+S07 adds nullable, full-indexed HMAC lookup and authenticated-ciphertext
+columns to the five interactive account tables. Advertiser and publisher rows
+also carry nullable, unique digest/expiry pairs for one-use activation and
+password-reset proofs; raw proofs and deterministic password digests are
+absent. The clean baseline keeps its legacy plaintext columns for default-off
+rollback compatibility and makes the orphaned plaintext-password routines
+fail closed. Populated systems must use the separately reviewed additive
+`etc/s07_account_identifier_migration.sql`, offline backfill/verification, and
+dual-read canary in
+[account-identifier-protection.md](account-identifier-protection.md). The
+later plaintext-column drop is a distinct one-way migration and is not part of
+this baseline change.
+
 S03 adds empty `quality_rule`, `quality_decision`, `quality_evidence`,
 `quality_case`, `quality_case_event`, `quality_enforcement`, `quality_billing`,
 `quality_counter`, and `quality_audit` tables. Twelve triggers prevent rule

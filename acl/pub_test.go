@@ -1,8 +1,10 @@
 package acl
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -26,6 +28,21 @@ func TestDBAddNewContextRejectsCanceledInventoryMutation(t *testing.T) {
 	_, err = (PubMap{"pub.example": pub}).DBAddNewContext(ctx, db, "pub.example", "site.example", "Web", "new-slot")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("DBAddNewContext error = %v, want context canceled", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDBAddNewContextDoesNotCreateUnprotectedPublisherAccount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	pub, err := (PubMap{}).DBAddNewContext(context.Background(), db, "new.example", "site.example", "Web", "slot.example")
+	if err == nil || pub != nil || !strings.Contains(err.Error(), "must be provisioned") {
+		t.Fatalf("unprovisioned publisher result=%+v error=%v", pub, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -163,6 +180,59 @@ func TestInsertPublisherDoesNotRetryDuplicateEmail(t *testing.T) {
 	_, err = insertPublisher(db, "pub.example", func() (uint32, error) { return 7, nil })
 	if err == nil {
 		t.Fatal("duplicate publisher email succeeded")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProtectedPublisherCollisionCheckDoesNotReadPlaintextEmail(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	digest := bytes.Repeat([]byte{7}, 32)
+	insert := `INSERT INTO pub \(pub_id, domain, email, email_hmac, email_cipher, passwd, address_id, active, created\)`
+	mock.ExpectExec(insert).WithArgs(uint32(7), "pub.example", "owner@example.test", digest, "ciphertext").
+		WillReturnError(&mysql.MySQLError{Number: 1062, Message: "duplicate PRIMARY"})
+	mock.ExpectQuery(`SELECT email_hmac FROM pub WHERE pub_id=\? LIMIT 1`).WithArgs(uint32(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"email_hmac"}).AddRow(bytes.Repeat([]byte{8}, 32)))
+	mock.ExpectExec(insert).WithArgs(uint32(8), "pub.example", "owner@example.test", digest, "ciphertext").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	ids := []uint32{7, 8}
+	got, err := insertPublisherAccountContext(context.Background(), db, "pub.example", "owner@example.test", digest, "ciphertext", func() (uint32, error) {
+		id := ids[0]
+		ids = ids[1:]
+		return id, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 8 {
+		t.Fatalf("publisher id = %d, want 8", got)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRetiredPublisherInsertNeverReferencesPlaintextEmail(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	digest := bytes.Repeat([]byte{9}, 32)
+	mock.ExpectExec(`INSERT INTO pub \(pub_id, domain, email_hmac, email_cipher, passwd, address_id, active, created\)`).
+		WithArgs(uint32(7), "pub.example", digest, "ciphertext").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	got, err := insertPublisherAccountWithPolicy(context.Background(), db, "pub.example", "must-not-be-used@example.test", digest, "ciphertext", true, func() (uint32, error) { return 7, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 7 {
+		t.Fatalf("publisher id = %d, want 7", got)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

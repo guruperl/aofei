@@ -40,12 +40,22 @@ func (s *Service) advertiser(ctx context.Context, advID uint64) (map[string]any,
 	var email, status string
 	var first, last, domain sql.NullString
 	var created sql.NullTime
-	err := s.db.QueryRowContext(ctx, `SELECT adv_id, email, firstname, lastname, domain, active, created FROM adv WHERE adv_id=?`, advID).Scan(&id, &email, &first, &last, &domain, &status, &created)
+	identifierColumn := "email"
+	if s.identifierDecryptor != nil {
+		identifierColumn = "email_cipher"
+	}
+	err := s.db.QueryRowContext(ctx, `SELECT adv_id, `+identifierColumn+`, firstname, lastname, domain, active, created FROM adv WHERE adv_id=?`, advID).Scan(&id, &email, &first, &last, &domain, &status, &created)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
+	}
+	if s.identifierDecryptor != nil {
+		email, err = s.identifierDecryptor.DecryptIdentifier("adv.email", email)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt advertiser identifier: %w", err)
+		}
 	}
 	out := map[string]any{"id": id, "email": email, "status": status}
 	if first.Valid {

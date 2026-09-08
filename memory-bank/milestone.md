@@ -37,7 +37,9 @@ complete; R03, A03, and the Review3 cross-lane M46 remediation are also
 complete. I02 remains demand-gated and starts only when a named Android or iOS
 integration supplies supported OS/version and lifecycle requirements. Matching
 lane status files are the authoritative completion record; completed M-lane
-files retain earlier runtime history.
+files retain earlier runtime history. S07 account-identifier protection is now
+in progress as a default-off successor to S02/S06; it does not activate or
+migrate production by implication.
 
 Delivery sequence:
 
@@ -54,6 +56,9 @@ Delivery sequence:
 6. Demand-gated mobile delivery: P03/S05/A03/M46 repository prerequisites are
    complete, but I02 starts only when a named mobile integration supplies
    supported-platform and lifecycle needs.
+7. Current security migration: S07 protects interactive account identifiers
+   through additive schema, dual reads/writes, opaque account-action tokens,
+   and a separately authorized plaintext-retirement gate.
 
 The strict serial order is:
 
@@ -63,6 +68,7 @@ D01 -> S01 -> S04 -> O01 -> A01 -> P01
 -> R02 -> P02 -> S02 -> I03 -> S03 -> A02
 -> D04 -> D05 -> S06 -> P03 -> S05 -> O03 -> R03 -> A03
 -> M46
+-> S07
 -> I02 (only after repository prerequisites and a named mobile integration)
 ```
 
@@ -92,6 +98,7 @@ acceptance criteria recorded in the corresponding status files.
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
 | S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
+| S07 | In progress; disabled by default | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -1670,6 +1677,15 @@ service configuration, live provider/dependency proof, and rollback/restore
 evidence are complete. The Free rule still cannot distinguish GET from POST.
 Detailed tasks and verification are in
 [status-S06.md](status-S06.md).
+
+## S07 - Account Identifier Protection `[~]`
+
+Protect advertiser, publisher, administrator, agent, and analyst identifiers
+with a dedicated versioned lookup/encryption key ring while retaining bcrypt as
+the sole password verifier. Roll out through additive schema, offline
+backfill/verification, dual reads/writes, shared pseudonymous login throttling,
+opaque action tokens, and an explicitly separate plaintext-retirement
+migration. Detailed tasks and gates are in [status-S07.md](status-S07.md).
 
 ## A01 - Billing And Manual Settlement Safety `[+]`
 

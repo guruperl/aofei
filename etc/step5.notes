@@ -98,6 +98,14 @@ redacted audit only. Full card/bank credentials, API keys, webhook secrets,
 signatures, and raw provider payloads remain outside the database. The feature
 is disabled by default; populated deployments require the additive migration
 and sandbox/rollback process in `docs/hosted-funding-payout.md`.
+The S07 baseline adds nullable identifier HMAC/ciphertext pairs for advertiser,
+publisher, administrator, agent, and analyst accounts, plus digest/expiry
+pairs for one-use advertiser/publisher activation and reset proofs. It never
+adds a password HMAC or stores raw action tokens. Account protection remains
+default-off; populated deployments use the additive migration and offline
+backfill/verify/rotate tool in `docs/account-identifier-protection.md` before a
+separately authorized canary. Plaintext retirement is a later one-way
+migration and must not be inferred from replaying this clean baseline.
 
 For a one-shot reset with sample helpers:
 

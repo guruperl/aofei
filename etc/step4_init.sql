@@ -57,11 +57,14 @@ DROP TABLE IF EXISTS `analyst`;
 CREATE TABLE `analyst` (
   `analyst_id` int unsigned NOT NULL AUTO_INCREMENT,
   `login` varchar(255) NOT NULL,
+	`login_hmac` binary(32) DEFAULT NULL,
+	`login_cipher` varbinary(512) DEFAULT NULL,
   `passwd` varchar(255) NOT NULL,
   `active` enum('Yes','No','Pause') NOT NULL DEFAULT 'No',
   `created` datetime NOT NULL,
   PRIMARY KEY (`analyst_id`),
-  UNIQUE KEY `analyst_login` (`login`)
+	UNIQUE KEY `analyst_login` (`login`),
+	UNIQUE KEY `analyst_login_hmac` (`login_hmac`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `auth_mfa`;
@@ -249,11 +252,14 @@ DROP TABLE IF EXISTS `admin`;
 CREATE TABLE `admin` (
   `admin_id` int unsigned NOT NULL AUTO_INCREMENT,
   `login` varchar(255) NOT NULL,
+	`login_hmac` binary(32) DEFAULT NULL,
+	`login_cipher` varbinary(512) DEFAULT NULL,
   `passwd` varchar(255) NOT NULL,
   `active` enum('Yes','No','Pause') DEFAULT 'No',
   `created` datetime NOT NULL,
   PRIMARY KEY (`admin_id`),
-  KEY `login` (`login`(8))
+	KEY `login` (`login`(8)),
+	UNIQUE KEY `admin_login_hmac` (`login_hmac`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -276,6 +282,12 @@ DROP TABLE IF EXISTS `adv`;
 CREATE TABLE `adv` (
   `adv_id` int unsigned NOT NULL,
   `email` varchar(255) NOT NULL,
+	`email_hmac` binary(32) DEFAULT NULL,
+	`email_cipher` varbinary(512) DEFAULT NULL,
+	`activation_token_digest` binary(32) DEFAULT NULL,
+	`activation_token_expires` datetime(6) DEFAULT NULL,
+	`reset_token_digest` binary(32) DEFAULT NULL,
+	`reset_token_expires` datetime(6) DEFAULT NULL,
   `passwd` varchar(255) NOT NULL,
   `firstname` varchar(255) DEFAULT NULL,
   `lastname` varchar(255) DEFAULT NULL,
@@ -290,6 +302,9 @@ CREATE TABLE `adv` (
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`adv_id`),
   UNIQUE KEY `email` (`email`(20)),
+	UNIQUE KEY `adv_email_hmac` (`email_hmac`),
+	UNIQUE KEY `adv_activation_token_digest` (`activation_token_digest`),
+	UNIQUE KEY `adv_reset_token_digest` (`reset_token_digest`),
   KEY `address_id` (`address_id`),
   CONSTRAINT `adv_ibfk_1` FOREIGN KEY (`address_id`) REFERENCES `add_address` (`address_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -718,6 +733,7 @@ CREATE TABLE `adv_ip` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `ip` int unsigned NOT NULL,
   `email` varchar(255) NOT NULL,
+	`email_hmac` binary(32) DEFAULT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `ret` enum('fail','success') NOT NULL DEFAULT 'fail',
   PRIMARY KEY (`id`),
@@ -940,6 +956,8 @@ DROP TABLE IF EXISTS `agent`;
 CREATE TABLE `agent` (
   `agent_id` int unsigned NOT NULL AUTO_INCREMENT,
   `login` varchar(255) NOT NULL,
+	`login_hmac` binary(32) DEFAULT NULL,
+	`login_cipher` varbinary(512) DEFAULT NULL,
   `passwd` varchar(255) NOT NULL,
   `address_id` int unsigned DEFAULT NULL,
   `level` tinyint unsigned NOT NULL DEFAULT '1',
@@ -948,6 +966,7 @@ CREATE TABLE `agent` (
   `created` datetime NOT NULL,
   PRIMARY KEY (`agent_id`),
   UNIQUE KEY `login` (`login`(8)),
+	UNIQUE KEY `agent_login_hmac` (`login_hmac`),
   KEY `address_id` (`address_id`),
   CONSTRAINT `agent_ibfk_1` FOREIGN KEY (`address_id`) REFERENCES `add_address` (`address_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -3100,6 +3119,12 @@ DROP TABLE IF EXISTS `pub`;
 CREATE TABLE `pub` (
   `pub_id` int unsigned NOT NULL,
   `email` varchar(255) NOT NULL,
+	`email_hmac` binary(32) DEFAULT NULL,
+	`email_cipher` varbinary(512) DEFAULT NULL,
+	`activation_token_digest` binary(32) DEFAULT NULL,
+	`activation_token_expires` datetime(6) DEFAULT NULL,
+	`reset_token_digest` binary(32) DEFAULT NULL,
+	`reset_token_expires` datetime(6) DEFAULT NULL,
   `passwd` varchar(255) NOT NULL,
   `firstname` varchar(255) DEFAULT NULL,
   `lastname` varchar(255) DEFAULT NULL,
@@ -3120,6 +3145,9 @@ CREATE TABLE `pub` (
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`pub_id`),
   UNIQUE KEY `email` (`email`(20)),
+	UNIQUE KEY `pub_email_hmac` (`email_hmac`),
+	UNIQUE KEY `pub_activation_token_digest` (`activation_token_digest`),
+	UNIQUE KEY `pub_reset_token_digest` (`reset_token_digest`),
   KEY `address_id` (`address_id`),
   KEY `daily_balance_id` (`daily_balance_id`),
   KEY `total_balance_id` (`total_balance_id`),
@@ -3207,6 +3235,7 @@ CREATE TABLE `pub_ip` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `ip` int unsigned NOT NULL,
   `email` varchar(255) NOT NULL,
+	`email_hmac` binary(32) DEFAULT NULL,
   `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `ret` enum('fail','success') NOT NULL DEFAULT 'fail',
   PRIMARY KEY (`id`),
@@ -3523,29 +3552,7 @@ UNLOCK TABLES;
 DELIMITER ;;
 CREATE PROCEDURE `proc_adv`(IN i_email VARCHAR(255), IN i_passwd VARCHAR(255), IN i_ip INT unsigned, OUT o_adv_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
-  DECLARE c1 INT;
-  DECLARE c2 INT;
-  SELECT COUNT(*) INTO c1 FROM adv_ip WHERE ret='fail' AND ip=i_ip AND email=i_email AND (UNIX_TIMESTAMP(updated) >= (UNIX_TIMESTAMP(NOW())-3600));
-  SELECT COUNT(*) INTO c2 FROM adv_ip WHERE ret='fail' AND ip=i_ip AND (UNIX_TIMESTAMP(updated) >= (UNIX_TIMESTAMP(NOW())-24*3600));
-  IF (c1<=5 AND c2<=20)
-  THEN
-    SELECT p.adv_id, p.email, p.timezone_id, a.company, a.contact
-    INTO o_adv_id, o_email, o_timezone_id, o_company, o_contact
-    FROM adv p
-    LEFT JOIN add_address a USING (address_id)
-    WHERE p.email=i_email and p.passwd=i_passwd and p.active='Yes';
-
-    IF ISNULL(o_adv_id)
-    THEN
-      INSERT INTO adv_ip (ip, email, ret) VALUES (i_ip, i_email, 'fail');
-    ELSE
-      DELETE FROM adv_ip WHERE ret='fail' AND ip=i_ip AND (UNIX_TIMESTAMP(updated) >= (UNIX_TIMESTAMP(NOW())-24*3600));
-      INSERT INTO adv_ip (ip, email, ret) VALUES (i_ip, i_email, 'success');
-    END IF;
-  ELSE
-    SELECT '1030' INTO o_email;
-  END IF;
-
+	SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='legacy plaintext credential procedure is retired';
 END ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
@@ -3564,11 +3571,7 @@ DELIMITER ;
 DELIMITER ;;
 CREATE PROCEDURE `proc_adv_as`(IN i_email VARCHAR(255), IN i_ip INT unsigned, OUT o_adv_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
-    SELECT p.adv_id, p.email, p.timezone_id, a.company, a.contact
-    INTO o_adv_id, o_email, o_timezone_id, o_company, o_contact
-    FROM adv p
-    LEFT JOIN add_address a USING (address_id)
-    WHERE p.email=i_email;
+	SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='legacy identifier impersonation procedure is retired';
 END ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
@@ -3587,29 +3590,7 @@ DELIMITER ;
 DELIMITER ;;
 CREATE PROCEDURE `proc_pub`(IN i_email VARCHAR(255), IN i_passwd VARCHAR(255), IN i_ip INT unsigned, OUT o_pub_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
-  DECLARE c1 INT;
-  DECLARE c2 INT;
-  SELECT COUNT(*) INTO c1 FROM pub_ip WHERE ret='fail' AND ip=i_ip AND email=i_email AND (UNIX_TIMESTAMP(updated) >= (UNIX_TIMESTAMP(NOW())-3600));
-  SELECT COUNT(*) INTO c2 FROM pub_ip WHERE ret='fail' AND ip=i_ip AND (UNIX_TIMESTAMP(updated) >= (UNIX_TIMESTAMP(NOW())-24*3600));
-  IF (c1<=5 AND c2<=20)
-  THEN
-    SELECT p.pub_id, p.email, p.timezone_id, a.company, a.contact
-    INTO o_pub_id, o_email, o_timezone_id, o_company, o_contact
-    FROM pub p
-    LEFT JOIN add_address a USING (address_id)
-    WHERE p.email=i_email and p.passwd=i_passwd and p.active='Yes';
-
-    IF ISNULL(o_pub_id)
-    THEN
-      INSERT INTO pub_ip (ip, email, ret) VALUES (i_ip, i_email, 'fail');
-    ELSE
-      DELETE FROM pub_ip WHERE ret='fail' AND ip=i_ip AND (UNIX_TIMESTAMP(updated) >= (UNIX_TIMESTAMP(NOW())-24*3600));
-      INSERT INTO pub_ip (ip, email, ret) VALUES (i_ip, i_email, 'success');
-    END IF;
-  ELSE
-    SELECT '1030' INTO o_email;
-  END IF;
-
+	SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='legacy plaintext credential procedure is retired';
 END ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
@@ -3628,11 +3609,7 @@ DELIMITER ;
 DELIMITER ;;
 CREATE PROCEDURE `proc_pub_as`(IN i_email VARCHAR(255), IN i_ip INT unsigned, OUT o_pub_id INT unsigned, OUT o_email VARCHAR(48), OUT o_company VARCHAR(255), OUT o_contact varchar(255), OUT o_timezone_id tinyint unsigned)
 BEGIN
-    SELECT p.pub_id, p.email, p.timezone_id, a.company, a.contact
-    INTO o_pub_id, o_email, o_timezone_id, o_company, o_contact
-    FROM pub p
-    LEFT JOIN add_address a USING (address_id)
-    WHERE p.email=i_email;
+	SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='legacy identifier impersonation procedure is retired';
 END ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;

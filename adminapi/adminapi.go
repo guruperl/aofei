@@ -30,6 +30,14 @@ func AddPub(db *sql.DB, domain string) (*acl.Pub, error) {
 	return acl.AddPub(db, domain)
 }
 
+func AddPubAccount(db *sql.DB, domain, email string, emailHMAC []byte, emailCipher string) (*acl.Pub, error) {
+	return acl.AddPubAccount(db, domain, email, emailHMAC, emailCipher)
+}
+
+func AddPubProtectedAccount(db *sql.DB, domain string, emailHMAC []byte, emailCipher string) (*acl.Pub, error) {
+	return acl.AddPubProtectedAccount(db, domain, emailHMAC, emailCipher)
+}
+
 func DBGetPubByID(db *sql.DB, pubID string) (*acl.Pub, string, error) {
 	return acl.DBGetPubByID(db, pubID)
 }

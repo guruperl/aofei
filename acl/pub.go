@@ -581,6 +581,14 @@ func insertPublisher(db *sql.DB, pubStr string, generateID func() (uint32, error
 }
 
 func insertPublisherContext(ctx context.Context, db publisherMutationDB, pubStr string, generateID func() (uint32, error)) (uint32, error) {
+	return insertPublisherAccountContext(ctx, db, pubStr, pubStr, nil, "", generateID)
+}
+
+func insertPublisherAccountContext(ctx context.Context, db publisherMutationDB, pubStr, email string, emailHMAC []byte, emailCipher string, generateID func() (uint32, error)) (uint32, error) {
+	return insertPublisherAccountWithPolicy(ctx, db, pubStr, email, emailHMAC, emailCipher, false, generateID)
+}
+
+func insertPublisherAccountWithPolicy(ctx context.Context, db publisherMutationDB, pubStr, email string, emailHMAC []byte, emailCipher string, plaintextRetired bool, generateID func() (uint32, error)) (uint32, error) {
 	for attempt := 0; attempt < publisherIDAllocationAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -589,9 +597,23 @@ func insertPublisherContext(ctx context.Context, db publisherMutationDB, pubStr 
 		if err != nil {
 			return 0, err
 		}
-		_, err = db.ExecContext(ctx, `
+		if plaintextRetired && len(emailHMAC) == 32 && emailCipher != "" {
+			_, err = db.ExecContext(ctx, `
+INSERT INTO pub (pub_id, domain, email_hmac, email_cipher, passwd, address_id, active, created)
+		VALUES (?, ?, ?, ?, CONCAT('!disabled-', HEX(RANDOM_BYTES(32))), 1, 'Yes', NOW())`, pubID, pubStr, emailHMAC, emailCipher)
+		} else if plaintextRetired {
+			return 0, fmt.Errorf("retired publisher account writes require both protection fields")
+		} else if len(emailHMAC) == 0 && emailCipher == "" {
+			_, err = db.ExecContext(ctx, `
 INSERT INTO pub (pub_id, domain, email, passwd, address_id, active, created)
-VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
+		VALUES (?, ?, ?, CONCAT('!disabled-', HEX(RANDOM_BYTES(32))), 1, 'Yes', NOW())`, pubID, pubStr, email)
+		} else if len(emailHMAC) == 32 && emailCipher != "" {
+			_, err = db.ExecContext(ctx, `
+INSERT INTO pub (pub_id, domain, email, email_hmac, email_cipher, passwd, address_id, active, created)
+		VALUES (?, ?, ?, ?, ?, CONCAT('!disabled-', HEX(RANDOM_BYTES(32))), 1, 'Yes', NOW())`, pubID, pubStr, email, emailHMAC, emailCipher)
+		} else {
+			return 0, fmt.Errorf("publisher account protection fields must be both present or both absent")
+		}
 		if err == nil {
 			return pubID, nil
 		}
@@ -599,8 +621,13 @@ VALUES (?, ?, ?, '123456789', 1, 'Yes', NOW())`, pubID, pubStr, pubStr)
 		if !errors.As(err, &mysqlErr) || mysqlErr.Number != 1062 {
 			return 0, err
 		}
-		var existingEmail string
-		lookupErr := db.QueryRowContext(ctx, `SELECT email FROM pub WHERE pub_id=? LIMIT 1`, pubID).Scan(&existingEmail)
+		collisionColumn := "email"
+		var collisionValue interface{} = new(string)
+		if len(emailHMAC) == 32 && emailCipher != "" {
+			collisionColumn = "email_hmac"
+			collisionValue = new([]byte)
+		}
+		lookupErr := db.QueryRowContext(ctx, `SELECT `+collisionColumn+` FROM pub WHERE pub_id=? LIMIT 1`, pubID).Scan(collisionValue)
 		if lookupErr == nil {
 			continue
 		}
@@ -617,6 +644,26 @@ func AddPub(db *sql.DB, pubStr string) (*Pub, error) {
 }
 
 func AddPubContext(ctx context.Context, db *sql.DB, pubStr string) (*Pub, error) {
+	return addPubAccountContext(ctx, db, pubStr, pubStr, nil, "")
+}
+
+// AddPubAccount creates a publisher and its default inventory in one
+// transaction while atomically carrying the optional S07 identifier pair.
+func AddPubAccount(db *sql.DB, domain, email string, emailHMAC []byte, emailCipher string) (*Pub, error) {
+	return addPubAccountWithPolicy(context.Background(), db, domain, email, emailHMAC, emailCipher, false)
+}
+
+func addPubAccountContext(ctx context.Context, db *sql.DB, pubStr, email string, emailHMAC []byte, emailCipher string) (*Pub, error) {
+	return addPubAccountWithPolicy(ctx, db, pubStr, email, emailHMAC, emailCipher, false)
+}
+
+// AddPubProtectedAccount creates publisher inventory after the separately
+// reviewed plaintext-retirement cutover and never references pub.email.
+func AddPubProtectedAccount(db *sql.DB, domain string, emailHMAC []byte, emailCipher string) (*Pub, error) {
+	return addPubAccountWithPolicy(context.Background(), db, domain, "", emailHMAC, emailCipher, true)
+}
+
+func addPubAccountWithPolicy(ctx context.Context, db *sql.DB, pubStr, email string, emailHMAC []byte, emailCipher string, plaintextRetired bool) (*Pub, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -629,7 +676,7 @@ func AddPubContext(ctx context.Context, db *sql.DB, pubStr string) (*Pub, error)
 	}
 	defer tx.Rollback()
 
-	pubID, err := insertPublisherContext(ctx, tx, pubStr, randomPublisherID)
+	pubID, err := insertPublisherAccountWithPolicy(ctx, tx, pubStr, email, emailHMAC, emailCipher, plaintextRetired, randomPublisherID)
 	if err != nil {
 		return nil, err
 	}

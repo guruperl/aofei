@@ -729,7 +729,12 @@ func (self PubMap) DBAddNewContext(ctx context.Context, db *sql.DB, pubStr, site
 			_, _, err = pub.addSiteAndSlotContext(ctx, db, siteStr, siteType, slotStr)
 		}
 	} else {
-		pub, err = AddPubContext(ctx, db, pubStr)
+		// Cache discovery does not own an interactive account identifier or the
+		// S07 account-data key. Creating a publisher here would produce a row
+		// that cannot participate in protected login/backfill parity. Accounts
+		// must be provisioned through the authorized Summer/admin workflow;
+		// discovery may extend inventory only for an existing publisher.
+		err = fmt.Errorf("publisher %q must be provisioned before inventory discovery", pubStr)
 	}
 
 	return pub, err

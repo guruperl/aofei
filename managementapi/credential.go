@@ -23,12 +23,19 @@ import (
 var publicIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 type Service struct {
-	config Config
-	db     *sql.DB
-	redis  radix.Client
-	key    []byte
-	now    func() time.Time
-	random io.Reader
+	config              Config
+	db                  *sql.DB
+	redis               radix.Client
+	key                 []byte
+	now                 func() time.Time
+	random              io.Reader
+	identifierDecryptor IdentifierDecryptor
+}
+
+// IdentifierDecryptor is supplied by the owning application when protected
+// account identifiers are enabled. Aofei does not own the deployment key.
+type IdentifierDecryptor interface {
+	DecryptIdentifier(namespace, encoded string) (string, error)
 }
 
 func NewService(config Config, db *sql.DB, redis radix.Client) (*Service, error) {
@@ -54,6 +61,15 @@ func (s *Service) Handler() http.Handler {
 		return nil
 	}
 	return newHandler(s)
+}
+
+// SetIdentifierDecryptor switches advertiser responses from the rollback
+// plaintext column to the protected ciphertext projection. It must be called
+// during startup, before Handler serves requests.
+func (s *Service) SetIdentifierDecryptor(decryptor IdentifierDecryptor) {
+	if s != nil {
+		s.identifierDecryptor = decryptor
+	}
 }
 
 func decodeKey(raw string) ([]byte, error) {

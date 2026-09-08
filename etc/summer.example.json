@@ -25,6 +25,15 @@
         "AuditRetentionDays": 400,
         "MaintenanceActors": {}
     },
+  "AccountProtection": {
+    "Enabled": false,
+    "PlaintextRetired": false,
+        "Current": {
+            "ID": "local-v1",
+            "KeyEnv": "W8M_ACCOUNT_DATA_KEY"
+        },
+        "Previous": []
+    },
     "Chartags": {
         "e": {
             "ContentType": "text/html; charset='UTF-8'",
@@ -78,7 +87,12 @@
 		    "Default": true,
                     "Screen": 0,
                     "Sql": "SELECT p.adv_id, p.email AS a_email, a.company AS a_company, a.contact AS a_contact, p.timezone_id AS a_timezone_id, p.passwd FROM adv p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.active='Yes'",
-                    "Sql_as": "proc_adv_as",
+		    "Protected_sql": "SELECT p.adv_id, p.email_cipher AS a_email, a.company AS a_company, a.contact AS a_contact, p.timezone_id AS a_timezone_id, p.passwd FROM adv p LEFT JOIN add_address a USING (address_id) WHERE p.email_hmac=? AND p.active='Yes'",
+		    "Sql_as": "SELECT p.adv_id, p.email AS a_email, a.company AS a_company, a.contact AS a_contact, p.timezone_id AS a_timezone_id, NULL AS passwd FROM adv p LEFT JOIN add_address a USING (address_id) WHERE p.adv_id=? AND p.active='Yes'",
+		    "Protected_sql_as": "SELECT p.adv_id, p.email_cipher AS a_email, a.company AS a_company, a.contact AS a_contact, p.timezone_id AS a_timezone_id, NULL AS passwd FROM adv p LEFT JOIN add_address a USING (address_id) WHERE p.adv_id=? AND p.active='Yes'",
+		    "Identifier_namespace": "adv.email",
+		    "Identifier_normalization": "email",
+		    "Identifier_cipher_attribute": "a_email",
                     "Password_hash": "passwd",
 		    "Legacy_password_upgrade": true,
                     "OutPars": [ "adv_id", "a_email", "a_company", "a_contact", "a_timezone_id", "passwd" ],
@@ -106,7 +120,12 @@
 		    "Default": true,
                     "Screen": 0,
                     "Sql": "SELECT p.pub_id, p.email AS p_email, a.company AS p_company, a.contact AS p_contact, p.timezone_id AS p_timezone_id, p.passwd FROM pub p LEFT JOIN add_address a USING (address_id) WHERE p.email=? AND p.active='Yes'",
-                    "Sql_as": "proc_pub_as",
+		    "Protected_sql": "SELECT p.pub_id, p.email_cipher AS p_email, a.company AS p_company, a.contact AS p_contact, p.timezone_id AS p_timezone_id, p.passwd FROM pub p LEFT JOIN add_address a USING (address_id) WHERE p.email_hmac=? AND p.active='Yes'",
+		    "Sql_as": "SELECT p.pub_id, p.email AS p_email, a.company AS p_company, a.contact AS p_contact, p.timezone_id AS p_timezone_id, NULL AS passwd FROM pub p LEFT JOIN add_address a USING (address_id) WHERE p.pub_id=? AND p.active='Yes'",
+		    "Protected_sql_as": "SELECT p.pub_id, p.email_cipher AS p_email, a.company AS p_company, a.contact AS p_contact, p.timezone_id AS p_timezone_id, NULL AS passwd FROM pub p LEFT JOIN add_address a USING (address_id) WHERE p.pub_id=? AND p.active='Yes'",
+		    "Identifier_namespace": "pub.email",
+		    "Identifier_normalization": "email",
+		    "Identifier_cipher_attribute": "p_email",
                     "Password_hash": "passwd",
 		    "Legacy_password_upgrade": true,
                     "OutPars": [ "pub_id", "p_email", "p_company", "p_contact", "p_timezone_id", "passwd" ],
@@ -133,8 +152,13 @@
                 "db": {
                     "Default": true,
                     "Credential": [ "login", "passwd", "direct", "gagent" ],
-                    "Sql_as": "SELECT agent_id, login, level FROM agent WHERE login=? AND active='Yes'",
+		    "Sql_as": "SELECT agent_id, login AS agent_login, level AS agent_level, NULL AS passwd FROM agent WHERE agent_id=? AND active='Yes'",
+		    "Protected_sql_as": "SELECT agent_id, login_cipher AS agent_login, level AS agent_level, NULL AS passwd FROM agent WHERE agent_id=? AND active='Yes'",
                     "Sql": "SELECT agent_id, login AS agent_login, level AS agent_level, passwd FROM agent WHERE login=? AND active='Yes'",
+		    "Protected_sql": "SELECT agent_id, login_cipher AS agent_login, level AS agent_level, passwd FROM agent WHERE login_hmac=? AND active='Yes'",
+		    "Identifier_namespace": "agent.login",
+		    "Identifier_normalization": "login",
+		    "Identifier_cipher_attribute": "agent_login",
                     "Password_hash": "passwd",
 		    "Legacy_password_upgrade": true,
                     "OutPars": [ "agent_id", "agent_login", "agent_level", "passwd" ]
@@ -158,6 +182,10 @@
 		"Default": true,
                     "Credential": [ "login", "passwd", "direct", "gadmin" ],
                     "Sql": "SELECT admin_id, login AS admin_login, passwd FROM admin WHERE login=? AND active='Yes'",
+		    "Protected_sql": "SELECT admin_id, login_cipher AS admin_login, passwd FROM admin WHERE login_hmac=? AND active='Yes'",
+		    "Identifier_namespace": "admin.login",
+		    "Identifier_normalization": "login",
+		    "Identifier_cipher_attribute": "admin_login",
                     "Password_hash": "passwd",
 		    "Legacy_password_upgrade": true,
                     "OutPars": [ "admin_id", "admin_login", "passwd" ]
@@ -181,6 +209,10 @@
                     "Default": true,
                     "Credential": ["login", "passwd", "direct", "ganalyst"],
                     "Sql": "SELECT analyst_id, login AS analyst_login, passwd FROM analyst WHERE login=? AND active='Yes'",
+		    "Protected_sql": "SELECT analyst_id, login_cipher AS analyst_login, passwd FROM analyst WHERE login_hmac=? AND active='Yes'",
+		    "Identifier_namespace": "analyst.login",
+		    "Identifier_normalization": "login",
+		    "Identifier_cipher_attribute": "analyst_login",
                     "Password_hash": "passwd",
 		    "Legacy_password_upgrade": true,
                     "OutPars": ["analyst_id", "analyst_login", "passwd"]
