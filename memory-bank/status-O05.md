@@ -1,6 +1,6 @@
 # Status O05 — Generic clean bootstrap
 
-State: `[-]` In progress
+State: `[+]` Completed
 
 ## Goal
 
@@ -14,7 +14,7 @@ specific migration path in Aofei.
 | --- | ---: | --- |
 | Clean bootstrap state machine | `[+]` | Absent `current`, installed unit, and manager load state are mandatory; base configs are snapshotted before one immutable release is installed and started, and failure safely restores the uninstalled state. |
 | Synthetic verification | `[+]` | Mutation-free state rejection, config projection, start/health/history failure, explicit and unconfirmed stop failure, exact cleanup, and ordinary deploy regression are covered. |
-| Public contract and private handoff | `[-]` | Public operator docs and memory/evolution direction are updated. Exact W8M maintenance and bootstrap evidence remain to be recorded privately without moving host policy into Aofei. |
+| Public contract and private handoff | `[+]` | Public operator docs and V32 record the generic direction; private W8M D03 owns and has proved the installed-target transition and exact clean bootstrap without moving host policy into Aofei. |
 
 ## Acceptance
 
@@ -30,6 +30,21 @@ specific migration path in Aofei.
 - Ordinary deploy continues to require and recover a verified healthy prior
   release.
 - Full Aofei verification and a bounded ten-iteration review-fix gate pass.
+
+## Exact realization evidence
+
+- Private W8M D03 built the corrected release from clean published Aofei
+  `8af4a63`, Pzdesign `ff48ff6`, and Genelet `d7ae11c`, and passed the exact
+  healthy-current preflight before mutation.
+- The target-private bridge moved the stopped zero-PID service through absent
+  selection/unit and manager `LoadState=not-found`; generic bootstrap recorded
+  `previous_release=none`, `old_pid=0`, installed the immutable release, and
+  started PID `571974`.
+- Loaded executable, working directory, inline config paths, environment-file
+  set, direct health/readiness, and both configured public probes pass. The
+  immediately prior release remains immutable and verified; no schema, cache,
+  feature, dependency, front/provider, credential, browser, or retention
+  operation ran.
 
 ## Review-Fix Gate
 
@@ -62,3 +77,10 @@ specific migration path in Aofei.
   selection, snapshot, history, or service mutation; full package tests, vet,
   pinned staticcheck, the scoped race suite, documentation guard, and diff
   hygiene pass. Corrected exact W8M activation remains pending.
+- Iteration 6: clean after the corrected exact activation. Whole-milestone and
+  cross-repository review found no remaining P1/P2. The published bundle passed
+  exact preflight and clean bootstrap; selected/prior verification, loaded
+  manager state, direct/public health, owner-only snapshot/history metadata,
+  private conformance/JSON/diff checks, and a complete private worktree
+  gitleaks scan pass. The private history record is published and exclusions
+  remained untouched.

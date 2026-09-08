@@ -150,7 +150,7 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
 - O04 owns reusable immutable Aofei/Pzdesign/Genelet release verification and
   strict target-manifest deployment mechanics. Exact host values, service
   inputs, dependency identities, health policy, and history remain private.
-- O05 is the in-progress clean-bootstrap successor to O04. It makes first
+- O05 is the completed clean-bootstrap successor to O04. It makes first
   activation start from an uninstalled systemd state and keeps migration from
   any pre-existing service in the target's private maintenance procedure.
 
@@ -171,8 +171,8 @@ completed milestones. S07 is now the active repository security milestone;
 its additive work remains disabled and does not claim production migration or
 plaintext retirement. Completed O04 deployment work moved reusable strict
 preflight, deployment, proxy-free health checks, rollback, and credential-free
-history into Aofei without embedding W8M host values. O05 is now replacing
-O04's legacy-process bootstrap bridge with a clean first-activation transaction
+history into Aofei without embedding W8M host values. O05 replaced O04's
+legacy-process bootstrap bridge with a clean first-activation transaction
 while leaving ordinary deployment rollback unchanged; it activates no schema,
 cache, feature, or provider change. P03 provides its
 threat contract, default-off versioned locator codec/runtime dual reader,
