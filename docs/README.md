@@ -7,7 +7,7 @@ completion; deployment and commercial activation still require the gates in
 the linked runbooks.
 
 Current implemented baseline: D01 through A02 in the original strict roadmap
-order, D04, D05, S06, P03, S05, O03, R03, A03, and M46 are complete. P03's
+order, D04, D05, S06, P03, S05, O03, O04, R03, A03, and M46 are complete. P03's
 authenticity gates remain disabled by default until a separately authorized
 named-publisher canary. I02 remains separately demand-gated; its repository
 prerequisites are complete, but a named Android or iOS integration still has
@@ -16,9 +16,8 @@ baseline is 96 tables, 0 views, 6
 routines, and 65 triggers;
 planned milestones do not imply schema or runtime activation. S07 account
 identifier protection is in progress and remains disabled by default; its
-additive repository work does not claim a production migration.
-O04 generic release deployment is in progress independently; its public engine
-contains no W8M target values, and host adoption remains private.
+additive repository work does not claim a production migration. O04's generic
+release deployment engine and private handoff are complete.
 
 ## Start By Audience
 
@@ -71,7 +70,7 @@ contains no W8M target values, and host adoption remains private.
 | O01 production traffic controls | Completed | [status-O01.md](../memory-bank/status-O01.md) | [Production traffic and observability](production-traffic-observability.md) |
 | O02 single-region availability | Completed; production claims evidence-gated | [status-O02.md](../memory-bank/status-O02.md) | [Availability, recovery, and SLO](single-region-availability.md) |
 | O03 job/cache/filesystem reliability | Completed | [status-O03.md](../memory-bank/status-O03.md) | [Operational commands](operational-commands.md), [cache architecture](multiple-cache.md), and [recovery](single-region-availability.md) contracts |
-| O04 generic release deployment | In progress | [status-O04.md](../memory-bank/status-O04.md) | [Immutable backend releases](release-deployment.md) and [production runbook](production-runbook.md) |
+| O04 generic release deployment | Completed | [status-O04.md](../memory-bank/status-O04.md) | [Immutable backend releases](release-deployment.md) and [production runbook](production-runbook.md) |
 
 ## Supporting Runtime References
 

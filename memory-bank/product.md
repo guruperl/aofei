@@ -166,7 +166,7 @@ demand-eligibility, schema, filesystem, concurrency, hot-path,
 creative-boundary, and static-analysis findings without reopening those
 completed milestones. S07 is now the active repository security milestone;
 its additive work remains disabled and does not claim production migration or
-plaintext retirement. Independent O04 deployment work moves reusable strict
+plaintext retirement. Completed O04 deployment work moved reusable strict
 preflight, bootstrap, atomic activation, proxy-free health checks, rollback,
 and credential-free history into Aofei without embedding W8M host values or
 activating any schema/cache/feature/provider change. P03 provides its

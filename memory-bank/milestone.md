@@ -40,9 +40,9 @@ lane status files are the authoritative completion record; completed M-lane
 files retain earlier runtime history. S07 account-identifier protection is now
 in progress as a default-off successor to S02/S06; it does not activate or
 migrate production by implication.
-O04 is independently in progress under the owner-directed deployment-boundary
-split: Aofei will own a generic deployment/bootstrap engine, while exact W8M
-host policy remains private. O04 neither depends on nor activates S07.
+O04 is complete under the owner-directed deployment-boundary split: Aofei owns
+a generic deployment/bootstrap engine, while exact W8M host policy remains
+private. O04 neither depends on nor activates S07.
 
 Delivery sequence:
 
@@ -110,7 +110,7 @@ acceptance criteria recorded in the corresponding status files.
 | O01 | Completed | [status-O01.md](status-O01.md) | Production traffic controls and observability. |
 | O02 | Completed; production claims evidence-gated | [status-O02.md](status-O02.md) | Single-region availability, recovery, and SLO. |
 | O03 | Completed | [status-O03.md](status-O03.md) | Job, cache, and filesystem reliability. |
-| O04 | In progress | [status-O04.md](status-O04.md) | Generic immutable-release deployment and bootstrap engine. |
+| O04 | Completed | [status-O04.md](status-O04.md) | Generic immutable-release deployment and bootstrap engine. |
 
 Historical M-lane status index:
 
@@ -1747,7 +1747,7 @@ ordering, callback recovery evidence, filesystem permissions/atomicity, and
 malformed geodata handling without weakening O02 split-brain safety. Detailed
 tasks and verification are in [status-O03.md](status-O03.md).
 
-## O04 - Generic Release Deployment And Bootstrap `[~]`
+## O04 - Generic Release Deployment And Bootstrap `[+]`
 
 Move reusable immutable-release verification, strict environment validation,
 preflight, atomic activation, rollback, history, and one-time bootstrap behavior

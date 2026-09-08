@@ -1,6 +1,6 @@
 # Status O04 — Generic release deployment and bootstrap
 
-State: `[~]` In progress
+State: `[+]` Completed
 
 ## Goal
 
@@ -16,7 +16,7 @@ repository.
 | Strict environment contract | `[+]` | Strict decoding rejects unknown fields, path overlap, service ambiguity, unsafe health/dependency/database/retention policy, and owner/file drift before effects. |
 | Deployment state machine | `[+]` | Preflight, status, one-time bootstrap, immutable installation, atomic activation, independent-context rollback, config projection, locking, and bounded history are implemented. |
 | Synthetic verification | `[+]` | Fixtures prove activation, cancellation and health rollback, unrecovered-history finalization, mutation-free preflight failure, bootstrap restoration, and malformed manifest/release rejection without host contact. |
-| Documentation and private handoff | `[-]` | Public release/runbook/memory contracts are updated; adoption by the private W8M realization and exact-host evidence remain pending. |
+| Documentation and private handoff | `[+]` | Public contracts and memory are updated; the private W8M realization delegates through a thin adapter, retains its legacy fallback, and records two successful reviewed generic cutovers. |
 
 ## Acceptance
 
@@ -84,5 +84,15 @@ verification pass.
   - The source-side release verifier now rejects hard-linked inputs before it
     invokes the bundle's generic verifier.
 
-Iteration 3 and final milestone closeout follow a corrected exact release and
-private evidence update.
+- Iteration 3 (2026-09-08): clean. Whole-milestone review found no remaining
+  P1/P2. The corrected published release passed strict exact-host preflight,
+  including the loaded systemd environment-file set and verified healthy prior
+  selection; atomic activation produced a new process, direct health/readiness
+  and configured public smoke passed, and credential-free history was reviewed
+  and published privately. Selected, prior-generic, and original-legacy
+  immutable releases remain available. No excluded operation ran.
+
+Full Aofei tests, vet, pinned staticcheck, focused deployment race tests,
+documentation/diff guards, all three release-source test suites, generic/legacy
+release verification, private shell/JSON/conformance checks, target-value
+leakage scans, and exact post-cutover status pass.

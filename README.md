@@ -136,11 +136,11 @@ placement and direct `go install` invocations in
 ## Capability And Activation Status
 
 The original D/P/R/I/S/A/O baseline is implemented through A02. D04, D05, S06,
-P03, S05, O03, R03, and A03 are complete. P03's authenticity gates remain
+P03, S05, O03, O04, R03, and A03 are complete. P03's authenticity gates remain
 disabled by default until a separately authorized named-publisher canary. No
 required remediation milestone remains; I02 remains separately demand-gated.
-S07 account-identifier protection and independent O04 generic release
-deployment are in progress; neither implies its gated production changes.
+S07 account-identifier protection remains in progress. O04 generic release
+deployment is complete; neither implies S07's gated production changes.
 Implementation does not imply production activation:
 
 | Area | Current state |
@@ -165,7 +165,7 @@ Implementation does not imply production activation:
 | A03 exact monetary sources | Completed; authoritative prices, floors, reservations, ledgers, reports, management writes, statements, and hosted reconciliation use the v3 exact-money contract while historical float data remains labeled drain evidence. |
 | O01 traffic controls, O02 single-region availability | Implemented operating contracts; no production 99.9% or provider-backed RPO/RTO claim is made without retained production evidence. |
 | O03 job/cache/filesystem reliability | Completed; renewable ownership, atomic publication, durable filesystem/geodata handling, and recovery evidence are implemented. |
-| O04 generic release deployment | In progress; target-neutral release verification, preflight, bootstrap, activation, rollback, and history are implemented, while private W8M adoption and closeout remain pending. |
+| O04 generic release deployment | Completed; target-neutral release verification, preflight, bootstrap, activation, rollback, and history are implemented and the private W8M realization has cut over successfully. |
 
 See the [documentation and milestone index](docs/README.md) for the authoritative
 guide for each lane and the matching status file. Historical M-lane evidence is
