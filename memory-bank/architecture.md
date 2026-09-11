@@ -840,9 +840,10 @@ The complete boundary is in
   [docs/account-identifier-protection.md](../docs/account-identifier-protection.md).
   Advertiser/publisher action links use random raw tokens only in mail and
   store role/purpose-bound digests with expiry; consumption is atomic with the
-  state/password change. Genelet redacts token-bearing query logs, applies
-  no-store/no-referrer response headers, and removes private delivery envelopes
-  before response serialization. SQL diagnostics retain query shape/count but
+  state/password change. Genelet redacts both opaque and rollback-era account
+  proof/identity query values, applies no-store/no-referrer response headers,
+  and removes private delivery envelopes before response serialization. SQL
+  diagnostics retain query shape/count but
   never bind values, and response serialization strips password hashes and
   storage-only protection fields. The W8M login throttle reuses S06's
   trusted-proxy client resolution instead of treating local Apache as every

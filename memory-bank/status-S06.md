@@ -32,6 +32,7 @@ raw email/IP identities in Redis.
 | Cloudflare activation | `[+]` | A valid scoped management token created and read back the managed `w8m-public-account` widget for only `w8m.com` and `www.w8m.com`. The widget keys and reviewed Cloudflare proxy ranges are in the owner-only `0600` deployment environment. API dry runs proved the current Free plan cannot express the original POST-only 10-request/10-minute edge target or use Managed Challenge. The owner chose to remain on Free, so the active version-1 `http_ratelimit` entry point contains exactly one final rule: the four exact UI paths, verified bots excluded, IP plus mandatory data-center characteristics, 10 requests/10 seconds, and a 10-second Block. Independent readback confirmed the complete rule and widget. Never put the management token or widget secret in Git or command output. |
 | Production deployment and live proof | `[+]` | The owner-only protection environment is attached to `aofei-unify.service`; the service is active and healthy. All eight Chinese/English advertiser/publisher registration/recovery pages render exactly one action-bound managed widget with the real site key and no secret. The exact bare `https://w8m.com` origin is allowed alongside canonical `ServerURL=https://www.w8m.com`; browser-style missing-token posts from both hosts reach the S06 `400` boundary. Missing and invalid production tokens returned `400` with unchanged account/quota state and only the fixed submission/rejection metrics advancing. An isolated localhost clone plus controlled Siteverify response exercised successful advertiser/publisher registration and recovery through real MySQL, Redis, Google OAuth, and Gmail API dependencies; Gmail accepted each send and exact inactive fixtures were removed afterward. A two-request email-hour test returned an atomic `429`, retained positive TTLs and unchanged aggregate quota values across denial, and exposed no raw email/IP. Trusted-loopback malformed forwarding failed closed while an untrusted direct peer's spoof was ignored. The Free edge rule produced ten `200`s then two `429`s while `/pz` remained outside the rule. Gmail-first rollback, protection removal, restart, and full real-key restoration were proved. |
 | IPv6 account-address repository remediation | `[+]` | A live advertiser registration exposed the legacy IPv4-only `add_address.ip VARCHAR(15)` boundary after trusted-proxy resolution correctly produced a canonical IPv6 client address. The clean baseline and separately preflighted populated-system migration now use `VARCHAR(45)`; a disposable MySQL 8.0.41 rehearsal preserved IPv4, accepted a 39-character IPv6 address in both migrated and clean schemas, and rejected migration rerun. Privacy and operations documentation now match the existing account-record behavior. W8M activation remains a separately recorded private operation. |
+| Plain-text account-link compatibility | `[+]` | A subsequent live English registration proved Gmail delivery but exposed an HTML character reference inside the `text/plain` activation URL, which Go correctly rejected as a semicolon-bearing query segment. Genelet now renders mail files with `text/template`, all eight advertiser/publisher activation/reset templates prove legacy and opaque links parse and round-trip, rollback-era proof/identity query values are redacted from application logs, and both proof formats receive no-store/no-referrer responses. Pzdesign narrowly reconstructs the known encoded-space artifact in already issued complete legacy URLs before the unchanged signed-digest check (Genelet `22d2463`/`fdeff97`; Pzdesign `310dfd1`). |
 
 ## Acceptance Criteria
 
@@ -146,6 +147,19 @@ raw email/IP identities in Redis.
    analysis, documentation/public-data/secret-history guards, and diff hygiene
    found no P1, P2, or higher-severity issue. Production migration and release
    activation remain separately authorized and recorded private operations.
+8. Post-closeout activation-link incident review (2026-09-11): the live
+   request shape confirmed a URL-escaped space had become an HTML numeric
+   character reference in a plain-text message. Review found one P2 in the
+   first renderer correction: an explicitly HTML file-backed message still
+   needs contextual HTML escaping. It also required the outstanding-link seam
+   to match exact account paths and keep URL/RequestURI views consistent.
+9. Post-closeout activation-link follow-up (2026-09-11): clean. Rendering now
+   follows the effective text/plain or text/html content type, all eight
+   advertiser/publisher language and activation/reset branches pass, and
+   rollback proof/identity log redaction plus cache/referrer protection pass.
+   The outstanding-link repair is constrained to complete legacy GET proof
+   shapes and remains subject to digest verification. No S07 feature, schema,
+   key, or plaintext-retirement gate is activated.
 
 ## Exclusions
 

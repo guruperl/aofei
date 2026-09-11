@@ -98,9 +98,11 @@ through the deployment environment. The credential preflight runs before
 account mutation and requires a Gmail send-capable scope, normally
 `https://www.googleapis.com/auth/gmail.send`. Secret values must remain in an
 owner-only environment or secret manager, and removing `_gmail` disables
-account mail before database mutation. Genelet retains its historical
-implicit-TLS SMTP transport for legacy deployments, but it is not the W8M
-production path.
+account mail before database mutation. Account mail is `text/plain`; Genelet
+therefore renders its `.mail.*` bodies with `text/template` so URL-query
+escaping is not transformed into HTML character references. Genelet retains
+its historical implicit-TLS SMTP transport for legacy deployments, but it is
+not the W8M production path.
 S06 public-account protection is independently default-off. When enabled,
 `../pzdesign/cmd/unify` requires a complete Turnstile site/secret pair, exact
 hostname allowlist, explicit trusted-proxy CIDRs, and Redis at startup. The
