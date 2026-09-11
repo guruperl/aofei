@@ -31,6 +31,7 @@ raw email/IP identities in Redis.
 | Metrics and operator contract | `[+]` | Fixed-cardinality expvar counters cover submissions/admissions, Turnstile rejection, quota rejection, and dependency failure. `docs/public-account-abuse-protection.md`, production/Chinese runbooks, README, architecture, and tech-stack memory define activation, rotation, rollback, alerts, and secret handling. |
 | Cloudflare activation | `[+]` | A valid scoped management token created and read back the managed `w8m-public-account` widget for only `w8m.com` and `www.w8m.com`. The widget keys and reviewed Cloudflare proxy ranges are in the owner-only `0600` deployment environment. API dry runs proved the current Free plan cannot express the original POST-only 10-request/10-minute edge target or use Managed Challenge. The owner chose to remain on Free, so the active version-1 `http_ratelimit` entry point contains exactly one final rule: the four exact UI paths, verified bots excluded, IP plus mandatory data-center characteristics, 10 requests/10 seconds, and a 10-second Block. Independent readback confirmed the complete rule and widget. Never put the management token or widget secret in Git or command output. |
 | Production deployment and live proof | `[+]` | The owner-only protection environment is attached to `aofei-unify.service`; the service is active and healthy. All eight Chinese/English advertiser/publisher registration/recovery pages render exactly one action-bound managed widget with the real site key and no secret. The exact bare `https://w8m.com` origin is allowed alongside canonical `ServerURL=https://www.w8m.com`; browser-style missing-token posts from both hosts reach the S06 `400` boundary. Missing and invalid production tokens returned `400` with unchanged account/quota state and only the fixed submission/rejection metrics advancing. An isolated localhost clone plus controlled Siteverify response exercised successful advertiser/publisher registration and recovery through real MySQL, Redis, Google OAuth, and Gmail API dependencies; Gmail accepted each send and exact inactive fixtures were removed afterward. A two-request email-hour test returned an atomic `429`, retained positive TTLs and unchanged aggregate quota values across denial, and exposed no raw email/IP. Trusted-loopback malformed forwarding failed closed while an untrusted direct peer's spoof was ignored. The Free edge rule produced ten `200`s then two `429`s while `/pz` remained outside the rule. Gmail-first rollback, protection removal, restart, and full real-key restoration were proved. |
+| IPv6 account-address repository remediation | `[+]` | A live advertiser registration exposed the legacy IPv4-only `add_address.ip VARCHAR(15)` boundary after trusted-proxy resolution correctly produced a canonical IPv6 client address. The clean baseline and separately preflighted populated-system migration now use `VARCHAR(45)`; a disposable MySQL 8.0.41 rehearsal preserved IPv4, accepted a 39-character IPv6 address in both migrated and clean schemas, and rejected migration rerun. Privacy and operations documentation now match the existing account-record behavior. W8M activation remains a separately recorded private operation. |
 
 ## Acceptance Criteria
 
@@ -136,6 +137,15 @@ raw email/IP identities in Redis.
    direct-origin, rollback, fixture-cleanup, repository verification, and
    documentation evidence were reviewed together. No P1, P2, or
    higher-severity finding remains.
+7. Post-closeout IPv6 incident review (2026-09-11): clean. The reviewed change
+   only widens the existing canonical account-address representation from the
+   IPv4 maximum to the conventional IPv4/IPv6 text maximum. The populated
+   migration fails closed unless it sees the exact nullable legacy column,
+   preserves rows, and deliberately rejects rerun. Disposable MySQL rehearsal,
+   full Aofei/Pzdesign/Genelet tests and vet, pinned Aofei/Pzdesign static
+   analysis, documentation/public-data/secret-history guards, and diff hygiene
+   found no P1, P2, or higher-severity issue. Production migration and release
+   activation remain separately authorized and recorded private operations.
 
 ## Exclusions
 

@@ -273,6 +273,12 @@ When schema changes are intentional, update `etc/step4_init.sql`, rebuild with
 `docs/database-baseline.md` plus the memory bank if the inventory or workflow
 changed.
 
+`etc/s06_account_address_ipv6_migration.sql` is the populated-system migration
+from the legacy `add_address.ip VARCHAR(15)` shape to the canonical IPv4/IPv6
+`VARCHAR(45)` shape. It preflights the exact legacy column and deliberately
+fails on rerun; rehearse it on a representative restore and verify preserved
+IPv4 plus successful IPv6 insertion before production use.
+
 A01 accounting uses MySQL `DECIMAL(20,6)` and Go integer micro-dollar values
 for statement mutations. `cmd/accounting` is the authorized manual operator
 surface for statement creation, adjustment, approval, settlement, correction,

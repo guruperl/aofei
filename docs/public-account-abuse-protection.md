@@ -83,6 +83,13 @@ from `https://www.cloudflare.com/ips-v4/` and
 restart as one coordinated rollout. Do not copy an unreviewed forwarding header
 or use `CF-Connecting-IP` merely because it is present.
 
+Successful account registration also records that resolved canonical address
+in the account's existing `add_address` row; the schema therefore requires
+`VARCHAR(45)` for IPv4 and IPv6 compatibility. Populated systems that still
+have `VARCHAR(15)` must apply `etc/s06_account_address_ipv6_migration.sql`
+before accepting IPv6 registrations. Quota state remains HMAC-pseudonymous,
+and raw addresses do not enter Redis keys, metric labels, or application logs.
+
 ## Cloudflare Setup
 
 Use a narrowly scoped Cloudflare API token or the dashboard. The token needs

@@ -23,6 +23,12 @@ synthetic `etc/demand.sql` fixture.
   local and production baseline.
 - Local Docker auth is created by `scripts/aofei-local.sh`.
 
+`add_address.ip` uses `VARCHAR(45)` so the existing account-registration
+record can hold either a canonical IPv4 or canonical IPv6 address. Populated
+systems with the legacy IPv4-only column must apply the preflighted
+`etc/s06_account_address_ipv6_migration.sql`; replaying the clean baseline is
+not a migration.
+
 ## Reset And Load
 
 ```bash

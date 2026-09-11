@@ -227,7 +227,7 @@ CREATE TABLE `add_address` (
   `state_id` int unsigned DEFAULT NULL,
   `zip` varchar(32) DEFAULT NULL,
   `country_id` int unsigned DEFAULT NULL,
-  `ip` varchar(15) DEFAULT NULL,
+  `ip` varchar(45) DEFAULT NULL,
   `created` datetime DEFAULT NULL,
   PRIMARY KEY (`address_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

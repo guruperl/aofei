@@ -741,6 +741,10 @@ proxy set; trusted `X-Forwarded-For` chains are reduced from right to left. The
 HTML template receives only the public site key and one of four fixed actions.
 The Turnstile secret, Cloudflare management token, response token, raw email,
 and raw IP never enter templates, Redis keys, metrics, or source configuration.
+The resolved canonical address is retained on successful account creation in
+the existing `add_address.ip` field, whose 45-character text width supports
+both IPv4 and IPv6; populated IPv4-only schemas require the separately
+preflighted S06 widening migration before serving IPv6 registration traffic.
 I03 adds an isolated management-plane handler before the Genelet catch-all in
 `cmd/unify`. It authenticates `w8m_v1` bearer tokens by public lookup plus a
 constant-time comparison of a deployment-keyed digest, derives one advertiser
