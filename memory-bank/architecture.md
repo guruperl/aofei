@@ -842,7 +842,10 @@ The complete boundary is in
   store role/purpose-bound digests with expiry; consumption is atomic with the
   state/password change. Genelet redacts both opaque and rollback-era account
   proof/identity query values, applies no-store/no-referrer response headers,
-  and removes private delivery envelopes before response serialization. SQL
+  and removes private delivery envelopes before response serialization.
+  While protection is disabled for rollback, legacy proof validation loads
+  the signed identifier/name inputs from the authoritative account row; names
+  are not trusted or required from mail-client query strings. SQL
   diagnostics retain query shape/count but
   never bind values, and response serialization strips password hashes and
   storage-only protection fields. The W8M login throttle reuses S06's

@@ -173,6 +173,13 @@ activation. Enabling account protection invalidates old identifier-bearing
 links, so the private rollout must either wait for their bounded recovery
 window or explicitly reissue them.
 
+While protection remains disabled, rollback-mode links carry only the numeric
+account ID, email, timestamp, and legacy proof. The verifier compares the email
+and reconstructs the proof from the authoritative account-row names rather
+than requiring those names in the URL. This also preserves older links when a
+mail client discarded a trailing encoded name segment; the digest and recovery
+timestamp checks remain mandatory.
+
 Genelet SQL diagnostics log the prepared SQL shape and bind count only, never
 bind values. Its response boundary removes password/MFA request values and
 storage-only account digests/ciphertexts; JSON also omits action tokens. Model
