@@ -286,6 +286,35 @@ for config in etc/aofei.json etc/summer.example.json; do
 	fi
 done
 
+# Every relative markdown link in a tracked document must resolve from the
+# directory that contains it. This catches relocated documents whose links were
+# written for their previous path, including the frozen history records.
+mapfile -t link_docs < <(git ls-files '*.md')
+for link_doc in "${link_docs[@]}"; do
+	if [ ! -f "$link_doc" ]; then
+		continue
+	fi
+	link_dir="${link_doc%/*}"
+	if [ "$link_dir" = "$link_doc" ]; then
+		link_dir="."
+	fi
+	while IFS= read -r link_target; do
+		if [ -z "$link_target" ]; then
+			continue
+		fi
+		case "$link_target" in
+		'#'* | http://* | https://* | mailto:*) continue ;;
+		esac
+		link_path="${link_target%%#*}"
+		if [ -z "$link_path" ]; then
+			continue
+		fi
+		if [ ! -e "$link_dir/$link_path" ]; then
+			fail "$link_doc links to a missing path: $link_target"
+		fi
+	done < <(grep -oE '\]\([^][:space:])]+\)' "$link_doc" | sed -e 's/^](//' -e 's/)$//')
+done
+
 if [ "$failed" -ne 0 ]; then
 	exit 1
 fi
