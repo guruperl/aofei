@@ -48,7 +48,7 @@ mapfile -t active_docs < <(
 		find . -maxdepth 1 -name 'GOAL.md' -print | sed 's#^\./##'
 		find evolution -maxdepth 1 -name '*.md' -print
 		find memory-bank -maxdepth 1 -name 'status-*.md' -print
-	} | sort -u | grep -v '^docs/legacy-operations\.md$'
+	} | sort -u | grep -v '^docs/legacy-operations\.md$' | grep -v '^docs/history/'
 )
 
 config_examples=(
@@ -173,6 +173,8 @@ mapfile -t indexed_docs < <(
 	find docs -type f -name '*.md' \
 		! -path 'docs/README.md' \
 		! -path 'docs/legacy-operations.md' \
+		! -path 'docs/history/status-*.md' \
+		! -path 'docs/history/legacy-*.md' \
 		-print | sort
 )
 for indexed_doc in "${indexed_docs[@]}"; do

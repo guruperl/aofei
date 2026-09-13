@@ -10,5 +10,5 @@ Resulting direction after M12:
   [docs/dsp-workflow.md](../docs/dsp-workflow.md) are the current references for
   bid measurement, audience matching, and end-to-end DSP workflow behavior.
 - Deferred M12 findings are tracked in
-  [memory-bank/status-M13.md](../memory-bank/status-M13.md) rather than being
+  [status-M13.md](../docs/history/status-M13.md) (retired) rather than being
   implemented during the review pass.

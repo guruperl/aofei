@@ -84,8 +84,10 @@ activation and its private W8M proof are also complete.
 | Product boundaries | [Creative consumers](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), [deferred investments](defer.md), [Prebid/OpenRTB review](prebid-openrtb-adoption.md), [Cloudflare W8M Free-plan boundary](cloudflare-w8m.md), and [publisher ownership ADRs](adr/) |
 | Moved source-owned docs | [Genelet manual pointer](genelet-manual.md) and [Summer UI pointer](summer-ui-structure.md) |
 | Historical reference only | [Historical DSP architecture note](dsp-architecture.zh.md) and [legacy operations notes](legacy-operations.md) |
+| Retired milestones | [Retired milestone index](history/index.md) preserves the frozen specifications and final status documents for the early M-lane milestones. |
 
 The root [milestone index](../memory-bank/milestone.md) contains the strict
-dependency order and complete M-lane history. Historical documents retain the
+dependency order; the early M-lane milestones (M00 through M45) are retired to
+the [retired milestone index](history/index.md). Historical documents retain the
 facts and measurements true at their closeout date; this index and the current
 lane files govern present behavior.
