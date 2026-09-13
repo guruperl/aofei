@@ -185,6 +185,7 @@ Status markers:
 | `[~]` | In progress |
 | `[!]` | Blocked |
 | `[X]` | Cancelled |
+| `[-]` | Closed Historical: a consumed failed attempt or superseded row retained for audit; it is never retried, does not block its accepted successor, and its notes name that successor. |
 
 ## Review Finding Severity
 
@@ -202,6 +203,17 @@ Classify from impact, likelihood, and affected scope rather than implementation
 or fix size. P1, P2, and any higher-severity finding block milestone closure and
 cannot be carried into a later milestone. A lower-severity finding may be
 carried only with a named pending owner and explicit rationale.
+
+## New Review Intake
+
+An engineering review received outside a milestone's closing gate is untrusted
+planning evidence, not executable truth. Before implementing any of its
+findings: revalidate each against current code; classify it (confirmed,
+partially confirmed, resolved, duplicate, unsupported, outside ownership,
+decision-dependent, or deferred); present the dispositions and owners for
+approval; and record source and lineage in the owning status notes. Never
+reopen completed milestone history because a later review concerns it — create a
+remediation milestone with lineage instead.
 
 ## Milestone Review Procedure
 
@@ -226,7 +238,9 @@ Use this order when closing a milestone:
 
 1. Run the milestone's required verification commands.
 2. Update code-adjacent docs and the memory-bank files that changed behavior,
-   contracts, tools, or operator workflow.
+   contracts, tools, or operator workflow. Maintain `lessons.md` for applicable
+   learning with evidence links; keep a still-applicable lesson even after its
+   supporting milestone completes.
 3. Pass the bounded milestone review gate. Resolve every P1/P2-or-higher
    finding; carry a lower-severity finding only with a named pending owner and
    explicit rationale in the matching lane status file.

@@ -18,8 +18,10 @@ Before substantial changes, read these in order:
 1. [memory-bank/product.md](memory-bank/product.md)
 2. [memory-bank/architecture.md](memory-bank/architecture.md)
 3. [memory-bank/tech-stack.md](memory-bank/tech-stack.md)
-4. [memory-bank/milestone.md](memory-bank/milestone.md)
-5. The relevant `memory-bank/status-<lane><number>.md` file for the current
+4. Consult relevant topics in [memory-bank/lessons.md](memory-bank/lessons.md)
+   for reusable lessons and their evidence.
+5. [memory-bank/milestone.md](memory-bank/milestone.md)
+6. The relevant `memory-bank/status-<lane><number>.md` file for the current
    milestone.
 
 Use [docs/README.md](docs/README.md) to find the current user/operator contract
