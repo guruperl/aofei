@@ -41,7 +41,7 @@ Acceptance:
 
 Result:
 
-- [ADR 0001](../docs/adr/0001-richer-supply-taxonomy.md) keeps `pub`,
+- [ADR 0001](../adr/0001-richer-supply-taxonomy.md) keeps `pub`,
   `pub_site`, and `pub_slot` as the publisher and inventory ownership boundary.
 - Future taxonomy is additive on existing publisher tables and covers site/app
   identity, integration mode, slot/media intent, and quality/source metadata.

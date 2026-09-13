@@ -1,7 +1,7 @@
 # Retired milestone M13 - OpenRTB And DSP Refactor Backlog
 
 **Milestone.** M13
-**Outcome.** cancelled
+**Outcome.** completed
 **Retired.** 2026-09-13
 **Source status.** memory-bank/status-M13.md
 **Source specification.** memory-bank/milestone.md#m13---openrtb-and-dsp-refactor-backlog
@@ -11,7 +11,7 @@
 **Review iterations.** 1
 **Verification.** Recorded command/result evidence preserved in the retired status record's Verification section.
 **Consolidated into.** No current-truth change recorded; current facts remain in memory-bank/product.md, architecture.md, and tech-stack.md.
-**Disposition.** Cancelled per the milestone index `[X]` marker; M13's recorded task rows are all complete, so this retirement preserves the final record without asserting a separate delivered milestone.
+**Disposition.** Renormalized to completed: the `[X]` in the frozen specification heading and status header was the legacy checkbox-complete form, used only by M13 (the other 44 retired records use `[+]`), all 19 recorded task rows are `[+]`, and the preserved verification evidence passed.
 
 ## Milestone specification
 

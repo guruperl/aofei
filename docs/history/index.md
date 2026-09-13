@@ -19,7 +19,7 @@ recorded context; current truth remains in `memory-bank/`.
 | M10 | completed | 2026-09-13 | [M10](status-M10.md) | Documentation and agent stewardship. |
 | M11 | completed | 2026-09-13 | [M11](status-M11.md) | Genelet and Summer UI stewardship. |
 | M12 | completed | 2026-09-13 | [M12](status-M12.md) | OpenRTB and audience matching review. |
-| M13 | cancelled | 2026-09-13 | [M13](status-M13.md) | OpenRTB and DSP refactor backlog. |
+| M13 | completed | 2026-09-13 | [M13](status-M13.md) | OpenRTB and DSP refactor backlog. |
 | M14 | completed | 2026-09-13 | [M14](status-M14.md) | Redis and spread cache reliability. |
 | M15 | completed | 2026-09-13 | [M15](status-M15.md) | DSP serving hardening. |
 | M16 | completed | 2026-09-13 | [M16](status-M16.md) | Middleman AdX advertiser-owned bidder schema. |

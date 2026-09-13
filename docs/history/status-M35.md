@@ -39,7 +39,7 @@ Acceptance:
 
 Result:
 
-- [ADR 0002](../docs/adr/0002-ssp-account-schema-boundary.md) decides not to add
+- [ADR 0002](../adr/0002-ssp-account-schema-boundary.md) decides not to add
   a separate `ssp` account role or separate SSP-owned inventory schema for the
   current direct SSP path.
 - `pub`, `pub_site`, and `pub_slot` remain the publisher account and inventory

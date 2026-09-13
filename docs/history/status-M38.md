@@ -35,7 +35,7 @@ Scope:
 
 Acceptance:
 
-- [docs/prebid-openrtb-adoption.md](../docs/prebid-openrtb-adoption.md)
+- [docs/prebid-openrtb-adoption.md](../prebid-openrtb-adoption.md)
   records the review and deferred implementation candidates.
 - Performance and dependency recommendations are measurement-gated.
 - `memory-bank/status-M38.md` tracks the documentation tasks and verification.

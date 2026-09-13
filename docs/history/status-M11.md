@@ -165,8 +165,8 @@ git diff --check
   `cmd/unify` uses that registry.
 - Summer option and cache side-effect paths no longer mutate shared option state
   or rely on unchecked storage assertions.
-- Added [docs/genelet-manual.md](../docs/genelet-manual.md) and
-  [docs/summer-ui-structure.md](../docs/summer-ui-structure.md).
+- Added [docs/genelet-manual.md](../genelet-manual.md) and
+  [docs/summer-ui-structure.md](../summer-ui-structure.md).
 
 ## Retired Task Status
 
