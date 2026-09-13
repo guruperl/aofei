@@ -176,6 +176,12 @@ Historical M-lane status index:
 | M45 | [status-M45.md](status-M45.md) | Open-source security and privacy hygiene. |
 | M46 | [status-M46.md](status-M46.md) | Review3 cross-lane correctness and hygiene remediation. |
 
+These M-lane files retain the original bullet task format and the deliberate
+`M00` through `M09` zero-padding normalization. They are intentionally not
+migrated to the table format or retired, so ledger tooling reports `M00` as an
+invalid permanent ID and no machine-readable task rows for `M00` through `M45`.
+Those are known parser limitations over frozen history, not ledger defects.
+
 Status markers:
 
 | Symbol | Meaning |

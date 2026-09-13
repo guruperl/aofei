@@ -23,14 +23,14 @@ source while preserving auditable compatibility and hosted-payment safety.
 
 | Item | State | Notes |
 |---|---:|---|
-| Exact-money contract | `[x]` | `usd-cpm-impression-v3` inventories authoritative and compatibility-only sources. CPM is integer micro-USD/1,000 at six-decimal ingress; one impression is the same integer count of nano-USD, aggregates use checked integer arithmetic, and the statement boundary rounds half away from zero once. Historical floats remain labeled evidence and are never promoted as recovered exact input. |
-| Schema and history migration | `[x]` | The baseline and offline `etc/a03_exact_money_migration.sql` use DECIMAL(12,6) CPM and DECIMAL(20,9) amount columns for demand, floors, budgets, balance history, interval/daily, and middleman sources. `money_migration_evidence` preserves database-rendered legacy values without claiming recovered precision; unsupported, invalid, or signed-64-overflow sources are quarantined and stop promotion. Inactive `adv.balance`, `his_payment`, and `pay_payment` floats remain explicitly outside authority. |
-| Runtime and cache representation | `[x]` | RAdv v3 writes exact CPM and nano-USD balances while retaining bounded v2/v1/headerless read conversion. Publisher/direct-publisher v3 caches scan and carry exact slot-floor CPM plus matching old-reader float projections; their public serializers and Redis/spread helpers validate the complete v3 shape before bytes or mutations, so unmarked gob remains read-only drain data. Direct SSP validates and maximizes request/configured floors in fixed point, and demand filtering compares exact CPM before OpenRTB projection. New `delivery:v3:*` state uses decimal-string comparison plus Redis `HINCRBY` for atomic signed-64-bit nano-USD reservations; old float keys are untouched for drain. Middleman route caches carry exact four-place percentage/six-place minimum terms, callbacks bind exact charge/pay/margin identity, and authoritative interval/daily aggregation uses checked nano-USD addition before DECIMAL writes. |
-| Management and report interfaces | `[x]` | Management item CPM and budget limits are canonical exact JSON strings (six and nine places); numeric money receives `money_string_required` and cannot mutate. SQL scans reject binary float, item/limit responses preserve exact strings, report spend remains account-scoped six-decimal output, and rows distinguish historical v2 from new v3 authority. |
-| Statement and database invariants | `[x]` | Database triggers freeze request/party/cadence/period/currency/source/supersession/creator identity, reject statement deletion, and allow draft/Held amount changes only when they equal the immutable adjustment sum. Adjustment/audit and A03 migration evidence remain update/delete immutable; service adjustment, Hold/approval/settlement, and correction replacement paths stay valid. Current baseline: 96 tables, 6 routines, 65 triggers. |
-| Account and sensitive-data scope | `[x]` | Statement listing requires an explicit authorized party scope; only the offline operator's explicit `-all-parties` export is global, while Summer passes its typed-principal party. Audit/reference guards reject nine-plus digit account/routing/card groups across common separators, IBAN-like forms, and provider secret prefixes without retaining or echoing the candidate value. |
-| Hosted webhook resolution | `[x]` | `account.updated` and `payout.failed` now take a binding-only planner path keyed by the signed event envelope's exact `account`; readiness additionally requires the account object ID to match. Mutable object metadata and operation-object mappings are never consulted, so connected payout failures cannot create cross-operation reconciliation. Immutable event replay, stale-readiness ordering, and retryable `binding_not_found` recovery remain intact. |
-| Reconciliation and rollout | `[x]` | The active singleton/report/Summer contract is v3 while historical facts retain v2. The offline migration now captures every affected legacy column and its scale-specific discrepancy. `aofei-exact-money-drill.sh` checksum-restores one synthetic frozen v2 backup into untouched rollback and migrated copies, matches all 23 source-column tuples, proves 26 immutable evidence rows/zero quarantine, and exercises reservation, ledger, statement, and provider idempotency. The runbook fixes legacy-only tolerances, freeze/backup/comparison, O03 cache-first canary, pre-write restore, post-write roll-forward correction, and financial retention. |
+| Exact-money contract | `[+]` | `usd-cpm-impression-v3` inventories authoritative and compatibility-only sources. CPM is integer micro-USD/1,000 at six-decimal ingress; one impression is the same integer count of nano-USD, aggregates use checked integer arithmetic, and the statement boundary rounds half away from zero once. Historical floats remain labeled evidence and are never promoted as recovered exact input. |
+| Schema and history migration | `[+]` | The baseline and offline `etc/a03_exact_money_migration.sql` use DECIMAL(12,6) CPM and DECIMAL(20,9) amount columns for demand, floors, budgets, balance history, interval/daily, and middleman sources. `money_migration_evidence` preserves database-rendered legacy values without claiming recovered precision; unsupported, invalid, or signed-64-overflow sources are quarantined and stop promotion. Inactive `adv.balance`, `his_payment`, and `pay_payment` floats remain explicitly outside authority. |
+| Runtime and cache representation | `[+]` | RAdv v3 writes exact CPM and nano-USD balances while retaining bounded v2/v1/headerless read conversion. Publisher/direct-publisher v3 caches scan and carry exact slot-floor CPM plus matching old-reader float projections; their public serializers and Redis/spread helpers validate the complete v3 shape before bytes or mutations, so unmarked gob remains read-only drain data. Direct SSP validates and maximizes request/configured floors in fixed point, and demand filtering compares exact CPM before OpenRTB projection. New `delivery:v3:*` state uses decimal-string comparison plus Redis `HINCRBY` for atomic signed-64-bit nano-USD reservations; old float keys are untouched for drain. Middleman route caches carry exact four-place percentage/six-place minimum terms, callbacks bind exact charge/pay/margin identity, and authoritative interval/daily aggregation uses checked nano-USD addition before DECIMAL writes. |
+| Management and report interfaces | `[+]` | Management item CPM and budget limits are canonical exact JSON strings (six and nine places); numeric money receives `money_string_required` and cannot mutate. SQL scans reject binary float, item/limit responses preserve exact strings, report spend remains account-scoped six-decimal output, and rows distinguish historical v2 from new v3 authority. |
+| Statement and database invariants | `[+]` | Database triggers freeze request/party/cadence/period/currency/source/supersession/creator identity, reject statement deletion, and allow draft/Held amount changes only when they equal the immutable adjustment sum. Adjustment/audit and A03 migration evidence remain update/delete immutable; service adjustment, Hold/approval/settlement, and correction replacement paths stay valid. Current baseline: 96 tables, 6 routines, 65 triggers. |
+| Account and sensitive-data scope | `[+]` | Statement listing requires an explicit authorized party scope; only the offline operator's explicit `-all-parties` export is global, while Summer passes its typed-principal party. Audit/reference guards reject nine-plus digit account/routing/card groups across common separators, IBAN-like forms, and provider secret prefixes without retaining or echoing the candidate value. |
+| Hosted webhook resolution | `[+]` | `account.updated` and `payout.failed` now take a binding-only planner path keyed by the signed event envelope's exact `account`; readiness additionally requires the account object ID to match. Mutable object metadata and operation-object mappings are never consulted, so connected payout failures cannot create cross-operation reconciliation. Immutable event replay, stale-readiness ordering, and retryable `binding_not_found` recovery remain intact. |
+| Reconciliation and rollout | `[+]` | The active singleton/report/Summer contract is v3 while historical facts retain v2. The offline migration now captures every affected legacy column and its scale-specific discrepancy. `aofei-exact-money-drill.sh` checksum-restores one synthetic frozen v2 backup into untouched rollback and migrated copies, matches all 23 source-column tuples, proves 26 immutable evidence rows/zero quarantine, and exercises reservation, ledger, statement, and provider idempotency. The runbook fixes legacy-only tolerances, freeze/backup/comparison, O03 cache-first canary, pre-write restore, post-write roll-forward correction, and financial retention. |
 
 ## Acceptance Criteria
 
@@ -78,7 +78,7 @@ Closeout evidence on 2026-08-25:
 
 ## Deep Review Gate
 
-- Iteration 1: `[x]` Eight blocking findings were confirmed and resolved:
+- Iteration 1: `[+]` Eight blocking findings were confirmed and resolved:
   1. **P1 - local billing price identity:** signed impression/click tracker URLs
      serialize the `float32` compatibility projection instead of the exact CPM,
      and callback parsing reconstructs authority from that float text. Larger
@@ -114,7 +114,7 @@ Closeout evidence on 2026-08-25:
   version identity; middleman pricing is fixed-point end to end; and publisher
   floors remain exact from database/cache through direct SSP and demand
   comparison.
-- Iteration 2: `[x]` Four blocking findings and one lower-severity evidence
+- Iteration 2: `[+]` Four blocking findings and one lower-severity evidence
   defect were confirmed after the full
   iteration-1 fix set passed automated verification:
   1. **P1 - announced versus billable local price:** exact candidate ordering
@@ -141,7 +141,7 @@ Closeout evidence on 2026-08-25:
   and v3 middleman identity fails closed; report CPM sums use checked fixed-
   point totals; middleman reconciliation compares nine-place aggregates before
   statement projection; and absent floors receive truthful evidence labels.
-- Iteration 3: `[x]` One blocking finding was confirmed after the complete
+- Iteration 3: `[+]` One blocking finding was confirmed after the complete
   iteration-2 verification matrix passed:
   1. **P2 - constructor/drain version provenance:** exported `NewWinLoss`
      labels a float-only compatibility RAdv as v3, allowing a new signed
@@ -151,7 +151,7 @@ Closeout evidence on 2026-08-25:
   Resolution: `NewWinLoss` derives v3 only from a present authoritative exact
   field and keeps float-only compatibility callers on v2; ledger normalization
   rejects explicit v2 facts that mix in an exact demand CPM.
-- Iteration 4: `[x]` One blocking finding was confirmed during the whole-
+- Iteration 4: `[+]` One blocking finding was confirmed during the whole-
   milestone review after the iteration-3 fix:
   1. **P2 - v2 cache provenance loss:** the version-2 RAdv decoder materializes
      its float-derived CPM into `CostCPM`, and `billableRAdv` always populates
@@ -159,7 +159,7 @@ Closeout evidence on 2026-08-25:
      despite originating from the compatibility float contract.
   Resolution: v2 decode validates but does not populate the v3 exact field;
   billable RAdv construction retains that absence and emitted facts remain v2.
-- Iteration 5: `[x]` One blocking finding was confirmed during the next full
+- Iteration 5: `[+]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - compatibility cache promotion on write:** current RAdv packing calls
      the read-compatibility adapter, so a decoded v1/v2 float record can still
@@ -167,7 +167,7 @@ Closeout evidence on 2026-08-25:
      authority through public cache write helpers.
   Resolution: v3 RAdv packing now requires a present, valid exact CPM and
   refuses every float-only compatibility record; v2 decoding remains read-only.
-- Iteration 6: `[x]` One blocking finding was confirmed during the next full
+- Iteration 6: `[+]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - current middleman cache downgrade:** a version-2 route cache can be
      written and decoded with entries that omit the v3 accounting marker, and
@@ -177,7 +177,7 @@ Closeout evidence on 2026-08-25:
   Resolution: current route-cache write, decode, and activation validation
   require v3 on every entry; legacy entries accept only empty or v3 provenance,
   and all other markers fail closed.
-- Iteration 7: `[x]` One blocking finding was confirmed during the next full
+- Iteration 7: `[+]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - publisher floor provenance:** publisher/direct-publisher floor
      readers consult an exact field before resolving the cache accounting
@@ -188,7 +188,7 @@ Closeout evidence on 2026-08-25:
   accounting marker before selecting the corresponding floor field; current
   commercial caches require v3 provenance, and SSP units retain the resolved
   contract instead of relabeling legacy data.
-- Iteration 8: `[x]` One blocking finding was confirmed during the next full
+- Iteration 8: `[+]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - callback accounting downgrade:** middleman callback reconciliation
      sends every non-v3 accounting marker, including an unknown nonempty
@@ -198,7 +198,7 @@ Closeout evidence on 2026-08-25:
   Resolution: callback reconciliation now admits only v3, explicit v2, or an
   unmarked pre-A03 context; every unknown marker is rejected before prices are
   derived or published.
-- Iteration 9: `[x]` One blocking finding was confirmed during the next full
+- Iteration 9: `[+]` One blocking finding was confirmed during the next full
   review:
   1. **P2 - unmarked tracker promotion:** billable callbacks from pre-A03
      signed URLs have no accounting marker but their float-rendered price often
@@ -208,7 +208,7 @@ Closeout evidence on 2026-08-25:
   Resolution: tracking ingress populates the exact CPM only for an explicit v3
   callback; unmarked and v2 callbacks retain a validated float projection, and
   ledger normalization rejects an unmarked record that mixes in exact fields.
-- Iteration 10: `[x]` One blocking finding reached the original bounded review
+- Iteration 10: `[+]` One blocking finding reached the original bounded review
   limit on 2026-08-25. The user explicitly authorized this continuation and an
   extension through iterations 11-15; A03 returned to in-progress and
   downstream reconciliation remains paused until a clean extended pass.
@@ -230,7 +230,7 @@ Closeout evidence on 2026-08-25:
   for full-milestone review/fix cycles. Stop at the first clean pass; if
   iteration 15 still has a P1/P2-or-higher finding, return A03 to blocked and do
   not reconcile downstream work.
-- Iteration 11: `[x]` Three blocking findings and one lower-severity contract
+- Iteration 11: `[+]` Three blocking findings and one lower-severity contract
   defect were confirmed during the full extended review:
   1. **P2 - exact constructor downgrade:** exported `NewDSPForImp` always
      reparses its `float32` bid-price argument. When the supplied RAdv already
@@ -263,7 +263,7 @@ Closeout evidence on 2026-08-25:
   string itself to equal the canonical six- or nine-place representation rather
   than normalizing a looser value. Each blocking fix was committed separately;
   iteration 12 was the next whole-milestone review and is recorded below.
-- Iteration 12: `[x]` Clean extended pass on 2026-08-25. The complete A03
+- Iteration 12: `[+]` Clean extended pass on 2026-08-25. The complete A03
   milestone was reviewed again after every iteration-11 fix, covering exact
   arithmetic and source scanning, offline schema/evidence migration, demand and
   publisher cache compatibility, delivery reservation, local and middleman

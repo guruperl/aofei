@@ -11,7 +11,7 @@ contracts.
 
 ## Review Disposition
 
-| Finding | State | Resolution |
+| Finding | Disposition | Resolution |
 |---|---:|---|
 | 1. Over-scale OpenRTB floor | Rejected | Public floors support at most six decimals and excess scale deliberately fails closed. |
 | 2. Missing exact CPM stops ledger interval | Rejected | Zero/missing authoritative CPM is malformed accounting input; skipping it would silently underbill. |
@@ -33,15 +33,15 @@ contracts.
 
 | Item | State | Notes |
 |---|---:|---|
-| Review intake and dependency reconciliation | `[x]` | Validated all 15 findings against current code, tests, and operator contracts. Completed source milestones remain closed; M46 precedes conditional I02. |
-| Explicit CPM demand eligibility | `[x]` | `exactCPM` now requires explicit CPM for exact and legacy adapters; headerless/v1/v2 unset records remain readable but cannot bid or bill, and database compilation reports the item and unsupported type before delivery hydration or cache publication. |
-| Middleman margin schema contract | `[x]` | The baseline constrains group and nullable route overrides to exact `0..1` fractions; activation checks active rows, the populated-system migration validates source shape and every row before ALTER without inference, and a disposable MySQL 8.0.41 drill proves failure, installation, enforcement, and rerun behavior. |
-| Existing-directory ownership | `[x]` | `EnsureDir` chmods only a directory successfully created by that call; existing and raced paths are validated without mutation, broader permission bits fail, restrictive modes plus setgid/sticky bits are preserved, and concurrent creation tests cover the ownership boundary. Review iteration 1 also corrected the local-config and cache-smoke helpers to create owned runtime directories under a scoped `0027` umask instead of relying on runtime chmod. |
-| Concurrent experiment exposure | `[x]` | The immutable post-insert exposure check now uses `FOR SHARE` instead of upgrading a duplicate `INSERT IGNORE` record to `FOR UPDATE`; disposable-MySQL coverage runs simultaneous first writes and eight-way idempotent retries and requires one stored row with no caller error. |
-| Audience and callback hot paths | `[x]` | Canonical/legacy audience membership now runs through one bounded cross-key Lua action with one-call canonical-hit, legacy-hit, and miss tests. Controllers reuse their construction-time protected client; retry batches normalize once before the loop, while the full URL/redirect/rebinding suite remains green. |
-| Creative-boundary and validation clarity | `[x]` | Markup validation now names its literal script checks as defense in depth and tests that obfuscated scripts remain supported; docs assign executable containment to the opaque-origin no-top-navigation renderer or an external consumer. Direct-publisher validation now checks its required v3 marker once after the embedded publisher independently passes v3 validation. |
-| Static-analysis hygiene | `[x]` | All 17 pinned-v0.5.1 U1000 findings were removed across ACL, demo, DSP, ledger, management API, matching, MaxMind, and traffic quality. `staticcheck.conf` now runs `U1000` beside `SA*`, and the whole-module pinned check is clean. |
-| Verification and deep review | `[x]` | The complete Aofei, Docker/schema/cache/migration/reporting, pzdesign/Summer, and Genelet gates pass. Review iteration 1 found and resolved one P2 local-directory integration defect; iteration 2 was clean. |
+| Review intake and dependency reconciliation | `[+]` | Validated all 15 findings against current code, tests, and operator contracts. Completed source milestones remain closed; M46 precedes conditional I02. |
+| Explicit CPM demand eligibility | `[+]` | `exactCPM` now requires explicit CPM for exact and legacy adapters; headerless/v1/v2 unset records remain readable but cannot bid or bill, and database compilation reports the item and unsupported type before delivery hydration or cache publication. |
+| Middleman margin schema contract | `[+]` | The baseline constrains group and nullable route overrides to exact `0..1` fractions; activation checks active rows, the populated-system migration validates source shape and every row before ALTER without inference, and a disposable MySQL 8.0.41 drill proves failure, installation, enforcement, and rerun behavior. |
+| Existing-directory ownership | `[+]` | `EnsureDir` chmods only a directory successfully created by that call; existing and raced paths are validated without mutation, broader permission bits fail, restrictive modes plus setgid/sticky bits are preserved, and concurrent creation tests cover the ownership boundary. Review iteration 1 also corrected the local-config and cache-smoke helpers to create owned runtime directories under a scoped `0027` umask instead of relying on runtime chmod. |
+| Concurrent experiment exposure | `[+]` | The immutable post-insert exposure check now uses `FOR SHARE` instead of upgrading a duplicate `INSERT IGNORE` record to `FOR UPDATE`; disposable-MySQL coverage runs simultaneous first writes and eight-way idempotent retries and requires one stored row with no caller error. |
+| Audience and callback hot paths | `[+]` | Canonical/legacy audience membership now runs through one bounded cross-key Lua action with one-call canonical-hit, legacy-hit, and miss tests. Controllers reuse their construction-time protected client; retry batches normalize once before the loop, while the full URL/redirect/rebinding suite remains green. |
+| Creative-boundary and validation clarity | `[+]` | Markup validation now names its literal script checks as defense in depth and tests that obfuscated scripts remain supported; docs assign executable containment to the opaque-origin no-top-navigation renderer or an external consumer. Direct-publisher validation now checks its required v3 marker once after the embedded publisher independently passes v3 validation. |
+| Static-analysis hygiene | `[+]` | All 17 pinned-v0.5.1 U1000 findings were removed across ACL, demo, DSP, ledger, management API, matching, MaxMind, and traffic quality. `staticcheck.conf` now runs `U1000` beside `SA*`, and the whole-module pinned check is clean. |
+| Verification and deep review | `[+]` | The complete Aofei, Docker/schema/cache/migration/reporting, pzdesign/Summer, and Genelet gates pass. Review iteration 1 found and resolved one P2 local-directory integration defect; iteration 2 was clean. |
 
 ## Acceptance Criteria
 
@@ -68,13 +68,13 @@ contracts.
 
 ## Deep Review Gate
 
-- Iteration 1: `[x]` One P2 integration finding was confirmed and resolved.
+- Iteration 1: `[+]` One P2 integration finding was confirmed and resolved.
   `aofei-cache-smoke.sh` and `aofei-local.sh` created owned runtime directories
   through the process `0002` umask and relied on the former `EnsureDir` chmod,
   so the required cache smoke rejected a newly recreated `0775` spread root.
   Both helpers now use a scoped `0027` umask for directory creation without
   changing an existing operator-owned path; the complete cache smoke passes.
-- Iteration 2: `[x]` Clean review of the complete M46 fix set after all
+- Iteration 2: `[+]` Clean review of the complete M46 fix set after all
   automated and cross-repository verification; no P1/P2-or-higher finding
   remains.
 
