@@ -15,24 +15,24 @@ project state in the memory bank.
 
 Before substantial changes, read these in order:
 
-1. [memory-bank/product.md](memory-bank/product.md)
-2. [memory-bank/architecture.md](memory-bank/architecture.md)
-3. [memory-bank/tech-stack.md](memory-bank/tech-stack.md)
-4. Consult relevant topics in [memory-bank/lessons.md](memory-bank/lessons.md)
+1. [tabilet/memory-bank/product.md](tabilet/memory-bank/product.md)
+2. [tabilet/memory-bank/architecture.md](tabilet/memory-bank/architecture.md)
+3. [tabilet/memory-bank/tech-stack.md](tabilet/memory-bank/tech-stack.md)
+4. Consult relevant topics in [tabilet/memory-bank/lessons.md](tabilet/memory-bank/lessons.md)
    for reusable lessons and their evidence.
-5. [memory-bank/milestone.md](memory-bank/milestone.md)
-6. The relevant `memory-bank/status-<lane><number>.md` file for the current
+5. [tabilet/memory-bank/milestone.md](tabilet/memory-bank/milestone.md)
+6. The relevant `tabilet/memory-bank/status-<lane><number>.md` file for the current
    milestone.
 
 Use [docs/README.md](docs/README.md) to find the current user/operator contract
 for every A/D/I/O/P/R/S lane and to distinguish implementation from production
 activation.
 
-For a multi-milestone request, also read and follow [GOAL.md](GOAL.md) before
+For a multi-milestone request, also read and follow [tabilet/GOAL.md](tabilet/GOAL.md) before
 starting the first milestone. The plugin launcher is
-`$memory-bank:memory-bank-goal`; `memory-bank/suggested.txt`, when present, is
+`$memory-bank:memory-bank-goal`; `tabilet/memory-bank/suggested.txt`, when present, is
 disposable input that must be reconciled rather than treated as status truth.
-During that run, the request's `COMMIT_POLICY`, then `GOAL.md`, overrides the
+During that run, the request's `COMMIT_POLICY`, then `tabilet/GOAL.md`, overrides the
 ordinary per-row commit cadence below; the protocol defaults to no commits.
 
 Do not recreate duplicate root-level product, architecture, roadmap, or status
@@ -95,7 +95,7 @@ git diff --check
 ```
 
 Tool versions, installation notes, CI gaps, and runtime assumptions are
-maintained in [memory-bank/tech-stack.md](memory-bank/tech-stack.md).
+maintained in [tabilet/memory-bank/tech-stack.md](tabilet/memory-bank/tech-stack.md).
 
 ## Hard Rules
 
@@ -123,20 +123,20 @@ maintained in [memory-bank/tech-stack.md](memory-bank/tech-stack.md).
   scope/acceptance -> `milestone.md`; completion state -> the matching lane
   status file. Do not recreate an aggregate `status.md` file.
 - Treat each row in the matching
-  `memory-bank/status-<lane><number>.md` file as a commit unit once
+  `tabilet/memory-bank/status-<lane><number>.md` file as a commit unit once
   implementation begins.
-- Treat each section in [memory-bank/milestone.md](memory-bank/milestone.md) as
+- Treat each section in [tabilet/memory-bank/milestone.md](tabilet/memory-bank/milestone.md) as
   a review unit.
 - After the last task in a milestone is complete, run a deep code review of the
   milestone before closing it. P1, P2, and higher-severity findings must be
   resolved in that milestone; only lower-severity findings may be carried with
   a named pending owner and explicit rationale. Multi-milestone runs use
-  `GOAL.md`'s bounded review-fix gate and persist its iteration count.
+  `tabilet/GOAL.md`'s bounded review-fix gate and persist its iteration count.
 - Close a milestone by running required verification, updating docs and memory,
   reconciling affected pending status files and the remaining order, checking
-  whether `evolution/` needs a new version, marking the matching status file
+  whether `tabilet/evolution/` needs a new version, marking the matching status file
   complete, and committing only when the execution request includes milestone
   commit handling.
-- Check [evolution/](evolution/) after a major review, milestone, or boundary
+- Check [tabilet/evolution/](tabilet/evolution/) after a major review, milestone, or boundary
   change. Add a new version only when product direction, architecture boundary,
   milestone target, or public/private contract direction materially changes.

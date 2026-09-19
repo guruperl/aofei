@@ -17,8 +17,8 @@
 | `internal/deployment`, `cmd/aofei-deploy` | Strict generic immutable-release validation, preflight, bootstrap, activation, rollback, and history engine. |
 | `backup/` | Policy only; operational snapshots and third-party data stay outside Git. |
 | `docs/` | Stable long-form references. |
-| `memory-bank/` | Current product, architecture, tech stack, milestone, and status memory. |
-| `evolution/` | Versioned history of direction changes. |
+| `tabilet/memory-bank/` | Current product, architecture, tech stack, milestone, and status memory. |
+| `tabilet/evolution/` | Versioned history of direction changes. |
 
 The sibling `../pzdesign` checkout is the Go module
 `github.com/guruperl/pzdesign`. It owns `cmd/unify`, `summer/`, `tmpls/`,

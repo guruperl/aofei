@@ -1,8 +1,8 @@
 # Milestones
 
 This file stays at milestone level. Detailed task rows live in the matching
-`memory-bank/status-<lane><number>.md` files. Do not recreate an aggregate
-`memory-bank/status.md` file.
+`tabilet/memory-bank/status-<lane><number>.md` files. Do not recreate an aggregate
+`tabilet/memory-bank/status.md` file.
 
 ## Status ID Pattern
 
@@ -129,7 +129,7 @@ acceptance criteria recorded in the corresponding status files.
 Retired milestones and their frozen specifications, final status documents,
 and review evidence live in the [history index](../docs/history/index.md).
 Do not recreate a retired status file or specification here or in
-`memory-bank/`; retired IDs stay reserved across active and retired storage.
+`tabilet/memory-bank/`; retired IDs stay reserved across active and retired storage.
 
 Status markers:
 
@@ -184,7 +184,7 @@ issue. Run no more than 10 iterations, without resetting for a new session or
 reviewer. If iteration 10 still has a blocking finding, leave the milestone
 incomplete, mark it through the status file's blocked mechanism, report the
 limit, and do not begin downstream reconciliation without explicit user
-direction. [GOAL.md](../GOAL.md) owns the full multi-milestone execution
+direction. [tabilet/GOAL.md](../GOAL.md) owns the full multi-milestone execution
 protocol.
 
 ## Closeout Checklist
@@ -200,8 +200,8 @@ Use this order when closing a milestone:
    finding; carry a lower-severity finding only with a named pending owner and
    explicit rationale in the matching lane status file.
 4. Reconcile every affected pending status file and recompute the remaining
-   dependency order according to [GOAL.md](../GOAL.md).
-5. Check whether `evolution/` needs a new prompt/result version.
+   dependency order according to [tabilet/GOAL.md](../GOAL.md).
+5. Check whether `tabilet/evolution/` needs a new prompt/result version.
 6. Mark the matching lane status tasks, review findings, and milestone state
    complete only after verification and a clean review-fix iteration pass.
 7. Commit the milestone only when the execution request includes commit

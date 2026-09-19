@@ -292,7 +292,7 @@ The established runtime direction remains:
   delegated report resources and cannot export JSON or mutate product state
   without separately named permissions. Internal JSON chartags are not the
   external `/api/v1` contract.
-- Detailed project memory should live in `memory-bank/`.
+- Detailed project memory should live in `tabilet/memory-bank/`.
 
 ## Non-Goals
 
