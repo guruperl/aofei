@@ -40,3 +40,14 @@ cannot prove old mail has drained; establish expiry/reissuance and recovery
 continuity before irreversible retirement. See
 [the action-proof contract](../../docs/account-identifier-protection.md#account-action-proofs)
 and [S07's open link gate](status-S07.md#protected-production-canary-and-remaining-stop-gates).
+
+
+## Match fixture inputs to the clock represented by compatibility fields
+
+When asserting packed legacy calendar fields, construct the input in the
+clock those fields encode. A fixed UTC midnight can be the previous calendar
+day in the workstation timezone even when the authoritative new format uses
+UTC. Check the exact fixture in UTC and both positive and negative offsets
+before repeating a frozen release build. See
+[S08.4b's focused correction](status-S08.md#s084b-frozen-build-fixture-correction)
+and [the cap fixture](../../match/fcap_test.go).

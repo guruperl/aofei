@@ -896,3 +896,11 @@ and a read-only production evaluation of the same metadata SQL. No schema DDL
 or browser suite is involved. The release builder retains the six-routine
 clean contract and emits an optional retirement-support capability. Publication,
 clean release build and live configuration/key recovery remain pending.
+
+
+S08.4b corrects the TestFcap fixture to use the local wall-clock date expected
+by its legacy compatibility-field assertions. Production cap code is unchanged.
+Run its focused timezone check with `TZ=UTC`, `TZ=America/Los_Angeles` and
+`TZ=Asia/Shanghai`; all three fresh checks and the affected match package pass.
+The stopped clean release build remains failed and requires fresh source/build
+paths after publication of this fixture correction.

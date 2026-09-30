@@ -20,7 +20,7 @@ general S02 role-policy example.
 - w8m-infrastructure owns only its documented immutable release and service
   deployment workflow. It does not own schema migration, feature activation or
   Cloudflare/DNS changes.
-- Task order: S08.1 -> S08.2 -> S08.3 -> S08.4a -> S08.4 -> S08.5 -> S08.6.
+- Task order: S08.1 -> S08.2 -> S08.3 -> S08.4a -> S08.4b -> S08.4 -> S08.5 -> S08.6.
 - This status grants no database, secret, configuration, deployment, browser or
   account-mutation authority. Each production action requires its own exact
   authorization and current readiness.
@@ -33,6 +33,7 @@ general S02 role-policy example.
 | S08.2 Prepare and rehearse the online Identity migration | `[+]` | Reconcile the existing six S02 tables and two immutable-audit triggers against their authoritative definitions, including the S07-retired analyst schema. Derive only necessary non-destructive corrections and restricted application/maintenance grant changes; do not recreate matching objects or replay `etc/step4_init.sql` against the populated deployment. Back up and restore-test first, rehearse on a disposable baseline copy, and verify object inventory, grants, trigger immutability and existing application compatibility. Accepted: restored-copy schema/grant stages, fresh corrected protected analyst CLI, authoritative six-table/trigger comparison and preparation review pass; failed whole attempts remain failed. Matching Identity objects need no recreation. No production database action is implied. |
 | S08.3 Apply schema and verify readiness | `[+]` | Window 02 passed after fresh continuously frozen backup, independent complete restore/runtime-ring recovery and credential escrow recovery. Separate unused runtime/maintenance principals have exact reviewed rights; both audits deny forbidden updates/deletes. All 96 tables’ counts/checksums and schema inventory remain identical. Matching Identity objects need no DDL. Original HTTP credentials/configuration stay unchanged; Identity remains disabled, account protection retired. Writer resume/readiness 204 and task review 1/10 pass. Failed window 01 remains failed before restore/grants. |
 | S08.4a Reconcile deployment admission with the retired account schema | `[+]` | Offline prerequisite accepted: newly built v2 bundles declare retirement support; target preflight requires protected/retired configuration and exact read-only retired account/routine metadata. Clean six-routine baseline and older immutable manifests remain unchanged. Ten public preflight cases, manifest compatibility and seven shell verifier cases pass; the exact metadata query passes read-only on yixin. Affected deployment tests, vet, syntax, docs and diff checks pass. Preparation review 1/10 has no open P1/P2. Local source commit is authorized under task policy; clean publication/build and live application remain S08.4 requirements. |
+| S08.4b Correct the frozen-build frequency-cap fixture timezone | `[+]` | Release build 02 stopped at TestFcap: its UTC input disagreed with assertions for local legacy fields on the Los Angeles workstation. The fixture now constructs local midnight; production code and assertions are unchanged. The exact test passes freshly under UTC, Los Angeles and Shanghai, and the affected match package passes in 0.101 seconds. Preparation review 1/10 has no open P1/P2. This accepts the fixture source correction, not the failed release build; a fresh clean published source/build remains required by S08.4. |
 | S08.4 Deploy identity-disabled release and provision common key | `[~]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
 | S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
@@ -619,3 +620,52 @@ baseline checks. No release build, service switch, Identity key provisioning,
 Identity activation, canary creation or W27 acceptance is inferred here.
 Unrelated Aofei README/layout ancestry and infrastructure migration remain
 preserved and excluded from source publication.
+
+
+S08.4a is committed locally as `9967e6b`. Its exact generic source bytes are
+published as `0753fd54c505` on the separate
+`s08-retired-deployment-20260930` branch based on published main. The branch
+excludes the unrelated local layout ancestor and earlier production-ledger
+commits; it preserves old-layout current facts with scoped appended source
+contracts. Remote identity, identical accepted source bytes and excluded
+ancestry are verified privately. The owner checkout remains the single
+S08 execution ledger; no main push or history rewrite occurred.
+A clean independent source set and capable release build are next S08.4
+prerequisites. Production release/configuration and Identity state are unchanged.
+
+
+## S08.4 capable release preparation
+
+Source-copy preparation 01 stopped before tests: the launcher incorrectly
+selected Pzdesign main, while its exact published checkout tracks origin/master.
+No release, target operation or key dialog started. The failed preparation and
+launcher bytes remain preserved privately. Corrected preparation 02 selects
+the verified master branch, creates fresh independent copies of all three
+published source commits, verifies no alternates/dirty source, and starts the
+normal release builder. It runs the builder's required Go suites and immutable
+artifact verification, not W27 browser qualification. Its live handle is
+recorded privately; observe the same process, never restart on a polling timeout.
+S08.4 acceptance remains pending until the build, recoverable key/config switch
+and fresh baseline checks pass. No production mutation is inferred from build
+start. The standalone source-copy defect does not change accepted S08.4a bytes
+or the whole-S08 review counter.
+
+
+## S08.4b frozen-build fixture correction
+
+Clean release build 02 terminated with exit 1 after 48.502 seconds at the
+Aofei source-test stage. Only TestFcap failed: StartYM was 252 rather than 1,
+and StartDHM was 64512 rather than 2048. The fixed input 2025-01-01 00:00 UTC
+is 2024-12-31 16:00 in Los Angeles. The production legacy compatibility
+prefix intentionally encodes local wall time; the fixture incorrectly
+expected UTC calendar bits. The authoritative v2 UTC minute representation
+and production implementation are unchanged.
+
+The fixture now constructs midnight in time.Local, preserving all existing
+assertions. Fresh exact-test checks pass under UTC, America/Los_Angeles and
+Asia/Shanghai; the affected match package passes freshly in 0.101 seconds.
+Preparation review 1/10 has no open P1/P2. The failed build's cloned sources,
+output, launcher and terminal receipt remain preserved and unchanged; no
+release output or production/key operation occurred. Whole-S08 review remains
+unstarted. S08.4b is a completed source prerequisite; S08.4 still requires new
+clean publication, a fresh passing release build and live readiness acceptance.
