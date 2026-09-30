@@ -1,6 +1,6 @@
 # Status S08 — W8M Production Identity And TOTP Activation
 
-State: `[~]` In progress; S08.1 contract accepted, S08.2 rehearsal next.
+State: `[~]` In progress; S08.2 preparation accepted, S08.3 production packet next.
 
 ## Goal
 
@@ -30,9 +30,9 @@ general S02 role-policy example.
 | Item | State | Notes |
 |---|---:|---|
 | S08.1 Reconcile the exact production rollout contract | `[+]` | Confirm all W8M nodes, active schema, application/maintenance database grants, role permission matrix, analyst `RequireGrant`, SMTP recovery, HTTPS, clock, monitoring and rollback owner. Read-only inspection finds all six Identity tables and both audit triggers already present with zero Identity rows, but the HTTP principal has database-wide ALL PRIVILEGES and the runtime has no permissions or analyst grant requirement. Review restricted application/maintenance principals before activation; owner confirms yixin is the only node and no usable non-advertiser canary account is available. Owner selects a dedicated analyst canary via the audited maintenance CLI. Task contract review 1/10 passes; no production mutation or canary acceptance is implied. Preserve the current identity-disabled login behavior until the canary gate. |
-| S08.2 Prepare and rehearse the online Identity migration | `[ ]` | Reconcile the existing six S02 tables and two immutable-audit triggers against their authoritative definitions, including the S07-retired analyst schema. Derive only necessary non-destructive corrections and restricted application/maintenance grant changes; do not recreate matching objects or replay `etc/step4_init.sql` against the populated deployment. Back up and restore-test first, rehearse on a disposable baseline copy, and verify object inventory, grants, trigger immutability and existing application compatibility. No production database action is implied. |
+| S08.2 Prepare and rehearse the online Identity migration | `[+]` | Reconcile the existing six S02 tables and two immutable-audit triggers against their authoritative definitions, including the S07-retired analyst schema. Derive only necessary non-destructive corrections and restricted application/maintenance grant changes; do not recreate matching objects or replay `etc/step4_init.sql` against the populated deployment. Back up and restore-test first, rehearse on a disposable baseline copy, and verify object inventory, grants, trigger immutability and existing application compatibility. Accepted: restored-copy schema/grant stages, fresh corrected protected analyst CLI, authoritative six-table/trigger comparison and preparation review pass; failed whole attempts remain failed. Matching Identity objects need no recreation. No production database action is implied. |
 | S08.3 Apply schema and verify readiness | `[ ]` | After backup/restore rehearsal and separate authorization, apply the exact reviewed online migration before enabling Identity. Verify schema, grants, immutable triggers and preserved application data. Stop on drift, missing prerequisites or uncertain outcome; do not auto-retry a mutation. |
-| S08.4 Deploy identity-disabled release and provision common key | `[ ]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
+| S08.4 Deploy identity-disabled release and provision common key | `[ ]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
 | S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
 
@@ -201,3 +201,151 @@ Documentation and diff checks pass. No application bytes, target account or
 production feature changed; no test suite is needed for this contract record.
 The S08 whole-milestone review counter has not started. S08.1 is accepted;
 S08.2 is the next sole execution task.
+
+
+## S08.2 isolated rehearsal preparation
+
+Prepared a private fresh rehearsal kit outside Git for the exact MySQL
+8.0.41 image. The baseline is S07's verified encrypted final frozen snapshot,
+restored into a network-disabled tmpfs fixture; its complete original inventory
+must match before applying the exact S07 retirement inside that fixture.
+Current live metadata is inspected read-only, and the retired fixture must
+match its tables, columns, indexes, keys, triggers and routines (excluding only
+data-dependent AUTO_INCREMENT counters). Matching existing Identity objects
+are preserved. The older snapshot is a rehearsal baseline and does not replace
+a fresh independently restored frozen backup before S08.3 production changes.
+
+The freshly built existing identity-admin command uses the pinned Go 1.23.5
+SDK with fetching disabled. Pzdesign and Genelet worktrees are clean; the CLI
+and its relevant dependency source bytes match the selected deployed commits.
+Private preparation review 1/10 checks syntax, exact host/image and retired/
+Identity-disabled guards, exclusive fresh paths, isolated networking/storage,
+source inventory and live schema comparison, runtime audit denials even with
+the retention variable, separately gated maintenance deletion, protected
+analyst creation/audit, unrelated-data preservation and joined cleanup.
+No open P1/P2 within this prepared core rehearsal scope. Whole-milestone S08
+review has not started. The estimated fixture run is 2–5 minutes after one
+masked GPG backup-key unlock; it is not a browser qualification or full suite.
+The run is waiting at that backup unlock. No production account/password,
+Identity key, grant, schema, configuration or service has changed.
+
+
+### S08.2 stopped transfer and focused correction
+
+The owner completed the masked GPG backup unlock successfully. Rehearsal-01
+then stopped at static CLI binary transfer: the 9,862,651-byte binary exceeded
+the launcher's 30-second SCP timeout after 2,611,200 bytes. No fixture, SQL
+rehearsal, canary account or production mutation started. The partial binary
+is retained under a distinct failed-transfer filename and is not executable
+or eligible for use. Cleanup confirms no fixture or private tmpfs remains;
+the temporary protected keyring and GPG unlock session were closed.
+
+The correction begins with only the failed transfer: losslessly compress the
+unchanged binary, transfer into a fresh output path with a 180-second bound,
+and verify the compressed and recovered binary digests before any execution.
+No backup passphrase is requested for that focused transfer. After it passes,
+a fresh rehearsal ID must use the already verified uploaded bytes rather than
+repeat the upload after unlocking secrets. Earlier evidence remains intact;
+whole-milestone review has not started and S08.2 remains incomplete.
+
+
+### Focused transfer passed; fresh rehearsal-02
+
+The unchanged CLI binary compressed to 5,494,281 bytes and transferred in
+12.23 seconds. The server verifies both compressed SHA-256 and recovered
+9,862,651-byte binary SHA-256; the earlier partial transfer remains preserved.
+The eligible binary is copied into a fresh rehearsal-02 stage on the same
+host without another network upload. No backup unlock or fixture was needed
+to establish this focused correction.
+
+Private preparation review 2/10 resolves the too-short transfer bound and
+moves every static upload and exact binary-hash verification before the
+masked GPG unlock. It also applies the existing S03 contract: runtime grants
+on api_audit, as on auth_security_audit, are SELECT/INSERT only, with deletion
+reserved to separate gated maintenance. The fresh restored-copy rehearsal
+checks both denial families alongside the required protected analyst path.
+All scripts parse; no open P1/P2 in this prepared scope. Original inputs and
+earlier stopped evidence remain intact; S08 whole-milestone review has not
+started. The failed run closed its GPG session, so rehearsal-02 needs one
+fresh masked backup passphrase entry. No W8M account password is requested.
+Production Identity is disabled and no production account, grant, config,
+key or schema has changed.
+
+
+### Rehearsal-02 reached the analyst CLI, then stopped
+
+The new backup unlock passes. The complete restored inventory, retired/live
+schema comparison, both audit privilege-denial families, both maintenance
+retention gates and unrelated runtime transaction pass before the analyst CLI
+returns nonzero. The failure and cleanup are preserved; the fixture and private
+tmpfs were removed and the GPG session closed. No production mutation occurred.
+The helper captured only its generic wrapper assertion, not the underlying
+CLI stderr; this missing diagnostic is explicitly recorded rather than
+claimed as detailed evidence.
+
+Source inspection finds that the rehearsal's minimal maintenance configuration
+omitted Roles entirely, while NewAccountProtector requires at least one
+complete protected password issuer. The next probe will reproduce only that
+CLI/config handoff using synthetic keys/data and a minimal isolated database,
+retain its exact underlying error, then verify the corrected full role contract.
+It needs no GPG unlock or full backup restore. No application bug or production
+readiness is concluded from the incomplete rehearsal; S08.2 remains open.
+
+
+### Focused analyst CLI handoff-03 passed
+
+The fresh minimal network-disabled MySQL 8.0.41 fixture reproduces the exact
+underlying error: AccountProtection requires at least one protected password
+issuer. The missing-Roles configuration creates no analyst. Adding the full
+authoritative five-role issuer contract to the otherwise unchanged synthetic
+configuration succeeds: the actual existing identity-admin CLI creates exactly
+one protected active analyst and its AnalystCreated success audit event. Exact
+CLI stdout/stderr are retained privately before assertions; no actual account
+values, backup keys or password inputs are used. The fixture and private
+synthetic environment are removed and cleanup verified. No GPG prompt, full
+backup restore, browser or broader suite was needed for this failing-stage
+correction. No source application bug was found.
+
+The failed rehearsal-02 remains failed. Its reviewed remote script hash matches
+the frozen local source; the traceback at its CLI assertion establishes that
+the preceding restore/schema/grant and retention checks passed. These stages
+and the separate successful focused CLI/config correction are recorded with
+their individual scope and source identities, not rewritten as one passing
+original attempt. S08.2 acceptance still needs the corrected full-role contract
+integrated into the maintained candidate and a complete preparation review.
+Production Identity, credentials, grants, schema and accounts remain unchanged.
+No additional owner input is needed for this focused diagnostic.
+
+
+### Authoritative schema verification and S08.2 acceptance
+
+The schema-only source fixture matches all six Identity table definitions,
+columns, indexes and keys, including S07's retired analyst adjustment. Its
+initial trigger comparison differs because the creation context was not fully
+bound. That mismatch remains preserved. A fresh trigger-only fixture binds
+the original SQL mode, client charset/connection collation and database
+collation; both authoritative audit trigger definitions and all compared
+metadata then match production exactly. Only the unresolved trigger context
+was rerun; no backup unlock, full restore or browser suite was repeated.
+All fixtures are removed. Matching production objects require no migration
+DDL or recreation.
+
+The maintained private candidate now includes the corrected complete Roles
+issuer contract and retains exact CLI stderr before assertions. Complete
+preparation review 4/10 and S08.2 task review 1/10 find no open P1/P2 in this
+unit. Evidence is explicitly composed from the passed restored-copy schema/
+grant stages, fresh protected-analyst CLI correction and authoritative source
+comparison. Failed original attempts remain failed; no fresh passing whole
+rehearsal is invented. Source application bytes are unchanged. Documentation
+and diff checks pass. S08.2 preparation acceptance passes; its task commit
+will preserve the unrelated README edit. S08 whole-milestone review has not
+started and no production readiness, canary or enrollment is accepted.
+
+S08.3 next needs a fresh continuously frozen encrypted production backup and
+independent restore before reviewed restricted credential/grant provisioning.
+The earlier snapshot is only the rehearsal baseline. Existing tables/triggers
+are preserved, active runtime configuration stays Identity-disabled until
+S08.5, and S08.4 must fix/guard the legacy administrator-reset CLI before
+Identity activation. No existing administrator password reset is required by
+the selected analyst canary. No further owner input is needed for the focused
+CLI correction just completed.
