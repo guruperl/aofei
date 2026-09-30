@@ -459,11 +459,11 @@ management packages from acquiring outbound HTTP clients/transports/fetch
 functions. A future preview/crawler must establish a new special-use-address
 and rebinding-safe boundary rather than reclassifying today's unfetched
 metadata as SSRF. The inventory and rules are in
-[docs/template-rendering-security.md](../docs/template-rendering-security.md)
+[docs/template-rendering-security.md](../../docs/template-rendering-security.md)
 and `../pzdesign/docs/rendering-security.md`.
 
 The source/runtime boundary and populated-data rollout are specified in
-[docs/auction-pricing-creatives.md](../docs/auction-pricing-creatives.md).
+[docs/auction-pricing-creatives.md](../../docs/auction-pricing-creatives.md).
 
 ## Active Configuration Boundary
 
@@ -562,7 +562,7 @@ edge/provider mutation.
 ## Cache Boundary
 
 The multiple-cache split is documented in
-[docs/multiple-cache.md](../docs/multiple-cache.md). Static publisher, slot,
+[docs/multiple-cache.md](../../docs/multiple-cache.md). Static publisher, slot,
 audience, and creative data is local and snapshot-swapped in memory for
 local/spread bid serving. Redis remains the shared mutable-state backend for
 frequency caps, uploaded audience sets, and delivery reservations/counters. Frequency-cap
@@ -789,7 +789,7 @@ effective UID to an existing numeric admin through the restricted
 `Identity.MaintenanceActors` config and prefixes the launcher UID into every
 audit reason; no maintenance command accepts a caller-selected actor label.
 The complete boundary is in
-[docs/principal-provenance.md](../docs/principal-provenance.md).
+[docs/principal-provenance.md](../../docs/principal-provenance.md).
 
 ## Known Architecture Gaps
 
@@ -808,13 +808,13 @@ The complete boundary is in
   RAdvs, audience, and creative data while retaining legacy decode support.
   The middleman route Redis payload is versioned JSON.
 - Direct SSP richer supply taxonomy is implemented under
-  [ADR 0001](../docs/adr/0001-richer-supply-taxonomy.md). P02 extends the
+  [ADR 0001](../../docs/adr/0001-richer-supply-taxonomy.md). P02 extends the
   existing publisher schema/cache/UI additively, derives privacy-safe audits
   and R02 dimensions, and emits seller chains only from approved server state.
   The runtime entrypoint remains `/pz` plus audit `source:"ssp"` and
   `contract:"pz-v1"`.
 - Direct SSP account/schema ownership is documented in
-  [ADR 0002](../docs/adr/0002-ssp-account-schema-boundary.md). M35 decides not
+  [ADR 0002](../../docs/adr/0002-ssp-account-schema-boundary.md). M35 decides not
   to add a separate `ssp` account role or separate SSP-owned inventory schema
   for the current direct SSP path.
 - Summer/Genelet admin SQL now has a central identifier/query-building seam for
@@ -837,7 +837,7 @@ The complete boundary is in
   stores a second pseudonymous digest of role/provider/login/IP with expiry.
   The Aofei schema owns nullable additive digest/cipher columns until the
   separately reviewed retirement migration. The complete staged contract is
-  [docs/account-identifier-protection.md](../docs/account-identifier-protection.md).
+  [docs/account-identifier-protection.md](../../docs/account-identifier-protection.md).
   Advertiser/publisher action links use random raw tokens only in mail and
   store role/purpose-bound digests with expiry; consumption is atomic with the
   state/password change. Genelet redacts both opaque and rollback-era account

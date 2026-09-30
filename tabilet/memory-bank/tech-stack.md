@@ -111,14 +111,14 @@ public site key is rendered with one of `register_adv`, `recover_adv`,
 and action. The application defaults to 10/10-minute and 50/day IP limits,
 5/hour and 20/day normalized-email limits, and 200/hour and 1000/day global
 limits, all overrideable by the reviewed integer environment settings in
-[the S06 operator contract](../docs/public-account-abuse-protection.md).
+[the S06 operator contract](../../docs/public-account-abuse-protection.md).
 Turnstile and Cloudflare management credentials remain owner-only deployment
 state; Cloudflare API mutation requires explicit activation authority and
 post-write widget/ruleset readback. The ApiTools cached Cloudflare OpenAPI
 description includes the account Turnstile widget and zone rulesets operations.
 W8M production attaches the owner-only protection environment through a user
 systemd drop-in and uses the exact-path Free-plan profile documented in
-[cloudflare-w8m.md](../docs/cloudflare-w8m.md); repository/local operation stays
+[cloudflare-w8m.md](../../docs/cloudflare-w8m.md); repository/local operation stays
 default-off.
 `tracking_secret` in the DSP config signs generated `/imp`, `/clk`, `/win`,
 `/loss`, and `/mid/*` callback URLs; when omitted, `TRACKING_SECRET` is used as
@@ -193,7 +193,7 @@ surface is `POST /action`; MySQL tables are `measurement_touch` and
 `measurement_action`; maintenance is `cmd/action-measurement`. Durable insert
 failure returns retryable 503, while touch failure remains measurement
 fail-open. The contract and exact-body HMAC input are documented in
-[docs/conversion-attribution.md](../docs/conversion-attribution.md).
+[docs/conversion-attribution.md](../../docs/conversion-attribution.md).
 
 S01 privacy defaults keep all traffic contextual unless an applicable signal
 and explicitly configured contract authorize more. `privacy_tcf_vendor_id=0`
@@ -206,7 +206,7 @@ privacy-safe interval logs, and uploaded-audience sets default to 30 days,
 `privacy_contextual_middleman_enabled` is a second, default-false disclosure
 gate in addition to `middleman_enabled`; outbound bidder requests are always
 independently contextualized. The complete contract is
-[docs/privacy-data-governance.md](../docs/privacy-data-governance.md).
+[docs/privacy-data-governance.md](../../docs/privacy-data-governance.md).
 
 S03 `traffic_quality` is disabled by default. When enabled,
 `digest_key_env` names a base64/hex deployment key that decodes to at least 32
@@ -214,14 +214,14 @@ bytes; the value never appears in JSON. Enforcement refresh/max-age defaults
 are 30/120 seconds. The Go domain is `trafficquality`, the maintenance/ingest
 surface is `cmd/traffic-quality`, and the Summer review UI is
 `../pzdesign/summer/trafficquality`. Full contracts are in
-[docs/traffic-quality-anti-fraud.md](../docs/traffic-quality-anti-fraud.md).
+[docs/traffic-quality-anti-fraud.md](../../docs/traffic-quality-anti-fraud.md).
 
 O01 auction admission uses `traffic_default` plus up to 256 exact
 `traffic_partners` entries (`adx:<domain>` or `ssp`) for QPS, burst,
 concurrency, timeout, and body limits. `metrics_allowed_cidrs` defaults to
 loopback and matches only the direct peer. Metric names, capacity commands,
 dependency probes, alert thresholds, and rollout rules are in
-[docs/production-traffic-observability.md](../docs/production-traffic-observability.md).
+[docs/production-traffic-observability.md](../../docs/production-traffic-observability.md).
 
 Summer/Genelet admin tests must use `SUMMER`; the Genelet config format uses
 upper-case keys such as `ConnectArray`, `Template`, and `UploadDir`.
@@ -235,7 +235,7 @@ with HTML templates under `../pzdesign/tmpls` and static UI assets under
 Production defaults are `/etc/aofei/aofei.json` and
 `/etc/aofei/summer.json`, passed through `AOFEI` and `SUMMER`. The checked-in
 Summer example is `etc/summer.example.json`. The production
-runbook is [docs/production-runbook.md](../docs/production-runbook.md).
+runbook is [docs/production-runbook.md](../../docs/production-runbook.md).
 Summer/Genelet CORS allows the exact `ServerURL` origin plus exact entries in
 `CORSOrigins`.
 Genelet framework contracts are documented in
@@ -244,11 +244,11 @@ conventions are documented in `../pzdesign/docs/summer-ui-structure.md`.
 Rendering entrypoints, contextual-escaping rules, the single fixed CSRF
 trusted-HTML boundary, local asset policy, and hostile-input checks are
 documented in `../pzdesign/docs/rendering-security.md` and
-[docs/template-rendering-security.md](../docs/template-rendering-security.md).
+[docs/template-rendering-security.md](../../docs/template-rendering-security.md).
 The executable/pass-through creative-consumer inventory, pzdesign browser
 sandbox/permissions boundary, and mandatory future Android/iOS renderer policy
 are documented in
-[docs/creative-rendering-boundary.md](../docs/creative-rendering-boundary.md).
+[docs/creative-rendering-boundary.md](../../docs/creative-rendering-boundary.md).
 
 ## Schema Baseline Commands
 
@@ -285,7 +285,7 @@ A01 accounting uses MySQL `DECIMAL(20,6)` and Go integer micro-dollar values
 for statement mutations. `cmd/accounting` is the authorized manual operator
 surface for statement creation, adjustment, approval, settlement, correction,
 reconciliation, and CSV export; its complete contract and populated-system
-migration are in [docs/accounting-settlement.md](../docs/accounting-settlement.md).
+migration are in [docs/accounting-settlement.md](../../docs/accounting-settlement.md).
 
 A02 hosted payments use the standard-library HTTP client through the
 `hostedpayment` Stripe adapter; no Stripe SDK or card/bank field enters this
@@ -300,7 +300,7 @@ objects; authorized reconciliation retrieves the exact linked Balance
 Transaction because Stripe has no per-transaction availability webhook.
 `cmd/unify` owns the signed webhook and Summer UI; `cmd/hosted-payment` exposes
 aggregate health and bounded event retention but cannot move money. See
-[docs/hosted-funding-payout.md](../docs/hosted-funding-payout.md).
+[docs/hosted-funding-payout.md](../../docs/hosted-funding-payout.md).
 
 ## Cache Commands
 
@@ -696,6 +696,11 @@ the 96/0/6/65 schema inventory; and rejects attempts to test the removed
 legacy-operation evidence may retain commands and counts that were accurate at
 their recorded closeout.
 
+The guard uses the current `tabilet/` layout, includes untracked Markdown,
+and checks frozen history/evolution links in their retained original path
+context when needed. Maintained incoming links use their current locations;
+frozen evidence bytes and the goal protocol are unchanged by this repair.
+
 Integration and smoke checks are explicit command families rather than hidden
 package-test requirements:
 
@@ -747,7 +752,7 @@ Disposable MySQL verification restores the current clean baseline, expects 96
 tables, 6 routines, and 65 triggers, proves `auth_security_audit` update/delete fails,
 and exercises analyst creation/grant without touching the configured local
 stack. Operational details are in
-[docs/identity-access-security.md](../docs/identity-access-security.md).
+[docs/identity-access-security.md](../../docs/identity-access-security.md).
 
 I03 adds `managementapi` and the generated `managementapi/client` without a new
 runtime library dependency. Its OpenAPI 3.1 source is
@@ -806,7 +811,7 @@ each ciphertext and proves its stored digest belongs to the same identifier
 under Current or a retained Previous key before rewriting the pair. Current-key
 promotion requires a coordinated account-writer stop and an identical ordered
 ring on every instance. See
-[docs/account-identifier-protection.md](../docs/account-identifier-protection.md)
+[docs/account-identifier-protection.md](../../docs/account-identifier-protection.md)
 for the ordered offline and activation gates.
 The private deployment must retain a previous account-data key for at least the
 24-hour activation-token lifetime and must verify front-proxy access-log policy

@@ -464,7 +464,7 @@ evidence are in [status-O05.md](status-O05.md).
 
 ## Deferred Product Investments
 
-[docs/defer.md](../docs/defer.md) records automatic bidding/ML, internally
+[docs/defer.md](../../docs/defer.md) records automatic bidding/ML, internally
 operated payment-card processing, multi-region deployment, and million-RPM
 engineering together with their current alternatives and evidence-based
 reconsideration triggers. Deferred work has no reserved lane ID until its

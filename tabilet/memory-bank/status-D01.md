@@ -46,7 +46,7 @@ limits.
 ## Exclusions
 
 - Automatic bid or budget optimization and machine learning remain deferred in
-  [docs/defer.md](../docs/defer.md).
+  [docs/defer.md](../../docs/defer.md).
 
 ## Deep Review
 

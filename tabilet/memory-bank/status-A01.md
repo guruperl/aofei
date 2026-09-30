@@ -42,7 +42,7 @@ invoicing and settlement without collecting unsafe payment credentials.
 ## Exclusions
 
 - Internally operated payment-card processing remains deferred in
-  [docs/defer.md](../docs/defer.md).
+  [docs/defer.md](../../docs/defer.md).
 
 ## Completion Review
 

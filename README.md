@@ -171,7 +171,7 @@ Implementation does not imply production activation:
 
 See the [documentation and milestone index](docs/README.md) for the authoritative
 guide for each lane and the matching status file. Historical M-lane evidence is
-kept in `memory-bank/`; it is not a current deployment guide.
+kept in `tabilet/memory-bank/`; it is not a current deployment guide.
 
 ## Repository Map
 
@@ -186,9 +186,9 @@ kept in `memory-bank/`; it is not a current deployment guide.
   repository guards.
 - [docs/README.md](docs/README.md): complete documentation index by audience and
   A/D/I/O/P/R/S lane.
-- [memory-bank/](memory-bank/): current product, architecture, toolchain,
+- [memory-bank/](tabilet/memory-bank): current product, architecture, toolchain,
   milestone, and per-lane status source of truth.
-- [AGENTS.md](AGENTS.md), [GOAL.md](GOAL.md), and [SECURITY.md](SECURITY.md):
+- [AGENTS.md](AGENTS.md), [GOAL.md](tabilet/GOAL.md), and [SECURITY.md](SECURITY.md):
   repository work protocol, reusable multi-milestone loop with bounded
   review/fix iterations, and private security reporting/data-handling rules.
 - `../pzdesign` and `../genelet`: separately versioned service/UI and Web

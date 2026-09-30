@@ -51,7 +51,7 @@ granular permissions, read-only analysis access, and auditable session behavior.
   public API.
 - The complete deployment, user, recovery, least-privilege, rollback, and
   maintenance contract is in
-  [identity-access-security.md](../docs/identity-access-security.md).
+  [identity-access-security.md](../../docs/identity-access-security.md).
 
 ## Closeout Review
 

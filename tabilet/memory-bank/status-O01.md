@@ -40,7 +40,7 @@ capacity envelope required before expanding production marketplace traffic.
 
 ## Exclusions
 
-- Million-RPM engineering remains deferred in [docs/defer.md](../docs/defer.md).
+- Million-RPM engineering remains deferred in [docs/defer.md](../../docs/defer.md).
 
 ## Reconciliation From S01
 

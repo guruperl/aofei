@@ -38,17 +38,17 @@ mapfile -t active_docs < <(
 		git ls-files \
 			README.md \
 			AGENTS.md \
-			GOAL.md \
+			tabilet/GOAL.md \
 			docs/*.md \
-			memory-bank/product.md \
-			memory-bank/architecture.md \
-			memory-bank/tech-stack.md \
-			memory-bank/milestone.md 2>/dev/null
+			tabilet/memory-bank/product.md \
+			tabilet/memory-bank/architecture.md \
+			tabilet/memory-bank/tech-stack.md \
+			tabilet/memory-bank/milestone.md 2>/dev/null
 		find docs -type f -name '*.md' -print
-		find . -maxdepth 1 -name 'GOAL.md' -print | sed 's#^\./##'
-		find evolution -maxdepth 1 -name '*.md' -print
-		find memory-bank -maxdepth 1 -name 'status-*.md' -print
-	} | sort -u | grep -v '^docs/legacy-operations\.md$' | grep -v '^docs/history/'
+		find tabilet -maxdepth 1 -name 'GOAL.md' -print
+		find tabilet/evolution -maxdepth 1 -name '*.md' -print
+		find tabilet/memory-bank -maxdepth 1 -name 'status-*.md' -print
+	} | sort -u | grep -v '^docs/legacy-operations\.md$' | grep -v '^tabilet/docs/history/'
 )
 
 config_examples=(
@@ -60,7 +60,7 @@ config_examples=(
 current_entry_docs=(
 	README.md
 	AGENTS.md
-	GOAL.md
+	tabilet/GOAL.md
 	docs/README.md
 	docs/advertiser-dsp-agent-manual.zh-CN.md
 	docs/local-docker-runtime.md
@@ -68,10 +68,10 @@ current_entry_docs=(
 	docs/operations-maintenance-manual.zh-CN.md
 	docs/production-runbook.md
 	docs/publisher-manual.zh-CN.md
-	memory-bank/product.md
-	memory-bank/architecture.md
-	memory-bank/tech-stack.md
-	memory-bank/milestone.md
+	tabilet/memory-bank/product.md
+	tabilet/memory-bank/architecture.md
+	tabilet/memory-bank/tech-stack.md
+	tabilet/memory-bank/milestone.md
 )
 
 lane_ids=(
@@ -94,35 +94,35 @@ for goal_contract in \
 	'Run at most 10 iterations' \
 	'review-fix iteration count'
 do
-	if ! grep -Fq "$goal_contract" GOAL.md; then
-		fail "GOAL.md is missing the current bounded review-fix contract: $goal_contract"
+	if ! grep -Fq "$goal_contract" tabilet/GOAL.md; then
+		fail "tabilet/GOAL.md is missing the current bounded review-fix contract: $goal_contract"
 	fi
 done
 
-if [ -f memory-bank/suggested.txt ]; then
-	if ! grep -Fq 'D04 -> P03 -> S05 -> O03 -> R03 -> A03 -> I02?' memory-bank/suggested.txt; then
-		fail "memory-bank/suggested.txt must use the current remediation order."
+if [ -f tabilet/memory-bank/suggested.txt ]; then
+	if ! grep -Fq 'D04 -> P03 -> S05 -> O03 -> R03 -> A03 -> I02?' tabilet/memory-bank/suggested.txt; then
+		fail "tabilet/memory-bank/suggested.txt must use the current remediation order."
 	fi
 	for suggested_lane in D04 P03 S05 O03 R03 A03 I02; do
-		if [ ! -f "memory-bank/status-${suggested_lane}.md" ] ||
-			! grep -Fq "${suggested_lane} = memory-bank/status-${suggested_lane}.md" memory-bank/suggested.txt; then
-			fail "memory-bank/suggested.txt must map ${suggested_lane} to its current status file."
+		if [ ! -f "tabilet/memory-bank/status-${suggested_lane}.md" ] ||
+			! grep -Fq "${suggested_lane} = tabilet/memory-bank/status-${suggested_lane}.md" tabilet/memory-bank/suggested.txt; then
+			fail "tabilet/memory-bank/suggested.txt must map ${suggested_lane} to its current status file."
 		fi
 	done
-	if ! grep -Fq 'COMMIT_POLICY: task' memory-bank/suggested.txt ||
-		! grep -Fq 'EXTERNAL_MUTATIONS: none' memory-bank/suggested.txt; then
-		fail "memory-bank/suggested.txt must keep explicit task commits and no external mutations."
+	if ! grep -Fq 'COMMIT_POLICY: task' tabilet/memory-bank/suggested.txt ||
+		! grep -Fq 'EXTERNAL_MUTATIONS: none' tabilet/memory-bank/suggested.txt; then
+		fail "tabilet/memory-bank/suggested.txt must keep explicit task commits and no external mutations."
 	fi
 fi
 
 for lane_id in "${lane_ids[@]}"; do
-	status_file="memory-bank/status-${lane_id}.md"
+	status_file="tabilet/memory-bank/status-${lane_id}.md"
 	if [ ! -f "$status_file" ]; then
 		fail "$status_file is required by the current lane index."
 		continue
 	fi
 
-	if ! grep -Fq "../memory-bank/status-${lane_id}.md" docs/README.md; then
+	if ! grep -Fq "../tabilet/memory-bank/status-${lane_id}.md" docs/README.md; then
 		fail "docs/README.md must link status-${lane_id}.md."
 	fi
 
@@ -199,8 +199,8 @@ if run_rg 'go test ./genelet' "${current_entry_docs[@]}"; then
 	fail "current entry docs must test the separate ../genelet module, not a removed pzdesign/genelet directory."
 fi
 
-if [ -e memory-bank/status.md ]; then
-	fail "memory-bank/status.md must not be recreated; use lane status files."
+if [ -e tabilet/memory-bank/status.md ]; then
+	fail "tabilet/memory-bank/status.md must not be recreated; use lane status files."
 fi
 
 for required_o02_path in \
@@ -216,7 +216,7 @@ if [ -f scripts/aofei-recovery-drill.sh ] && [ ! -x scripts/aofei-recovery-drill
 fi
 
 mapfile -t status_files < <(
-	find memory-bank -maxdepth 1 -type f -name 'status-*.md' -print | sort -V
+	find tabilet/memory-bank -maxdepth 1 -type f -name 'status-*.md' -print | sort -V
 )
 
 for status_file in "${status_files[@]}"; do
@@ -229,14 +229,14 @@ for status_file in "${status_files[@]}"; do
 		fail "$status_basename must use a zero-padded M/D/P/R/I/S/A/O lane ID."
 	fi
 
-	if ! grep -Fq "]($status_basename)" memory-bank/milestone.md; then
-		fail "$status_basename must be indexed from memory-bank/milestone.md."
+	if ! grep -Fq "]($status_basename)" tabilet/memory-bank/milestone.md; then
+		fail "$status_basename must be indexed from tabilet/memory-bank/milestone.md."
 	fi
 done
 
 if [ "${#active_docs[@]}" -gt 0 ] &&
-	run_rg '\]\([^)]*(memory-bank/)?status\.md\)' "${active_docs[@]}"; then
-	fail "active docs must not link to the removed aggregate memory-bank/status.md."
+	run_rg '\]\([^)]*(tabilet/memory-bank/)?status\.md\)' "${active_docs[@]}"; then
+	fail "active docs must not link to the removed aggregate tabilet/memory-bank/status.md."
 fi
 
 if [ "${#active_docs[@]}" -gt 0 ] &&
@@ -287,9 +287,10 @@ for config in etc/aofei.json etc/summer.example.json; do
 done
 
 # Every relative markdown link in a tracked document must resolve from the
-# directory that contains it. This catches relocated documents whose links were
-# written for their previous path, including the frozen history records.
-mapfile -t link_docs < <(git ls-files '*.md')
+# directory that contains it. Frozen history/evolution records also retain
+# their original pre-tabilet path context; validate that context without
+# rewriting their evidence bytes. Current documents have no such fallback.
+mapfile -t link_docs < <(git ls-files --cached --others --exclude-standard '*.md')
 for link_doc in "${link_docs[@]}"; do
 	if [ ! -f "$link_doc" ]; then
 		continue
@@ -310,6 +311,15 @@ for link_doc in "${link_docs[@]}"; do
 			continue
 		fi
 		if [ ! -e "$link_dir/$link_path" ]; then
+			case "$link_doc" in
+				tabilet/docs/history/* | tabilet/evolution/*)
+					original_dir="${link_dir#tabilet/}"
+					original_target=$(realpath -m -- "$original_dir/$link_path")
+					if [ -e "$original_target" ]; then
+						continue
+					fi
+					;;
+			esac
 			fail "$link_doc links to a missing path: $link_target"
 		fi
 	done < <(grep -oE '\]\([^][:space:])]+\)' "$link_doc" | sed -e 's/^](//' -e 's/)$//')

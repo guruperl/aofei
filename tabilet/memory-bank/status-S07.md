@@ -74,3 +74,18 @@ account key to unrelated secrets, or forcing an irreversible rollout.
   and Genelet.
 - Full S07 acceptance remains pending on private activation evidence and the
   separately reviewed one-way plaintext-retirement migration.
+
+### Documentation-check maintenance — 2026-09-30
+
+The owner authorized repair of the closeout checks under the ongoing S07 ->
+S08 -> W27 loop. The documentation guard reads the current tabilet layout,
+validates maintained incoming links and includes untracked Markdown. Frozen
+history/evolution links retain their original source-path context and their
+evidence bytes remain unchanged, as does GOAL.md. The guard passes; fresh
+isolated fixtures prove broken current, frozen-history and untracked links
+fail. The first fixture's missing sibling-doc setup failure is retained.
+Maintenance review 1/10 has no open P1/P2. This is a completed maintenance unit,
+not S07 retirement or milestone-review acceptance. Production protection is
+now enabled and the owner-confirmed advertiser canary/recovery page pass; the
+remaining retirement gates still block S07, S08 and W27. The observation
+minimum remains 2026-10-01T17:37:57Z.

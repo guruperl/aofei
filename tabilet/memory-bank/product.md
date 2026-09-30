@@ -101,7 +101,7 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   identity is HMAC-pseudonymous, audits are redacted, and external bidders see
   independently scrubbed contextual requests only after a separate disclosure
   gate. The operator contract is
-  [docs/privacy-data-governance.md](../docs/privacy-data-governance.md).
+  [docs/privacy-data-governance.md](../../docs/privacy-data-governance.md).
 - The sibling `github.com/guruperl/pzdesign` module provides Summer/Genelet
   admin-model plumbing over the same schema and imports this module's domain
   packages where needed.
@@ -112,7 +112,7 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   security evidence. The checked-in example remains disabled until operators
   apply the schema migration, provision one shared deployment key, verify mail
   recovery, and execute the staged rollout in
-  [docs/identity-access-security.md](../docs/identity-access-security.md).
+  [docs/identity-access-security.md](../../docs/identity-access-security.md).
 - I03 provides an independently opt-in `/api/v1` advertiser control plane.
   Digested, expiring, revocable service credentials bind every request to one
   advertiser and fixed `api.*` scopes; Redis enforces isolated account/token
@@ -189,8 +189,8 @@ are complete, but no named integration defines supported platforms and
 lifecycle requirements. Lane state and strict
 dependency order live in
 [milestone.md](milestone.md); the guide-to-lane map is
-[docs/README.md](../docs/README.md). Explicitly deferred investments and their
-reconsideration triggers live in [docs/defer.md](../docs/defer.md).
+[docs/README.md](../../docs/README.md). Explicitly deferred investments and their
+reconsideration triggers live in [docs/defer.md](../../docs/defer.md).
 
 The established runtime direction remains:
 

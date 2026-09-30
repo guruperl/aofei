@@ -59,7 +59,7 @@ multi-region consistency and operations complexity.
   facts, hosted-payment state, Redis cache, and D03 fallback preflight without
   reading or resetting the long-lived local database.
 - The original 63/6/21 closeout inventory above remains historical evidence,
-  not the current baseline. [Database baseline](../docs/database-baseline.md)
+  not the current baseline. [Database baseline](../../docs/database-baseline.md)
   is authoritative for current counts.
 
 ## Closeout Review
@@ -75,7 +75,7 @@ multi-region consistency and operations complexity.
 
 ## Exclusions
 
-- Multi-region deployment remains deferred in [docs/defer.md](../docs/defer.md).
+- Multi-region deployment remains deferred in [docs/defer.md](../../docs/defer.md).
 
 ## Reconciliation From O01
 

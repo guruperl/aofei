@@ -40,7 +40,7 @@ delivery and billing risk without opaque automated model decisions.
 ## Exclusions
 
 - ML-based fraud scoring is part of the automatic-ML deferral in
-[docs/defer.md](../docs/defer.md).
+[docs/defer.md](../../docs/defer.md).
 
 ## Result
 
