@@ -159,6 +159,7 @@ write_manifest() {
       },
       contracts: {
         database: {tables: 96, views: 0, routines: 6, triggers: 65},
+        supports_account_identifier_retirement: true,
         accounting_version: "usd-cpm-impression-v3"
       },
       assets: {component_count: $component_count},
@@ -202,6 +203,8 @@ verify_release() {
      (.schema_version == 2 and .kind == "aofei-http-backend")) and
     (.release_id | test("^aofei-[0-9a-f]{12}_pzdesign-[0-9a-f]{12}_genelet-[0-9a-f]{12}$")) and
     .contracts.database == {tables:96, views:0, routines:6, triggers:65} and
+    ((.contracts.supports_account_identifier_retirement // false) | type == "boolean") and
+    ((.contracts.supports_account_identifier_retirement // false) == false or .schema_version == 2) and
     .contracts.accounting_version == "usd-cpm-impression-v3"
   ' "$release/manifest.json" >/dev/null || fail "release manifest contract is invalid"
   if [[ $(jq -r '.schema_version' "$release/manifest.json") == 2 ]]; then

@@ -477,3 +477,6 @@ trigger is satisfied.
 - Arbitrary downstream markup impression/click rewriting remains closed unless
   R01 identifies a measurement requirement that cooperative click notification
   cannot satisfy.
+
+
+S08.4a offline retirement-aware deployment admission is accepted in the continuing cross-package owner checkout (local source acceptance 9967e6b, preparation review 1/10, no open P1/P2). This source branch publishes only that generic source/documentation prerequisite, without the unrelated layout ancestry. Release build, key recovery, live configuration, Identity canary and goal closure remain pending in the existing owner ledger; this branch is not a second execution owner.

@@ -860,3 +860,6 @@ before a D02 closeout.
   all three source repositories.
 - Internet access only when pulling Docker images or Go modules.
 - No production credentials are required for local development.
+
+
+Retirement-aware deployment preflight has ten focused public-entry fixture cases and manifest compatibility/restriction cases. The affected deployment tests and vet pass, the actual shell verifier predicate has seven passing cases, and read-only production metadata SQL passes. Newly capable bundles require the newer strict verifier/deployer. No browser qualification is involved.

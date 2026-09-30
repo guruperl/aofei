@@ -859,3 +859,6 @@ The complete boundary is in
   synthesize a publisher account without an interactive identifier and the
   application-owned key. Proxy access-log handling remains a private
   deployment gate.
+
+
+The optional supports_account_identifier_retirement capability is emitted by the release builder and interpreted by the new deployment engine. A six-to-two routine difference is admitted only with protected/retired Summer configuration and the exact five-account protected-column and retained-procedure shape. All other release/environment contracts stay exact. Old immutable manifests remain readable and unchanged.

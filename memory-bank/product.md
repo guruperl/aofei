@@ -308,3 +308,6 @@ The established runtime direction remains:
   `docs/defer.md` are satisfied.
 - Claiming 99.9% availability, recovery objectives, or production latency from
   unit tests, microbenchmarks, or a disposable local restore drill.
+
+
+New v2 releases explicitly declare support for the protected, plaintext-retired account schema. Deployment admission of the two-routine target requires enabled/retired protection and exact read-only account/routine metadata proof; the six-routine clean baseline and migration authority are unchanged.

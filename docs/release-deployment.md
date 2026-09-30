@@ -36,6 +36,20 @@ manifest. Release directories contain no symlinks or group/world-writable
 paths. Verification accepts legacy schema-v1 `w8m-http-backend` bundles only as
 a read/rollback bridge; the builder never writes that format.
 
+Newly built v2 releases declare the optional capability
+`contracts.supports_account_identifier_retirement=true`; earlier manifests
+omit it and remain readable. The clean database contract still has six
+routines. A deployment target may declare two routines only when a capable
+release is selected, its Summer configuration has both
+`AccountProtection.Enabled=true` and `PlaintextRetired=true`, and read-only
+preflight proves the two retained slot procedures, absence of retired
+plaintext account/history identifier columns, and all five non-null protected
+identifier pairs. Table, view, trigger and accounting contracts still match
+exactly. Other routine counts, partial retirement and older releases without
+the capability are rejected. This check cannot perform or authorize a schema
+migration. Use the newly capable verifier/deployer for these manifests;
+older strict readers do not understand the added capability field.
+
 ## Build And Verify
 
 All three repositories must be clean and exactly equal to their configured
