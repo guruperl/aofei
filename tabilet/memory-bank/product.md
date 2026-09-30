@@ -174,7 +174,10 @@ demand-eligibility, schema, filesystem, concurrency, hot-path,
 creative-boundary, and static-analysis findings without reopening those
 completed milestones. S07 is complete: production backfill, protected canary,
 rotation, plaintext retirement and fresh owner sign-in/recovery-page checks
-pass, with bounded review 8/10. S08 next owns W8M Identity activation.
+pass, with bounded review 8/10. S08 is in progress: separately restricted
+runtime and maintenance database credentials are provisioned and recovery-
+verified, but are not active HTTP credentials. Identity activation, common-key
+provisioning and the non-advertiser canary remain pending.
 Completed O04 deployment work moved reusable strict
 preflight, deployment, proxy-free health checks, rollback, and credential-free
 history into Aofei without embedding W8M host values. O05 replaced O04's

@@ -829,6 +829,17 @@ for protected action proofs. Fresh owner canaries and review 8/10 close S07;
 acceptance is recorded in
 [S07 status](status-S07.md).
 
+
+S08.3's fresh W8M preparation uses the same isolated MySQL 8.0.41 restore
+contract against the current retired schema (96 tables, 2 retained routines,
+65 triggers, no events). Database/runtime snapshots and separately provisioned
+credential escrow are encrypted before workstation transfer and independently
+recovered. MySQL 8 routine grants are inspected through mysql.procs_priv; exact
+table/global/schema/role/proxy checks reject audit mutation bypasses. Private
+producer/verifier bytes and records stay outside Git. No browser qualification
+is involved. S08.4 runtime/key activation and S08.5 canary checks are pending;
+[S08 status](status-S08.md) owns acceptance.
+
 Schema baseline verification:
 
 ```bash

@@ -1,6 +1,6 @@
 # Status S08 — W8M Production Identity And TOTP Activation
 
-State: `[~]` In progress; S08.2 preparation accepted, S08.3 production packet next.
+State: `[~]` In progress; S08.3 accepted, S08.4 readiness preparation next.
 
 ## Goal
 
@@ -31,7 +31,7 @@ general S02 role-policy example.
 |---|---:|---|
 | S08.1 Reconcile the exact production rollout contract | `[+]` | Confirm all W8M nodes, active schema, application/maintenance database grants, role permission matrix, analyst `RequireGrant`, SMTP recovery, HTTPS, clock, monitoring and rollback owner. Read-only inspection finds all six Identity tables and both audit triggers already present with zero Identity rows, but the HTTP principal has database-wide ALL PRIVILEGES and the runtime has no permissions or analyst grant requirement. Review restricted application/maintenance principals before activation; owner confirms yixin is the only node and no usable non-advertiser canary account is available. Owner selects a dedicated analyst canary via the audited maintenance CLI. Task contract review 1/10 passes; no production mutation or canary acceptance is implied. Preserve the current identity-disabled login behavior until the canary gate. |
 | S08.2 Prepare and rehearse the online Identity migration | `[+]` | Reconcile the existing six S02 tables and two immutable-audit triggers against their authoritative definitions, including the S07-retired analyst schema. Derive only necessary non-destructive corrections and restricted application/maintenance grant changes; do not recreate matching objects or replay `etc/step4_init.sql` against the populated deployment. Back up and restore-test first, rehearse on a disposable baseline copy, and verify object inventory, grants, trigger immutability and existing application compatibility. Accepted: restored-copy schema/grant stages, fresh corrected protected analyst CLI, authoritative six-table/trigger comparison and preparation review pass; failed whole attempts remain failed. Matching Identity objects need no recreation. No production database action is implied. |
-| S08.3 Apply schema and verify readiness | `[ ]` | After backup/restore rehearsal and separate authorization, apply the exact reviewed online migration before enabling Identity. Verify schema, grants, immutable triggers and preserved application data. Stop on drift, missing prerequisites or uncertain outcome; do not auto-retry a mutation. |
+| S08.3 Apply schema and verify readiness | `[+]` | Window 02 passed after fresh continuously frozen backup, independent complete restore/runtime-ring recovery and credential escrow recovery. Separate unused runtime/maintenance principals have exact reviewed rights; both audits deny forbidden updates/deletes. All 96 tables’ counts/checksums and schema inventory remain identical. Matching Identity objects need no DDL. Original HTTP credentials/configuration stay unchanged; Identity remains disabled, account protection retired. Writer resume/readiness 204 and task review 1/10 pass. Failed window 01 remains failed before restore/grants. |
 | S08.4 Deploy identity-disabled release and provision common key | `[ ]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
 | S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
@@ -349,3 +349,175 @@ S08.5, and S08.4 must fix/guard the legacy administrator-reset CLI before
 Identity activation. No existing administrator password reset is required by
 the selected analyst canary. No further owner input is needed for the focused
 CLI correction just completed.
+
+
+## S08.3 disabled production packet preparation
+
+S08.2 acceptance is committed locally as `fcb5cc2`. The unrelated README
+change remains outside the task commit; unpublished layout history is still
+local. The next sole owner is S08.3. Prepared a disabled private packet binding
+the exact one-node host, release, database image and accepted schema contract.
+It specifies a fresh exclusive continuously writer-frozen encrypted snapshot
+and independent complete restore/recovery before provisioning separate reviewed
+runtime and maintenance credentials. Matching Identity objects require no DDL.
+Active HTTP credentials and Identity-disabled configuration remain unchanged
+through this stage; later S08.4 owns their reviewed switch and common Identity
+key provision. Credential material is generated/escrowed privately, with no
+command-argument or log exposure. Unknown mutation outcomes stop without retry
+or deleting potentially created principals. Existing protected retired state
+and S07 previous-key retention remain mandatory.
+
+No producer, live grant/credential change, account creation or activation has
+started. The disabled packet still needs its producer/verifier implementation,
+focused readiness/failure checks and bounded preparation review. The owner
+needs no further input for the completed S08.2 diagnostic; any later masked
+GPG prompt belongs to the fresh S08.3 recovery checkpoint, not account login.
+
+
+## S08.3 producer/verifier preparation accepted
+
+The existing cross-package goal is resumed under the unchanged task commit
+policy and exact S07/S08 host/database/service authorization. S08.3 is the
+sole execution owner; S07 and S08.2 remain accepted, and W27.3 remains blocked.
+Private one-window producer/verifier sources are prepared and hash-bound outside
+Git. They hold the existing exclusive runtime-root lock, stop the recorded
+writers, create a fresh encrypted database/runtime/key-ring snapshot, and gate
+unused credential provisioning on independently verified complete restore and
+credential escrow. Active HTTP credentials/configuration and Identity-disabled
+state remain unchanged. Matching objects need no DDL.
+
+Preparation review 1/10 found two P2 preflight defects: MySQL 8 exposes routine
+privileges through mysql.procs_priv, and the owner-owned systemd unit is mode
+0644 rather than the credential files' 0600. Both are fixed. Review 2/10 found
+a P2 freshness gap between escrow verification and CREATE USER; immediate
+binlog, connection, schema and config checks now close it. Preparation review
+3/10 passes with no open P1/P2; this is separate from the still-unstarted
+whole-milestone review.
+
+Six pure grant contract checks pass. A small fresh MySQL 8.0.41 fixture verifies
+both principals authenticate, exact table/routine/global/role rights are read
+correctly, forbidden audit changes fail, and broad schema rights are rejected.
+Its changed grant-reader checks use a fresh second fixture; both are removed.
+Focused mocked window checks cover abort before backup, restore/escrow failure,
+partial grant failure with no retry/drop, successful writer resume, and drift
+immediately before grant consumption. One initial mocked test setup omitted
+its inventory file and was corrected; it touched no host/database. Python and
+Bash syntax pass; read-only production preflight passes. No broad browser suite
+or application source change is involved.
+
+The next exact operation is the fresh frozen backup/recovery checkpoint followed
+by unused restricted runtime and maintenance principals. One new masked GPG
+unlock precedes writer stopping; cancellation or unlock failure stops without
+retry. Task acceptance remains pending until private live receipt, inventory
+preservation and resumed readiness are verified. No production grant, account
+creation, Identity activation or W27 browser operation is accepted by this note.
+
+The reviewed S08.3 launcher is now live and awaits its masked recovery-key
+unlock before stopping writers. Its handle is recorded privately; resume that
+same process after input rather than launching another operation. No unlock,
+backup or production grant acceptance is yet inferred from launch alone.
+
+Three consecutive resumed goal turns confirm the same pending recovery-key
+dialog and live local launcher. The native goal is blocked awaiting that
+required owner input; the existing process/dialog remains live. Read-only
+production inspection confirms active service, readiness 204 and no S08.3
+remote window started. Entering the passphrase resumes this same supervised
+launcher; do not start a new producer, re-prompt or reuse a consumed window.
+Task and milestone acceptance remain pending.
+
+
+## S08.3 first window stopped; recovery input accepted
+
+The owner submitted the saved GPG passphrase successfully. The same launcher
+then acquired the exclusive lock, froze the recorded writers, and produced
+the fresh encrypted database/runtime snapshot. It stopped before starting the
+independent restore because its Docker absence check expected the capitalized
+`No such object` diagnostic; this host returned the exact lowercase
+`error: no such object: <fixture>`. This is a launcher defect, not passphrase
+expiry or failed decryption. Original process/session is terminal (exit 1),
+and all original evidence remains preserved.
+
+Producer input closure resumed the original services. The private resume/stop
+receipts confirm grant_attempted=false, and fresh read-only SSH confirms active
+HTTP service, readiness 204 and absence of the grant-started marker. No new
+principal, account, Identity activation or browser operation occurred. The
+temporary protected keyring and unlock session are closed.
+
+A separate focused candidate corrects only the fixture absence recognizer. It
+requires the precise fixture name, exit 1 and empty inspection array, accepts
+the host's lowercase or historical uppercase diagnostic, and still rejects
+existing fixtures, transport/daemon failures, different names and extra errors.
+Three focused cases and a read-only SSH check at the exact original failure
+spot pass; syntax passes. The consumed launcher is unchanged and no new live
+window or unlock dialog was launched. Subsequent provisioning still needs a
+fresh reviewed frozen window and independent recovery; the earlier stopped
+snapshot is preserved and is not accepted as continuously frozen grant evidence.
+The old native goal's waiting-for-input explanation is now obsolete; input was
+accepted, and S08.3 remains incomplete on this diagnosed launcher defect.
+
+
+## S08.3 corrected fresh window 02
+
+Continued the existing exact backup/database/service authorization after the
+known first-window precondition failure and verified service recovery. The
+original grant was never attempted and no account submission is repeated.
+Prepared fresh private producer/verifier record paths and a new disposable
+restore fixture; no consumed path, source or evidence is overwritten. The only
+behavioral correction is the exact missing-fixture diagnostic recognizer.
+Three focused recognizer cases pass; two restore-checkpoint integration cases
+prove the actual lowercase error reaches startup and an SSH failure stops
+before startup. Fresh production preflight and new-fixture absence pass.
+Private preparation review continues at 4/10, with no open P1/P2. The earlier
+passing grant/failure/resume checks retain unchanged affected inputs; no full
+browser suite is run. Whole-S08 review remains unstarted.
+
+Window 02 requires one new masked recovery-key unlock because the stopped
+window's temporary unlock session was closed. Unlock occurs before service
+stopping. It will independently restore a newly frozen snapshot and recover
+the complete runtime ring and unused credential escrow before attempting the
+reviewed grants. Old failed results remain failed. Live task acceptance is
+pending until exact private receipts, preserved inventory and resumed
+readiness are verified.
+
+Window 02 launcher and its masked dialog are confirmed live on the ordinary
+workstation display, awaiting input before production writer stop. Its private
+handle is retained; resume this exact process after entry, never start another
+window while it is live. No fresh backup, grants or task acceptance is inferred
+from launch alone.
+
+Three consecutive goal turns verify window 02 remains at its required masked
+recovery input. The launcher/dialog are live, no unlock checkpoint file exists,
+and fresh read-only production inspection confirms active service, readiness
+204 and no remote window-02 operation directory. The native goal is blocked
+on that exact input; the same dialog/process remains open. No expiry, failed
+passphrase or task acceptance is inferred. Resume the existing handle after
+entry; do not create another window or dialog.
+
+
+## S08.3 window 02 accepted — 2026-09-30
+
+The owner submitted the new recovery-key entry successfully. Window 02 completed
+the fresh continuously writer-frozen encrypted snapshot, independent exact-image
+restore and complete runtime-key recovery before grant consumption. The newly
+generated credential recovery archive was independently decrypted and matched
+before provisioning the separate unused principals. Exact table/routine/global/
+role/proxy privilege checks and production audit denial probes pass. All 96
+tables' counts/checksums and schema dump inventory match the source, restored
+copy and post-grant production inventory; objects remain 96 tables, 2 routines,
+65 triggers and no events. No schema DDL was needed.
+
+The original HTTP credentials, immutable release, runtime configs, Identity-
+disabled state and protected retired account schema remain unchanged. Writer
+resume and fresh read-only readiness 204 pass. The restore fixture is removed;
+private credential files are owner-only; temporary recovery keyring/session is
+closed. Task review 1/10 passes with no open P1/P2; whole-S08 review is still
+unstarted. This accepts database preparation, not Identity activation, canary
+creation, advertiser enrollment or W27 readiness.
+
+Sanitized infrastructure history preserves both
+[failed window 01](../../../w8m-infrastructure/history/20260930-s08-window-01-stopped.json)
+and [passed window 02](../../../w8m-infrastructure/history/20260930T223843Z-s08-restricted-principals.json).
+The former remains failed. No consumed credential/account claim was retried.
+S08.4 next owns the reviewed identity-disabled runtime credential/configuration
+switch, common Identity key and recovery proof, remaining baseline checks and
+legacy admin-reset compatibility guard before canary activation.

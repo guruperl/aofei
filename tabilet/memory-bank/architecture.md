@@ -870,3 +870,17 @@ The complete boundary is in
   the pre-drop schema. Fresh owner sign-in/recovery-page canaries and bounded
   review 8/10 pass; acceptance evidence remains in
   [S07 status](status-S07.md).
+
+
+## W8M Identity database preparation
+
+S08.3 stages separate runtime and maintenance principals after a fresh
+continuously frozen snapshot and independent complete restore. Runtime rights
+are per-table CRUD except SELECT/INSERT only on auth_security_audit and
+api_audit, plus EXECUTE on the two retained slot procedures. Maintenance has
+only the reviewed account/Identity rights and connection-gated audit retention;
+no inherited roles, grant option, global/schema or proxy bypass is admitted.
+The matching Identity tables/triggers are preserved. Both credentials remain
+private, recovery-escrowed and separate from the unchanged active HTTP principal.
+S08.4 owns their reviewed switch and common-key delivery; enabling Identity
+and canary acceptance remain later gates. See [S08 status](status-S08.md).
