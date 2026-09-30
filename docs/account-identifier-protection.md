@@ -109,6 +109,31 @@ compatible:
    window. Repository implementation does not claim production migration or
    activation.
 
+### Final plaintext retirement
+
+`etc/s07_account_identifier_retirement.sql` is the separate one-way drop. Do
+not run it until the live account-data key and protected runtime have passed
+the private canary, rollback window, shared-throttle/restart, proxy-log,
+outstanding-link, and rotation checks. Stop every account writer and verify a
+frozen backup plus a successful restore. With the service stopped, run
+`cmd/account-data -mode=verify` with a limit covering all five account tables;
+this must prove every row's ciphertext, current-key digest, and retained
+plaintext projection agree. Then apply the reviewed SQL once. Its fail-closed
+preflight checks the additive schema, expected indexes and procedures, absence
+of missing protected pairs, exact account-update trigger shape, absence of
+dependent views, and absence of `passwd_hmac`. It removes the old
+credential procedures and plaintext account/history columns, and makes the
+five role HMAC/cipher pairs non-null. The SQL cannot establish cryptographic
+parity itself; the offline verifier is a required precondition.
+
+Set `AccountProtection.PlaintextRetired=true` in the owner-readable config
+before restarting protected writers against the retired schema. Verify all
+five-role login, lifecycle, display, mail, management, and password paths, plus
+readiness and rollback behavior. MySQL DDL is not transactional. Any partial
+failure requires restore and review; never retry the file against a partially
+changed schema. Keep the encrypted backup according to the private retention
+policy. No production operation is implied by adding this migration file.
+
 Publisher cache discovery no longer creates an account for an unknown domain:
 it has neither an interactive identifier nor access to the account-data key.
 Provision the publisher through the authorized Summer/admin account workflow
@@ -170,8 +195,13 @@ an action token `no-store` and `no-referrer`. The front proxy still sees the
 incoming URL before the application; its exact access-log redaction or
 exclusion must be verified in the private W8M deployment runbook before
 activation. Enabling account protection invalidates old identifier-bearing
-links, so the private rollout must either wait for their bounded recovery
-window or explicitly reissue them.
+links, so the private rollout must establish their actual expiry and drain
+window or explicitly reissue them. Do not infer expiry from a row timestamp or
+the new protected-token lifetime: the Identity-disabled legacy reset path does
+not consistently enforce an expiry, and legacy activation has no uniform
+bounded expiry. An operator-selected observation period alone is not proof
+that outstanding legacy emails have expired; record recovery continuity and
+the old-link disposition before irreversible retirement.
 
 While protection remains disabled, rollback-mode links carry only the numeric
 account ID, email, timestamp, and legacy proof. The verifier compares the email
@@ -203,14 +233,13 @@ management, opaque-token, throttle, and administrator-only numeric login-as
 paths are prepared. `PlaintextRetired` makes protected writes omit legacy
 columns and is intentionally false in the checked-in example.
 
-The drop remains blocked on two external/review gates:
+The drop remains blocked on these external/review gates:
 
 - production backfill, dual-read canary, shared-throttle, restart, rollback,
   proxy-log, outstanding-link, and key-rotation evidence retained privately;
   and
-- a separately reviewed one-way migration that verifies parity, removes legacy
-  routines and `adv_ip`/`pub_ip` plaintext history, makes protected fields
-  non-null, and only then drops plaintext identifier columns/indexes.
+- review and synthetic execution of the one-way migration; the migration's
+  SQL preflight cannot replace the separate cryptographic/parity verification.
 
 Do not mutate the production database, runtime config, Redis, service, or
 deployment merely because the repository implementation exists. The exact
