@@ -392,7 +392,7 @@ func (engine *Engine) verifyTargetInputs(ctx context.Context, release VerifiedRe
 	if err := engine.verifyDatabaseContract(ctx); err != nil {
 		return err
 	}
-	if err := engine.verifyReleaseContract(release.Manifest); err != nil {
+	if err := engine.verifyReleaseContract(ctx, release.Manifest); err != nil {
 		return err
 	}
 	if _, err := engine.run(ctx, filepath.Join(release.Root, "bin", "config-preflight"), "-s", engine.Environment.Paths.AofeiConfig); err != nil {
@@ -628,16 +628,44 @@ func (engine *Engine) verifyDatabaseContract(ctx context.Context) error {
 	return nil
 }
 
-func (engine *Engine) verifyReleaseContract(manifest ReleaseManifest) error {
+func (engine *Engine) verifyReleaseContract(ctx context.Context, manifest ReleaseManifest) error {
 	database := engine.Environment.Database
 	shape := manifest.Contracts.Database
 	if shape.Tables != database.Tables || shape.Views != database.Views ||
-		shape.Routines != database.Routines || shape.Triggers != database.Triggers ||
+		shape.Triggers != database.Triggers ||
 		manifest.Contracts.AccountingVersion != database.AccountingVersion {
 		return fmt.Errorf("release contract does not match the environment")
 	}
+	if shape.Routines == database.Routines {
+		return nil
+	}
+	if !manifest.Contracts.SupportsAccountIdentifierRetirement || shape.Routines != 6 || database.Routines != 2 {
+		return fmt.Errorf("release contract does not match the environment")
+	}
+	var config map[string]any
+	if err := decodeStrictFile(engine.Environment.Paths.SummerConfig, &config); err != nil {
+		return fmt.Errorf("retired-account configuration is invalid")
+	}
+	protection, ok := config["AccountProtection"].(map[string]any)
+	if !ok || protection["Enabled"] != true || protection["PlaintextRetired"] != true {
+		return fmt.Errorf("retired-account configuration is required")
+	}
+	output, err := engine.run(ctx, "docker", "exec", database.Container, "sh", "-c",
+		`MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql --batch --skip-column-names -uroot "$1" -e "$2"`, "sh", database.Name, retiredAccountContractSQL)
+	if err != nil || strings.TrimSpace(string(output)) != "2|2|0|10|5" {
+		return fmt.Errorf("retired-account database contract drifted")
+	}
 	return nil
 }
+
+// Admission evidence only: deployment never performs account/schema retirement.
+const retiredAccountContractSQL = `SELECT CONCAT(
+    (SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema=DATABASE()),"|",
+    (SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema=DATABASE() AND routine_type="PROCEDURE" AND routine_name IN ("proc_slot","proc_slotall")),"|",
+    (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name IN ("adv","pub","adv_ip","pub_ip") AND column_name="email") OR (table_name IN ("admin","agent","analyst") AND column_name="login"))),"|",
+    (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND is_nullable="NO" AND ((table_name IN ("adv","pub") AND ((column_name="email_hmac" AND column_type="binary(32)") OR (column_name="email_cipher" AND column_type="varbinary(512)"))) OR (table_name IN ("admin","agent","analyst") AND ((column_name="login_hmac" AND column_type="binary(32)") OR (column_name="login_cipher" AND column_type="varbinary(512)"))))),"|",
+    (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type="BASE TABLE" AND table_name IN ("adv","pub","admin","agent","analyst"))
+  );`
 
 func (engine *Engine) verifyReleaseConfigPaths() error {
 	project := filepath.Join(engine.Environment.Paths.CurrentLink, "assets", "pzdesign")

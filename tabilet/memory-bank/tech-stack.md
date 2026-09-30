@@ -888,3 +888,11 @@ before a D02 closeout.
   all three source repositories.
 - Internet access only when pulling Docker images or Go modules.
 - No production credentials are required for local development.
+
+
+S08.4 deployment-contract preparation uses focused tests
+`go test ./internal/deployment -run 'TestRetiredAccount|TestReleaseManifestCompatibility'`
+and a read-only production evaluation of the same metadata SQL. No schema DDL
+or browser suite is involved. The release builder retains the six-routine
+clean contract and emits an optional retirement-support capability. Publication,
+clean release build and live configuration/key recovery remain pending.

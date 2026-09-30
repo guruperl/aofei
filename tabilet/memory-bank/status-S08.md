@@ -1,6 +1,6 @@
 # Status S08 — W8M Production Identity And TOTP Activation
 
-State: `[~]` In progress; S08.3 accepted, S08.4 readiness preparation next.
+State: `[~]` In progress; S08.4 identity-disabled readiness preparation.
 
 ## Goal
 
@@ -20,7 +20,7 @@ general S02 role-policy example.
 - w8m-infrastructure owns only its documented immutable release and service
   deployment workflow. It does not own schema migration, feature activation or
   Cloudflare/DNS changes.
-- Task order: S08.1 -> S08.2 -> S08.3 -> S08.4 -> S08.5 -> S08.6.
+- Task order: S08.1 -> S08.2 -> S08.3 -> S08.4a -> S08.4 -> S08.5 -> S08.6.
 - This status grants no database, secret, configuration, deployment, browser or
   account-mutation authority. Each production action requires its own exact
   authorization and current readiness.
@@ -32,7 +32,8 @@ general S02 role-policy example.
 | S08.1 Reconcile the exact production rollout contract | `[+]` | Confirm all W8M nodes, active schema, application/maintenance database grants, role permission matrix, analyst `RequireGrant`, SMTP recovery, HTTPS, clock, monitoring and rollback owner. Read-only inspection finds all six Identity tables and both audit triggers already present with zero Identity rows, but the HTTP principal has database-wide ALL PRIVILEGES and the runtime has no permissions or analyst grant requirement. Review restricted application/maintenance principals before activation; owner confirms yixin is the only node and no usable non-advertiser canary account is available. Owner selects a dedicated analyst canary via the audited maintenance CLI. Task contract review 1/10 passes; no production mutation or canary acceptance is implied. Preserve the current identity-disabled login behavior until the canary gate. |
 | S08.2 Prepare and rehearse the online Identity migration | `[+]` | Reconcile the existing six S02 tables and two immutable-audit triggers against their authoritative definitions, including the S07-retired analyst schema. Derive only necessary non-destructive corrections and restricted application/maintenance grant changes; do not recreate matching objects or replay `etc/step4_init.sql` against the populated deployment. Back up and restore-test first, rehearse on a disposable baseline copy, and verify object inventory, grants, trigger immutability and existing application compatibility. Accepted: restored-copy schema/grant stages, fresh corrected protected analyst CLI, authoritative six-table/trigger comparison and preparation review pass; failed whole attempts remain failed. Matching Identity objects need no recreation. No production database action is implied. |
 | S08.3 Apply schema and verify readiness | `[+]` | Window 02 passed after fresh continuously frozen backup, independent complete restore/runtime-ring recovery and credential escrow recovery. Separate unused runtime/maintenance principals have exact reviewed rights; both audits deny forbidden updates/deletes. All 96 tables’ counts/checksums and schema inventory remain identical. Matching Identity objects need no DDL. Original HTTP credentials/configuration stay unchanged; Identity remains disabled, account protection retired. Writer resume/readiness 204 and task review 1/10 pass. Failed window 01 remains failed before restore/grants. |
-| S08.4 Deploy identity-disabled release and provision common key | `[ ]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
+| S08.4a Reconcile deployment admission with the retired account schema | `[+]` | Offline prerequisite accepted: newly built v2 bundles declare retirement support; target preflight requires protected/retired configuration and exact read-only retired account/routine metadata. Clean six-routine baseline and older immutable manifests remain unchanged. Ten public preflight cases, manifest compatibility and seven shell verifier cases pass; the exact metadata query passes read-only on yixin. Affected deployment tests, vet, syntax, docs and diff checks pass. Preparation review 1/10 has no open P1/P2. Local source commit is authorized under task policy; clean publication/build and live application remain S08.4 requirements. |
+| S08.4 Deploy identity-disabled release and provision common key | `[~]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
 | S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
 
@@ -521,3 +522,100 @@ The former remains failed. No consumed credential/account claim was retried.
 S08.4 next owns the reviewed identity-disabled runtime credential/configuration
 switch, common Identity key and recovery proof, remaining baseline checks and
 legacy admin-reset compatibility guard before canary activation.
+
+
+## S08.4 readiness preparation started
+
+S08.3 acceptance is committed locally as `3b569e1`; its stopped and passing
+operation histories are committed/pushed by infrastructure as `dfcdf59` and
+`be2a959`. Unrelated Aofei README and infrastructure layout migration remain
+excluded. No Aofei push traverses the unrelated unpublished layout ancestor.
+S08.4 is now the sole execution owner. Its first offline change reconciles the
+legacy administrator-reset status with retired identifiers and refuses direct
+unaudited non-revoking resets when Identity is enabled, serialized with the
+existing runtime-root transition lock. No administrator password reset is
+needed for the chosen analyst canary and none is invoked. Common Identity key,
+reviewed runtime credential/configuration switch and remaining baseline checks
+remain preparation items, not completed acceptance.
+
+The offline administrator compatibility patch is prepared in infrastructure.
+Status now queries numeric ID/active/bcrypt metadata only and works with the
+retired schema. Direct reset checks the owner-only Summer configuration under
+the exclusive runtime-root lock and refuses Identity-enabled operation before
+account lookup/password input; read-only status uses the shared guard. Focused
+fixture cases cover Identity refusal, malformed configuration, transition lock
+contention, existing password validation and optimistic concurrent-update guards.
+Workstation verification lacks htpasswd; the already installed server tool is
+used only inside a supplied synthetic shell/SQL fixture, never a production
+reset. Its first fixture attempt correctly rejects group-writable directories
+from the server's default umask 0002; a fresh fixture sets umask 077 and passes.
+Both preparation attempts and source kits are distinct; no real account is
+modified. Syntax/diff checks pass. The code/docs remain an uncommitted S08.4
+support patch pending readiness review and task acceptance.
+
+
+S08.4 private configuration preparation now preserves the existing protected
+issuers, account-protection ring, SMTP and deployment settings while binding
+both Aofei and Summer to the staged restricted runtime principal. The analyst
+role uses the authoritative protected issuer/permission contract with
+RequireGrant=true. Identity remains disabled and adv is excluded from required
+TOTP. Disabling legacy password upgrades requires a fresh verified bcrypt-only
+baseline. Four small synthetic transformation checks pass; no browser suite is
+involved.
+
+The private read-only configuration validator builds offline against the
+existing Pzdesign/Genelet module graph. An incorrect initial module import was
+corrected to the existing declared module; no dependency was fetched or changed.
+The build is preparation evidence only: no candidate configuration, Identity
+key provisioning or live database/factory validation is accepted yet. Actual
+secret delivery uses installed systemd drop-ins, so the next recovery checkpoint
+must preserve their effective files as well as the main unit. Fresh read-only
+SSH confirms window 02 passed, active service and readiness 204. The previous
+owner recovery input succeeded and its temporary unlock session is closed.
+
+
+## S08.4 deployment-contract finding
+
+Read-only inspection confirms the selected immutable release still declares
+six baseline routines, while S07's accepted retired database has two. The
+existing generic deployment engine requires exact equality, so a reviewed
+production manifest with two routines cannot pass that release preflight.
+S08.4 owns this readiness correction before any key/config switch: preserve
+immutable old manifests and the six-routine clean baseline; newly built releases
+must explicitly declare support for account-identifier retirement. Admission
+of the two-routine target also requires protected/retired runtime configuration
+and read-only proof of the exact retired account/routine shape. Older bundles
+without that capability remain inadmissible for retired-target deployment.
+No schema operation or live configuration change is implied. Focused preflight
+checks precede release publication/build and the recoverable S08.4 switch.
+
+
+## S08.4a offline deployment prerequisite accepted
+
+The correction declares `supports_account_identifier_retirement` only in newly
+built v2 releases. Old manifests without the field remain readable and
+unchanged. Preflight admits only the exact six-to-two routine transition,
+with both protection flags true, retained slot procedures, no retired
+plaintext account/history identifier columns, and all ten non-null protected
+identifier columns across five account roles. Other schema/accounting
+contracts stay exact. A partial schema, missing column, wrong procedure,
+unsupported count, failed metadata query, absent capability or disabled
+protection stops before activation/history mutation.
+
+Ten cases exercise the public checksum/manifest/target preflight path with
+synthetic runtime/release fixtures. Older manifest compatibility and explicit
+capability restrictions pass; seven cases exercise the shell verifier's actual
+predicate. The exact new metadata SQL passes read-only against production.
+Affected deployment package/CLI tests pass (about 1.35 seconds); vet, shell
+syntax, documentation guard and diff checks pass. No long browser suite is
+run. Offline prerequisite preparation review 1/10 passes with no open P1/P2;
+whole-S08 review remains unstarted. S08.4a is a subordinate completed source
+unit, allowing task-level publication without falsely completing S08.4.
+
+S08.4 remains the sole live-readiness owner: prepare a clean published capable
+release, independently recover the complete drop-in/key/config checkpoint,
+then apply the authorized Identity-disabled configuration and complete fresh
+baseline checks. No release build, service switch, Identity key provisioning,
+Identity activation, canary creation or W27 acceptance is inferred here.
+Unrelated Aofei README/layout ancestry and infrastructure migration remain
+preserved and excluded from source publication.

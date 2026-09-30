@@ -164,8 +164,9 @@ type Source struct {
 }
 
 type ReleaseContracts struct {
-	Database          DatabaseShape `json:"database"`
-	AccountingVersion string        `json:"accounting_version"`
+	Database                            DatabaseShape `json:"database"`
+	AccountingVersion                   string        `json:"accounting_version"`
+	SupportsAccountIdentifierRetirement bool          `json:"supports_account_identifier_retirement,omitempty"`
 }
 
 type DatabaseShape struct {
@@ -356,6 +357,9 @@ func (manifest ReleaseManifest) Validate() error {
 	current := manifest.SchemaVersion == ReleaseSchemaVersion && manifest.Kind == ReleaseKind
 	if !legacy && !current {
 		return fmt.Errorf("unsupported release schema/kind")
+	}
+	if manifest.Contracts.SupportsAccountIdentifierRetirement && (!current || manifest.Contracts.Database.Routines != 6) {
+		return fmt.Errorf("unsupported account-identifier retirement capability")
 	}
 	matches := releaseIDPattern.FindStringSubmatch(manifest.ReleaseID)
 	if len(matches) != 4 {

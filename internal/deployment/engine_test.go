@@ -14,23 +14,25 @@ import (
 )
 
 type deploymentRunner struct {
-	environment        Environment
-	restarts           int
-	starts             int
-	stops              int
-	active             bool
-	failConfig         bool
-	failConfigAt       int
-	configCalls        int
-	failStart          bool
-	failStop           bool
-	stopLeavesActive   bool
-	loadedUnit         bool
-	staleManager       bool
-	loadedExecStart    string
-	loadedWorkingDir   string
-	loadedAofeiConfig  string
-	loadedSummerConfig string
+	environment             Environment
+	restarts                int
+	starts                  int
+	stops                   int
+	active                  bool
+	failConfig              bool
+	failConfigAt            int
+	configCalls             int
+	failStart               bool
+	failStop                bool
+	stopLeavesActive        bool
+	loadedUnit              bool
+	staleManager            bool
+	loadedExecStart         string
+	loadedWorkingDir        string
+	loadedAofeiConfig       string
+	loadedSummerConfig      string
+	retiredAccountResult    string
+	failRetiredAccountQuery bool
 }
 
 func (runner *deploymentRunner) Run(_ context.Context, command string, arguments, _ []string) ([]byte, error) {
@@ -77,6 +79,12 @@ func (runner *deploymentRunner) docker(arguments []string) ([]byte, error) {
 	case len(arguments) == 3 && arguments[0] == "port":
 		return []byte(dependency.PublishedPorts[0].Host + "\n"), nil
 	case len(arguments) > 2 && arguments[0] == "exec":
+		if containsSequence(arguments, retiredAccountContractSQL) {
+			if runner.failRetiredAccountQuery {
+				return nil, errors.New("synthetic retired schema query failure")
+			}
+			return []byte(runner.retiredAccountResult), nil
+		}
 		database := runner.environment.Database
 		return []byte(fmt.Sprintf("%d|%d|%d|%d|%s|%s|1|%d|%d\n",
 			database.Tables, database.Views, database.Routines, database.Triggers,

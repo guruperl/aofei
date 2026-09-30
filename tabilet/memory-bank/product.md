@@ -317,3 +317,9 @@ The established runtime direction remains:
   `docs/defer.md` are satisfied.
 - Claiming 99.9% availability, recovery objectives, or production latency from
   unit tests, microbenchmarks, or a disposable local restore drill.
+
+S08.4 prepares strict deployment admission for S07-retired account schemas.
+A new release capability, enabled/retired protection configuration and exact
+read-only retired-schema proof are required to reconcile a two-routine target
+with the unchanged six-routine clean baseline. This grants no schema or
+Identity activation authority. Publication and live use remain pending.

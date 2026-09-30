@@ -884,3 +884,13 @@ The matching Identity tables/triggers are preserved. Both credentials remain
 private, recovery-escrowed and separate from the unchanged active HTTP principal.
 S08.4 owns their reviewed switch and common-key delivery; enabling Identity
 and canary acceptance remain later gates. See [S08 status](status-S08.md).
+
+
+S08.4's prepared release capability
+`supports_account_identifier_retirement` is optional in v2 manifests; absent
+means unsupported. The generic deployer admits the two-routine retired target
+only for a capable six-routine-baseline bundle, with protected/retired Summer
+configuration and exact read-only account/routine metadata proof. All other
+database/accounting shape checks stay exact. Old immutable manifests remain
+readable and unchanged, but cannot authorize a new retired-target deployment.
+The newer verifier/deployer is required for newly capable bundles.
