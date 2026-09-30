@@ -894,3 +894,12 @@ configuration and exact read-only account/routine metadata proof. All other
 database/accounting shape checks stay exact. Old immutable manifests remain
 readable and unchanged, but cannot authorize a new retired-target deployment.
 The newer verifier/deployer is required for newly capable bundles.
+
+
+S08.4c's target-private infrastructure support supplies one verified inherited
+exclusive runtime-root guard to the normal deployment adapter. The guard is
+reasserted without downgrade; schema/feature/configuration operations remain
+Aofei/operator-owned. Numeric administrator status supports the retired schema
+and direct resets cannot bypass enabled Identity audit/session revocation.
+The source patch is verified; live installation and Identity activation remain
+pending under S08.4/S08.5.

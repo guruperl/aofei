@@ -20,7 +20,7 @@ general S02 role-policy example.
 - w8m-infrastructure owns only its documented immutable release and service
   deployment workflow. It does not own schema migration, feature activation or
   Cloudflare/DNS changes.
-- Task order: S08.1 -> S08.2 -> S08.3 -> S08.4a -> S08.4b -> S08.4 -> S08.5 -> S08.6.
+- Task order: S08.1 -> S08.2 -> S08.3 -> S08.4a -> S08.4b -> S08.4c -> S08.4 -> S08.5 -> S08.6.
 - This status grants no database, secret, configuration, deployment, browser or
   account-mutation authority. Each production action requires its own exact
   authorization and current readiness.
@@ -34,6 +34,7 @@ general S02 role-policy example.
 | S08.3 Apply schema and verify readiness | `[+]` | Window 02 passed after fresh continuously frozen backup, independent complete restore/runtime-ring recovery and credential escrow recovery. Separate unused runtime/maintenance principals have exact reviewed rights; both audits deny forbidden updates/deletes. All 96 tables’ counts/checksums and schema inventory remain identical. Matching Identity objects need no DDL. Original HTTP credentials/configuration stay unchanged; Identity remains disabled, account protection retired. Writer resume/readiness 204 and task review 1/10 pass. Failed window 01 remains failed before restore/grants. |
 | S08.4a Reconcile deployment admission with the retired account schema | `[+]` | Offline prerequisite accepted: newly built v2 bundles declare retirement support; target preflight requires protected/retired configuration and exact read-only retired account/routine metadata. Clean six-routine baseline and older immutable manifests remain unchanged. Ten public preflight cases, manifest compatibility and seven shell verifier cases pass; the exact metadata query passes read-only on yixin. Affected deployment tests, vet, syntax, docs and diff checks pass. Preparation review 1/10 has no open P1/P2. Local source commit is authorized under task policy; clean publication/build and live application remain S08.4 requirements. |
 | S08.4b Correct the frozen-build frequency-cap fixture timezone | `[+]` | Release build 02 stopped at TestFcap: its UTC input disagreed with assertions for local legacy fields on the Los Angeles workstation. The fixture now constructs local midnight; production code and assertions are unchanged. The exact test passes freshly under UTC, Los Angeles and Shanghai, and the affected match package passes in 0.101 seconds. Preparation review 1/10 has no open P1/P2. This accepts the fixture source correction, not the failed release build; a fresh clean published source/build remains required by S08.4. |
+| S08.4c Prepare target-owned deployment and administrator compatibility support | `[+]` | The manifest names the future required Identity environment file and two retained production routines; the drop-in contains only the secret-file path. Retired-schema numeric administrator status works, and Identity-enabled direct resets fail before password/account access. The guard validates/reasserts an inherited exclusive descriptor for nested adapter calls without downgrading it. Focused local/remote kernel and synthetic administrator fixtures, strict manifest validation, source-byte comparison and full browser-free backend conformance pass on yixin using supplied offline sources/Go. Preparation review 1/10 has no open P1/P2. Infrastructure source publication excludes the unrelated layout migration; live installation remains S08.4 work. |
 | S08.4 Deploy identity-disabled release and provision common key | `[~]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
 | S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
@@ -669,3 +670,66 @@ output, launcher and terminal receipt remain preserved and unchanged; no
 release output or production/key operation occurred. Whole-S08 review remains
 unstarted. S08.4b is a completed source prerequisite; S08.4 still requires new
 clean publication, a fresh passing release build and live readiness acceptance.
+
+
+S08.4b is committed locally as `c49fdf0`. Its exact fixture correction is
+published as `96456a2bf9bb`, fast-forwarding only the separate S08 source branch.
+The unrelated layout ancestor remains excluded. The existing owner checkout
+retains task/status authority. A fresh third source/build directory is prepared
+for the unchanged normal builder after the exact failed test and affected
+match-stage checks pass. Preparations 01 and build 02 remain failed; no old
+source copy, output or receipt is overwritten. The third build is not accepted
+until its own terminal receipt and immutable artifact verification pass.
+
+Fresh build 03 has passed independent source-copy preparation and its recorded
+normal builder is confirmed live. Observe that same private handle. Production
+remains unchanged, Identity disabled, and no recovery-key dialog is open.
+
+
+Fresh build 03 passed in 276.203 seconds, producing immutable release
+`aofei-96456a2bf9bb_pzdesign-6767db40d0ff_genelet-fdeff9732d9e`. All three
+required Go suites, binary/source bindings, asset inventory and release
+verification pass; supplied sources remain clean and unchanged. Failed
+preparation 01 and build 02 remain failed. No production change or key
+provisioning occurred.
+
+The private configuration window holds the existing exclusive runtime-root
+guard, but the current thin deployment adapter opens a new shared guard
+descriptor. That nested invocation would refuse rather than execute. S08.4
+therefore needs a focused supporting correction before live handoff: validate
+and reassert a supplied inherited descriptor as exclusive, without downgrading
+the outer lock, while retaining the existing default shared/exclusive behavior
+for ordinary callers. The target-private manifest/drop-in and administrator
+compatibility guard stay within infrastructure ownership.
+
+
+## S08.4c target-private support accepted
+
+The supporting infrastructure patch reconciles administrator status with
+retired identifiers and refuses unaudited, non-revoking direct resets once
+Identity is enabled. Both actions serialize with the runtime-root guard. A
+supervised configuration window can supply its exact inherited descriptor to
+the thin deployment adapter; the helper checks canonical inode/owner/mode and
+reasserts exclusive ownership, preserving the outer guard. Wrong, closed,
+replaced or peer-writable descriptors fail without a fallback acquisition.
+Ordinary callers retain their existing shared/exclusive behavior.
+
+Local and remote real-kernel lock fixtures pass in under a second. The updated
+administrator fixture passes with synthetic SQL/password state and the server's
+already installed htpasswd; no production account command is invoked. The
+newly built generic binary validates the planned target manifest. A fresh
+supplied source snapshot and hash-matching offline Go 1.23.5 run full backend
+conformance successfully on yixin, including ownership/current/reachable-history
+exclusion, focused deployment tests, release verification and synthetic
+bootstrap/migration/admin fixture checks. Tested executable/manifest/drop-in
+bytes match the owner checkout. No production configuration, service, account,
+key or browser operation changes. Preparation review 1/10 has no open P1/P2;
+whole-S08 review remains unstarted.
+
+S08.4c accepts source support only. Infrastructure publication must exclude its
+unrelated uncommitted layout migration and preserve D00–D05 history. S08.4
+still owns the recovered configuration/key checkpoint, clean adapter handoff,
+live Identity-disabled installation and fresh baseline acceptance. The private
+checkpoint reader now has seven passing synthetic checks for complete recovery,
+missing drop-ins, corruption, links, HTTP activation, credential leakage and
+wrong key length. It has not generated or recovered a production Identity key.

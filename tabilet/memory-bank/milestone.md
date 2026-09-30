@@ -123,7 +123,7 @@ acceptance criteria recorded in the corresponding status files.
 | S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | S07 | Completed; active on W8M | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
-| S08 | In progress; S08.3/S08.4a/S08.4b accepted, identity-disabled readiness next | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
+| S08 | In progress; S08.3/S08.4a/S08.4b/S08.4c accepted, identity-disabled readiness next | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -419,6 +419,8 @@ S08.4a completes the offline prerequisite that reconciles deployment preflight w
 schema through an explicit release capability and read-only schema proof;
 the six-routine clean baseline and old immutable release records remain intact.
 S08.4b corrects only a timezone assumption in a frozen-build test fixture.
+S08.4c completes target-private guard/admin/manifest support without accepting
+live installation; infrastructure retains its source boundary and layout work.
 Publication, deployment and key recovery are acceptance prerequisites, not
 inferred from offline tests. Detailed tasks and stop conditions are in
 [status-S08.md](status-S08.md).

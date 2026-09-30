@@ -904,3 +904,11 @@ Run its focused timezone check with `TZ=UTC`, `TZ=America/Los_Angeles` and
 `TZ=Asia/Shanghai`; all three fresh checks and the affected match package pass.
 The stopped clean release build remains failed and requires fresh source/build
 paths after publication of this fixture correction.
+
+
+S08.4c's private support passes the small real-kernel lock test locally and on
+yixin, synthetic administrator checks, source-byte comparison and full backend
+conformance using a supplied SHA-matching Go 1.23.5/cache/source snapshot.
+The new capable release also passes independent generic verification; its
+normal three-suite build took 276.203 seconds. No browser suite or production
+configuration/service operation was involved.
