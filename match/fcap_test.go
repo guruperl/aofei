@@ -14,7 +14,8 @@ import (
 
 // TestFcap tests the Fcap struct.
 func TestFcap(t *testing.T) {
-	now := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	// The asserted compatibility fields encode the local wall clock.
+	now := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.Local)
 	fcap := NewFcap(now)
 	if fcap.Total != 0 {
 		t.Errorf("Total should be 0, but got %d", fcap.Total)

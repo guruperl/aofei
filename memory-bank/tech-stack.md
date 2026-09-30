@@ -863,3 +863,6 @@ before a D02 closeout.
 
 
 Retirement-aware deployment preflight has ten focused public-entry fixture cases and manifest compatibility/restriction cases. The affected deployment tests and vet pass, the actual shell verifier predicate has seven passing cases, and read-only production metadata SQL passes. Newly capable bundles require the newer strict verifier/deployer. No browser qualification is involved.
+
+
+S08.4b corrects only the TestFcap fixture to construct the local calendar midnight expected by its legacy compatibility-field assertions. The exact test passes freshly in UTC, Los Angeles and Shanghai, and the affected match package passes in 0.101 seconds. Production cap code is unchanged. Release build 02 remains failed; a fresh frozen build is required.

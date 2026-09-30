@@ -480,3 +480,6 @@ trigger is satisfied.
 
 
 S08.4a offline retirement-aware deployment admission is accepted in the continuing cross-package owner checkout (local source acceptance 9967e6b, preparation review 1/10, no open P1/P2). This source branch publishes only that generic source/documentation prerequisite, without the unrelated layout ancestry. Release build, key recovery, live configuration, Identity canary and goal closure remain pending in the existing owner ledger; this branch is not a second execution owner.
+
+
+S08.4b is accepted as an offline frozen-build fixture prerequisite (owner source commit c49fdf0, preparation review 1/10, no open P1/P2). Its correction does not accept the stopped release build or Identity rollout. The existing owner checkout remains the only S08 execution ledger.

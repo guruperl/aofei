@@ -15,3 +15,6 @@ applying it. Before materially replacing or removing a lesson, preserve its
 previous wording in Git history rather than a separate journal.
 
 No durable lessons have been recorded yet.
+
+
+When checking compatibility calendar bits, use an input in the clock those bits encode. UTC midnight can be the previous day locally even when the new authoritative format is UTC. Exercise the same fixture in positive/negative-offset zones before repeating a frozen build; see the existing match/fcap_test.go fixture and source-unit S08.4b.
