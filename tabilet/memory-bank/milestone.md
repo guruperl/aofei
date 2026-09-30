@@ -123,7 +123,7 @@ acceptance criteria recorded in the corresponding status files.
 | S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | S07 | Completed; active on W8M | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
-| S08 | Planned; follows S07 | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
+| S08 | In progress; S08.1 accepted, rehearsal next | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -403,7 +403,7 @@ sign-in/display and recovery-mail/page canaries pass; bounded review 8/10
 closes with no open P1/P2.
 Detailed tasks and gates are in [status-S07.md](status-S07.md).
 
-## S08 - W8M Production Identity And TOTP Activation `[ ]`
+## S08 - W8M Production Identity And TOTP Activation `[~]`
 
 Enable the already implemented S02 identity boundary on W8M only after S07
 closes. Rehearse and review the online schema migration, shared identity-key
