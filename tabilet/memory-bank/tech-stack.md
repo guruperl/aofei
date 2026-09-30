@@ -817,6 +817,18 @@ The private deployment must retain a previous account-data key for at least the
 24-hour activation-token lifetime and must verify front-proxy access-log policy
 before enabling opaque query-token links.
 
+The W8M operator's one-time S07 snapshot is encrypted before leaving the
+server and kept outside Git on an owner-only workstation path, with protected
+GPG recovery material retained separately. Its isolated restore uses the
+exact MySQL 8.0.41 image and network-disabled tmpfs storage; the restored-copy
+retirement/rotation drill and cleanup pass. This does not establish recurring
+backup coverage. Production rotation and plaintext retirement now pass,
+including a fresh frozen snapshot/independent restore and complete-ring
+recovery. The previous key must remain until at least 2026-10-01T19:02:35Z
+for protected action proofs. Fresh owner canaries and review 8/10 close S07;
+acceptance is recorded in
+[S07 status](status-S07.md).
+
 Schema baseline verification:
 
 ```bash

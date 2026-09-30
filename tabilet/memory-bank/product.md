@@ -140,13 +140,18 @@ local/spread bid mode can serve static cache reads from in-process snapshots.
   proxies can supply client identity. The owner-selected Cloudflare Free
   exact-path burst rule and the complete boundary are active on W8M; other
   deployments remain default-off and must retain their own activation proof.
-- S07 is the in-progress, default-off account-data successor to S02/S06. It
+- S07 is the account-data successor to S02/S06, default-off in templates. It
   covers advertiser, publisher, administrator, agent, and analyst identifiers
   with a dedicated versioned environment key ring, HMAC lookup, authenticated
   reversible display encryption, and shared pseudonymous login throttling.
   Passwords remain bcrypt-only. Plaintext retirement is separately gated on
   complete display/mail/action-token migration plus private canary, rollback,
-  and rotation evidence.
+  and rotation evidence. W8M production now uses the protected, plaintext-retired schema. Backfill,
+  protected canary, key rotation, complete-ring recovery and a fresh frozen
+  backup/independent restore passed before the one-time drop. Current-key
+  verification, retained fields/passwords and unrelated data checks pass;
+  the prior key remains available for issued mail. Fresh owner sign-in and
+  recovery-mail/page canaries pass; bounded review 8/10 closes S07.
 - O04 owns reusable immutable Aofei/Pzdesign/Genelet release verification and
   strict target-manifest deployment mechanics. Exact host values, service
   inputs, dependency identities, health policy, and history remain private.
@@ -167,9 +172,10 @@ and quota-script work. D05, S06, P03, S05, O03, R03, A03, and the Review3
 cross-lane M46 remediation are now complete. M46 resolved confirmed
 demand-eligibility, schema, filesystem, concurrency, hot-path,
 creative-boundary, and static-analysis findings without reopening those
-completed milestones. S07 is now the active repository security milestone;
-its additive work remains disabled and does not claim production migration or
-plaintext retirement. Completed O04 deployment work moved reusable strict
+completed milestones. S07 is complete: production backfill, protected canary,
+rotation, plaintext retirement and fresh owner sign-in/recovery-page checks
+pass, with bounded review 8/10. S08 next owns W8M Identity activation.
+Completed O04 deployment work moved reusable strict
 preflight, deployment, proxy-free health checks, rollback, and credential-free
 history into Aofei without embedding W8M host values. O05 replaced O04's
 legacy-process bootstrap bridge with a clean first-activation transaction

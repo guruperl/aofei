@@ -11,12 +11,16 @@ order, D04, D05, S06, P03, S05, O03, O04, O05, R03, A03, and M46 are complete. P
 authenticity gates remain disabled by default until a separately authorized
 named-publisher canary. I02 remains separately demand-gated; its repository
 prerequisites are complete, but a named Android or iOS integration still has
-not defined supported platforms and lifecycle requirements. The active MySQL
-baseline is 96 tables, 0 views, 6
+not defined supported platforms and lifecycle requirements. The checked-in
+fresh-install MySQL baseline is 96 tables, 0 views, 6
 routines, and 65 triggers;
 planned milestones do not imply schema or runtime activation. S07 account
-identifier protection is in progress and remains disabled by default; its
-additive repository work does not claim a production migration. O04's generic
+identifier protection remains default-off in templates. W8M's protected
+production backfill, canary, key rotation and guarded plaintext retirement pass;
+fresh owner sign-in/recovery-page canaries and bounded review 8/10 close S07.
+S08 plans W8M's
+later S02 Identity activation after S07 and has not activated production
+Identity. O04's generic
 release deployment engine and private handoff are complete. O05 clean first
 activation and its private W8M proof are also complete.
 
@@ -64,7 +68,8 @@ activation and its private W8M proof are also complete.
 | S04 template/XSS safety | Completed | [status-S04.md](../tabilet/memory-bank/status-S04.md) | [Template rendering security](template-rendering-security.md) and [pzdesign rendering inventory](../../pzdesign/docs/rendering-security.md) |
 | S05 runtime trust boundaries | Completed | [status-S05.md](../tabilet/memory-bank/status-S05.md) | [Creative consumer boundary](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
 | S06 public account abuse protection | Completed; active on W8M | [status-S06.md](../tabilet/memory-bank/status-S06.md) | [Public account abuse protection](public-account-abuse-protection.md) |
-| S07 account identifier protection | In progress; disabled by default | [status-S07.md](../tabilet/memory-bank/status-S07.md) | [Account identifier protection](account-identifier-protection.md) |
+| S07 account identifier protection | Completed; active on W8M | [status-S07.md](../tabilet/memory-bank/status-S07.md) | [Account identifier protection](account-identifier-protection.md) |
+| S08 W8M Identity activation | Planned; follows S07 | [status-S08.md](../tabilet/memory-bank/status-S08.md) | [Identity and access security](identity-access-security.md) |
 | A01 accounting and settlement | Completed | [status-A01.md](../tabilet/memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../tabilet/memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |
 | A03 exact monetary sources | Completed | [status-A03.md](../tabilet/memory-bank/status-A03.md) | [Exact money](exact-money.md), existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |

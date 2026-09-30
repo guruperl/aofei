@@ -858,4 +858,15 @@ The complete boundary is in
   cache discovery may extend inventory for an existing account but cannot
   synthesize a publisher account without an interactive identifier and the
   application-owned key. Proxy access-log handling remains a private
-  deployment gate.
+  deployment gate. W8M's HTTP/TLS access-log gate now passes, and a verified
+  writer-frozen encrypted snapshot was restored on isolated MySQL 8.0.41.
+  Its production backfill, protected canary, key rotation and guarded
+  plaintext retirement pass on the same immutable release. The complete
+  key ring and fresh frozen snapshot were independently recovered before
+  the drop; retained account/history fields and passwords, all row counts
+  and unrelated checksums remain unchanged. The previous key stays available
+  for issued action proofs. Post-drop recovery uses the proven encrypted
+  backup and matching configuration; default-off rollback requires restoring
+  the pre-drop schema. Fresh owner sign-in/recovery-page canaries and bounded
+  review 8/10 pass; acceptance evidence remains in
+  [S07 status](status-S07.md).

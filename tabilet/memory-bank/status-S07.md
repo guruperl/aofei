@@ -1,6 +1,6 @@
 # Status S07 - Account Identifier Protection
 
-State: `[!]` Production plaintext retired; fresh sign-in/recovery-page canary passed, bounded closeout pending
+State: `[+]` Complete; W8M protected plaintext retirement and final owner canary accepted
 
 ## Goal
 
@@ -24,7 +24,7 @@ account key to unrelated secrets, or forcing an irreversible rollout.
 | Shared login throttle and impersonation | `[+]` | Redis state uses expiring pseudonymous keys, spans instances, uses S06's trusted client-IP resolver when present, reads/clears bounded rotation candidates, writes Current, clears on success, and fails closed. Legacy login-as is administrator-only, POST/CSRF-protected, numeric-ID based, has no agent entry point, and remains disabled whenever the S02 identity boundary is enabled. |
 | Opaque account-action tokens | `[+]` | Advertiser/publisher activation and reset use random 32-byte, purpose/role-bound, expiring one-use tokens. MySQL stores only current-key digests; current/previous keys validate outstanding mail, authoritative updates consume atomically, app logs redact proofs, sensitive pages are no-store/no-referrer, and mail-only context is scrubbed before responses. |
 | Plaintext retirement migration | `[+]` | Guarded one-time production drop passed at 2026-09-30T19:06:08Z after the owner-revised observation gate, complete-ring recovery, key rotation, fresh continuously writer-frozen backup/independent restore and full current-key/plaintext parity. All seven plaintext columns and four legacy credential procedures are absent; ten protected columns are non-null. Retained account/history fields, password hashes, all row counts and unrelated table checksums are unchanged. PlaintextRetired=true, previous key retained, restarted readiness 204. Fresh owner sign-in/display and freshly issued recovery-mail/page canaries passed. The earlier human-verification rejection and expired proof remain recorded failures; no password was changed. |
-| Review and closeout | `[!]` | Four bounded repository review iterations resolved every confirmed P1/P2 and the full three-repository plus local schema/migration gates pass. Production rotation and guarded retirement now pass. Final fresh owner canary, evidence review, current-fact reconciliation and task acceptance/commit remain pending. |
+| Review and closeout | `[+]` | Complete at bounded whole-milestone review 8/10 with no open P1/P2; separate migration review remains 4. Earlier full three-repository and exact-image schema/migration checks remain valid for unchanged inputs. Production rotation, continuously frozen backup/restore, guarded retirement and fresh owner sign-in/recovery-page canaries pass. Current facts and queued S08/W27 dependencies are reconciled; older failed attempts and history remain unchanged. |
 
 ## Acceptance Criteria
 
@@ -643,3 +643,24 @@ proven encrypted recovery baseline as prerequisites. The former key remains
 required until at least 2026-10-01T19:02:35Z; key removal and recurring backups
 are not implicitly performed by closure. W27 remains gated on S08's separately
 verified Identity rollout, enrollment and exact live authorizations.
+
+
+### S07 closed and downstream reconciliation
+
+Retirement task acceptance is committed locally as `fbfd144`. Final owner
+canary evidence is appended to infrastructure history as `4af90a8`; original
+rotation/retirement records remain unchanged. Whole-milestone review 8/10
+passes with no open P1/P2. All tasks and acceptance gates are complete; current
+product, architecture, roadmap, tooling and operator index now reflect that
+result. Earlier pending statements above remain chronological evidence.
+
+The remaining cross-package order is S08 -> W27. S08 starts from the unchanged
+identity-disabled release on the protected retired schema; the independently
+restored encrypted snapshot and complete ring remain the recovery baseline.
+S08's permission/key/canary/rollout requirements remain mandatory. W27.3 is
+still blocked until S08 rollout and W8M's own read-only acceptance check.
+No Identity activation, TOTP enrollment, authoring capture or count claim was
+performed by S07 closeout. The unrelated README label edit and infrastructure
+layout migration remain outside the task commits. Aofei's existing unpublished
+layout-migration ancestor is preserved locally, so these task commits are not
+pushed through that unrelated ancestor.

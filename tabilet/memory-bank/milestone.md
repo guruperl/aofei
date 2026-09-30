@@ -38,9 +38,10 @@ complete. I02 remains demand-gated and starts only when a named Android or iOS
 integration supplies supported OS/version and lifecycle requirements. Matching
 lane status files are the authoritative completion record; the early M-lane
 milestones (M00 through M45) are retired to the
-[history index](../docs/history/index.md). S07 account-identifier protection is now
-in progress as a default-off successor to S02/S06; it does not activate or
-migrate production by implication.
+[history index](../docs/history/index.md). S07 account-identifier protection
+and guarded plaintext retirement are accepted on W8M, including fresh owner
+sign-in/recovery-page canaries and bounded review 8/10. Templates remain default-off, and source
+implementation grants no activation or migration authority for other targets.
 O04 is complete under the owner-directed deployment-boundary split: Aofei owns
 a generic deployment/bootstrap engine, while exact W8M host policy remains
 private. O04 neither depends on nor activates S07.
@@ -67,9 +68,12 @@ Delivery sequence:
 7. Current security migration: S07 protects interactive account identifiers
    through additive schema, dual reads/writes, opaque account-action tokens,
    and a separately authorized plaintext-retirement gate.
-8. Independent deployment tooling: O04 replaces duplicated target deploy logic
+8. W8M production Identity activation: S08 follows S07 and owns the staged
+   database, key, role-policy, canary, rollout, and rollback evidence for
+   enabling the already implemented S02 boundary on W8M.
+9. Independent deployment tooling: O04 replaces duplicated target deploy logic
    with a strict generic Aofei engine and synthetic state-machine tests.
-9. Clean first activation: O05 replaces O04's legacy-process bootstrap bridge
+10. Clean first activation: O05 replaces O04's legacy-process bootstrap bridge
    with an uninstalled-state transaction while preserving ordinary deploy and
    rollback behavior.
 
@@ -88,6 +92,9 @@ D01 -> S01 -> S04 -> O01 -> A01 -> P01
 S07 is an independent successor to M46 and may proceed concurrently with
 O04/O05; it is not an O05 dependency and does not change I02's named-mobile-
 integration gate.
+S08 is queued after S07 so account-identifier migration and production Identity
+activation do not change authentication state concurrently. S08 does not make
+Cloudflare/DNS changes or grant production mutation authority.
 
 Controlled direct-SSP and middleman staging may begin with existing runtime
 features, but revenue-bearing activation must satisfy the prerequisite lane
@@ -115,7 +122,8 @@ acceptance criteria recorded in the corresponding status files.
 | S04 | Completed | [status-S04.md](status-S04.md) | Template escaping and XSS audit. |
 | S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
-| S07 | In progress; disabled by default | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
+| S07 | Completed; active on W8M | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
+| S08 | Planned; follows S07 | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -380,14 +388,34 @@ evidence are complete. The Free rule still cannot distinguish GET from POST.
 Detailed tasks and verification are in
 [status-S06.md](status-S06.md).
 
-## S07 - Account Identifier Protection `[~]`
+## S07 - Account Identifier Protection `[+]`
 
 Protect advertiser, publisher, administrator, agent, and analyst identifiers
 with a dedicated versioned lookup/encryption key ring while retaining bcrypt as
 the sole password verifier. Roll out through additive schema, offline
 backfill/verification, dual reads/writes, shared pseudonymous login throttling,
 opaque action tokens, and an explicitly separate plaintext-retirement
-migration. Detailed tasks and gates are in [status-S07.md](status-S07.md).
+migration. Production backfill, protected advertiser canary, service
+rollback/restart, key rotation and plaintext retirement pass. Complete-ring
+recovery and a fresh frozen backup/independent restore preceded the exact drop;
+retained data/passwords and post-drop cryptographic checks pass. Fresh owner
+sign-in/display and recovery-mail/page canaries pass; bounded review 8/10
+closes with no open P1/P2.
+Detailed tasks and gates are in [status-S07.md](status-S07.md).
+
+## S08 - W8M Production Identity And TOTP Activation `[ ]`
+
+Enable the already implemented S02 identity boundary on W8M only after S07
+closes. Rehearse and review the online schema migration, shared identity-key
+provisioning, permissions and recovery readiness, then activate through a
+canary and controlled rollout with a tested rollback plan. Keep `adv` outside
+mandatory TOTP for this W8M rollout so the dedicated advertiser test account
+can enroll voluntarily. Aofei owns application/schema implementation and its
+rollout contract; the W8M operator owns private configuration and secret
+handling; w8m-infrastructure owns only its documented release and service
+deployment work. Every production mutation requires separate exact
+authorization and readiness. Cloudflare/DNS changes are out of scope. Detailed
+tasks and stop conditions are in [status-S08.md](status-S08.md).
 
 ## A01 - Billing And Manual Settlement Safety `[+]`
 
