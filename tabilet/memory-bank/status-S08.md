@@ -1,6 +1,6 @@
 # Status S08 — W8M Production Identity And TOTP Activation
 
-State: `[~]` In progress; S08.4 identity-disabled readiness preparation.
+State: `[~]` In progress; S08.4 accepted; S08.5 analyst-canary preparation next.
 
 ## Goal
 
@@ -35,7 +35,7 @@ general S02 role-policy example.
 | S08.4a Reconcile deployment admission with the retired account schema | `[+]` | Offline prerequisite accepted: newly built v2 bundles declare retirement support; target preflight requires protected/retired configuration and exact read-only retired account/routine metadata. Clean six-routine baseline and older immutable manifests remain unchanged. Ten public preflight cases, manifest compatibility and seven shell verifier cases pass; the exact metadata query passes read-only on yixin. Affected deployment tests, vet, syntax, docs and diff checks pass. Preparation review 1/10 has no open P1/P2. Local source commit is authorized under task policy; clean publication/build and live application remain S08.4 requirements. |
 | S08.4b Correct the frozen-build frequency-cap fixture timezone | `[+]` | Release build 02 stopped at TestFcap: its UTC input disagreed with assertions for local legacy fields on the Los Angeles workstation. The fixture now constructs local midnight; production code and assertions are unchanged. The exact test passes freshly under UTC, Los Angeles and Shanghai, and the affected match package passes in 0.101 seconds. Preparation review 1/10 has no open P1/P2. This accepts the fixture source correction, not the failed release build; a fresh clean published source/build remains required by S08.4. |
 | S08.4c Prepare target-owned deployment and administrator compatibility support | `[+]` | The manifest names the future required Identity environment file and two retained production routines; the drop-in contains only the secret-file path. Retired-schema numeric administrator status works, and Identity-enabled direct resets fail before password/account access. The guard validates/reasserts an inherited exclusive descriptor for nested adapter calls without downgrading it. Focused local/remote kernel and synthetic administrator fixtures, strict manifest validation, source-byte comparison and full browser-free backend conformance pass on yixin using supplied offline sources/Go. Preparation review 1/10 has no open P1/P2. Infrastructure source publication excludes the unrelated layout migration; live installation remains S08.4 work. |
-| S08.4 Deploy identity-disabled release and provision common key | `[~]` | Deploy code/templates with `Identity.Enabled=false` and verify ordinary bcrypt login, registration, recovery and both portals before activation. Then provision one 32-byte Identity encryption key to every `unify` node and the restricted maintenance host through the approved secret channel. Keep its value out of JSON, repositories, command arguments, logs and evidence. Before Identity activation, reconcile the legacy admin-reset CLI status with the retired schema and prevent unaudited non-revoking resets under Identity. Confirm key-version parity without exposing values, SMTP recovery, clock/NTP, secure cookies and role permissions. |
+| S08.4 Deploy identity-disabled release and provision common key | `[+]` | Accepted: thirteen-file independent recovery, immutable capable release installation through infrastructure, restricted shared runtime DB, common running-service/maintenance key parity and read-only maintenance UID/socket startup pass. HTTP Identity stays false; account protection and the retained ring remain unchanged. Fresh owner advertiser sign-in/display, recovery mail/page without password change, Publisher registration/email activation and both portal entries pass. NTP, HTTPS secure-cookie configuration and reviewed role permissions pass. Task review 1/10 has no open P1/P2; whole-S08 review remains unstarted. |
 | S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
 
@@ -733,3 +733,171 @@ live Identity-disabled installation and fresh baseline acceptance. The private
 checkpoint reader now has seven passing synthetic checks for complete recovery,
 missing drop-ins, corruption, links, HTTP activation, credential leakage and
 wrong key length. It has not generated or recovered a production Identity key.
+
+
+## S08.4 encrypted runtime checkpoint prepared
+
+Infrastructure support is published independently as `dabdb783d3a0` on
+`s08-readiness-support-20260930`; the unrelated layout migration and D-lane
+history are excluded. Its clean source checkout joins the three published
+backend revisions used by release build 03. Build 03 passed in 276.203 seconds;
+that unchanged build and server conformance evidence are reused.
+
+Fresh read-only readiness, exact restricted grants/audit denials, schema,
+clock, bcrypt baseline and the unique maintenance-actor checks pass before
+private preparation. One new Identity key and candidate runtime/maintenance
+configurations are generated outside Git. The actual production Go factories
+and restricted runtime database read pass. HTTP Identity stays false; the
+maintenance-only configuration carries the separate restricted principal and
+Unix-UID attribution. The encrypted thirteen-member checkpoint includes the
+original runtime files, actual Gmail/protection drop-ins, both candidate HTTP
+configs, new key/drop-in, maintenance config and staged credential provenance.
+Preparation takes 5.268 seconds; encryption is digest-verified on transfer.
+
+Preparation review 1/10 has no open P1/P2. Independent owner-key decryption and
+in-memory comparison remain required before any installation. A new masked
+GPG recovery entry is needed because the accepted S08.3 temporary unlock session
+was closed; it is not an account password or TOTP prompt. No service stop,
+configuration installation, release activation or Identity enablement occurred.
+S08.4 remains in progress and whole-S08 review remains unstarted.
+
+
+## S08.4 clean target handoff and recovery input
+
+The clean published four-repository source cohort and built release are copied
+to a fresh private target kit. Initial release verification stops on directory
+modes created by Python's data-filter extraction; the follow-up byte comparison
+also detects the four Git index stat caches updated by its own clean-tree check.
+Both stopped verification records are preserved. Explicit archive modes,
+restored index caches and GIT_OPTIONAL_LOCKS=0 correct only the supplied kit;
+all payload bytes then match, all four sources are clean/published, the release
+verifies and the target manifest validates. The focused corrected stage passes
+in 4.633 seconds, without rebuilding or repeating backend/browser suites.
+Transfer and first verification take 135.427 seconds; archive preparation takes
+12.322 seconds. No production file/service/release changed.
+
+The maintenance identity-admin client is built offline from the same published
+Pzdesign revision as the accepted release, in 3.706 seconds. Its bytes stay in
+private preparation storage; no account command or maintenance installation is
+performed. Documentation and diff checks pass for the readiness notes.
+
+The independent checkpoint recovery launcher is live as local PID 3928199,
+with its single masked dialog PID 3928200 and tool session 60923. Its durable
+private handle is checkpoint-01/recovery-live-handle.json. Resume that handle
+after owner input; do not launch another dialog or infer success from waiting.
+It verifies the thirteen encrypted members in memory and removes the temporary
+protected keyring. Until its receipt passes, S08.4 installation remains gated.
+Whole-S08 review remains unstarted.
+
+
+## S08.4 maintenance client target readiness
+
+The newly built published-source maintenance CLI is copied to the private target
+kit, its SHA-256 matches, and its help path executes successfully on yixin.
+Transfer and executable readiness take 18.611 seconds. This checks the actual
+host binary without a config, key, database call or account mutation; it does
+not accept the later maintenance factory or canary operation. The existing
+independent recovery process and masked dialog remain live (same PID/session),
+with no recovery receipt yet. Production installation still waits for that
+owner input; no duplicate dialog or operation is launched.
+
+
+## S08.4 private operator file-window preparation
+
+A private file-window helper prepares atomic owner-only config replacement and
+explicit rollback under the existing exclusive guard. It rejects drift, links,
+unsafe paths and colliding new destinations; a consumed object cannot replay.
+The bounded helper review finds and fixes three P2 preparation issues at
+iteration 1 (replay after rollback, atomic no-clobber creation and file-type
+checks before rollback reads). Iteration 2 has no open P1/P2. Nine focused local
+filesystem checks pass in 0.078 seconds, including post-rename failure,
+restoration, collision, drift and FIFO refusal. Earlier checks are retained;
+no backend/browser suite is repeated.
+
+The separate private operator wrapper compiles and requires the exact passed
+independent recovery receipt, original file/source bindings, fresh readiness
+and a new exclusive consumed window. It delegates release selection to the
+published infrastructure adapter and generic engine. It waits for any launched
+adapter to terminate before deciding on file rollback; unresolved selection or
+post-deploy verification stops without a retry. Source freezing, final wrapper
+preparation review and actual execution remain pending. The existing recovery
+launcher/dialog are still live; no independent recovery receipt, production
+installation or Identity activation is inferred. Whole-S08 review stays
+unstarted, and S08.4 remains in progress.
+
+
+## S08.4 assembly ready; owner recovery input still required
+
+Final operator source bindings are frozen and preparation review 1/10 has no
+open P1/P2; this is separate from whole-S08 review. The preserved Gmail
+assignments parse successfully. A fresh check-only execution of the actual
+wrapper on yixin refuses the missing independent recovery receipt before
+creating any activation window. All original runtime hashes remain equal,
+new live Identity paths remain absent and the service stays active. That
+focused gate check takes 3.796 seconds; it does not consume an activation
+attempt or authorize Identity/account/browser operations.
+
+The same required masked GPG input has remained unresolved across three
+consecutive goal turns. The actual recovery launcher PID 3928199 and dialog
+PID 3928200 are confirmed live again; neither a passed nor stopped recovery
+receipt exists. Independent preparation is ready. The native goal is blocked
+on this owner input, while the existing dialog is retained. Resume its same
+session 60923 after input, read the recovery receipt and recheck readiness
+before invoking the separately consumed disabled runtime window. Do not open
+another prompt, reuse a consumed window or treat the missing receipt as success.
+S08.4 remains in progress; production Identity stays disabled, and later S08
+and W27 acceptance are pending.
+
+
+## S08.4 disabled installation and baseline acceptance — 2026-10-01 UTC
+
+The previously blocked owner GPG entry completes the existing recovery process.
+Independent recovery passes for all thirteen checkpoint members in 0.472 seconds,
+with the common Identity key, original protection ring and separate credential
+boundaries proved in memory. The temporary protected keyring is removed; no
+second recovery dialog or replay is needed. The earlier missing-receipt refusal
+and native blocked-state notes remain historical evidence.
+
+The fresh consumed activation-01 delegates to the normal published
+infrastructure adapter. It installs release
+`aofei-96456a2bf9bb_pzdesign-6767db40d0ff_genelet-fdeff9732d9e` in 14.605 seconds.
+Both HTTP configurations use the reviewed restricted runtime principal; the
+recovered Identity environment file, path-only drop-in and separate restricted
+maintenance configuration are installed. The running process has the matching
+Identity key and unchanged account-protection ring. HTTP Identity stays false,
+account protection stays enabled/retired, readiness and health return 204, and
+both public origin checks pass. The immediately prior immutable release and
+complete recovered config checkpoint remain available for rollback; rollback
+must preserve retired protection and database evidence.
+
+The same published Pzdesign maintenance client reaches UID attribution,
+restricted Unix-socket DB access and the Identity/common-key factories, then
+refuses a deliberately unsupported action before any mutation branch. Startup
+passes in 1.753 seconds, all six Identity table counts remain unchanged, and
+its private transient container files are removed. No analyst, TOTP enrollment,
+password reset, grant or Identity activation occurs in this probe.
+
+The owner confirms fresh retained advertiser sign-in/dashboard/account display,
+a fresh recovery email opening at Set New Password without changing the
+password, new Publisher registration with email receipt and successful
+activation, and normal display of both portal entry pages. These are manual
+backend baselines, not W8M automated-registration or count acceptance. The
+conditional recovery-code field is existing template behavior, not evidence
+that Identity is enabled. No publisher sign-in is claimed from portal display.
+Fresh read-only checks prove unchanged installed config/key bindings, reviewed
+role permissions, analyst RequireGrant, adv excluded from required TOTP, HTTPS
+secure-cookie configuration, NTP synchronization and readiness 204.
+
+The credential-free infrastructure deployment record is independently reviewed
+and published as history-only commit `b7c22bd6c860` on the scoped S08 support
+branch. Its remote ref matches; the unrelated layout migration is excluded.
+The original source cohort and engine-emitted record remain unchanged.
+
+S08.4 task acceptance review 1/10 checks recovered originals/candidates, exact
+published release/source bindings, restricted runtime/maintenance separation,
+consumed-window and child-resolution behavior, protected-data rollback,
+operational history and owner baseline evidence. No open P1/P2 remains. The
+unchanged passing build/conformance/focused tests are reused; only the affected
+live readiness stages run fresh. Whole-S08 review is unstarted. S08.5 is next;
+its exact enabled-canary preparation and readiness remain required before any
+activation or account operation. W27 stays deferred and incomplete.

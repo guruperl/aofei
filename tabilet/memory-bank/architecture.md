@@ -880,10 +880,14 @@ are per-table CRUD except SELECT/INSERT only on auth_security_audit and
 api_audit, plus EXECUTE on the two retained slot procedures. Maintenance has
 only the reviewed account/Identity rights and connection-gated audit retention;
 no inherited roles, grant option, global/schema or proxy bypass is admitted.
-The matching Identity tables/triggers are preserved. Both credentials remain
-private, recovery-escrowed and separate from the unchanged active HTTP principal.
-S08.4 owns their reviewed switch and common-key delivery; enabling Identity
-and canary acceptance remain later gates. See [S08 status](status-S08.md).
+The matching Identity tables/triggers are preserved. S08.4 switches both HTTP
+configurations to the restricted shared runtime principal. The separately
+escrowed maintenance principal remains confined to its owner-only configuration
+and the database Unix-socket namespace; its kernel UID mapping and common-key
+startup pass without an account mutation. The recovered Identity key is
+installed through the systemd secret-file reference and matches the running
+service. HTTP Identity stays disabled; enabling it and accepting the analyst
+canary remain S08.5 gates. See [S08 status](status-S08.md).
 
 
 S08.4's prepared release capability
@@ -901,5 +905,18 @@ exclusive runtime-root guard to the normal deployment adapter. The guard is
 reasserted without downgrade; schema/feature/configuration operations remain
 Aofei/operator-owned. Numeric administrator status supports the retired schema
 and direct resets cannot bypass enabled Identity audit/session revocation.
-The source patch is verified; live installation and Identity activation remain
-pending under S08.4/S08.5.
+The source patch is verified and the normal infrastructure adapter installs
+the new immutable release. Its operational history is published independently;
+Identity activation remains S08.5 work.
+
+
+S08.4's private before/after recovery checkpoint includes both effective
+Gmail/account-protection drop-ins as well as the runtime configurations and
+key ring. Candidate HTTP and maintenance configurations share one environment
+key reference but separate DB principals; only the maintenance configuration
+contains Unix-UID actor attribution. All thirteen checkpoint members pass
+independent in-memory recovery before installation; the temporary unlock
+keyring is removed. Installation preserves the complete account-protection
+ring and PlaintextRetired=true. HTTP Identity remains disabled. Fresh owner
+baselines and read-only service/key/database checks pass; these do not supply
+Identity-enabled acceptance.

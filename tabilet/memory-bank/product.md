@@ -322,4 +322,9 @@ S08.4 prepares strict deployment admission for S07-retired account schemas.
 A new release capability, enabled/retired protection configuration and exact
 read-only retired-schema proof are required to reconcile a two-routine target
 with the unchanged six-routine clean baseline. This grants no schema or
-Identity activation authority. Publication and live use remain pending.
+Identity activation authority. The scoped source is published and the capable
+release build passes. S08.4 installs the capable immutable release with HTTP
+Identity disabled and the recovered common key. The restricted runtime
+principal is active; fresh owner advertiser sign-in, recovery mail/page,
+Publisher registration/email activation and both portal entry pages pass.
+Identity activation and the analyst canary remain S08.5 work.

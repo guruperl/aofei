@@ -894,8 +894,15 @@ S08.4 deployment-contract preparation uses focused tests
 `go test ./internal/deployment -run 'TestRetiredAccount|TestReleaseManifestCompatibility'`
 and a read-only production evaluation of the same metadata SQL. No schema DDL
 or browser suite is involved. The release builder retains the six-routine
-clean contract and emits an optional retirement-support capability. Publication,
-clean release build and live configuration/key recovery remain pending.
+clean contract and emits an optional retirement-support capability. Scoped
+publication and the fresh clean build pass. The thirteen-file encrypted
+checkpoint is independently recovered in 0.472 seconds; installation through
+the normal infrastructure adapter passes in 14.605 seconds. Read-only
+maintenance UID/socket/key startup passes in 1.753 seconds and its transient
+container files are removed. Fresh NTP, HTTPS cookie configuration, role-policy
+and readiness checks pass, together with owner browser baselines. Identity
+activation remains pending. Unchanged source/build/conformance evidence is
+reused; no browser qualification or repeated backend suite is run.
 
 
 S08.4b corrects the TestFcap fixture to use the local wall-clock date expected
@@ -912,3 +919,11 @@ conformance using a supplied SHA-matching Go 1.23.5/cache/source snapshot.
 The new capable release also passes independent generic verification; its
 normal three-suite build took 276.203 seconds. No browser suite or production
 configuration/service operation was involved.
+
+
+S08.4 private checkpoint preparation uses the actual compiled Genelet config,
+account-protection and dormant Identity factories plus a restricted runtime
+DB read; its fresh run takes 5.268 seconds. The independently encrypted
+before/after checkpoint includes the effective systemd drop-ins. Recovery
+runs in memory using one masked GPG entry and removes its temporary keyring.
+These checks do not activate Identity or replace owner baseline canaries.
