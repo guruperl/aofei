@@ -888,7 +888,8 @@ startup pass without an account mutation. The recovered Identity key is
 installed through the systemd secret-file reference and matches the running
 service. S08.5 subsequently enables HTTP Identity under the approved one-node canary
 window; the analyst enrollment, TOTP/recovery, denial, logout and controlled
-expiry checks pass. Final monitoring/review remains pending. See [S08 status](status-S08.md).
+expiry checks pass. Single-node monitoring and whole-S08 review 2/10 pass. See
+[S08 status](status-S08.md) and [readiness handoff](../../docs/w8m-s08-readiness.md).
 
 
 S08.4's prepared release capability

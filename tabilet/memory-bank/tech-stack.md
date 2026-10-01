@@ -932,3 +932,15 @@ DB read; its fresh run takes 5.268 seconds. The independently encrypted
 before/after checkpoint includes the effective systemd drop-ins. Recovery
 runs in memory using one masked GPG entry and removes its temporary keyring.
 These checks do not activate Identity or replace owner baseline canaries.
+
+
+S08.6 closes the sole-node readiness prerequisite without another deployment.
+The final schema/grant equality check takes 2.532 seconds; observed-window
+aggregate audits and 364 journal records take 2.615 seconds to inspect. The
+43.7-minute window already covers activation and human canary work, not a new
+blocking test. The private reader preserves its stopped versions and fixes
+only inherited-stderr routing and exact principal-host selection. Focused
+reader checks and affected documentation validation suffice; unchanged source
+build, security, vet and conformance evidence is reused. Whole-S08 review 2/10
+passes. See [readiness handoff](../../docs/w8m-s08-readiness.md); previous
+account-data key retention and W27's independent live gates remain mandatory.

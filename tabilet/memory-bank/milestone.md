@@ -123,7 +123,7 @@ acceptance criteria recorded in the corresponding status files.
 | S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | S07 | Completed; active on W8M | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
-| S08 | In progress; S08.5 canary accepted, final monitoring/review pending | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
+| S08 | Completed; Identity active on W8M | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -403,7 +403,7 @@ sign-in/display and recovery-mail/page canaries pass; bounded review 8/10
 closes with no open P1/P2.
 Detailed tasks and gates are in [status-S07.md](status-S07.md).
 
-## S08 - W8M Production Identity And TOTP Activation `[~]`
+## S08 - W8M Production Identity And TOTP Activation `[+]`
 
 Enable the already implemented S02 identity boundary on W8M only after S07
 closes. Rehearse and review the online schema migration, shared identity-key
@@ -426,7 +426,10 @@ Identity-disabled release and fresh owner sign-in/recovery/registration/portal
 baselines. The separately approved S08.5 window enables Identity on the single
 node and creates one audited analyst with no grants. Owner enrollment, TOTP
 login/logout, one-use recovery/refusal, denials and controlled idle/absolute
-expiry pass. Final monitoring and whole-milestone review remain S08.6 work.
+expiry pass. S08.6 verifies the sole node's existing activation, exact schema/
+grants and bounded monitoring; whole-milestone review 2/10 passes. The
+[sanitized handoff](../../docs/w8m-s08-readiness.md) supports W27.3's separate
+read-only verification, not enrollment or live-operation acceptance.
 Publication, deployment and key recovery are proved, not inferred from offline
 tests. Detailed tasks and stop conditions are in
 [status-S08.md](status-S08.md).

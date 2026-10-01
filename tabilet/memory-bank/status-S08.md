@@ -1,6 +1,6 @@
 # Status S08 — W8M Production Identity And TOTP Activation
 
-State: `[~]` In progress; S08.5 analyst canary accepted; S08.6 final monitoring and whole-milestone review next.
+State: `[+]` Completed; sole-node Identity enabled with adv optional; canary and monitoring accepted; whole-milestone review 2/10 passes with no open P1/P2.
 
 ## Goal
 
@@ -37,7 +37,7 @@ general S02 role-policy example.
 | S08.4c Prepare target-owned deployment and administrator compatibility support | `[+]` | The manifest names the future required Identity environment file and two retained production routines; the drop-in contains only the secret-file path. Retired-schema numeric administrator status works, and Identity-enabled direct resets fail before password/account access. The guard validates/reasserts an inherited exclusive descriptor for nested adapter calls without downgrading it. Focused local/remote kernel and synthetic administrator fixtures, strict manifest validation, source-byte comparison and full browser-free backend conformance pass on yixin using supplied offline sources/Go. Preparation review 1/10 has no open P1/P2. Infrastructure source publication excludes the unrelated layout migration; live installation remains S08.4 work. |
 | S08.4 Deploy identity-disabled release and provision common key | `[+]` | Accepted: thirteen-file independent recovery, immutable capable release installation through infrastructure, restricted shared runtime DB, common running-service/maintenance key parity and read-only maintenance UID/socket startup pass. HTTP Identity stays false; account protection and the retained ring remain unchanged. Fresh owner advertiser sign-in/display, recovery mail/page without password change, Publisher registration/email activation and both portal entries pass. NTP, HTTPS secure-cookie configuration and reviewed role permissions pass. Task review 1/10 has no open P1/P2; whole-S08 review remains unstarted. |
 | S08.5 Enable Identity on a canary | `[+]` | Accepted under exact authorization: sole-node Identity enabled with adv optional; audited analyst creation without grants; owner enrollment, fresh TOTP, POST logout/CSRF and cross-account/analyst/grant denials pass. Recovery first use and reuse refusal are verified by owner results and separate audit/session counts. Both controlled idle/absolute expiries force HTTP sign-in; fresh TOTP restores valid access. Final health/key/NTP and preserved disabled rollback/recovery pass. Task review 1/10 has no open P1/P2. Dedicated advertiser enrollment remains W27.4. |
-| S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
+| S08.6 Roll out, monitor and close readiness | `[+]` | Accepted: yixin is the sole node and already has the approved exact canary activation; no second service window is required. Final common/protection key, config/release, schema/grant, NTP, health and preserved rollback bindings pass. The 43.7-minute existing activation/canary window has expected login/recovery/denial audits and no observed failure indicators. Reader preparation stops remain preserved; exact inherited-log/host-selector corrections pass focused checks. Whole-S08 review 2/10 has no open P1/P2. Sanitized readiness handoff supports W27.3 read-only verification and grants no later live authority. |
 
 ## Acceptance Criteria
 
@@ -1207,3 +1207,91 @@ additional production node is inferred. W27 remains deferred until S08 closes.
 Affected documentation guard and git diff --check pass for the S08.5 task
 commit. The unrelated root README change and unpublished layout ancestor are
 excluded from publication; private runtime evidence remains outside Git.
+
+
+## S08.6 single-node closeout started
+
+S08.5 is accepted in local task commit c0458e3. yixin is the owner-confirmed
+sole node and already runs the accepted exact enabled source/configuration,
+so the all-node step verifies that existing activation instead of creating
+a second service window. No additional node, deploy, source pull or feature
+mutation is necessary. S08.6 now owns read-only monitoring, readiness handoff
+and whole-milestone bounded review. Current fresh canary results are reused;
+only post-window indicators and affected documentation checks run fresh.
+
+
+S08.6's first read-only monitor stops before any target mutation or accepted
+monitoring receipt: its journal-only source assumption must be checked against
+the service's actual configured destinations. Earlier audit/health results
+remain unchanged. Diagnose only this reader boundary and preserve its stopped
+result; no deployment or test-suite retry is warranted.
+
+
+## S08.6 bounded monitoring and whole-S08 review 1/10 started
+
+The reader correction accepts StandardError=inherit only when StandardOutput
+is journal, preserving the stopped v1 result. Four focused destination cases
+pass; fresh v2 reads the actual journal in 2.615 seconds. The observed window
+is 2026-10-01T00:33:03.567684Z through 01:16:47.448954Z (43.7 minutes),
+covering activation and owner canary work rather than introducing a new wait.
+
+Whole-node aggregate audits show six successful logins, one expected failed
+login, one PermissionDenied, one recovery-code use, one rotation, one analyst
+creation, one TOTP enablement and three session revocations. There are zero
+Failure audit outcomes. Across 364 service journal records there are no
+observed panic/fatal, database-driver/transport, protected-request or explicit
+audit-failure markers. General/slow database query logging stays disabled.
+These are bounded observed indicators, not a long-term availability guarantee;
+no raw messages, account fields or credential material are emitted.
+
+Whole-S08 bounded review starts at iteration 1/10. Review covers all task
+source and operational diffs, restore/recovery and one-attempt semantics,
+retired-schema compatibility, permissions/audit immutability, actual node
+inventory, owner HTTP results, monitoring and W27 handoff. No counter resets
+or changes to earlier failed/consumed attempts are permitted.
+
+
+Whole-S08 review iteration 1 records one P2 in the final private readiness
+reader: it assumes both reviewed principals use localhost, whereas the
+accepted runtime host selector is wildcard and maintenance is localhost.
+Its read-only stop is not production drift. Preserve stopped readiness-01,
+use the exact previously reviewed selector by kind and reject other selectors;
+then finish the read-only grant comparison and review the full milestone again
+at iteration 2. The already fixed journal/inherited-stderr reader assumption
+is also reviewed; neither correction changes server permissions or configuration.
+
+Whole-S08 review iteration 2/10 starts after the exact selector correction
+and four focused positive/negative selector checks pass. The corrected
+read-only schema/grant comparison runs freshly; no denied UPDATE/DELETE probes
+or unrelated source/browser suite is repeated.
+
+
+## S08 complete — whole-milestone review 2/10 passed
+
+Final read-only readiness-02 passes in 2.532 seconds: the complete schema
+contract still matches the independently restored rehearsal and both runtime/
+maintenance principals have their exact reviewed rights, without role/proxy/
+dynamic-global bypasses. No SQL mutation/denial probe is repeated. The review-1
+reader finding is resolved by exact per-kind selectors and passing positive/
+negative checks; the stopped reader result remains preserved.
+
+Whole review 2 re-examines all milestone source/operational changes: completed
+S07 dependency, restored migration and credential recovery, schema preservation,
+audit immutability and source compatibility, kernel UID/maintenance boundaries,
+exact source build and deployment history, enabled-canary one-attempt semantics,
+owner TOTP/recovery/denial/expiry results, bounded monitoring, current contracts
+and receiving-owner gates. No open P1/P2 remains. Source/reset security fixtures,
+vet, build and conformance results remain valid on unchanged relevant bytes;
+only final read-only checks and affected documentation/diff checks run fresh.
+
+All S08 tasks are complete. The [sanitized readiness handoff](../../docs/w8m-s08-readiness.md)
+supplies W27.3's independent read-only prerequisite check. W27.4 dedicated
+advertiser enrollment and W27.5/W27.7 capture/count remain separately gated.
+No production password change, administrator reset, extra deployment, full
+native suite, evolution snapshot or unrelated publication is performed.
+Retain the earlier account-data key until at least 2026-10-01T19:02:35Z.
+
+The affected documentation guard and git diff --check pass for closure.
+Remaining cross-package order is W27.3 -> W27.4 -> W27.5 -> W27.6 -> W27.7
+-> W27.8, with the existing separate live gates unchanged. No evolution
+direction/ownership boundary changed; no snapshot is created.

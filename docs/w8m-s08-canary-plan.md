@@ -5,7 +5,8 @@ HTTP Identity is disabled, the complete common-key checkpoint is independently
 recovered, and the owner baseline sign-in, recovery, registration/activation
 and portal checks pass. This preserves the reviewed operation plan;
 it does not grant execution authority. The separately approved S08.5 run now
-passes its analyst/security checks; final monitoring/review remains S08.6.
+passes its analyst/security checks. S08.6 monitoring and whole review 2/10
+complete the [readiness handoff](w8m-s08-readiness.md).
 
 ## Exact scope and effect
 
