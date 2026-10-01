@@ -123,7 +123,7 @@ acceptance criteria recorded in the corresponding status files.
 | S05 | Completed | [status-S05.md](status-S05.md) | Runtime trust-boundary hardening. |
 | S06 | Completed; active on W8M | [status-S06.md](status-S06.md) | Public account abuse protection. |
 | S07 | Completed; active on W8M | [status-S07.md](status-S07.md) | Account identifier lookup, encryption, rotation, and retirement. |
-| S08 | In progress; S08.4 accepted, Identity-disabled release healthy; analyst canary next | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
+| S08 | In progress; S08.5 canary accepted, final monitoring/review pending | [status-S08.md](status-S08.md) | W8M production activation of the S02 Identity boundary and TOTP readiness. |
 | A01 | Completed | [status-A01.md](status-A01.md) | Billing and manual settlement safety. |
 | A02 | Completed; disabled by default | [status-A02.md](status-A02.md) | Hosted funding and publisher payout integration. |
 | A03 | Completed | [status-A03.md](status-A03.md) | Exact monetary source migration. |
@@ -423,7 +423,10 @@ S08.4c completes target-private guard/admin/manifest support without accepting
 live installation; infrastructure retains its source boundary and layout work.
 S08.4 accepts actual recovered key/config installation, the healthy
 Identity-disabled release and fresh owner sign-in/recovery/registration/portal
-baselines. Identity activation and canary acceptance remain S08.5 work.
+baselines. The separately approved S08.5 window enables Identity on the single
+node and creates one audited analyst with no grants. Owner enrollment, TOTP
+login/logout, one-use recovery/refusal, denials and controlled idle/absolute
+expiry pass. Final monitoring and whole-milestone review remain S08.6 work.
 Publication, deployment and key recovery are proved, not inferred from offline
 tests. Detailed tasks and stop conditions are in
 [status-S08.md](status-S08.md).

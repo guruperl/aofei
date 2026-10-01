@@ -886,8 +886,9 @@ escrowed maintenance principal remains confined to its owner-only configuration
 and the database Unix-socket namespace; its kernel UID mapping and common-key
 startup pass without an account mutation. The recovered Identity key is
 installed through the systemd secret-file reference and matches the running
-service. HTTP Identity stays disabled; enabling it and accepting the analyst
-canary remain S08.5 gates. See [S08 status](status-S08.md).
+service. S08.5 subsequently enables HTTP Identity under the approved one-node canary
+window; the analyst enrollment, TOTP/recovery, denial, logout and controlled
+expiry checks pass. Final monitoring/review remains pending. See [S08 status](status-S08.md).
 
 
 S08.4's prepared release capability
@@ -906,8 +907,9 @@ reasserted without downgrade; schema/feature/configuration operations remain
 Aofei/operator-owned. Numeric administrator status supports the retired schema
 and direct resets cannot bypass enabled Identity audit/session revocation.
 The source patch is verified and the normal infrastructure adapter installs
-the new immutable release. Its operational history is published independently;
-Identity activation remains S08.5 work.
+the new immutable release. Its operational history is published independently.
+The approved S08.5 feature window enables Identity without selecting another
+release; its canary/security checks pass.
 
 
 S08.4's private before/after recovery checkpoint includes both effective
@@ -917,6 +919,10 @@ key reference but separate DB principals; only the maintenance configuration
 contains Unix-UID actor attribution. All thirteen checkpoint members pass
 independent in-memory recovery before installation; the temporary unlock
 keyring is removed. Installation preserves the complete account-protection
-ring and PlaintextRetired=true. HTTP Identity remains disabled. Fresh owner
-baselines and read-only service/key/database checks pass; these do not supply
-Identity-enabled acceptance.
+ring and PlaintextRetired=true. The S08.4 baselines pass with HTTP Identity disabled. The separately approved
+S08.5 feature window later enables only that flag and restarts the same
+release, with health and running-key parity proved. Its analyst/security
+checks pass; the disabled original remains the guarded rollback and no
+account/TOTP/audit rows are deleted. Idle and absolute expiry are verified
+by separately shortening the unique canary session timestamps and requiring
+owner HTTP sign-in; global limits and other accounts remain unchanged.

@@ -19,8 +19,9 @@ identifier protection remains default-off in templates. W8M's protected
 production backfill, canary, key rotation and guarded plaintext retirement pass;
 fresh owner sign-in/recovery-page canaries and bounded review 8/10 close S07.
 S08 plans W8M's
-later S02 Identity activation after S07 and has not activated production
-Identity. O04's generic
+S02 Identity acceptance after S07: the disabled release/key baselines pass,
+and the approved enabled-canary service window is healthy. Analyst enrollment
+and security checks pass; final monitoring/review remains pending. O04's generic
 release deployment engine and private handoff are complete. O05 clean first
 activation and its private W8M proof are also complete.
 
@@ -69,7 +70,7 @@ activation and its private W8M proof are also complete.
 | S05 runtime trust boundaries | Completed | [status-S05.md](../tabilet/memory-bank/status-S05.md) | [Creative consumer boundary](creative-rendering-boundary.md), [principal provenance](principal-provenance.md), existing [privacy](privacy-data-governance.md), [rendering](template-rendering-security.md), and [traffic-quality](traffic-quality-anti-fraud.md) contracts |
 | S06 public account abuse protection | Completed; active on W8M | [status-S06.md](../tabilet/memory-bank/status-S06.md) | [Public account abuse protection](public-account-abuse-protection.md) |
 | S07 account identifier protection | Completed; active on W8M | [status-S07.md](../tabilet/memory-bank/status-S07.md) | [Account identifier protection](account-identifier-protection.md) |
-| S08 W8M Identity activation | Planned; follows S07 | [status-S08.md](../tabilet/memory-bank/status-S08.md) | [Identity and access security](identity-access-security.md) |
+| S08 W8M Identity activation | In progress; canary accepted, final monitoring/review pending | [status-S08.md](../tabilet/memory-bank/status-S08.md) | [Identity and access security](identity-access-security.md), [enabled-canary plan](w8m-s08-canary-plan.md) |
 | A01 accounting and settlement | Completed | [status-A01.md](../tabilet/memory-bank/status-A01.md) | [Accounting and manual settlement](accounting-settlement.md) |
 | A02 hosted funding and payout | Completed; disabled by default | [status-A02.md](../tabilet/memory-bank/status-A02.md) | [Hosted funding and payout](hosted-funding-payout.md) |
 | A03 exact monetary sources | Completed | [status-A03.md](../tabilet/memory-bank/status-A03.md) | [Exact money](exact-money.md), existing [accounting](accounting-settlement.md), [management API](advertiser-management-api.md), and [hosted payment](hosted-funding-payout.md) contracts |

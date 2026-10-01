@@ -837,7 +837,7 @@ credential escrow are encrypted before workstation transfer and independently
 recovered. MySQL 8 routine grants are inspected through mysql.procs_priv; exact
 table/global/schema/role/proxy checks reject audit mutation bypasses. Private
 producer/verifier bytes and records stay outside Git. No browser qualification
-is involved. S08.4 runtime/key activation and S08.5 canary checks are pending;
+is involved. S08.4 runtime/key installation and S08.5 canary checks pass;
 [S08 status](status-S08.md) owns acceptance.
 
 Schema baseline verification:
@@ -901,8 +901,13 @@ the normal infrastructure adapter passes in 14.605 seconds. Read-only
 maintenance UID/socket/key startup passes in 1.753 seconds and its transient
 container files are removed. Fresh NTP, HTTPS cookie configuration, role-policy
 and readiness checks pass, together with owner browser baselines. Identity
-activation remains pending. Unchanged source/build/conformance evidence is
-reused; no browser qualification or repeated backend suite is run.
+activation subsequently passes in 5.462 seconds under the approved S08.5
+feature window, including fresh cheap readiness gates and the same-service
+restart. Analyst/security checks pass, including fresh aggregate audits and
+owner HTTP results. Controlled idle and absolute shortening take 0.459 and
+0.397 seconds; final health/key/rollback checks take 0.150 seconds. Unchanged
+source/build/conformance evidence is reused; no native browser qualification
+or repeated backend suite is run.
 
 
 S08.4b corrects the TestFcap fixture to use the local wall-clock date expected

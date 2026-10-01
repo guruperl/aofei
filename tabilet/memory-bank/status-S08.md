@@ -1,6 +1,6 @@
 # Status S08 — W8M Production Identity And TOTP Activation
 
-State: `[~]` In progress; S08.4 accepted; S08.5 analyst-canary preparation next.
+State: `[~]` In progress; S08.5 analyst canary accepted; S08.6 final monitoring and whole-milestone review next.
 
 ## Goal
 
@@ -36,7 +36,7 @@ general S02 role-policy example.
 | S08.4b Correct the frozen-build frequency-cap fixture timezone | `[+]` | Release build 02 stopped at TestFcap: its UTC input disagreed with assertions for local legacy fields on the Los Angeles workstation. The fixture now constructs local midnight; production code and assertions are unchanged. The exact test passes freshly under UTC, Los Angeles and Shanghai, and the affected match package passes in 0.101 seconds. Preparation review 1/10 has no open P1/P2. This accepts the fixture source correction, not the failed release build; a fresh clean published source/build remains required by S08.4. |
 | S08.4c Prepare target-owned deployment and administrator compatibility support | `[+]` | The manifest names the future required Identity environment file and two retained production routines; the drop-in contains only the secret-file path. Retired-schema numeric administrator status works, and Identity-enabled direct resets fail before password/account access. The guard validates/reasserts an inherited exclusive descriptor for nested adapter calls without downgrading it. Focused local/remote kernel and synthetic administrator fixtures, strict manifest validation, source-byte comparison and full browser-free backend conformance pass on yixin using supplied offline sources/Go. Preparation review 1/10 has no open P1/P2. Infrastructure source publication excludes the unrelated layout migration; live installation remains S08.4 work. |
 | S08.4 Deploy identity-disabled release and provision common key | `[+]` | Accepted: thirteen-file independent recovery, immutable capable release installation through infrastructure, restricted shared runtime DB, common running-service/maintenance key parity and read-only maintenance UID/socket startup pass. HTTP Identity stays false; account protection and the retained ring remain unchanged. Fresh owner advertiser sign-in/display, recovery mail/page without password change, Publisher registration/email activation and both portal entries pass. NTP, HTTPS secure-cookie configuration and reviewed role permissions pass. Task review 1/10 has no open P1/P2; whole-S08 review remains unstarted. |
-| S08.5 Enable Identity on a canary | `[ ]` | Under separate authorization, enable Identity on one canary with `adv` excluded from `RequiredTOTP`. Use an owner-approved operator-controlled non-advertiser canary account to verify required TOTP enrollment, login, one-use recovery, session expiry, POST/CSRF logout and audit insertion; also verify cross-account denial and analyst mutation denial. Do not enroll the dedicated W8M advertiser account here; that remains W27.4 after W27.3. Confirm healthy service and readiness; preserve an immediate reviewed rollback to `Identity.Enabled=false`. |
+| S08.5 Enable Identity on a canary | `[+]` | Accepted under exact authorization: sole-node Identity enabled with adv optional; audited analyst creation without grants; owner enrollment, fresh TOTP, POST logout/CSRF and cross-account/analyst/grant denials pass. Recovery first use and reuse refusal are verified by owner results and separate audit/session counts. Both controlled idle/absolute expiries force HTTP sign-in; fresh TOTP restores valid access. Final health/key/NTP and preserved disabled rollback/recovery pass. Task review 1/10 has no open P1/P2. Dedicated advertiser enrollment remains W27.4. |
 | S08.6 Roll out, monitor and close readiness | `[ ]` | After canary acceptance and owner authorization, roll the exact configuration to every production node. Verify consistent key/config versions, login and recovery paths, permissions, audit insertion, clock and readiness; monitor failures and denials. Record only sanitized evidence and rollback readiness, then provide the W8M W27.3 owner with the evidence reference. No seed, code, recovery code, key value, account identifier or raw production configuration enters this repository. |
 
 ## Acceptance Criteria
@@ -901,3 +901,309 @@ unchanged passing build/conformance/focused tests are reused; only the affected
 live readiness stages run fresh. Whole-S08 review is unstarted. S08.5 is next;
 its exact enabled-canary preparation and readiness remain required before any
 activation or account operation. W27 stays deferred and incomplete.
+
+
+## S08.5 read-only enabled-canary preparation
+
+After S08.4 acceptance/local task commit `0991279`, read-only preparation under
+the exclusive guard passes in 0.180 seconds. The private enabled candidate and
+exact disabled rollback copy are saved outside Git. The only semantic delta is
+Identity.Enabled false to true; the selected release, recovered key/config
+bindings, protected account policy, required-role set, NTP and readiness pass.
+No live file, account, grant, session, audit or service is mutated.
+
+The [enabled-canary plan](../../docs/w8m-s08-canary-plan.md) records its actual
+single-node production effect, one audited analyst creation, one private masked
+password input, owner-only enrollment/recovery, denial and controlled expiry
+checks, terminal-result/consumed-operation rules and preserved-data rollback.
+The unchanged release/conformance/security evidence is reused. The exact S08.5
+enabled-canary authorization remains required by this status's stop condition;
+the target is not enabled merely because preparation passes. Whole-S08 review
+is unstarted, S08.5 is the sole current task, and W27 remains deferred.
+
+
+## S08.5 exact canary authorization
+
+The owner explicitly approves the prepared enabled-canary plan, including its
+single-node production effect, one audited analyst, owner-only enrollment,
+recovery/denial checks and controlled timestamp expiry checks scoped to that
+canary. This resolves the separate activation authorization gate. Recheck the
+private candidate, complete recovery, service/key/schema/grant bindings under
+the exclusive guard before execution. One new masked analyst-password dialog
+is prepared; do not confuse it with advertiser or GPG input, launch a second
+prompt or collect TOTP/recovery material. No mutation is inferred from approval.
+
+
+## S08.5 enabled service; advertiser baseline pending
+
+The first local analyst-password input fails format validation before any
+production action; its stopped evidence remains unchanged. The owner explicitly
+requests one fresh dialog. Input 02 passes validation and its receipt records
+one new password entry without printing the credential. No third prompt or
+TOTP/recovery input is requested.
+
+Private producer preparation review corrects two P2 issues before execution:
+the audit verifier uses the authoritative event_name column, and the account
+mutation resolves its exact Docker/CLI child through terminal completion rather
+than treating a client timeout as a resolved remote action. Earlier producer
+versions and review findings are preserved. Preparation review 3 has no open
+P1/P2; this does not increment or replace whole-S08 review.
+
+The exact creation-audit SQL passes read-only. Activation preflight passes in
+4.859 seconds, proving recovered originals/candidates, exact schema/image,
+restricted grants/audit denials, common-key parity, unused Identity state,
+NTP and readiness under the exclusive guard. The separately consumed
+canary-activation-01 repeats its cheap immediate mutation gates, changes only
+Identity.Enabled and restarts the same selected release. Its terminal receipt
+passes in 5.462 seconds: enabled HTTP service, readyz/healthz 204, preserved
+retired account protection, common-key parity and optional advertiser TOTP.
+The exact disabled configuration remains the reviewed rollback; no database,
+account, grant or audit row is changed by the feature window.
+
+Fresh owner advertiser sign-in/display without mandatory TOTP is requested
+before the one audited analyst creation. No analyst is created yet. The two
+password-input records and feature window remain distinct, and their claims
+are never replayed. S08.5 remains in progress, S08.6/W27 remain deferred, and
+whole-S08 review remains unstarted. No full browser or backend suite is repeated.
+
+
+## S08.5 audited analyst created; owner enrollment pending
+
+The owner confirms fresh advertiser sign-in/dashboard/account display succeeds
+without TOTP after enablement. This closes the immediate post-switch baseline.
+The separately consumed canary-create-01 uses accepted input 02 through private
+SSH stdin and an in-memory Docker environment descriptor; no password is in
+arguments or shared output. The exact frozen published-source CLI runs under
+UID 1002 with its restricted Unix-socket configuration. Its terminal result and
+specific attributed AnalystCreated audit pass in 1.266 seconds. One active
+protected/bcrypt analyst is present with zero permission grants. Temporary
+container executable/configuration files are removed and absence is proved.
+Its identifier and numeric ID remain private, outside Git and ledger evidence.
+
+A display-only private dialog shows the owner the generated username; it asks
+for no password, seed or code. The owner is asked to use an ordinary browser
+for initial limited sign-in, TOTP setup/confirmation and private offline storage
+of recovery codes. Enrollment, fresh TOTP login, one-use recovery, logout,
+denials, controlled expiry and monitoring are not yet accepted. The expiry
+producer is prepared but has not modified any session. The service stays
+Identity-enabled and healthy under the approved canary window; S08.5 remains
+the sole execution owner and whole-S08 review remains unstarted.
+
+
+## S08.5 private username handoff correction
+
+The owner cannot see the first display-only username dialog. Inspection proves
+that child is closed; do not infer that a successful launch delivered its
+contents. A fresh display-only dialog uses a retained waiting launcher and a
+durable parent/child handle, with private stderr available for focused diagnosis.
+The username alone is also written to an owner-only local text file outside
+Git as a fallback; it contains no password. The created account and accepted
+password are unchanged, no password is requested again, and no account or
+TOTP operation is replayed. Owner enrollment remains the pending dependency.
+
+
+## S08.5 owner TOTP enrollment verified
+
+The owner reports setup, current-code confirmation and private offline recovery
+storage all succeeded. The exact analyst aggregate observer confirms one
+Enabled MFA row, no Pending row, ten unused recovery codes and one successful
+TOTPEnabled audit (plus its enrollment-start audit). No seed, code, secret URI,
+recovery-code hash or session cookie is read or retained in shared evidence.
+The initial password-only limited session is not claimed as a fresh MFA login.
+
+The owner is asked to use the page's POST Logout, verify a protected page asks
+for sign-in, and then sign in once with a new current TOTP step. This avoids
+replaying the enrollment confirmation step. Logout/revocation, fresh verified
+TOTP login, recovery replay refusal, denials and controlled expiry remain open.
+S08.5 is still the sole execution owner; whole-S08 review remains unstarted.
+
+
+## S08.5 fresh TOTP login and logout owner result
+
+The owner confirms the analyst Logout and fresh current-code sign-in sequence
+succeeds and Account security returns Status Enabled. The next aggregate
+observer checks revocation, verified active session and successful login audits;
+the enrollment confirmation is kept distinct from this fresh sign-in.
+The bounded same-browser denial helper is prepared and syntax-reviewed. Its
+four fixed requests check missing-CSRF logout, a mismatched account parameter,
+analyst campaign mutation against nonexistent id zero, and report access with
+no grant. It requires expected application-error markers as well as HTTP
+status, keeps cookies/CSRF inside the owner's browser, and stops on the first
+unexpected result. No denial probe or session expiry is inferred from preparing
+that helper. Required recovery/denial/expiry checks remain pending.
+
+
+## S08.5 logout and verified TOTP session accepted
+
+The fresh exact-analyst observer confirms one revoked session and its successful
+SessionRevoked audit, one valid MFA-verified session, and two successful login
+audits (initial limited enrollment sign-in plus the later fresh TOTP sign-in).
+MFA remains Enabled; all ten recovery codes are unused. This supports the
+owner's logout/fresh-TOTP result without reading codes or cookies.
+
+The owner is asked to run the four fixed same-browser denial checks once. The
+script only reports sanitized statuses/application-error matches, retains a
+consumed client attempt marker, and stops rather than continuing or retrying
+an unexpected result. Its version is frozen by the private preparation review.
+No denial acceptance is inferred yet. Controlled idle/absolute expiry will use
+separate fresh uniquely bound canary sessions after the current browser checks.
+Its reviewed v2 producer preserves the first preparation, resolves the exact
+SQL child before proceeding, bounds database lock wait, and rechecks source/
+config bindings inside the exclusive guard. No session timestamp is modified
+by that preparation. Required recovery/denial/expiry acceptance remains open;
+whole-S08 review remains unstarted.
+
+
+## S08.5 denial checks passed; controlled idle expiry applied
+
+The owner reports all four frozen same-browser checks pass, including their
+expected application response markers: missing-CSRF logout 403, mismatched
+account-id read 403, analyst campaign mutation with valid own-browser CSRF and
+nonexistent campaign id zero 401, and report read without a grant 403. The
+exact analyst observer confirms one PermissionDenied audit; the valid verified
+session remains present, and no additional session is revoked. MFA stays
+Enabled and all ten recovery codes are still unused. Cookies, hidden form
+tokens, page bodies and actual account identifiers never leave the owner browser
+through this helper. Source group/account guards are checked against the exact
+published bytes; the HTTP checks stop before any application object mutation.
+
+The reviewed expiry producer hashes match locally and on yixin. The separately
+consumed canary-expiry-idle-01 changes exactly one uniquely bound valid verified
+analyst session's last_seen_at to beyond its existing idle limit. The absolute
+expiry and global limits remain unchanged. Its exact SQL child terminates,
+ROW_COUNT is one and the expired-idle postcondition passes. The receipt is
+shortened, with HTTP rejection pending owner confirmation; it is not yet full
+idle-expiry acceptance. The owner is asked to refresh once, confirm sign-in is
+required, and sign in using one unused recovery code instead of TOTP. The code
+remains private for the later reuse-refusal check. No expiry is automatically
+retried and no customer/session/global configuration is changed.
+
+
+## S08.5 recovery-code distinction and missing private list
+
+The owner reports another successful sign-in using an authenticator code, and
+clarifies no recovery-code list is available. The observer confirms three
+successful logins, one currently valid verified session, one revoked session,
+ten unused recovery codes and zero RecoveryCodeUsed audits. This establishes
+the new sign-in as TOTP, not recovery-code acceptance. The earlier owner report
+that all enrollment/storage steps succeeded remains historical; actual private
+storage of the recovery list is now unconfirmed and must not be assumed.
+
+The owner is asked to confirm that browser reload required sign-in, and to
+use the existing account-security Rotate recovery codes action with a new TOTP
+step, saving the displayed ten separate grouped backup codes privately. This
+replaces the unavailable old list; it does not re-enroll or change the TOTP
+seed. No code/list is requested by the agent. A separate aggregate-only observer
+v2 includes the specific rotation audit without changing earlier evidence.
+The consumed idle mutation is not replayed. Recovery-use/reuse-refusal and
+absolute-expiry acceptance remain pending; S08.5 remains open.
+
+
+## S08.5 recovery-code rotation verified
+
+The owner confirms rotating and privately saving all ten recovery codes. The
+fresh rotation-01 aggregate observer confirms RecoveryCodesRotated=1, ten unused
+codes, zero used codes, Enabled MFA and one valid verified analyst session.
+RecoveryCodeUsed remains zero; rotation/storage acceptance does not imply
+recovery sign-in acceptance. Only aggregate counts are retained in the private
+receipt; no code, seed, cookie or identifier is output or added here.
+
+The next owner step is ordinary Logout and one fresh sign-in using a single
+backup code from the saved list, followed by aggregate verification. The used
+code remains private for the later one-use refusal check. The consumed idle
+expiry is not repeated; explicit confirmation that reload required sign-in
+remains outstanding. Absolute expiry, recovery use/refusal and task acceptance
+remain pending. No broader test suite or new deployment is launched.
+
+
+## S08.5 recovery-code sign-in verified; absolute expiry applied
+
+The owner confirms ordinary Logout, recovery-code sign-in and Status: Enabled.
+The fresh recovery-login-01 aggregate observer confirms RecoveryCodeUsed=1,
+nine unused codes and one used code, a valid verified session and four total
+successful logins. The second session revocation and SessionRevoked audit
+corroborate the ordinary Logout. MFA remains Enabled. No code is disclosed.
+
+The reviewed v2 expiry source hashes match locally and on yixin. The separately
+consumed canary-expiry-absolute-01 changes exactly the one currently valid
+verified analyst session's absolute expiry into the past; ROW_COUNT=1 and
+the expired postcondition pass. No idle timestamp, global limit, other account
+or configuration is changed. The HTTP expiry/refusal result remains pending: the
+owner must reload without Logout, then submit the same used recovery code once
+if sign-in is required. Stop on an unexpected result; no automatic retry.
+The earlier controlled idle expiry still awaits explicit owner confirmation
+that reload required sign-in. Broader qualification is not run.
+
+
+## S08.5 used recovery-code refusal corroborated
+
+The owner reports the expected sign-in-invalid/session-expired message after
+the requested once-only reuse check. The fresh recovery-reuse-01 aggregate
+observer confirms LoginFailed increases to one, while LoginSucceeded remains
+four and RecoveryCodeUsed remains one. Nine recovery codes remain unused,
+one remains used, and there is no valid verified analyst session. This
+corroborates refusal without creating a successful session or consuming any
+additional recovery code. The published second-factor code only consumes
+codes whose used_at is NULL. No retry or new expiry mutation is performed.
+
+The owner is asked to restore access with one fresh authenticator sign-in and
+to explicitly confirm that both controlled-expiry reloads required sign-in.
+Those HTTP confirmations remain distinct from the database timestamp receipts
+and generic refusal message. S08.5 acceptance and its task review remain open
+until the remaining owner results and final health/rollback checks pass.
+
+
+## S08.5 authenticator access restored
+
+The owner confirms fresh authenticator sign-in and Status: Enabled. A current
+reload remains on the signed-in page, which is expected for the new valid
+session and does not test the previously expired sessions. The fresh
+restored-totp-01 aggregate observer confirms five successful logins, one valid
+verified analyst session, Enabled MFA, one used recovery code and nine unused
+codes. LoginFailed remains one and no additional recovery code is consumed.
+
+The requested historical HTTP confirmations are narrowed to the two reloads
+immediately following the separate consumed idle/absolute expiry operations.
+No extra expiry mutation, browser capture or broader test is launched. Task
+acceptance stays pending until those confirmations and final checks resolve.
+
+
+## S08.5 owner expiry confirmations and task review 1/10
+
+The owner explicitly confirms both earlier reloads immediately following the
+controlled idle and absolute expiry required sign-in. Combined with the
+separate one-row shortening receipts and subsequent aggregate audit/session
+checks, both HTTP expiry results pass. Fresh TOTP sign-in restores Status:
+Enabled, and a current reload retains that new valid session as expected.
+The recovery-code first use and refusal are accepted separately: the same
+used code creates no second successful login; nine unused codes remain.
+
+Task review 1/10 starts across the exact activation/creation sources, owner
+HTTP outcomes, audit counts, controlled session predicates, shared-key and
+rollback checks. Whole-S08 review remains unstarted. Final read-only health
+and rollback verification passes in 0.150 seconds: both endpoints return 204,
+NTP is synchronized, source/config and running Identity/protection keys match,
+adv stays optional, retired protection stays enabled, and the exact disabled
+rollback plus complete independent recovery remain available. No additional
+production mutation, source build or native qualification is required.
+
+
+## S08.5 accepted — task review 1/10 passed
+
+Review finds no open P1/P2 across explicit authority, exact source/config/key
+bindings, one-attempt and child-outcome semantics, private credential handling,
+ordinary owner browser results, independent aggregate audit/session checks,
+controlled timestamp scope, source authorization guards and preserved-data
+rollback. The earlier absent recovery list is resolved by recorded rotation
+and private owner storage; no historical result is rewritten. All required
+canary outcomes pass. Current contracts are reconciled in the same task.
+
+Unchanged S02 security, release build and backend-conformance evidence is
+reused. Only affected documentation/diff checks run at this task boundary.
+S08.5 is complete; S08.6 monitoring and whole-S08 review are next. The sole
+node already has the exact enabled configuration; no second deployment or
+additional production node is inferred. W27 remains deferred until S08 closes.
+
+Affected documentation guard and git diff --check pass for the S08.5 task
+commit. The unrelated root README change and unpublished layout ancestor are
+excluded from publication; private runtime evidence remains outside Git.

@@ -174,10 +174,11 @@ demand-eligibility, schema, filesystem, concurrency, hot-path,
 creative-boundary, and static-analysis findings without reopening those
 completed milestones. S07 is complete: production backfill, protected canary,
 rotation, plaintext retirement and fresh owner sign-in/recovery-page checks
-pass, with bounded review 8/10. S08 is in progress: separately restricted
-runtime and maintenance database credentials are provisioned and recovery-
-verified, but are not active HTTP credentials. Identity activation, common-key
-provisioning and the non-advertiser canary remain pending.
+pass, with bounded review 8/10. S08 is in progress: the restricted runtime
+principal and recovered common Identity key are active. Identity is enabled
+on yixin, the sole node, with advertiser TOTP optional. The analyst canary
+passes enrollment, TOTP and one-use recovery, logout/CSRF, denials and controlled
+idle/absolute expiry. Final monitoring and whole-milestone review remain pending.
 Completed O04 deployment work moved reusable strict
 preflight, deployment, proxy-free health checks, rollback, and credential-free
 history into Aofei without embedding W8M host values. O05 replaced O04's
@@ -327,4 +328,7 @@ release build passes. S08.4 installs the capable immutable release with HTTP
 Identity disabled and the recovered common key. The restricted runtime
 principal is active; fresh owner advertiser sign-in, recovery mail/page,
 Publisher registration/email activation and both portal entry pages pass.
-Identity activation and the analyst canary remain S08.5 work.
+S08.5 enables Identity on the sole production node under exact owner approval;
+the service/key/readiness checks pass. Advertiser TOTP stays optional. The
+analyst canary passes required enrollment, TOTP/recovery, logout/CSRF, denial
+and controlled expiry checks. Final monitoring and whole-S08 review remain pending.
