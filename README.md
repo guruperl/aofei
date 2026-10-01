@@ -186,7 +186,7 @@ kept in `tabilet/memory-bank/`; it is not a current deployment guide.
   repository guards.
 - [docs/README.md](docs/README.md): complete documentation index by audience and
   A/D/I/O/P/R/S lane.
-- [memory-bank/](tabilet/memory-bank): current product, architecture, toolchain,
+- [tabilet/memory-bank/](tabilet/memory-bank/): current product, architecture, toolchain,
   milestone, and per-lane status source of truth.
 - [AGENTS.md](AGENTS.md), [GOAL.md](tabilet/GOAL.md), and [SECURITY.md](SECURITY.md):
   repository work protocol, reusable multi-milestone loop with bounded
